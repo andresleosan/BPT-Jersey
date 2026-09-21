@@ -31,6 +31,17 @@ export const sessionStatuses = Object.freeze([
 ] as const);
 export type SessionStatus = (typeof sessionStatuses)[number];
 
+export const classAccessModes = Object.freeze(["membership", "intro"] as const);
+export type ClassAccessMode = (typeof classAccessModes)[number];
+
+export function sessionAccessMode(value: { readonly accessMode?: unknown }): ClassAccessMode {
+  if (value.accessMode === undefined) return "membership";
+  if (classAccessModes.includes(value.accessMode as ClassAccessMode)) {
+    return value.accessMode as ClassAccessMode;
+  }
+  throw new Error("Stored session accessMode is invalid");
+}
+
 export const daysOfWeek = Object.freeze([1, 2, 3, 4, 5, 6, 7] as const);
 export type DayOfWeek = (typeof daysOfWeek)[number];
 
@@ -171,6 +182,7 @@ export type ClassRecord = Readonly<{
   description: string;
   ageRange: AgeRange | null;
   levelRange: LevelRange | null;
+  accessMode: ClassAccessMode;
   instructorIds: readonly string[];
   capacity: number;
   minParticipants: number;
@@ -220,6 +232,7 @@ export type SessionRecord = Readonly<{
   weeklyIndex?: number;
   weeklyOverride?: boolean;
   repeatWeekly?: boolean;
+  accessMode?: ClassAccessMode;
 }>;
 
 export type CreateClassInput = Readonly<{
@@ -233,6 +246,7 @@ export type CreateClassInput = Readonly<{
   description?: string;
   ageRange?: AgeRange | null;
   levelRange?: LevelRange | null;
+  accessMode?: ClassAccessMode;
 }>;
 
 export type UpdateClassInput = Readonly<{
@@ -246,6 +260,7 @@ export type UpdateClassInput = Readonly<{
   description?: string;
   ageRange?: AgeRange | null;
   levelRange?: LevelRange | null;
+  accessMode?: ClassAccessMode;
 }>;
 
 export type CreateSessionInput = Readonly<{
@@ -266,6 +281,7 @@ export type CreateSessionInput = Readonly<{
   bookingRules?: SessionBookingRules;
   waitingList?: WaitingListMode;
   repeatWeekly?: boolean;
+  accessMode?: ClassAccessMode;
 }>;
 
 export type UpdateSessionInput = Readonly<{
@@ -284,6 +300,7 @@ export type UpdateSessionInput = Readonly<{
   bookingRules?: SessionBookingRules;
   waitingList?: WaitingListMode;
   repeatWeekly?: boolean;
+  accessMode?: ClassAccessMode;
 }>;
 
 export const classRemovalReasonMinLength = 2;
@@ -441,6 +458,7 @@ export function normalizeClassRecord(raw: unknown): ClassRecord {
     description: description.ok ? description.value : "",
     ageRange: ageRange ? ageRange.value : null,
     levelRange: levelRange ? levelRange.value : null,
+    accessMode: sessionAccessMode(raw),
     instructorIds: Object.freeze([...instructorIds]),
     capacity,
     minParticipants,
@@ -469,10 +487,15 @@ export function parseCreateClassInput(input: unknown): Result<CreateClassInput, 
     description,
     ageRange,
     levelRange,
+    accessMode = "membership",
   } = input;
 
   if (typeof programId !== "string" || programId.trim().length === 0) {
     return err("programId is required");
+  }
+
+  if (!classAccessModes.includes(accessMode as ClassAccessMode)) {
+    return err("accessMode must be membership or intro");
   }
 
   if (typeof locationId !== "string" || !defaultLocationIds.includes(locationId)) {
@@ -541,6 +564,7 @@ export function parseCreateClassInput(input: unknown): Result<CreateClassInput, 
       description: descriptionResult.value,
       ageRange: parsedAgeRange,
       levelRange: parsedLevelRange,
+      accessMode: accessMode as ClassAccessMode,
     }),
   );
 }
@@ -561,6 +585,7 @@ export function parseUpdateClassInput(input: unknown): Result<UpdateClassInput, 
     description,
     ageRange,
     levelRange,
+    accessMode,
   } = input;
   if (typeof classId !== "string" || classId.trim().length === 0) {
     return err("classId is required");
@@ -574,7 +599,8 @@ export function parseUpdateClassInput(input: unknown): Result<UpdateClassInput, 
     active === undefined &&
     description === undefined &&
     ageRange === undefined &&
-    levelRange === undefined
+    levelRange === undefined &&
+    accessMode === undefined
   ) {
     return err("At least one class field must be updated");
   }
@@ -617,6 +643,9 @@ export function parseUpdateClassInput(input: unknown): Result<UpdateClassInput, 
   if (active !== undefined && typeof active !== "boolean") {
     return err("active must be a boolean");
   }
+  if (accessMode !== undefined && !classAccessModes.includes(accessMode as ClassAccessMode)) {
+    return err("accessMode must be membership or intro");
+  }
   const rulesResult =
     recurrenceRules === undefined ? undefined : parseRecurrenceRules(recurrenceRules);
   if (rulesResult && !rulesResult.ok) return err(rulesResult.error);
@@ -651,6 +680,7 @@ export function parseUpdateClassInput(input: unknown): Result<UpdateClassInput, 
     description?: string;
     ageRange?: AgeRange | null;
     levelRange?: LevelRange | null;
+    accessMode?: ClassAccessMode;
   } = { classId: classId.trim() };
   if (typeof name === "string") result.name = name.trim();
   if (rulesResult && rulesResult.ok) result.recurrenceRules = rulesResult.value;
@@ -665,6 +695,7 @@ export function parseUpdateClassInput(input: unknown): Result<UpdateClassInput, 
   if (descriptionResult && descriptionResult.ok) result.description = descriptionResult.value;
   if (parsedAgeRange !== undefined) result.ageRange = parsedAgeRange;
   if (parsedLevelRange !== undefined) result.levelRange = parsedLevelRange;
+  if (accessMode !== undefined) result.accessMode = accessMode as ClassAccessMode;
   return ok(Object.freeze(result));
 }
 
@@ -735,6 +766,7 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
     bookingRules,
     waitingList,
     repeatWeekly,
+    accessMode = "membership",
   } = input;
 
   if (
@@ -747,6 +779,10 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
 
   if (typeof programId !== "string" || programId.trim().length === 0) {
     return err("programId is required");
+  }
+
+  if (!classAccessModes.includes(accessMode as ClassAccessMode)) {
+    return err("accessMode must be membership or intro");
   }
 
   if (typeof locationId !== "string" || locationId.trim().length === 0) {
@@ -824,6 +860,7 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
       capacity,
       minParticipants,
       isSeminar: Boolean(isSeminar),
+      accessMode: accessMode as ClassAccessMode,
       ...(descriptionResult && descriptionResult.ok
         ? { description: descriptionResult.value }
         : {}),
@@ -853,6 +890,7 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
     bookingRules,
     waitingList,
     repeatWeekly,
+    accessMode,
   } = input;
   if (repeatScope !== undefined && repeatScope !== "single" && repeatScope !== "following") {
     return err("repeatScope must be single or following");
@@ -875,6 +913,7 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
       bookingRules,
       waitingList,
       repeatWeekly,
+      accessMode,
     ].every((value) => value === undefined)
   ) {
     return err("At least one session field must be updated");
@@ -938,6 +977,9 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
   if (repeatWeekly !== undefined && typeof repeatWeekly !== "boolean") {
     return err("repeatWeekly must be a boolean");
   }
+  if (accessMode !== undefined && !classAccessModes.includes(accessMode as ClassAccessMode)) {
+    return err("accessMode must be membership or intro");
+  }
   const extras = parseSessionExtras(instructorIds, bookingRules, waitingList);
   if (!extras.ok) return err(extras.error);
   const result: { -readonly [K in keyof UpdateSessionInput]: UpdateSessionInput[K] } = {
@@ -956,6 +998,7 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
   if (extras.value.bookingRules !== undefined) result.bookingRules = extras.value.bookingRules;
   if (extras.value.waitingList !== undefined) result.waitingList = extras.value.waitingList;
   if (typeof repeatWeekly === "boolean") result.repeatWeekly = repeatWeekly;
+  if (accessMode !== undefined) result.accessMode = accessMode as ClassAccessMode;
   if (repeatScope !== undefined) result.repeatScope = repeatScope;
   return ok(Object.freeze(result));
 }
@@ -1202,6 +1245,7 @@ export function generateSessionsFromClass(
     description,
     ageRange,
     levelRange,
+    accessMode,
   } = classRecord;
   const sessions: Omit<SessionRecord, "createdAt" | "createdBy" | "updatedAt" | "updatedBy">[] = [];
   const from = new Date(`${fromDate}T00:00:00Z`);
@@ -1233,6 +1277,7 @@ export function generateSessionsFromClass(
           status: "scheduled" as const,
           isSeminar: false,
           cancellationReason: null,
+          accessMode,
           schemaVersion: "1" as const,
           description,
           ageRange,
@@ -1330,16 +1375,33 @@ export type CourseBookingRecord = Omit<LegacyBookingRecord, "membershipId" | "sc
   schemaVersion: "2"; membershipId: null;
   source: {kind: "course"; courseId: string; enrolmentId: string}; absent: boolean;
 };
-export type BookingRecord = LegacyBookingRecord | CourseBookingRecord;
+export type IntroBookingRecord = Omit<LegacyBookingRecord, "membershipId" | "schemaVersion"> & {
+  schemaVersion: "3";
+  membershipId: null;
+  source: { kind: "intro" };
+};
+export type BookingRecord = LegacyBookingRecord | CourseBookingRecord | IntroBookingRecord;
 export function isCourseBooking(value: BookingRecord): value is CourseBookingRecord {
   return value.schemaVersion === "2" && value.membershipId === null && value.source.kind === "course";
 }
+export function isIntroBooking(value: BookingRecord): value is IntroBookingRecord {
+  return value.schemaVersion === "3" && value.membershipId === null && value.source.kind === "intro";
+}
 
-export type RequestBookingInput = Readonly<{
+export type RequestMembershipBookingInput = Readonly<{
+  kind: "membership";
   sessionId: string;
   studentId: string;
   membershipId: string;
 }>;
+
+export type RequestIntroBookingInput = Readonly<{
+  kind: "intro";
+  sessionId: string;
+  studentId: string;
+}>;
+
+export type RequestBookingInput = RequestMembershipBookingInput | RequestIntroBookingInput;
 
 export type CancelBookingInput = Readonly<{
   sessionId: string;
@@ -1402,27 +1464,35 @@ export function parseRequestBookingInput(input: unknown): Result<RequestBookingI
     return err("Booking request input must be an object");
   }
 
-  const { sessionId, studentId, membershipId } = input;
-
+  const { kind, sessionId, studentId, membershipId } = input;
   if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
     return err("sessionId is required");
   }
-
   if (typeof studentId !== "string" || studentId.trim().length === 0) {
     return err("studentId is required");
   }
 
+  if (kind === "intro") {
+    if (membershipId !== undefined) return err("Intro bookings cannot include membershipId");
+    return ok(Object.freeze({
+      kind: "intro" as const,
+      sessionId: sessionId.trim(),
+      studentId: studentId.trim(),
+    }));
+  }
+  if (kind !== undefined && kind !== "membership") {
+    return err("kind must be membership or intro");
+  }
   if (typeof membershipId !== "string" || membershipId.trim().length === 0) {
     return err("membershipId is required");
   }
 
-  return ok(
-    Object.freeze({
-      sessionId: sessionId.trim(),
-      studentId: studentId.trim(),
-      membershipId: membershipId.trim(),
-    }),
-  );
+  return ok(Object.freeze({
+    kind: "membership" as const,
+    sessionId: sessionId.trim(),
+    studentId: studentId.trim(),
+    membershipId: membershipId.trim(),
+  }));
 }
 
 export function parseCancelBookingInput(input: unknown): Result<CancelBookingInput, string> {
