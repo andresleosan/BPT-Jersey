@@ -1261,17 +1261,22 @@ export function createFirestoreScheduleStore(options: {
       const counts: Record<string, number> = Object.fromEntries(sessionIds.map((id) => [id, 0]));
       const unique = [...new Set(sessionIds)];
       // ponytail: Firestore `in` takes 30 values; two weeks of sessions is under that most days.
+      const chunks = [];
       for (let index = 0; index < unique.length; index += 30) {
-        const chunk = unique.slice(index, index + 30);
-        const snapshot = await firestore
-          .collection(`academies/${academyId}/bookings`)
-          .where("sessionId", "in", chunk)
-          .where("status", "==", "confirmed")
-          .get();
-        for (const doc of snapshot.docs) {
-          const booking = doc.data() as BookingRecord;
-          counts[booking.sessionId] = (counts[booking.sessionId] ?? 0) + 1;
-        }
+        chunks.push(unique.slice(index, index + 30));
+      }
+      const snapshots = await Promise.all(
+        chunks.map((chunk) =>
+          firestore
+            .collection(`academies/${academyId}/bookings`)
+            .where("sessionId", "in", chunk)
+            .where("status", "==", "confirmed")
+            .get(),
+        ),
+      );
+      for (const doc of snapshots.flatMap((snapshot) => snapshot.docs)) {
+        const booking = doc.data() as BookingRecord;
+        counts[booking.sessionId] = (counts[booking.sessionId] ?? 0) + 1;
       }
       return Object.freeze(counts);
     },
