@@ -345,13 +345,13 @@ function assertValidAcademyId(academyId: string): void {
   }
 }
 
-type GenericDocumentSnapshot = Readonly<{
+export type GenericDocumentSnapshot = Readonly<{
   id?: string;
   exists: boolean;
   data: () => Record<string, unknown> | undefined;
 }>;
 
-type GenericDocumentReference = Readonly<{
+export type GenericDocumentReference = Readonly<{
   id: string;
   path?: string;
   get: () => Promise<GenericDocumentSnapshot>;
@@ -359,7 +359,7 @@ type GenericDocumentReference = Readonly<{
   delete: () => Promise<unknown>;
 }>;
 
-type GenericQuerySnapshot = Readonly<{
+export type GenericQuerySnapshot = Readonly<{
   docs: readonly {
     id: string;
     data: () => Record<string, unknown>;
@@ -367,11 +367,11 @@ type GenericQuerySnapshot = Readonly<{
   }[];
 }>;
 
-type GenericCollectionReference = Readonly<{
+export type GenericCollectionReference = Readonly<{
   get: () => Promise<GenericQuerySnapshot>;
 }>;
 
-type GenericTransaction = Readonly<{
+export type GenericTransaction = Readonly<{
   get: {
     (reference: GenericDocumentReference): Promise<GenericDocumentSnapshot>;
     (reference: GenericCollectionReference): Promise<GenericQuerySnapshot>;
@@ -1187,7 +1187,9 @@ function countedAttendance(
     return [value];
   });
   // A linked historical identity cannot add a second visit to the same session.
-  for (const record of records.sort((a, b) => String(a.occurredAt).localeCompare(String(b.occurredAt)))) {
+  for (const record of records.sort((a, b) =>
+    String(a.occurredAt).localeCompare(String(b.occurredAt)),
+  )) {
     const sessionId = String(record.sessionId);
     if (!countedSessions.has(sessionId)) countedSessions.set(sessionId, record);
   }
@@ -1749,7 +1751,11 @@ export function createLevelCatalogStore({
         studentId,
       );
       const snapshot = await readCanonicalMemberHistoryDocuments(
-        firestore as unknown as Firestore, academyId, studentId, "assessments", MAX_LEVEL_RECORDS,
+        firestore as unknown as Firestore,
+        academyId,
+        studentId,
+        "assessments",
+        MAX_LEVEL_RECORDS,
       );
       return snapshot.docs
         .map((document) => {
@@ -1804,7 +1810,13 @@ export function createLevelCatalogStore({
       const [catalog, evaluations, attendanceSnapshot] = await Promise.all([
         this.listPublished(academyId),
         this.listStudentEvaluations(academyId, studentId),
-        readCanonicalMemberHistoryDocuments(firestore as unknown as Firestore, academyId, studentId, "attendance", MAX_LEVEL_RECORDS),
+        readCanonicalMemberHistoryDocuments(
+          firestore as unknown as Firestore,
+          academyId,
+          studentId,
+          "attendance",
+          MAX_LEVEL_RECORDS,
+        ),
       ]);
       if (
         catalog.system.systemId !== headData.systemId ||
@@ -1814,15 +1826,28 @@ export function createLevelCatalogStore({
       ) {
         throw new LevelStoreError("conflict", "Progress definition is not current");
       }
-      const attendance = countedAttendance(attendanceSnapshot, academyId, studentId, attendanceSnapshot.ids);
+      const attendance = countedAttendance(
+        attendanceSnapshot,
+        academyId,
+        studentId,
+        attendanceSnapshot.ids,
+      );
       const sessionIds = [...new Set(attendance.map((record) => String(record.sessionId)))];
-      const sessionDocuments = await Promise.all(sessionIds.map(async (id) => ({
-        id, snapshot: await firestore.doc(`academies/${academyId}/sessions/${id}`).get(),
-      })));
+      const sessionDocuments = await Promise.all(
+        sessionIds.map(async (id) => ({
+          id,
+          snapshot: await firestore.doc(`academies/${academyId}/sessions/${id}`).get(),
+        })),
+      );
       const sessions = new Map(
         sessionDocuments.map(({ id, snapshot }) => {
           const value = snapshot.data();
-          if (!snapshot.exists || !value || value.academyId !== academyId || value.sessionId !== id) {
+          if (
+            !snapshot.exists ||
+            !value ||
+            value.academyId !== academyId ||
+            value.sessionId !== id
+          ) {
             throw new LevelStoreError("tenant", "Session scope is invalid");
           }
           return [id, value] as const;
@@ -1929,7 +1954,11 @@ export function createLevelCatalogStore({
         studentId,
       );
       const snapshot = await readCanonicalMemberHistoryDocuments(
-        firestore as unknown as Firestore, academyId, studentId, "medicalLeaves", MAX_LEVEL_RECORDS,
+        firestore as unknown as Firestore,
+        academyId,
+        studentId,
+        "medicalLeaves",
+        MAX_LEVEL_RECORDS,
       );
       return snapshot.docs
         .map((document) => {
@@ -2289,11 +2318,20 @@ export function createLevelCatalogStore({
       const [catalog, evaluations, attendanceSnapshot] = await Promise.all([
         this.listPublished(academyId),
         this.listStudentEvaluations(academyId, input.studentId),
-        readCanonicalMemberHistoryDocuments(firestore as unknown as Firestore, academyId, input.studentId, "attendance", MAX_LEVEL_RECORDS),
+        readCanonicalMemberHistoryDocuments(
+          firestore as unknown as Firestore,
+          academyId,
+          input.studentId,
+          "attendance",
+          MAX_LEVEL_RECORDS,
+        ),
       ]);
-      const attendedAt = countedAttendance(attendanceSnapshot, academyId, input.studentId, attendanceSnapshot.ids).map(
-        (record) => record.occurredAt as string,
-      );
+      const attendedAt = countedAttendance(
+        attendanceSnapshot,
+        academyId,
+        input.studentId,
+        attendanceSnapshot.ids,
+      ).map((record) => record.occurredAt as string);
       return firestore.runTransaction(async (transaction) => {
         await assertTransactionalActor(transaction, firestore, {
           academyId,
@@ -2523,7 +2561,13 @@ export function createLevelCatalogStore({
       );
       const [head, snapshot] = await Promise.all([
         firestore.doc(`academies/${academyId}/studentLevelProgress/${studentId}`).get(),
-        readCanonicalMemberHistoryDocuments(firestore as unknown as Firestore, academyId, studentId, "levelPromotions", MAX_LEVEL_RECORDS),
+        readCanonicalMemberHistoryDocuments(
+          firestore as unknown as Firestore,
+          academyId,
+          studentId,
+          "levelPromotions",
+          MAX_LEVEL_RECORDS,
+        ),
       ]);
       const headData = head.data();
       if (head.exists && (headData?.academyId !== academyId || headData.studentId !== studentId)) {
@@ -2641,12 +2685,22 @@ export function createLevelCatalogStore({
           studentId,
         );
       }
-      const scoped = studentId === undefined ? undefined : await readCanonicalMemberHistoryDocuments(
-        firestore as unknown as Firestore, academyId, studentId, "levelPromotions", MAX_LEVEL_RECORDS,
-      );
-      const snapshot = scoped ?? withinLimit(
-        await firestore.collection(`academies/${academyId}/levelPromotions`).get(), "Level promotions",
-      );
+      const scoped =
+        studentId === undefined
+          ? undefined
+          : await readCanonicalMemberHistoryDocuments(
+              firestore as unknown as Firestore,
+              academyId,
+              studentId,
+              "levelPromotions",
+              MAX_LEVEL_RECORDS,
+            );
+      const snapshot =
+        scoped ??
+        withinLimit(
+          await firestore.collection(`academies/${academyId}/levelPromotions`).get(),
+          "Level promotions",
+        );
       return snapshot.docs
         .flatMap((document) => {
           const data = document.data();
@@ -3539,3 +3593,5 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
     },
   };
 }
+
+export { createLevelProgressMigrationStore } from "./level-progress-migration.js";

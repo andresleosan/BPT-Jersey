@@ -15,6 +15,7 @@ import {
   levelCatalogSourcePaths,
   rollbackLevelCatalog,
   seedLevelCatalog,
+  productionV3SeedConfirmation,
   type LevelSeedTargetEnvironment,
 } from "./level-seed";
 import { approvedLevelCatalogSourceHashes } from "./level-source";
@@ -100,6 +101,30 @@ describe("Level Seed Guard and Execution", () => {
         systemId: "ibjjf-v2",
       }),
     ).resolves.toBeDefined();
+  });
+
+  it("requires a distinct production confirmation for ibjjf-v3", async () => {
+    const store = createInMemoryLevelStore();
+    await expect(
+      seedLevelCatalog({
+        target: "production",
+        academyId: "demo-academy-v3",
+        confirmation: "T051V2-LEVELS-PRODUCTION-SEED",
+        environment: productionEnvironment(),
+        store,
+        systemId: "ibjjf-v3",
+      }),
+    ).rejects.toThrow(new RegExp(productionV3SeedConfirmation));
+    await expect(
+      seedLevelCatalog({
+        target: "production",
+        academyId: "demo-academy-v3",
+        confirmation: productionV3SeedConfirmation,
+        environment: productionEnvironment(),
+        store,
+        systemId: "ibjjf-v3",
+      }),
+    ).resolves.toMatchObject({ systemId: "ibjjf-v3" });
   });
 
   it("keeps staging closed while no exact project is allowlisted", async () => {
@@ -308,6 +333,9 @@ describe("Level Seed Guard and Execution", () => {
     expect(
       parseArguments(["--target=emulator", "--academy-id=demo-academy", "--system-id=ibjjf-v2"]),
     ).toEqual({ "academy-id": "demo-academy", "system-id": "ibjjf-v2", target: "emulator" });
+    expect(
+      parseArguments(["--target=emulator", "--academy-id=demo-academy", "--system-id=ibjjf-v3"]),
+    ).toEqual({ "academy-id": "demo-academy", "system-id": "ibjjf-v3", target: "emulator" });
     expect(() =>
       parseArguments(["--target=emulator", "--academy-id=demo-academy", "--rollback"]),
     ).toThrow(/Invalid level seed arguments/);
@@ -346,6 +374,7 @@ describe("Level Seed Guard and Execution", () => {
       target: string,
       isRollback: boolean,
       confirmation?: string,
+      systemId?: string,
     ) => void;
 
     expect(() => confirmationGuard("staging", false)).toThrow(/T083-LEVELS-SEED/);
@@ -355,6 +384,9 @@ describe("Level Seed Guard and Execution", () => {
     expect(() => confirmationGuard("staging", false, "T083-LEVELS-SEED")).not.toThrow();
     expect(() => confirmationGuard("staging", true, "T083-LEVELS-ROLLBACK")).not.toThrow();
     expect(() => confirmationGuard("emulator", false)).not.toThrow();
+    expect(() =>
+      confirmationGuard("production", false, "T051V2-LEVELS-PRODUCTION-SEED", "ibjjf-v3"),
+    ).toThrow(/V3/);
   });
 
   it("requires separate staging confirmations for seed and rollback", async () => {
@@ -532,6 +564,24 @@ describe("Level Seed Guard and Execution", () => {
     expect(rollback.deletedDefinitions).toBe(177);
   });
 
+  it("loads and seeds the approved ibjjf-v3 catalogue into an emulator target", async () => {
+    const catalog = loadApprovedLevelCatalog({ systemId: "ibjjf-v3" });
+    expect(catalog.system.systemId).toBe("ibjjf-v3");
+    expect(
+      catalog.definitions.find(({ definitionKey }) => definitionKey === "white-belt")?.criteria,
+    ).toMatchObject({ minClasses: 20, minimumTime: { days: 60 } });
+    const store = createInMemoryLevelStore();
+    await expect(
+      seedLevelCatalog({
+        target: "emulator",
+        academyId: "demo-academy-v3",
+        systemId: "ibjjf-v3",
+        environment: emulatorEnvironment(),
+        store,
+      }),
+    ).resolves.toMatchObject({ systemId: "ibjjf-v3", definitionCount: 177 });
+  });
+
   it("refuses custom sources for ibjjf-v2 instead of silently loading ibjjf-v1", async () => {
     expect(() =>
       loadApprovedLevelCatalog({ systemId: "ibjjf-v2", customObserved: observedJson }),
@@ -556,7 +606,7 @@ describe("Level Seed Guard and Execution", () => {
       seedLevelCatalog({
         target: "emulator",
         academyId: "demo-academy",
-        systemId: "ibjjf-v3" as unknown as "ibjjf-v2",
+        systemId: "ibjjf-v9" as unknown as "ibjjf-v2",
         environment: emulatorEnvironment(),
         store,
       }),

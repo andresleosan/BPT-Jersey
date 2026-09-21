@@ -84,18 +84,28 @@ export function parseLevelSeedArguments(arguments_) {
     !hasTarget ||
     !hasAcademyId ||
     (isRollback && !hasSystemId) ||
-    (hasSystemId && options["system-id"] !== "ibjjf-v1" && options["system-id"] !== "ibjjf-v2")
+    (hasSystemId &&
+      options["system-id"] !== "ibjjf-v1" &&
+      options["system-id"] !== "ibjjf-v2" &&
+      options["system-id"] !== "ibjjf-v3")
   ) {
     throw new Error("Invalid level seed arguments.");
   }
   return options;
 }
 
-export function assertLevelSeedConfirmation(target, isRollback, confirmation) {
+export function assertLevelSeedConfirmation(target, isRollback, confirmation, systemId) {
   let expected;
   if (target === "staging") expected = isRollback ? "T083-LEVELS-ROLLBACK" : "T083-LEVELS-SEED";
   else if (target === "production") {
-    expected = isRollback ? "T051V2-LEVELS-PRODUCTION-ROLLBACK" : "T051V2-LEVELS-PRODUCTION-SEED";
+    expected =
+      systemId === "ibjjf-v3"
+        ? isRollback
+          ? "T091-LEVELS-V3-PRODUCTION-ROLLBACK"
+          : "T091-LEVELS-V3-PRODUCTION-SEED"
+        : isRollback
+          ? "T051V2-LEVELS-PRODUCTION-ROLLBACK"
+          : "T051V2-LEVELS-PRODUCTION-SEED";
   } else return;
   if (confirmation !== expected) {
     throw new Error(`Confirmation required for ${target}: ${expected}`);

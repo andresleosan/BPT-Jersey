@@ -25,7 +25,7 @@ async function main() {
     nodeEnvironment: process.env.NODE_ENV,
   };
   const targetBinding = assertLevelSeedTargetEnvironment(target, initialEnvironment);
-  assertLevelSeedConfirmation(target, isRollback, confirmation);
+  assertLevelSeedConfirmation(target, isRollback, confirmation, systemId);
   // Load the Admin SDK from the deploy artifact dependency tree, the same one the compiled
   // level-service/audit-writer use. Mixing two firebase-admin copies breaks the publication:
   // FieldValue.serverTimestamp() from one copy cannot be serialized by the other Firestore client.

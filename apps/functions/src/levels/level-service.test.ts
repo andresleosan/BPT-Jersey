@@ -3,10 +3,14 @@ import { describe, expect, it } from "vitest";
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
 import { normalizeLevelCatalogSource } from "./level-source";
-import { createInMemoryLevelStore } from "./level-service";
+import { createInMemoryLevelStore, createLevelProgressMigrationStore } from "./level-service";
 
 describe("Level Service & Store", () => {
   const normalized = normalizeLevelCatalogSource(observedJson, businessCriteriaJson);
+
+  it("exposes the guarded progress migration store through the level service boundary", () => {
+    expect(createLevelProgressMigrationStore).toBeTypeOf("function");
+  });
 
   /**
    * Opens a level at the first belt of the seeded catalogue and returns that belt and the very next

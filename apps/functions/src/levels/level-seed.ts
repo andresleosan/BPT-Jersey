@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   buildIbjjfV2CatalogSources,
+  buildIbjjfV3CatalogSources,
   isLevelCatalogVersion,
   type LevelCatalogVersion,
 } from "@bpt-jersey/domain/levels";
@@ -93,21 +94,20 @@ export function loadApprovedLevelCatalog(
     systemId?: LevelCatalogVersion;
   }> = {},
 ): NormalizedLevelCatalog {
+  const derivedVersion = input.systemId === "ibjjf-v2" || input.systemId === "ibjjf-v3";
   if (
-    input.systemId === "ibjjf-v2" &&
+    derivedVersion &&
     (input.customObserved !== undefined || input.customBusiness !== undefined)
   ) {
-    throw new Error("Custom sources are not supported for ibjjf-v2.");
+    throw new Error(`Custom sources are not supported for ${input.systemId}.`);
   }
-  const { observed, business } =
-    input.systemId === "ibjjf-v2" &&
-    input.customObserved === undefined &&
-    input.customBusiness === undefined
-      ? buildIbjjfV2CatalogSources(
-          readApprovedSourceFile(levelCatalogSourcePaths.observed),
-          readApprovedSourceFile(levelCatalogSourcePaths.regyfitStructure),
-        )
-      : loadLevelCatalogSources(input);
+  const sources = loadLevelCatalogSources(input);
+  const { observed, business } = derivedVersion
+    ? (input.systemId === "ibjjf-v3" ? buildIbjjfV3CatalogSources : buildIbjjfV2CatalogSources)(
+        readApprovedSourceFile(levelCatalogSourcePaths.observed),
+        readApprovedSourceFile(levelCatalogSourcePaths.regyfitStructure),
+      )
+    : sources;
   const normalized = normalizeLevelCatalogSource(observed, business);
   // Fail before any store access when the sources are not the exact approved files.
   assertApprovedLevelCatalogSource(normalized);
@@ -125,6 +125,8 @@ const firebaseProjectIdPattern = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/u;
 const productionProjectId = "bptjersey-f5a25";
 export const productionSeedConfirmation = "T051V2-LEVELS-PRODUCTION-SEED";
 export const productionRollbackConfirmation = "T051V2-LEVELS-PRODUCTION-ROLLBACK";
+export const productionV3SeedConfirmation = "T091-LEVELS-V3-PRODUCTION-SEED";
+export const productionV3RollbackConfirmation = "T091-LEVELS-V3-PRODUCTION-ROLLBACK";
 
 function unsafeTarget(): never {
   throw new Error("Level seed target is not safe.");
@@ -168,10 +170,22 @@ function assertSupportedTarget(target: string): void {
   }
 }
 
-function assertConfirmation(target: string, confirmation: string | undefined, rollback: boolean) {
+function assertConfirmation(
+  target: string,
+  confirmation: string | undefined,
+  rollback: boolean,
+  systemId: LevelCatalogVersion | undefined,
+) {
   let expected: string | undefined;
   if (target === "production") {
-    expected = rollback ? productionRollbackConfirmation : productionSeedConfirmation;
+    expected =
+      systemId === "ibjjf-v3"
+        ? rollback
+          ? productionV3RollbackConfirmation
+          : productionV3SeedConfirmation
+        : rollback
+          ? productionRollbackConfirmation
+          : productionSeedConfirmation;
   } else if (target === "staging") {
     expected = rollback ? "T083-LEVELS-ROLLBACK" : "T083-LEVELS-SEED";
   }
@@ -227,7 +241,7 @@ export function assertLevelSeedTargetEnvironment(
 
 export async function seedLevelCatalog(input: SeedLevelCatalogInput): Promise<LevelSeedResult> {
   assertSupportedTarget(input.target);
-  assertConfirmation(input.target, input.confirmation, false);
+  assertConfirmation(input.target, input.confirmation, false, input.systemId);
   assertLevelSeedTargetEnvironment(input.target, input.environment);
   if (input.systemId !== undefined && !isLevelCatalogVersion(input.systemId)) {
     throw new Error("Unsupported level system seed target.");
@@ -244,11 +258,11 @@ export async function rollbackLevelCatalog(
   input: RollbackLevelCatalogInput,
 ): Promise<LevelRollbackResult> {
   assertSupportedTarget(input.target);
-  assertConfirmation(input.target, input.confirmation, true);
-  assertLevelSeedTargetEnvironment(input.target, input.environment);
   if (!isLevelCatalogVersion(input.systemId)) {
     throw new Error("Unsupported level system rollback target.");
   }
+  assertConfirmation(input.target, input.confirmation, true, input.systemId);
+  assertLevelSeedTargetEnvironment(input.target, input.environment);
   const normalized = loadApprovedLevelCatalog({ systemId: input.systemId });
 
   return input.store.rollback({
