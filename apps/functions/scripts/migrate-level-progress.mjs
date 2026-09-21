@@ -13,7 +13,9 @@ const allowed = new Set([
   "operation-id",
   "generated-at",
   "apply",
+  "activate",
   "confirmation",
+  "activation-confirmation",
   "target-confirmation",
   "actor-id",
 ]);
@@ -23,9 +25,9 @@ function parseArguments(values) {
   for (const argument of values) {
     if (!argument.startsWith("--")) throw new CliError("Invalid migration arguments.");
     const option = argument.slice(2);
-    if (option === "apply") {
-      if (options.apply === true) throw new CliError("Duplicate --apply.");
-      options.apply = true;
+    if (option === "apply" || option === "activate") {
+      if (options[option] === true) throw new CliError(`Duplicate --${option}.`);
+      options[option] = true;
       continue;
     }
     const separator = option.indexOf("=");
@@ -99,6 +101,9 @@ try {
     nodeEnvironment: process.env.NODE_ENV,
   };
   const binding = assertLevelSeedTargetEnvironment(target, initialEnvironment);
+  if (options.activate === true && options.apply !== true) {
+    throw new CliError("--activate requires --apply.");
+  }
   let actorId;
   if (options.apply === true) {
     actorId = required(options, "actor-id");
@@ -129,8 +134,9 @@ try {
     import("../../../.firebase-functions/lib/src/levels/level-progress-migration.js"),
   ]);
   const v3 = levelSeed.loadApprovedLevelCatalog({ systemId: "ibjjf-v3" });
+  const firestore = firebaseFirestore.getFirestore(initializedApp);
   const store = levelService.createLevelProgressMigrationStore(
-    firebaseFirestore.getFirestore(initializedApp),
+    firestore,
     v3.definitions.map(({ definitionKey }) => definitionKey),
   );
   const plan = await migration.planLevelProgressMigration(store, {
@@ -140,6 +146,8 @@ try {
   });
   const identity = { academyId, operationId, contentHash: plan.contentHash };
   const exactConfirmation = migration.expectedLevelProgressMigrationConfirmation(identity);
+  const exactActivationConfirmation =
+    migration.expectedLevelCatalogActivationConfirmation(identity);
 
   if (options.apply !== true) {
     process.stdout.write(
@@ -152,6 +160,7 @@ try {
           generatedAt,
           contentHash: plan.contentHash,
           exactConfirmation,
+          exactActivationConfirmation,
           rows: safeRows(plan.rows),
         },
         null,
@@ -162,12 +171,33 @@ try {
     if (options.confirmation !== exactConfirmation) {
       throw new CliError("The exact dry-run confirmation is required for --apply.");
     }
+    if (
+      options.activate === true &&
+      options["activation-confirmation"] !== exactActivationConfirmation
+    ) {
+      throw new CliError("The exact catalogue activation confirmation is required.");
+    }
     const result = await migration.applyLevelProgressMigration(store, plan, {
       ...identity,
       confirmation: options.confirmation,
       actorId,
       appliedAt: generatedAt,
     });
+    let activation;
+    if (options.activate === true) {
+      if (result.rows.some(({ status }) => status === "stale" || status === "manual_review")) {
+        throw new CliError("Catalogue activation requires every progress head to be resolved.");
+      }
+      activation = await levelService.createLevelCatalogStore({ firestore }).activate({
+        academyId,
+        fromSystemId: "ibjjf-v2",
+        toSystemId: "ibjjf-v3",
+        operationId,
+        contentHash: result.contentHash,
+        actorId,
+        activatedAt: generatedAt,
+      });
+    }
     process.stdout.write(
       `${JSON.stringify(
         {
@@ -176,6 +206,7 @@ try {
           academyId,
           operationId,
           contentHash: result.contentHash,
+          ...(activation === undefined ? {} : { activation }),
           rows: safeRows(result.rows),
         },
         null,

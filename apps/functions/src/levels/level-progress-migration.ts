@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import type { GenericFirestore } from "./level-service.js";
+import { levelCatalogStorageId } from "./level-catalog-integrity.js";
 
 const safeIdentifier = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const hashPattern = /^[a-f0-9]{64}$/u;
@@ -274,6 +275,15 @@ export function expectedLevelProgressMigrationConfirmation(
   return `APPLY LEVEL PROGRESS V3 ${academyId} ${operationId} ${hash}`;
 }
 
+export function expectedLevelCatalogActivationConfirmation(
+  input: Readonly<{ academyId: string; operationId: string; contentHash: string }>,
+): string {
+  const academyId = z.string().regex(safeIdentifier).parse(input.academyId);
+  const operationId = z.string().regex(safeIdentifier).parse(input.operationId);
+  const hash = z.string().regex(hashPattern).parse(input.contentHash);
+  return `ACTIVATE LEVEL CATALOG V3 ${academyId} ${operationId} ${hash}`;
+}
+
 function receiptId(academyId: string, operationId: string, recordId: string): string {
   return createHash("sha256").update(`${academyId}:${operationId}:${recordId}`).digest("hex");
 }
@@ -318,7 +328,7 @@ export async function applyLevelProgressMigration(
         `academies/${plan.academyId}/studentLevelProgress/${row.recordId}`,
       );
       const definitionRef = store.firestore.doc(
-        `academies/${plan.academyId}/levelDefinitions/${row.currentDefinitionKey}`,
+        `academies/${plan.academyId}/levelDefinitions/${levelCatalogStorageId("ibjjf-v3", row.currentDefinitionKey)}`,
       );
       const systemRef = store.firestore.doc(`academies/${plan.academyId}/levelSystems/ibjjf-v3`);
       const id = receiptId(plan.academyId, plan.operationId, row.recordId);
