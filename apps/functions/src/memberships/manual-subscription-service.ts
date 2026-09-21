@@ -2,7 +2,7 @@ import { canonicalMemberIdentityIds } from "../members/member-identity-resolutio
 import { createMemberDirectoryReadTransaction } from "../members/member-directory-firestore.js";
 import { memberHistoryEntrySchema } from "@bpt-jersey/domain/members/history";
 import { createHash } from "node:crypto";
-import type { DocumentSnapshot, Firestore } from "firebase-admin/firestore";
+import type { DocumentSnapshot, Firestore, Transaction } from "firebase-admin/firestore";
 import { HttpsError } from "firebase-functions/v2/https";
 import type { UserActorContext } from "@bpt-jersey/domain";
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
@@ -89,6 +89,18 @@ export async function saveManualSubscription(
   actor: UserActorContext,
   raw: ManualSubscriptionInput,
 ) {
+  return db.runTransaction((transaction) =>
+    saveManualSubscriptionInTransaction(db, transaction, actor, raw),
+  );
+}
+
+/** Compose a manual subscription into a wider Firestore transaction. */
+export async function saveManualSubscriptionInTransaction(
+  db: Firestore,
+  tx: Transaction,
+  actor: UserActorContext,
+  raw: ManualSubscriptionInput,
+) {
   if (actor.role !== "owner" && actor.role !== "administrator")
     throw new HttpsError("permission-denied", "Office access is required.");
   const input = manualSubscriptionSchema.parse(raw);
@@ -98,7 +110,7 @@ export async function saveManualSubscription(
   const fingerprint = createHash("sha256")
     .update(JSON.stringify({ actorId: actor.userId, input }))
     .digest("hex");
-  return db.runTransaction(async (tx) => {
+  {
     const [staff, roleLock] = await Promise.all([
       tx.get(ref("users", actor.userId)),
       tx.get(ref("adminRoleLocks", actor.userId)),
@@ -608,7 +620,7 @@ export async function saveManualSubscription(
         : `manual subscription ${input.operation}`,
     );
     return result;
-  });
+  }
 }
 
 export async function listSubscriptionBilling(db: Firestore, academyId: string, studentId: string) {

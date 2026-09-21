@@ -58,7 +58,7 @@ export async function getIntroMembershipContext(db: Firestore, actor: UserActorC
   const payment = parsePaymentInstructionsRecord(instructions.data());
   return {
     conversions: conversionValues,
-    applications: applicationValues,
+    applications: applicationValues.sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     plans: planValues.map(
       ({
         planId,
