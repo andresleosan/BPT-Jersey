@@ -146,5 +146,20 @@ describe("staff numeric login", () => {
     await expect(service.signIn(input, "ip")).rejects.toMatchObject({ code: "unauthenticated" });
     await service.signIn({ ...input, password: "replacement-password" }, "ip");
     expect(auth.createCustomToken).toHaveBeenCalledWith("coach-miro");
+    // requireUserActor rejects unknown custom claims, so a staff-ID account must never gain the flag.
+    expect(auth.setCustomUserClaims).not.toHaveBeenCalled();
+  });
+  it("removes the initial password flag instead of setting it to false", async () => {
+    const { service, user, auth } = fixture();
+    Object.assign(user.customClaims, { passwordChangeRequired: true });
+    await service.changePassword(
+      { ...input, newPassword: "replacement-password" },
+      "ip",
+      "coach-miro",
+    );
+    expect(auth.setCustomUserClaims).toHaveBeenCalledWith("coach-miro", {
+      academyId: "academy",
+      role: "coach",
+    });
   });
 });
