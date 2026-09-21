@@ -60,6 +60,9 @@ type Draft = Readonly<{
   cancelMinutes: string;
   advance: string;
   waitingList: WaitingListMode;
+  curriculumTitle: string;
+  curriculumTechniques: string;
+  curriculumDetails: string;
 }>;
 
 const defaultDurationMinutes = 60;
@@ -119,6 +122,9 @@ function draftFor(
       cancelMinutes: typeof cancelUntil === "string" ? "0" : String(cancelUntil.minutesBefore),
       advance: custom ? String(rules.advanceMinutes) : "0",
       waitingList: session.waitingList ?? "general",
+      curriculumTitle: session.curriculum?.title ?? "",
+      curriculumTechniques: session.curriculum?.techniques.join("\n") ?? "",
+      curriculumDetails: session.curriculum?.details ?? "",
     };
   }
   const date = defaults?.date ?? localParts(new Date().toISOString(), timezone).date;
@@ -140,6 +146,9 @@ function draftFor(
     cancelMinutes: "0",
     advance: "0",
     waitingList: "general",
+    curriculumTitle: "",
+    curriculumTechniques: "",
+    curriculumDetails: "",
   };
 }
 
@@ -153,6 +162,17 @@ function rulesOf(draft: Draft): SessionBookingRules {
         : draft.cancelUntil,
     advanceMinutes: Number(draft.advance) || 0,
   };
+}
+
+function curriculumOf(draft: Draft) {
+  const title = draft.curriculumTitle.trim();
+  const techniques = draft.curriculumTechniques
+    .split("\n")
+    .map((technique) => technique.trim())
+    .filter(Boolean);
+  const details = draft.curriculumDetails.trim();
+  if (!title && techniques.length === 0 && !details) return undefined;
+  return { title, techniques, details };
 }
 
 function sameRules(left: SessionBookingRules, right: SessionBookingRules): boolean {
@@ -258,6 +278,7 @@ export function SessionPanel({
     const capacity = capacityValue;
     const instructorIds = draft.trainers;
     const bookingRules = rulesOf(draft);
+    const curriculum = curriculumOf(draft);
     try {
       const { startAt, endAt } = instantsOf(draft, timezone);
       if (editing && session) {
@@ -288,6 +309,8 @@ export function SessionPanel({
           changes.waitingList = draft.waitingList;
         if (draft.repeatWeekly !== (session.repeatWeekly ?? false))
           changes.repeatWeekly = draft.repeatWeekly;
+        if (JSON.stringify(curriculum) !== JSON.stringify(session.curriculum))
+          changes.curriculum = curriculum ?? null;
         if (session.weeklySeriesId && repeatScope === "following") {
           changes.repeatScope = "following";
           changes.repeatWeekly = draft.repeatWeekly;
@@ -313,6 +336,7 @@ export function SessionPanel({
         bookingRules,
         waitingList: draft.waitingList,
         accessMode: draft.accessMode,
+        ...(curriculum ? { curriculum } : {}),
         ...(draft.repeatWeekly ? { repeatWeekly: true } : {}),
       };
       onSaved(await saveSession(input));
@@ -344,13 +368,20 @@ export function SessionPanel({
   const missingDateTime = !draft.date || !draft.startTime || !draft.endTime;
   const endsBeforeStart = minutesOf(draft.endTime) <= minutesOf(draft.startTime);
   const noTrainer = draft.trainers.length === 0;
+  const curriculum = curriculumOf(draft);
+  const curriculumInvalid =
+    curriculum !== undefined &&
+    (curriculum.title.length < 2 ||
+      curriculum.techniques.length < 1 ||
+      curriculum.techniques.length > 20);
   const blocked =
     busy ||
     missingDateTime ||
     endsBeforeStart ||
     noTrainer ||
     capacityInvalid ||
-    minimumError !== null;
+    minimumError !== null ||
+    curriculumInvalid;
 
   return (
     <dialog
@@ -636,6 +667,48 @@ export function SessionPanel({
             {canEdit && noTrainer ? (
               <p className="cs-notice" data-kind="error" role="alert">
                 Choose at least one trainer
+              </p>
+            ) : null}
+            <h3>Curriculum</h3>
+            <p className="cs-session-help">
+              Add the techniques and teaching notes for this specific session. Members and coaches
+              can see this information.
+            </p>
+            <div className="cs-form-row">
+              <label className="cs-field">
+                <span>Curriculum title</span>
+                <input
+                  type="text"
+                  maxLength={160}
+                  value={draft.curriculumTitle}
+                  disabled={readOnly}
+                  onChange={(event) => patch({ curriculumTitle: event.target.value })}
+                />
+              </label>
+              <label className="cs-field">
+                <span>Techniques or topics (one per line)</span>
+                <textarea
+                  rows={4}
+                  maxLength={3_219}
+                  value={draft.curriculumTechniques}
+                  disabled={readOnly}
+                  onChange={(event) => patch({ curriculumTechniques: event.target.value })}
+                />
+              </label>
+              <label className="cs-field">
+                <span>Teaching details</span>
+                <textarea
+                  rows={4}
+                  maxLength={1_000}
+                  value={draft.curriculumDetails}
+                  disabled={readOnly}
+                  onChange={(event) => patch({ curriculumDetails: event.target.value })}
+                />
+              </label>
+            </div>
+            {canEdit && curriculumInvalid ? (
+              <p className="cs-notice" data-kind="error" role="alert">
+                Add a title and between 1 and 20 techniques, one per line.
               </p>
             ) : null}
             <h3>Booking rules</h3>

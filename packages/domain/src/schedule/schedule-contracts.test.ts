@@ -1902,3 +1902,46 @@ it("validates changed session type and site and ignores client permission claims
     }
   }
 });
+
+describe("session curriculum", () => {
+  const session = {
+    programId: "adult-bjj",
+    locationId: "town",
+    instructorId: "coach-1",
+    title: "Adult class",
+    startAt: "2026-09-01T18:00:00Z",
+    endAt: "2026-09-01T19:00:00Z",
+    capacity: 20,
+  };
+
+  it("normalizes a valid curriculum on create and update", () => {
+    const curriculum = {
+      title: " Guard retention ",
+      techniques: [" Frames ", "Hip escape"],
+      details: " Positional rounds. ",
+    };
+    const created = parseCreateSessionInput({ ...session, curriculum });
+    expect(created.ok && created.value.curriculum).toEqual({
+      title: "Guard retention",
+      techniques: ["Frames", "Hip escape"],
+      details: "Positional rounds.",
+    });
+    const updated = parseUpdateSessionInput({ sessionId: "session-1", curriculum: null });
+    expect(updated.ok && updated.value.curriculum).toBeNull();
+  });
+
+  it("rejects incomplete or duplicate curriculum techniques", () => {
+    expect(
+      parseCreateSessionInput({
+        ...session,
+        curriculum: { title: "Guard", techniques: [], details: "" },
+      }).ok,
+    ).toBe(false);
+    expect(
+      parseCreateSessionInput({
+        ...session,
+        curriculum: { title: "Guard", techniques: ["Frames", "frames"], details: "" },
+      }).ok,
+    ).toBe(false);
+  });
+});

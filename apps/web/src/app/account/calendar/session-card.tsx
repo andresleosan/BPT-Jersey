@@ -137,6 +137,19 @@ export function SessionCard({ entry, now, busy, note, onBook, onCancelRequest }:
         <p className="session-detail">{`${levelRangeLabel(session.levelRange)} · ${ageRangeLabel(session.ageRange)}`}</p>
       ) : null}
       {session.description ? <p className="session-description">{session.description}</p> : null}
+      {session.curriculum ? (
+        <section className="session-curriculum" aria-label="Session curriculum">
+          <p className="session-curriculum-title">{session.curriculum.title}</p>
+          <ul>
+            {session.curriculum.techniques.map((technique) => (
+              <li key={technique}>{technique}</li>
+            ))}
+          </ul>
+          {session.curriculum.details ? (
+            <p className="session-description">{session.curriculum.details}</p>
+          ) : null}
+        </section>
+      ) : null}
       {action}
       {note ? (
         <p className="session-note" role="status">

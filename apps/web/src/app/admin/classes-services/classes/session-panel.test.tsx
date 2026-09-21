@@ -788,4 +788,41 @@ describe("SessionPanel", () => {
     expect(screen.queryByRole("checkbox", { name: "coach-a" })).not.toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Charlie Tromans" })).toBeEnabled();
   });
+  it("saves a curriculum for the session", async () => {
+    mocks.updateSession.mockResolvedValue(sessionFixture);
+    render(
+      <SessionPanel
+        mode="edit"
+        session={sessionFixture}
+        catalog={catalog}
+        staff={staff}
+        timezone="Europe/Jersey"
+        canEdit
+        canReadMemberships
+        onSaved={vi.fn()}
+        onCancelled={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Curriculum title"), {
+      target: { value: "Guard retention" },
+    });
+    fireEvent.change(screen.getByLabelText("Techniques or topics (one per line)"), {
+      target: { value: "Frames\nHip escape" },
+    });
+    fireEvent.change(screen.getByLabelText("Teaching details"), {
+      target: { value: "Finish with positional rounds." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() =>
+      expect(mocks.updateSession).toHaveBeenCalledWith({
+        sessionId: "s1",
+        curriculum: {
+          title: "Guard retention",
+          techniques: ["Frames", "Hip escape"],
+          details: "Finish with positional rounds.",
+        },
+      }),
+    );
+  });
 });

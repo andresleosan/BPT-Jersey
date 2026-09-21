@@ -478,10 +478,14 @@ function mergeSessionUpdate(
   if (Date.parse(endAt) <= Date.parse(startAt)) throw new Error("Session must end after it starts");
   const capacity = input.capacity === undefined ? current.capacity : input.capacity;
   const minParticipants = input.minParticipants ?? current.minParticipants;
+  const curriculum =
+    input.curriculum === undefined ? current.curriculum : (input.curriculum ?? undefined);
+  const { curriculum: _currentCurriculum, ...sessionWithoutCurriculum } = current;
   if (capacity !== null && minParticipants > capacity)
     throw new Error("Session minimum participants cannot exceed capacity");
   return Object.freeze({
-    ...current,
+    ...sessionWithoutCurriculum,
+    ...(curriculum ? { curriculum } : {}),
     title: input.title ?? current.title,
     locationId: input.locationId ?? current.locationId,
     programId: input.programId ?? current.programId,
@@ -671,7 +675,9 @@ async function copyWeekWith(
       86_400_000,
   );
   // The same predicate as the preview: what the operator was shown is what gets copied.
-  const source = liveSessions(await store.listSessions(academyId, from)).filter(session => !session.courseId);
+  const source = liveSessions(await store.listSessions(academyId, from)).filter(
+    (session) => !session.courseId,
+  );
   if (source.some((session) => session.capacity === null)) {
     throw new Error("Every session in the source week needs a capacity before it can be copied");
   }
@@ -917,18 +923,28 @@ export function createFirestoreScheduleStore(options: {
       studentId: string,
       now?: string,
     ): Promise<readonly Readonly<{ title: string; startAt: string; reason: string }>[]> {
-      const bookings = await readCanonicalMemberHistoryDocuments(firestore as unknown as Firestore, academyId, studentId, "bookings");
+      const bookings = await readCanonicalMemberHistoryDocuments(
+        firestore as unknown as Firestore,
+        academyId,
+        studentId,
+        "bookings",
+      );
       const studentBookings = bookings.docs
         .map((document) => document.data() as BookingRecord)
         .filter((booking) => typeof booking.sessionId === "string");
       if (studentBookings.length === 0) return Object.freeze([]);
 
       const sessionIds = [...new Set(studentBookings.map((booking) => booking.sessionId))];
-      const sessions = await Promise.all(sessionIds.map((id) => firestore.collection(`academies/${academyId}/sessions`).doc(id).get()));
+      const sessions = await Promise.all(
+        sessionIds.map((id) =>
+          firestore.collection(`academies/${academyId}/sessions`).doc(id).get(),
+        ),
+      );
       const sessionRecords = sessions.flatMap((document, index) => {
         if (!document.exists) return [];
         const record = document.data() as SessionRecord;
-        if (record.academyId !== academyId || record.sessionId !== sessionIds[index]) throw new Error("Session scope is invalid");
+        if (record.academyId !== academyId || record.sessionId !== sessionIds[index])
+          throw new Error("Session scope is invalid");
         return [record];
       });
       return cancelledSessionNotices(
@@ -1273,8 +1289,13 @@ export function createFirestoreScheduleStore(options: {
         .where("startAt", "<=", query.to)
         .get();
 
-      const published = await filterPublishedCourseSessions(firestore as unknown as Firestore, academyId, snapshot.docs.map(doc => doc.data() as SessionRecord));
-      return published.filter((session) => {
+      const published = await filterPublishedCourseSessions(
+        firestore as unknown as Firestore,
+        academyId,
+        snapshot.docs.map((doc) => doc.data() as SessionRecord),
+      );
+      return published
+        .filter((session) => {
           if (query.locationId && session.locationId !== query.locationId) {
             return false;
           }
@@ -1316,7 +1337,13 @@ export function createFirestoreScheduleStore(options: {
 
       if (!doc.exists) return null;
       const record = doc.data() as SessionRecord;
-      return (await filterPublishedCourseSessions(firestore as unknown as Firestore, academyId, [record]))[0] ?? null;
+      return (
+        (
+          await filterPublishedCourseSessions(firestore as unknown as Firestore, academyId, [
+            record,
+          ])
+        )[0] ?? null
+      );
     },
 
     async createSession(
@@ -1355,6 +1382,7 @@ export function createFirestoreScheduleStore(options: {
         ...(input.instructorIds !== undefined ? { instructorIds: input.instructorIds } : {}),
         ...(input.bookingRules !== undefined ? { bookingRules: input.bookingRules } : {}),
         ...(input.waitingList !== undefined ? { waitingList: input.waitingList } : {}),
+        ...(input.curriculum !== undefined ? { curriculum: input.curriculum } : {}),
       });
 
       if (input.repeatWeekly) {
@@ -1439,7 +1467,12 @@ export function createFirestoreScheduleStore(options: {
       academyId: string,
       studentId: string,
     ): Promise<readonly BookingRecord[]> {
-      const snapshot = await readCanonicalMemberHistoryDocuments(firestore as unknown as Firestore, academyId, studentId, "bookings");
+      const snapshot = await readCanonicalMemberHistoryDocuments(
+        firestore as unknown as Firestore,
+        academyId,
+        studentId,
+        "bookings",
+      );
 
       return snapshot.docs
         .map((d) => d.data() as BookingRecord)
@@ -1484,8 +1517,17 @@ export function createFirestoreScheduleStore(options: {
       actorRole?: ScheduleMutationActorRole,
       actorIp: string | null = null,
     ): Promise<AttendanceRecord> {
-      const courseSession = await firestore.collection(`academies/${academyId}/sessions`).doc(input.sessionId).get();
-      if (courseSession.data()?.courseId) await ensureCourseBooking(firestore as unknown as Firestore, {uid: actorId, academyId, role: requireAttendanceActorRole(actorRole)}, input.sessionId, input.studentId);
+      const courseSession = await firestore
+        .collection(`academies/${academyId}/sessions`)
+        .doc(input.sessionId)
+        .get();
+      if (courseSession.data()?.courseId)
+        await ensureCourseBooking(
+          firestore as unknown as Firestore,
+          { uid: actorId, academyId, role: requireAttendanceActorRole(actorRole) },
+          input.sessionId,
+          input.studentId,
+        );
       return attendanceTransactions.recordCheckIn({
         academyId,
         input,
@@ -1504,8 +1546,17 @@ export function createFirestoreScheduleStore(options: {
       actorRole?: ScheduleMutationActorRole,
       actorIp: string | null = null,
     ): Promise<AttendanceRecord> {
-      const courseSession = await firestore.collection(`academies/${academyId}/sessions`).doc(input.sessionId).get();
-      if (courseSession.data()?.courseId) await ensureCourseBooking(firestore as unknown as Firestore, {uid: actorId, academyId, role: requireAttendanceActorRole(actorRole)}, input.sessionId, input.studentId);
+      const courseSession = await firestore
+        .collection(`academies/${academyId}/sessions`)
+        .doc(input.sessionId)
+        .get();
+      if (courseSession.data()?.courseId)
+        await ensureCourseBooking(
+          firestore as unknown as Firestore,
+          { uid: actorId, academyId, role: requireAttendanceActorRole(actorRole) },
+          input.sessionId,
+          input.studentId,
+        );
       return attendanceTransactions.recordSelfCheckIn({
         academyId,
         input,
@@ -1534,7 +1585,12 @@ export function createFirestoreScheduleStore(options: {
       academyId: string,
       studentId: string,
     ): Promise<readonly AttendanceRecord[]> {
-      const snapshot = await readCanonicalMemberHistoryDocuments(firestore as unknown as Firestore, academyId, studentId, "attendance");
+      const snapshot = await readCanonicalMemberHistoryDocuments(
+        firestore as unknown as Firestore,
+        academyId,
+        studentId,
+        "attendance",
+      );
 
       return snapshot.docs
         .map((d) => d.data() as AttendanceRecord)
@@ -1630,13 +1686,22 @@ export function createFirestoreScheduleStore(options: {
       sessionId: string,
       studentId: string,
     ): Promise<readonly AttendanceRecord[]> {
-      const snapshot = await readCanonicalMemberHistoryDocuments(firestore as unknown as Firestore, academyId, studentId, "attendance");
+      const snapshot = await readCanonicalMemberHistoryDocuments(
+        firestore as unknown as Firestore,
+        academyId,
+        studentId,
+        "attendance",
+      );
       const canonicalIds = new Set(snapshot.ids.map((id) => buildAttendanceId(sessionId, id)));
 
       return snapshot.docs
         .map((d) => d.data() as AttendanceRecord)
         .filter((record) => record.sessionId === sessionId)
-        .filter((a) => canonicalIds.has(a.attendanceId) || (a.correctionOf !== null && canonicalIds.has(a.correctionOf)))
+        .filter(
+          (a) =>
+            canonicalIds.has(a.attendanceId) ||
+            (a.correctionOf !== null && canonicalIds.has(a.correctionOf)),
+        )
         .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
     },
 
@@ -1677,8 +1742,15 @@ export function createFirestoreScheduleStore(options: {
       sessionId: string,
       studentId: string,
     ): Promise<CheckoutRecord | null> {
-      const snapshot = await readCanonicalMemberHistoryDocuments(firestore as unknown as Firestore, academyId, studentId, "checkouts");
-      const matches = snapshot.docs.map((doc) => doc.data() as CheckoutRecord).filter((record) => record.sessionId === sessionId);
+      const snapshot = await readCanonicalMemberHistoryDocuments(
+        firestore as unknown as Firestore,
+        academyId,
+        studentId,
+        "checkouts",
+      );
+      const matches = snapshot.docs
+        .map((doc) => doc.data() as CheckoutRecord)
+        .filter((record) => record.sessionId === sessionId);
       if (matches.length > 1) throw new Error("Checkout identity requires office review");
       return matches[0] ?? null;
     },
@@ -2316,6 +2388,7 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
         ...(input.instructorIds !== undefined ? { instructorIds: input.instructorIds } : {}),
         ...(input.bookingRules !== undefined ? { bookingRules: input.bookingRules } : {}),
         ...(input.waitingList !== undefined ? { waitingList: input.waitingList } : {}),
+        ...(input.curriculum !== undefined ? { curriculum: input.curriculum } : {}),
       });
 
       if (!sessionsMap.has(academyId)) {

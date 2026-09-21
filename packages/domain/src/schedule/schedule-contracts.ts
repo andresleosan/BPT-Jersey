@@ -233,6 +233,14 @@ export type SessionRecord = Readonly<{
   weeklyOverride?: boolean;
   repeatWeekly?: boolean;
   accessMode?: ClassAccessMode;
+  /** Session-scoped, member-safe teaching plan. Older sessions omit it. */
+  curriculum?: SessionCurriculum;
+}>;
+
+export type SessionCurriculum = Readonly<{
+  title: string;
+  techniques: readonly string[];
+  details: string;
 }>;
 
 export type CreateClassInput = Readonly<{
@@ -282,6 +290,7 @@ export type CreateSessionInput = Readonly<{
   waitingList?: WaitingListMode;
   repeatWeekly?: boolean;
   accessMode?: ClassAccessMode;
+  curriculum?: SessionCurriculum;
 }>;
 
 export type UpdateSessionInput = Readonly<{
@@ -301,6 +310,8 @@ export type UpdateSessionInput = Readonly<{
   waitingList?: WaitingListMode;
   repeatWeekly?: boolean;
   accessMode?: ClassAccessMode;
+  /** Null removes a curriculum from an existing session. */
+  curriculum?: SessionCurriculum | null;
 }>;
 
 export const classRemovalReasonMinLength = 2;
@@ -321,6 +332,42 @@ export type ListSessionsQuery = Readonly<{
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function parseSessionCurriculum(input: unknown): Result<SessionCurriculum, string> {
+  if (!isRecord(input)) return err("curriculum must be an object");
+  const { title, techniques, details } = input;
+  if (typeof title !== "string" || title.trim().length < 2 || title.trim().length > 160) {
+    return err("curriculum.title must be between 2 and 160 characters");
+  }
+  if (
+    !Array.isArray(techniques) ||
+    techniques.length < 1 ||
+    techniques.length > 20 ||
+    techniques.some(
+      (technique) =>
+        typeof technique !== "string" ||
+        technique.trim().length < 1 ||
+        technique.trim().length > 160,
+    )
+  ) {
+    return err("curriculum.techniques must contain between 1 and 20 short entries");
+  }
+  const normalizedTechniques = techniques.map((technique) => (technique as string).trim());
+  const normalizedKeys = normalizedTechniques.map((technique) => technique.toLocaleLowerCase());
+  if (new Set(normalizedKeys).size !== normalizedTechniques.length) {
+    return err("curriculum.techniques must not contain duplicates");
+  }
+  if (typeof details !== "string" || details.trim().length > 1_000) {
+    return err("curriculum.details must be a string up to 1000 characters");
+  }
+  return ok(
+    Object.freeze({
+      title: title.trim(),
+      techniques: Object.freeze(normalizedTechniques),
+      details: details.trim(),
+    }),
+  );
 }
 
 function isIsoDate(value: unknown): value is string {
@@ -767,6 +814,7 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
     waitingList,
     repeatWeekly,
     accessMode = "membership",
+    curriculum,
   } = input;
 
   if (
@@ -847,6 +895,9 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
   }
   const extras = parseSessionExtras(instructorIds, bookingRules, waitingList);
   if (!extras.ok) return err(extras.error);
+  const curriculumResult =
+    curriculum === undefined ? undefined : parseSessionCurriculum(curriculum);
+  if (curriculumResult && !curriculumResult.ok) return err(curriculumResult.error);
 
   return ok(
     Object.freeze({
@@ -868,6 +919,7 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
       ...(levelRange !== undefined ? { levelRange: parsedLevelRange } : {}),
       ...extras.value,
       ...(typeof repeatWeekly === "boolean" ? { repeatWeekly } : {}),
+      ...(curriculumResult?.ok ? { curriculum: curriculumResult.value } : {}),
     }),
   );
 }
@@ -891,6 +943,7 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
     waitingList,
     repeatWeekly,
     accessMode,
+    curriculum,
   } = input;
   if (repeatScope !== undefined && repeatScope !== "single" && repeatScope !== "following") {
     return err("repeatScope must be single or following");
@@ -914,6 +967,7 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
       waitingList,
       repeatWeekly,
       accessMode,
+      curriculum,
     ].every((value) => value === undefined)
   ) {
     return err("At least one session field must be updated");
@@ -982,6 +1036,11 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
   }
   const extras = parseSessionExtras(instructorIds, bookingRules, waitingList);
   if (!extras.ok) return err(extras.error);
+  const curriculumResult =
+    curriculum === undefined || curriculum === null
+      ? undefined
+      : parseSessionCurriculum(curriculum);
+  if (curriculumResult && !curriculumResult.ok) return err(curriculumResult.error);
   const result: { -readonly [K in keyof UpdateSessionInput]: UpdateSessionInput[K] } = {
     sessionId: sessionId.trim(),
   };
@@ -999,6 +1058,8 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
   if (extras.value.waitingList !== undefined) result.waitingList = extras.value.waitingList;
   if (typeof repeatWeekly === "boolean") result.repeatWeekly = repeatWeekly;
   if (accessMode !== undefined) result.accessMode = accessMode as ClassAccessMode;
+  if (curriculum === null) result.curriculum = null;
+  else if (curriculumResult?.ok) result.curriculum = curriculumResult.value;
   if (repeatScope !== undefined) result.repeatScope = repeatScope;
   return ok(Object.freeze(result));
 }
@@ -1372,8 +1433,10 @@ export type LegacyBookingRecord = Readonly<{
 }>;
 
 export type CourseBookingRecord = Omit<LegacyBookingRecord, "membershipId" | "schemaVersion"> & {
-  schemaVersion: "2"; membershipId: null;
-  source: {kind: "course"; courseId: string; enrolmentId: string}; absent: boolean;
+  schemaVersion: "2";
+  membershipId: null;
+  source: { kind: "course"; courseId: string; enrolmentId: string };
+  absent: boolean;
 };
 export type IntroBookingRecord = Omit<LegacyBookingRecord, "membershipId" | "schemaVersion"> & {
   schemaVersion: "3";
@@ -1382,10 +1445,14 @@ export type IntroBookingRecord = Omit<LegacyBookingRecord, "membershipId" | "sch
 };
 export type BookingRecord = LegacyBookingRecord | CourseBookingRecord | IntroBookingRecord;
 export function isCourseBooking(value: BookingRecord): value is CourseBookingRecord {
-  return value.schemaVersion === "2" && value.membershipId === null && value.source.kind === "course";
+  return (
+    value.schemaVersion === "2" && value.membershipId === null && value.source.kind === "course"
+  );
 }
 export function isIntroBooking(value: BookingRecord): value is IntroBookingRecord {
-  return value.schemaVersion === "3" && value.membershipId === null && value.source.kind === "intro";
+  return (
+    value.schemaVersion === "3" && value.membershipId === null && value.source.kind === "intro"
+  );
 }
 
 export type RequestMembershipBookingInput = Readonly<{
@@ -1474,11 +1541,13 @@ export function parseRequestBookingInput(input: unknown): Result<RequestBookingI
 
   if (kind === "intro") {
     if (membershipId !== undefined) return err("Intro bookings cannot include membershipId");
-    return ok(Object.freeze({
-      kind: "intro" as const,
-      sessionId: sessionId.trim(),
-      studentId: studentId.trim(),
-    }));
+    return ok(
+      Object.freeze({
+        kind: "intro" as const,
+        sessionId: sessionId.trim(),
+        studentId: studentId.trim(),
+      }),
+    );
   }
   if (kind !== undefined && kind !== "membership") {
     return err("kind must be membership or intro");
@@ -1487,12 +1556,14 @@ export function parseRequestBookingInput(input: unknown): Result<RequestBookingI
     return err("membershipId is required");
   }
 
-  return ok(Object.freeze({
-    kind: "membership" as const,
-    sessionId: sessionId.trim(),
-    studentId: studentId.trim(),
-    membershipId: membershipId.trim(),
-  }));
+  return ok(
+    Object.freeze({
+      kind: "membership" as const,
+      sessionId: sessionId.trim(),
+      studentId: studentId.trim(),
+      membershipId: membershipId.trim(),
+    }),
+  );
 }
 
 export function parseCancelBookingInput(input: unknown): Result<CancelBookingInput, string> {
