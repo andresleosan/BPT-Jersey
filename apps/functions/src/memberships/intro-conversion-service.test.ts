@@ -179,6 +179,14 @@ describe("intro attendance projection", () => {
       false,
     );
   });
+  it("creates the conversion when a mistaken absence is corrected to attended", async () => {
+    const store = seeded();
+    const path = `academies/${academyId}/attendance/attendance-1`;
+    store.records.set(path, { ...store.records.get(path)!, correctionOf: "attendance-0" });
+    await expect(
+      projectIntroAttendance(store.db, { academyId, attendanceId: "attendance-1", now }),
+    ).resolves.toBe("created");
+  });
   it("fails closed when the recipient account is not active", async () => {
     const store = seeded();
     store.records.delete(`academies/${academyId}/users/user-1`);
