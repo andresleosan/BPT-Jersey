@@ -118,9 +118,8 @@ export async function reviewIntroApplication(
         revision: current.data.revision + 1,
         updatedAt: now,
       });
-      if (status === "needs_correction") {
-        tx.update(conversionRef, { status: "ready", updatedAt: now });
-      }
+      // Operator decision 2026-09-21: a rejection is not final; the member may apply again.
+      tx.update(conversionRef, { status: "ready", updatedAt: now });
       const noticeId = `intro-${createHash("sha256")
         .update(`${current.data.applicationId}:${status}:${current.data.revision + 1}`)
         .digest("hex")}`;

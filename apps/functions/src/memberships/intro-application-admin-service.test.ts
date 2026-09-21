@@ -137,6 +137,17 @@ describe("reviewIntroApplication", () => {
     expect(store.records.get(conversionPath)).toMatchObject({ status: "converted" });
     expect(store.records.has(membershipPath)).toBe(true);
   });
+  it("lets the member apply again after a rejection", async () => {
+    const store = fakeFirestore(seed());
+    await reviewIntroApplication(store.db, actor, {
+      applicationId: decision.applicationId,
+      expectedRevision: decision.expectedRevision,
+      decision: "reject",
+      reason: "The transfer reference does not match.",
+    });
+    expect(store.records.get(applicationPath)).toMatchObject({ status: "rejected" });
+    expect(store.records.get(conversionPath)).toMatchObject({ status: "ready" });
+  });
   it("rolls back subscription writes when approval fails", async () => {
     const store = fakeFirestore(seed());
     manual.save.mockImplementation(async (_db, transaction) => {
