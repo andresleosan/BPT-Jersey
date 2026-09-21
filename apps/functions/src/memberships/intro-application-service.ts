@@ -128,10 +128,10 @@ export async function submitIntroMembershipApplication(
       !conversion.success ||
       conversion.data.academyId !== actor.academyId ||
       conversion.data.studentId !== input.studentId ||
-      conversion.data.recipientUid !== actor.userId ||
-      conversion.data.status !== "ready"
+      conversion.data.recipientUid !== actor.userId
     )
       throw new HttpsError("failed-precondition", "Intro conversion is unavailable");
+    // Replay first: a retried submit finds the conversion already pending and must get its result.
     if (applicationDoc.exists) {
       const existing = membershipApplicationSchema.safeParse(applicationDoc.data());
       if (
@@ -142,6 +142,8 @@ export async function submitIntroMembershipApplication(
         return existing.data;
       throw new HttpsError("already-exists", "Application request is already used");
     }
+    if (conversion.data.status !== "ready")
+      throw new HttpsError("failed-precondition", "Intro conversion is unavailable");
     const now = new Date().toISOString();
     const student = parseEffectiveStudentProfileAt(
       studentDoc.data(),

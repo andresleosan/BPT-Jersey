@@ -76,6 +76,9 @@ export const uploadIntroMembershipProof = onCall({ ...browserAdminCallableOption
   const actor = await requireMemberAccountActor(request);
   const input = proofUploadSchema.safeParse(request.data);
   if (!input.success) throw new HttpsError("invalid-argument", "Choose a PNG or JPEG screenshot up to 2 MB.");
+  // Storage is only written for a member who can actually apply; equality-only query, no composite index.
+  const ready = await getFirestore().collection(`academies/${actor.academyId}/introConversions`).where("recipientUid", "==", actor.userId).where("status", "==", "ready").limit(1).get();
+  if (ready.empty) throw new HttpsError("failed-precondition", "Intro conversion is unavailable");
   return uploadIntroProof({ academyId: actor.academyId, userId: actor.userId, ...input.data }, createPrivateStorageR2Client());
 });
 

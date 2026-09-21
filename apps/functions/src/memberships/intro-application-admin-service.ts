@@ -23,6 +23,8 @@ export async function listIntroApplications(db: Firestore, actor: UserActorConte
   office(actor);
   const page = await db
     .collection(`academies/${actor.academyId}/membershipApplications`)
+    // Newest first so the cap drops old history, never a fresh application (single-field index).
+    .orderBy("createdAt", "desc")
     .limit(100)
     .get();
   return page.docs
