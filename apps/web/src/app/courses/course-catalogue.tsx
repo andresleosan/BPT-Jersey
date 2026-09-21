@@ -75,7 +75,7 @@ export function CourseCatalogue() {
 
       {page?.items.length === 0 ? (
         <div className="course-panel course-empty">
-          <h2>New courses are on the way</h2>
+          <h3>New courses are on the way</h3>
           <p>Ask the academy about the next programme.</p>
           <a className="course-button" href="/#contact">
             Contact the academy
@@ -83,7 +83,7 @@ export function CourseCatalogue() {
         </div>
       ) : null}
 
-      <ul className="course-list">
+      <ul className="course-list" hidden={!page?.items.length}>
         {page?.items.map((course) => (
           <li className="course-row" key={course.courseId}>
             <article>
