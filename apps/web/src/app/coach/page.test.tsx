@@ -773,4 +773,22 @@ describe("CoachDashboardPage", () => {
       ).toBeInTheDocument();
     });
   });
+  it("shows the selected session curriculum to the coach", async () => {
+    scheduleClientMock.listSessions.mockResolvedValue([
+      {
+        ...mockTownSession,
+        curriculum: {
+          title: "Guard retention",
+          techniques: ["Frames", "Hip escape"],
+          details: "Finish with positional rounds.",
+        },
+      },
+    ]);
+    render(<CoachDashboardPage />);
+    const curriculum = await screen.findByRole("region", { name: "Session curriculum" });
+    expect(curriculum).toHaveTextContent("Guard retention");
+    expect(curriculum).toHaveTextContent("Frames");
+    expect(curriculum).toHaveTextContent("Hip escape");
+    expect(curriculum).toHaveTextContent("Finish with positional rounds.");
+  });
 });

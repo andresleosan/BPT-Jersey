@@ -155,4 +155,23 @@ describe("SessionCard", () => {
     );
     expect(screen.queryByText(/All levels/u)).toBeNull();
   });
+  it("shows the curriculum attached to the session", () => {
+    renderCard({
+      entry: entry("booked", {
+        session: {
+          ...session,
+          curriculum: {
+            title: "Guard retention",
+            techniques: ["Frames", "Hip escape"],
+            details: "Finish with positional rounds.",
+          },
+        },
+      }),
+    });
+    const curriculum = screen.getByRole("region", { name: "Session curriculum" });
+    expect(curriculum).toHaveTextContent("Guard retention");
+    expect(curriculum).toHaveTextContent("Frames");
+    expect(curriculum).toHaveTextContent("Hip escape");
+    expect(curriculum).toHaveTextContent("Finish with positional rounds.");
+  });
 });

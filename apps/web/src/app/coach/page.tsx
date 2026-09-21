@@ -510,6 +510,20 @@ export default function CoachDashboardPage() {
               )}
             </h2>
 
+            {selectedSession?.curriculum ? (
+              <section className="coach-curriculum" aria-label="Session curriculum">
+                <h3>{selectedSession.curriculum.title}</h3>
+                <ul>
+                  {selectedSession.curriculum.techniques.map((technique) => (
+                    <li key={technique}>{technique}</li>
+                  ))}
+                </ul>
+                {selectedSession.curriculum.details ? (
+                  <p>{selectedSession.curriculum.details}</p>
+                ) : null}
+              </section>
+            ) : null}
+
             {!selectedSession ? (
               <p>Select a class above to review attendance and check in members.</p>
             ) : loadingRoster ||
