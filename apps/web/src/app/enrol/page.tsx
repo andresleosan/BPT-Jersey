@@ -70,8 +70,6 @@ type ApplicantForm = {
   emergencyName: string;
   emergencyRelationship: string;
   emergencyPhone: string;
-  addressLine: string;
-  postCode: string;
   minors: MinorForm[];
   waiverAccepted: boolean;
 };
@@ -98,8 +96,6 @@ const emptyForm: ApplicantForm = {
   emergencyName: "",
   emergencyRelationship: "",
   emergencyPhone: "",
-  addressLine: "",
-  postCode: "",
   minors: [],
   waiverAccepted: false,
 };
@@ -135,11 +131,6 @@ function toDetails(form: ApplicantForm, requestId: string): EnrolmentRequestDeta
           phoneNumber: form.emergencyPhone.trim(),
         }
       : undefined;
-  const postalAddress =
-    trimmed(form.addressLine) && trimmed(form.postCode)
-      ? { line: form.addressLine.trim(), postCode: form.postCode.trim() }
-      : undefined;
-
   return {
     requestId,
     applicantIsStudent: form.applicantIsStudent,
@@ -154,7 +145,6 @@ function toDetails(form: ApplicantForm, requestId: string): EnrolmentRequestDeta
       phoneNumber: form.phoneNumber.trim(),
       ...(trimmed(form.email) === undefined ? {} : { email: form.email.trim() }),
       ...(emergencyContact === undefined ? {} : { emergencyContact }),
-      ...(postalAddress === undefined ? {} : { postalAddress }),
     },
     minors: (form.applicantIsStudent ? [] : form.minors).map((minor) => ({
       fullName: minor.fullName.trim(),
@@ -200,9 +190,6 @@ function validate(
   ) {
     return "Complete the emergency contact name, relationship and phone number.";
   }
-  if (Boolean(form.addressLine.trim()) !== Boolean(form.postCode.trim())) {
-    return "Enter both the address and the post code.";
-  }
   // Last, so somebody who accepted and then missed a field is not told to accept again.
   if (!form.waiverAccepted) {
     return "Read and accept the waiver before sending your request.";
@@ -232,8 +219,7 @@ function WaiverTerms({
     <fieldset className="enrol-waiver">
       <legend>{enrolmentWaiverTermsTitle}</legend>
       <p className="enrol-hint">
-        Version {enrolmentWaiverTermsVersion}. The academy also asks about medical conditions,
-        injuries and allergies in person at reception; this form does not collect them.
+        Version {enrolmentWaiverTermsVersion}.
       </p>
       <div className="enrol-waiver-scroll" tabIndex={0} role="region" aria-label="Waiver terms">
         {enrolmentWaiverTermsSections.map((section) => (
@@ -828,30 +814,6 @@ function EnrolContent() {
                     onChange={(event) => setForm({ ...form, emergencyPhone: event.target.value })}
                     type="tel"
                     value={form.emergencyPhone}
-                  />
-                </label>
-              </fieldset>
-
-              <fieldset className="enrol-address">
-                <legend>Address</legend>
-                <label className="enrol-field" htmlFor="enrol-address-line">
-                  Address
-                  <input
-                    autoComplete="street-address"
-                    id="enrol-address-line"
-                    maxLength={240}
-                    onChange={(event) => setForm({ ...form, addressLine: event.target.value })}
-                    value={form.addressLine}
-                  />
-                </label>
-                <label className="enrol-field" htmlFor="enrol-postcode">
-                  Post code
-                  <input
-                    autoComplete="postal-code"
-                    id="enrol-postcode"
-                    maxLength={16}
-                    onChange={(event) => setForm({ ...form, postCode: event.target.value })}
-                    value={form.postCode}
                   />
                 </label>
               </fieldset>
