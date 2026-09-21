@@ -38,7 +38,7 @@ const detailsInput = {
   trainingCenter: "Town",
   trainingTimePreferences: ["evening"],
   gender: "unknown",
-  membershipNumber: " 0000 ",
+  membershipNumber: " 0001 ",
   details: { healthNumber: " hn0000 ", howHeard: "Website" },
 } as const;
 
@@ -106,7 +106,7 @@ describe("member profile web client", () => {
     expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "updateMember");
     expect(mocks.callable).toHaveBeenCalledWith({
       ...detailsInput,
-      membershipNumber: "0000",
+      membershipNumber: "1",
       details: { healthNumber: "HN0000", howHeard: "Website" },
     });
   });

@@ -49,7 +49,7 @@ const profile: FullMemberProfile = {
     active: true,
     status: "active",
     gender: "unknown",
-    membershipNumber: "0000",
+    membershipNumber: "1",
     details: { weightKg: 70.5, heightCm: 175, idCardExpiresOn: "2026-09-30" },
   },
 };

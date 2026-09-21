@@ -198,14 +198,14 @@ describe("Add canonical adult member page", () => {
     clientMocks.createMember.mockResolvedValue({ memberId: "student-1", studentId: "student-1" });
     render(<AddMemberPage />);
     await fillRequiredAdult(user);
-    await user.type(screen.getByLabelText("Membership number"), "BPT-TEST-1");
+    await user.type(screen.getByLabelText("Membership number"), "33");
     await user.type(screen.getByLabelText("ID card number"), "TEST-ID");
     await user.type(screen.getByLabelText("VAT number"), "TEST-VAT");
     await user.click(screen.getByRole("button", { name: "Add adult student" }));
     await waitFor(() =>
       expect(clientMocks.createMember).toHaveBeenCalledWith(
         expect.objectContaining({
-          membershipNumber: "BPT-TEST-1",
+          membershipNumber: "33",
           idCardNumber: "TEST-ID",
           vatNumber: "TEST-VAT",
         }),

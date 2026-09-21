@@ -227,7 +227,7 @@ describe("enrolment request submission", () => {
     const administrative = adminCreateStudentInputSchema.safeParse({
       ...parsed.value.applicant,
       requestId: "enrolment-1",
-      membershipNumber: "BPT-0001",
+      membershipNumber: "1",
     });
 
     expect(administrative.success).toBe(true);

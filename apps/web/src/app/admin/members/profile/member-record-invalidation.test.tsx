@@ -22,7 +22,7 @@ const header = {
 
 const full: MemberProfile = {
   view: "full",
-  header: { ...header, maskedMemberReference: "****0000" },
+  header: { ...header, maskedMemberReference: "****0001" },
   cards: {
     memberSince: "2026-01-15",
     monthsAsMember: 8,
@@ -39,7 +39,7 @@ const full: MemberProfile = {
     active: true,
     status: "active",
     gender: "unknown",
-    membershipNumber: "00000000",
+    membershipNumber: "1",
   },
 };
 
@@ -195,11 +195,11 @@ it("Classes retains rows and cursor only for recoverable paging failures", async
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Load more" }));
   expect(screen.getByText("Synthetic class")).toBeTruthy();
-  expect(screen.getByRole("alert").textContent).toContain("Unable to load class history");
+  expect(screen.getByText("Unable to load class history. Refresh to try again.")).toBeTruthy();
   expect(screen.queryByText("No bookings recorded")).toBeNull();
   failed = false;
   await user.click(screen.getByRole("button", { name: "Load more" }));
-  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.queryByText("Unable to load class history. Refresh to try again.")).toBeNull();
   expect(screen.getAllByText("Synthetic class")).toHaveLength(1);
   expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
 });
