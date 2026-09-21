@@ -19,7 +19,7 @@ import { createFirestoreCanonicalClientStudentScopeResolver } from "./canonical-
 
 const resolveScope = createFirestoreCanonicalClientStudentScopeResolver();
 
-function readStudent(data: unknown, academyId: string, studentId: string) {
+export function readStudent(data: unknown, academyId: string, studentId: string) {
   const parsed = parseEffectiveStudentProfileAt(data, dateKeyInJersey(new Date()));
   if (!parsed.ok || parsed.value.academyId !== academyId || parsed.value.studentId !== studentId) {
     throw new HttpsError("not-found", "Member record is unavailable.");
@@ -27,7 +27,7 @@ function readStudent(data: unknown, academyId: string, studentId: string) {
   return parsed.value;
 }
 
-function readAccess(data: FirebaseFirestore.DocumentData | undefined, academyId: string, studentId: string, dateOfBirth: string | undefined) {
+export function readAccess(data: FirebaseFirestore.DocumentData | undefined, academyId: string, studentId: string, dateOfBirth: string | undefined) {
   if (data && (data.academyId !== academyId || data.studentId !== studentId)) {
     throw new HttpsError("failed-precondition", "Group access is unavailable.");
   }
@@ -44,7 +44,7 @@ function readAccess(data: FirebaseFirestore.DocumentData | undefined, academyId:
 }
 
 /** Members only learn which groups are open to them today, never the office's reason or dates. */
-function memberView(access: ReturnType<typeof readAccess>) {
+export function memberView(access: ReturnType<typeof readAccess>) {
   return {
     studentId: access.studentId, revision: access.revision, dateOfBirth: access.dateOfBirth,
     programIds: [...effectiveGroupProgramIds(access, dateKeyInJersey(new Date()))],

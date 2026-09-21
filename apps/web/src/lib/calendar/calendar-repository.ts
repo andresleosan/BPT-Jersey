@@ -33,6 +33,7 @@ export type CalendarParticipant = Readonly<{
   membershipStartsAt?: string;
   membershipEndsAt?: string | null;
   participantType: ParticipantType;
+  planParticipantTypes?: readonly ParticipantType[];
   planClassSites: readonly Site[];
   planOpenMatSites: readonly Site[];
   weeklyClassLimit: WeeklyClassLimit;
