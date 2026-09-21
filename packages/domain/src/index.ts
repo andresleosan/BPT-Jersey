@@ -135,9 +135,21 @@ export {
   canonicalMembershipNumberSchema,
   canonicaliseMembershipNumber,
   membershipNumberIssues,
+  membershipNumberPlanActions,
+  membershipNumberPlanPayloadSchema,
+  membershipNumberPlanRowSchema,
+  membershipNumberPlanSchema,
+  membershipNumberSourceKinds,
   nextMonotonicMembershipNumber,
 } from "./members/membership-number-contracts";
-export type { MembershipNumberIssue } from "./members/membership-number-contracts";
+export type {
+  MembershipNumberIssue,
+  MembershipNumberPlan,
+  MembershipNumberPlanAction,
+  MembershipNumberPlanPayload,
+  MembershipNumberPlanRow,
+  MembershipNumberSourceKind,
+} from "./members/membership-number-contracts";
 
 export {
   adminDirectoryReadPurposes,
