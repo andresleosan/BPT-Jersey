@@ -105,7 +105,12 @@ run([
   "--confirmation=T093-EMPTY-CANONICAL-INITIALIZE",
 ]);
 // Canonical Levels catalog (171 definitions) through the guarded seed CLI against the Emulator.
-run(["apps/functions/scripts/seed-levels.mjs", "--target=emulator", `--academy-id=${academyId}`]);
+run([
+  "apps/functions/scripts/seed-levels.mjs",
+  "--target=emulator",
+  `--academy-id=${academyId}`,
+  "--system-id=ibjjf-v3",
+]);
 run(
   [
     "qa/run-e2e.mjs",
