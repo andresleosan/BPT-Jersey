@@ -48,7 +48,9 @@ export async function projectIntroAttendance(
       !attendanceSnap.exists ||
       attendance?.attendanceId !== input.attendanceId ||
       attendance.academyId !== input.academyId ||
-      attendance.correctionOf !== null ||
+      // A correction that marks the member present counts too (absent recorded by mistake); the
+      // deterministic conversion id below keeps any repeat idempotent.
+      (attendance.correctionOf !== null && !validId(String(attendance.correctionOf))) ||
       !["attended", "late"].includes(String(attendance.state)) ||
       !validId(String(attendance.sessionId)) ||
       !validId(String(attendance.studentId))
