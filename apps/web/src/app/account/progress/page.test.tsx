@@ -111,11 +111,11 @@ describe("Account Progress Page", () => {
       targetDefinition: { ...mockProjection.definitions[0], name: "WHITE BELT 1 STRIPE" },
       skillChecklist: [],
       criteria: {
-        classes: { required: 10, completed: 4, met: false },
-        time: { requiredDays: 90, elapsedDays: 12, met: false },
+        classes: { required: 20, completed: 20, met: true },
+        time: { requiredDays: 60, elapsedDays: 60, met: true },
         skills: { total: 3, completed: 1, met: false },
       },
-      totalAttendedClasses: 4,
+      totalAttendedClasses: 20,
       totalHours: 6,
       currentLevelStartedAt: "2026-08-01T00:00:00.000Z",
       calculatedAt: "2026-09-05T00:00:00.000Z",
@@ -128,7 +128,8 @@ describe("Account Progress Page", () => {
     const stats = within(await screen.findByTestId("own-progress-stats"));
     expect(stats.getByText("WHITE BELT")).toBeInTheDocument();
     expect(stats.getByText("WHITE BELT 1 STRIPE")).toBeInTheDocument();
-    expect(stats.getByText("4 / 10 towards the next level")).toBeInTheDocument();
+    expect(stats.getByText("20 / 20 towards the next level")).toBeInTheDocument();
+    expect(stats.getByText("60 / 60 days towards the next level")).toBeInTheDocument();
     expect(stats.getByText("6 h")).toBeInTheDocument();
     expect(stats.getByText("1 / 3")).toBeInTheDocument();
     expect(screen.queryByText(/Competitors/u)).toBeNull();
@@ -186,11 +187,11 @@ describe("Account Progress Page", () => {
             targetDefinition: { ...mockProjection.definitions[0], name: "WHITE BELT 1 STRIPE" },
             skillChecklist: [],
             criteria: {
-              classes: { required: 10, completed: 4, met: false },
-              time: { requiredDays: 90, elapsedDays: 12, met: false },
+              classes: { required: 20, completed: 20, met: true },
+              time: { requiredDays: 60, elapsedDays: 60, met: true },
               skills: { total: 3, completed: 1, met: false },
             },
-            totalAttendedClasses: 4,
+            totalAttendedClasses: 20,
             totalHours: 6,
             currentLevelStartedAt: "2026-08-01T00:00:00.000Z",
             calculatedAt: "2026-09-05T00:00:00.000Z",
@@ -210,7 +211,8 @@ describe("Account Progress Page", () => {
     expect(screen.queryByRole("heading", { name: "Your progress" })).toBeNull();
 
     const first = within(await screen.findByTestId("family-progress-stats-student-1"));
-    expect(first.getByText("4 / 10 towards the next level")).toBeInTheDocument();
+    expect(first.getByText("20 / 20 towards the next level")).toBeInTheDocument();
+    expect(first.getByText("60 / 60 days towards the next level")).toBeInTheDocument();
     expect(first.getByText("6 h")).toBeInTheDocument();
     expect(first.getByText("1 / 3")).toBeInTheDocument();
     expect(screen.getByText("Child One")).toBeInTheDocument();

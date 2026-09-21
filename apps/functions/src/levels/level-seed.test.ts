@@ -568,7 +568,8 @@ describe("Level Seed Guard and Execution", () => {
     const catalog = loadApprovedLevelCatalog({ systemId: "ibjjf-v3" });
     expect(catalog.system.systemId).toBe("ibjjf-v3");
     expect(
-      catalog.definitions.find(({ definitionKey }) => definitionKey === "white-belt")?.criteria,
+      catalog.definitions.find(({ definitionKey }) => definitionKey === "white-1st-stripe")
+        ?.criteria,
     ).toMatchObject({ minClasses: 20, minimumTime: { days: 60 } });
     const store = createInMemoryLevelStore();
     await expect(

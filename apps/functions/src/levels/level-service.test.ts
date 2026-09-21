@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
+import regyfitJson from "../../../../docs/data/ibjjf-skills-observed.sanitized.json";
+import { buildIbjjfV3CatalogSources } from "@bpt-jersey/domain/levels";
 import { normalizeLevelCatalogSource } from "./level-source";
 import { createInMemoryLevelStore, createLevelProgressMigrationStore } from "./level-service";
 
@@ -73,6 +75,19 @@ describe("Level Service & Store", () => {
     });
 
     expect(secondSeed.idempotent).toBe(true);
+  });
+
+  it("publishes the v3 first-stripe criteria through the service boundary", async () => {
+    const sources = buildIbjjfV3CatalogSources(observedJson, regyfitJson);
+    const v3 = normalizeLevelCatalogSource(sources.observed, sources.business);
+    const store = createInMemoryLevelStore();
+    await store.seed({ academyId: "demo-academy-v3", normalized: v3 });
+
+    const published = await store.listPublished("demo-academy-v3");
+    expect(
+      published.definitions.find(({ definitionKey }) => definitionKey === "white-1st-stripe")
+        ?.criteria,
+    ).toMatchObject({ minClasses: 20, minimumTime: { days: 60 } });
   });
 
   it("fails closed on immutable version conflict (same systemId, different sourceHash)", async () => {

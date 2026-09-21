@@ -45,9 +45,9 @@ export const approvedLevelCatalogSourceHashesBySystem: Readonly<
     combined: "7b3d072ce9e61b3b24edd6c76a5e221c1f3c1deb886be74de4b74182d31df98c",
   }),
   "ibjjf-v3": Object.freeze({
-    observed: "a0ba65ad2e0af61d3e5e0d1e1a11fa1eb015378bb7b6d56f7a92b1ea57b639ef",
-    businessCriteria: "2a004063ebef47c417ca269179bf67689f68703a46577cbf0d12c91d04e9c724",
-    combined: "fe160a98352209a56dc13602e326ff80a26f2a0b32051f88170fce6255b1a14c",
+    observed: "2f7bddc858f951924e736e0bfbb37b1c75128e8722a24b09e4e356da457d2f2c",
+    businessCriteria: "885ac4e22ebb80691d4d9514c1c0104d42a5756b5b6271c66fbcf119c13e82b6",
+    combined: "a15db0604663a98d112ba09de234efbb32d2b1a6df8a6ba3759b1bb88e2405d6",
   }),
 });
 

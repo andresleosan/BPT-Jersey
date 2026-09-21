@@ -82,6 +82,15 @@ export function OwnProgressPanel() {
             </span>
           </div>
           <div className="peer-stat-box">
+            <span className="peer-stat-label">Days at current level</span>
+            <span className="peer-stat-value">
+              {state.progress.criteria.time.elapsedDays}
+              {state.progress.criteria.time.requiredDays === null
+                ? " days"
+                : ` / ${state.progress.criteria.time.requiredDays} days towards the next level`}
+            </span>
+          </div>
+          <div className="peer-stat-box">
             <span className="peer-stat-label">Time on the mat</span>
             <span className="peer-stat-value">{formatHours(state.progress.totalHours)}</span>
           </div>

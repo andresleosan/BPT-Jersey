@@ -149,7 +149,8 @@ const v2CriteriaOverrides: CriteriaOverrides = new Map([
 ]);
 
 const v3CriteriaOverrides: CriteriaOverrides = new Map([
-  ["WHITE BELT", { minClasses: 20, minDays: 60 }],
+  ["WHITE BELT", { minClasses: 25, minDays: 90 }],
+  ["White - 1st Stripe", { minClasses: 20, minDays: 60 }],
   ["RED BELT", { minClasses: null, minDays: 0 }],
 ]);
 

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
+import regyfitJson from "../../../../docs/data/ibjjf-skills-observed.sanitized.json";
 import { academyDateOf } from "../members/member-profile-contracts";
+import { buildIbjjfV3CatalogSources } from "./level-catalog-v2";
 import {
   buildStudentProgressSummary,
   parseLevelCatalogSource,
@@ -22,6 +24,10 @@ import {
 const catalogResult = parseLevelCatalogSource(observedJson, businessCriteriaJson);
 if (!catalogResult.ok) throw new Error("v1 catalogue must parse");
 const catalog = catalogResult.value;
+const v3Sources = buildIbjjfV3CatalogSources(observedJson, regyfitJson);
+const v3CatalogResult = parseLevelCatalogSource(v3Sources.observed, v3Sources.business);
+if (!v3CatalogResult.ok) throw new Error("v3 catalogue must parse");
+const v3Catalog = v3CatalogResult.value;
 
 describe("computeLevelProgress", () => {
   it("averages capped criteria and floors to an integer", () => {
@@ -558,6 +564,29 @@ describe("listPromotionGaps", () => {
 });
 
 describe("buildStudentProgressSummary with the single formula", () => {
+  it.each([
+    { classes: 19, days: 60, eligible: false },
+    { classes: 20, days: 59, eligible: false },
+    { classes: 20, days: 60, eligible: true },
+    { classes: 21, days: 61, eligible: true },
+  ])("uses the v3 first-stripe thresholds for $classes classes and $days days", (sample) => {
+    const startedAt = new Date(Date.UTC(2026, 8, 30 - sample.days)).toISOString();
+    const summary = buildStudentProgressSummary({
+      catalog: v3Catalog,
+      studentId: "student-v3",
+      currentDefinitionKey: "white-belt",
+      evaluations: [],
+      attendedClassesCount: sample.classes,
+      currentLevelStartedAt: startedAt,
+      dateOfBirth: "1990-01-01",
+      now: "2026-09-30T00:00:00.000Z",
+    });
+
+    expect(summary.criteria.classes.required).toBe(20);
+    expect(summary.criteria.time.requiredDays).toBe(60);
+    expect(summary.criteria.overallEligible).toBe(sample.eligible);
+  });
+
   it("counts the imported baseline and reports progressPercent from computeLevelProgress", () => {
     const summary = buildStudentProgressSummary({
       catalog,
