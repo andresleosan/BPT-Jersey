@@ -4,7 +4,7 @@
  * Spec: docs/archive/superpowers/specs/2026-09-10-member-calendar-design.md
  * Every day, label and deadline is computed in Europe/Jersey. Nothing here touches Firebase.
  */
-import { isWithinBookingCutoff } from "./schedule-contracts";
+import { isWithinBookingCutoff, sessionAccessMode } from "./schedule-contracts";
 import type {
   AttendanceRecord,
   BookingRecord,
@@ -236,6 +236,9 @@ export type CalendarMemberContext = Readonly<{
   planOpenMatSites: readonly Site[];
   weeklyClassLimit: WeeklyClassLimit;
   additionalProgramIds?: readonly string[];
+  introSite?: Site;
+  hasActiveMembership?: boolean;
+  hasAttendedIntro?: boolean;
   /** null means the live profile needs a date of birth; undefined supports fixture contexts. */
   dateOfBirth?: string | null;
 }>;
@@ -255,6 +258,12 @@ function lockedReasonFor(
   member: CalendarMemberContext,
 ): LockedReason | undefined {
   if (session.courseId) return member.courseSessionIds?.includes(session.sessionId) ? undefined : "paid_period";
+  if (sessionAccessMode(session) === "intro") {
+    if (member.hasActiveMembership || member.hasAttendedIntro) return "paid_period";
+    return member.introSite !== undefined && member.introSite === sessionSite(session)
+      ? undefined
+      : "site";
+  }
   if (member.membershipId === null) return "paid_period";
   if (member.additionalProgramIds?.includes(program.programId)) return undefined;
   if (member.dateOfBirth === null) return "age_band";

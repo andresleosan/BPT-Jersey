@@ -44,6 +44,7 @@ import {
   normalizeClassRecord,
   quorumCancellationReason,
   resolveCheckInProximity,
+  sessionAccessMode,
   type ClassRecord,
   type SessionOperationalView,
 } from "./schedule-contracts";
@@ -326,6 +327,7 @@ describe("Schedule Domain Contracts", () => {
       description: "",
       ageRange: null,
       levelRange: null,
+      accessMode: "membership",
       instructorIds: Object.freeze(["coach-1"]),
       capacity: 25,
       minParticipants: 4,
@@ -449,6 +451,7 @@ describe("Schedule Domain Contracts", () => {
       description: "Bring a gi.",
       ageRange: { minAge: 8, maxAge: 11 },
       levelRange: null,
+      accessMode: "membership",
       instructorIds: ["coach-a", "coach-b"],
       capacity: 20,
       minParticipants: 4,
@@ -547,11 +550,29 @@ describe("Schedule Domain Contracts", () => {
       };
       const result = parseRequestBookingInput(input);
       expect(result.ok).toBe(true);
-      if (result.ok) {
+      if (result.ok && result.value.kind === "membership") {
+        expect(result.value.kind).toBe("membership");
         expect(result.value.sessionId).toBe("sess-1");
         expect(result.value.studentId).toBe("stud-1");
         expect(result.value.membershipId).toBe("mem-1");
       }
+    });
+
+    it("accepts an intro booking without a membership", () => {
+      const result = parseRequestBookingInput({
+        kind: "intro",
+        sessionId: "sess-intro",
+        studentId: "stud-new",
+      });
+
+      expect(result).toEqual({
+        ok: true,
+        value: {
+          kind: "intro",
+          sessionId: "sess-intro",
+          studentId: "stud-new",
+        },
+      });
     });
 
     it("rejects missing fields in request booking input", () => {
@@ -1588,6 +1609,7 @@ describe("class record v2", () => {
       description: "",
       ageRange: null,
       levelRange: null,
+      accessMode: "membership",
       instructorIds: ["coach-a"],
       capacity: 20,
       minParticipants: 4,
@@ -1595,6 +1617,13 @@ describe("class record v2", () => {
       schemaVersion: "2",
       ...audit,
     });
+  });
+
+  it("defaults legacy access to membership and preserves intro access", () => {
+    expect(normalizeClassRecord(v1).accessMode).toBe("membership");
+    expect(normalizeClassRecord({ ...v1, accessMode: "intro" }).accessMode).toBe("intro");
+    expect(sessionAccessMode({})).toBe("membership");
+    expect(sessionAccessMode({ accessMode: "intro" })).toBe("intro");
   });
 
   it("returns a v2 document untouched and throws on garbage", () => {
@@ -1618,6 +1647,7 @@ describe("class record v2", () => {
       description: "",
       ageRange: null,
       levelRange: null,
+      accessMode: "membership",
       instructorIds: ["coach-a"],
       capacity: 20,
       minParticipants: 4,

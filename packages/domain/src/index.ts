@@ -282,6 +282,23 @@ export type {
 } from "./memberships/plan-contracts";
 
 export {
+  introConversionStateSchema,
+  introConversionStatuses,
+  memberNotificationSchema,
+  membershipApplicationDecisionSchema,
+  membershipApplicationSchema,
+  membershipApplicationStatuses,
+  membershipApplicationSubmitSchema,
+} from "./memberships/intro-conversion-contracts";
+export type {
+  IntroConversionState,
+  MemberNotification,
+  MembershipApplication,
+  MembershipApplicationDecision,
+  MembershipApplicationSubmit,
+} from "./memberships/intro-conversion-contracts";
+
+export {
   canTransitionMembership,
   currentMembershipStatuses,
   membershipStatuses as membershipLifecycleStatuses,
@@ -510,6 +527,7 @@ export type {
 
 export {
   ageBands,
+  classAccessModes,
   classLevels,
   daysOfWeek,
   disciplines,
@@ -518,12 +536,14 @@ export {
   parseCreateSessionInput,
   parseListSessionsQuery,
   parseRecurrenceRule,
+  sessionAccessMode,
   sessionStatuses,
 } from "./schedule/schedule-contracts";
 export type {
   AgeBand,
   CancelSessionInput,
   ClassLevel,
+  ClassAccessMode,
   ClassRecord,
   ClassRecurrenceRule,
   CreateClassInput,
@@ -533,7 +553,11 @@ export type {
   ListSessionsQuery,
   LocationId,
   LocationRecord,
+  IntroBookingRecord,
   ProgramRecord,
+  RequestBookingInput,
+  RequestIntroBookingInput,
+  RequestMembershipBookingInput,
   SessionRecord,
   SessionStatus,
   UpdateClassInput,

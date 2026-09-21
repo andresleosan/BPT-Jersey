@@ -317,6 +317,60 @@ describe("deriveSessionStatus", () => {
     });
   });
 
+  it("opens one intro session at the selected site without a membership", () => {
+    const introMember = {
+      ...maya,
+      membershipId: null,
+      introSite: "Town" as const,
+      hasActiveMembership: false,
+      hasAttendedIntro: false,
+    };
+
+    expect(
+      deriveSessionStatus({
+        ...base,
+        session: { ...session, accessMode: "intro" },
+        member: introMember,
+      }),
+    ).toEqual({ status: "open" });
+  });
+
+  it("locks intro sessions after attendance or membership activation", () => {
+    const introSession = { ...session, accessMode: "intro" as const };
+    const member = {
+      ...maya,
+      membershipId: null,
+      introSite: "Town" as const,
+      hasActiveMembership: false,
+      hasAttendedIntro: false,
+    };
+
+    expect(deriveSessionStatus({ ...base, session: introSession, member: { ...member, hasAttendedIntro: true } })).toEqual({
+      status: "locked",
+      lockedReason: "paid_period",
+    });
+    expect(deriveSessionStatus({ ...base, session: introSession, member: { ...member, hasActiveMembership: true } })).toEqual({
+      status: "locked",
+      lockedReason: "paid_period",
+    });
+  });
+
+  it("limits intro booking to the selected site", () => {
+    expect(
+      deriveSessionStatus({
+        ...base,
+        session: { ...session, accessMode: "intro" },
+        member: {
+          ...maya,
+          membershipId: null,
+          introSite: "West",
+          hasActiveMembership: false,
+          hasAttendedIntro: false,
+        },
+      }),
+    ).toEqual({ status: "locked", lockedReason: "site" });
+  });
+
   it("locks open mats at a site outside the plan's open-mat sites, and allows the covered one", () => {
     const westOpenMat = { ...session, programId: "prog-om", locationId: "west" as const };
     expect(
