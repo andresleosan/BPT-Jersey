@@ -38,7 +38,7 @@ const row = {
 
 const createInput = {
   requestId: "request-1",
-  membershipNumber: " bpt 00000001 ",
+  membershipNumber: " 00000001 ",
   fullName: "Synthetic Adult",
   dateOfBirth: "1990-01-02",
   phoneNumber: "+44 7000 000000",
@@ -56,7 +56,7 @@ const updateInput = {
   dateOfBirth: "1990-01-02",
   trainingCenter: "West" as const,
   trainingTimePreferences: ["morning" as const],
-  membershipNumber: " new 0001 ",
+  membershipNumber: " 0001 ",
   gender: "female" as const,
 };
 
@@ -80,7 +80,7 @@ describe("canonical members web client", () => {
     expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "createMember");
     expect(mocks.callable).toHaveBeenCalledWith({
       ...createInput,
-      membershipNumber: "BPT 00000001",
+      membershipNumber: "1",
     });
 
     mocks.callable.mockResolvedValue({
@@ -110,7 +110,7 @@ describe("canonical members web client", () => {
     expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "updateMember");
     expect(mocks.callable).toHaveBeenCalledWith({
       ...updateInput,
-      membershipNumber: "NEW 0001",
+      membershipNumber: "1",
     });
 
     mocks.callable.mockResolvedValue({

@@ -114,7 +114,7 @@ const header = {
 
 const full: MemberProfile = {
   view: "full",
-  header: { ...header, maskedMemberReference: "****0000" },
+  header: { ...header, maskedMemberReference: "****0001" },
   cards: {
     memberSince: "2026-01-15",
     monthsAsMember: 8,
@@ -131,7 +131,7 @@ const full: MemberProfile = {
     active: true,
     status: "active",
     gender: "unknown",
-    membershipNumber: "00000000",
+    membershipNumber: "1",
   },
 };
 
@@ -286,7 +286,7 @@ describe("member record page", () => {
     resolve(full);
 
     expect(await screen.findByRole("heading", { level: 2, name: "Test Member A" })).toBeTruthy();
-    expect(screen.getByText("****0000")).toBeTruthy();
+    expect(screen.getByText("****0001")).toBeTruthy();
     expect(screen.getByText("Birthday today")).toBeTruthy();
     expect(screen.getByText("Active").className).toContain("member-record-status-active");
     const tabs = within(

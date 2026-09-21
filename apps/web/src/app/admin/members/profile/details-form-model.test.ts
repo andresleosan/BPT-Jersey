@@ -24,7 +24,7 @@ const details: MemberDetails = {
   participantType: "adult",
   active: true,
   status: "active",
-  membershipNumber: "0000",
+  membershipNumber: "1",
   gender: "female",
   frequencyNote: "Twice weekly",
   postalAddress: { line: "1 Test Street", postCode: "JE0 0AA" },
@@ -56,7 +56,7 @@ describe("DETAILS form model", () => {
         email: "member-a@example.test",
         trainingCenter: "West",
         trainingTimePreferences: ["morning", "evening"],
-        membershipNumber: "0000",
+        membershipNumber: "1",
         gender: "female",
         frequencyNote: "Twice weekly",
         details: {
