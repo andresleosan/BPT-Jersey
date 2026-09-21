@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const syntheticAuthUsers = vi.hoisted(() => new Map<string, Record<string, unknown>>());
+vi.mock("firebase-admin/auth", () => ({
+  getAuth: () => ({
+    getUser: async (uid: string) => syntheticAuthUsers.get(uid),
+  }),
+}));
+
 import { browserOrigins } from "../auth/callable-options.js";
 
 import {
@@ -50,8 +57,18 @@ function fakeRequest(
   uid: string | null = "user-1",
   academyId = "demo-academy",
 ) {
+  if (uid) {
+    syntheticAuthUsers.set(uid, {
+      uid,
+      disabled: false,
+      emailVerified: true,
+      customClaims: { academyId, role },
+      tokensValidAfterTime: "2020-01-01T00:00:00.000Z",
+    });
+  }
   return {
-    auth: uid ? { uid, token: { academyId, role } } : undefined,
+    app: { appId: "synthetic-app" },
+    auth: uid ? { uid, token: { academyId, role, auth_time: 1_700_000_000 } } : undefined,
     data,
   } as never;
 }
@@ -337,6 +354,47 @@ describe("Schedule Callables", () => {
   });
 
   describe("Booking & Roster Callables", () => {
+    it("routes Intro Class bookings through the dedicated transaction", async () => {
+      const store = createInMemoryScheduleStore();
+      const requestIntroBooking = vi.fn(async (command) => ({
+        bookingId: "intro-booking-1",
+        academyId: command.academyId,
+        sessionId: command.sessionId,
+        studentId: command.studentId,
+        membershipId: null,
+        source: { kind: "intro" as const },
+        status: "confirmed" as const,
+        requestedAt: command.now,
+        cancelledAt: null,
+        cancellationReason: null,
+        schemaVersion: "3" as const,
+        createdAt: command.now,
+        createdBy: command.actorId,
+        updatedAt: command.now,
+        updatedBy: command.actorId,
+      }));
+      const handler = createRequestBookingHandler({
+        store,
+        resolveClientStudentScope: ownStudentScope,
+        requestIntroBooking,
+      });
+
+      const result = await handler(fakeRequest(
+        { kind: "intro", sessionId: "intro-1", studentId: "student-1" },
+        "adultStudent",
+        "student-1",
+        "demo-academy",
+      ));
+
+      expect(result.booking).toMatchObject({ membershipId: null, source: { kind: "intro" } });
+      expect(requestIntroBooking).toHaveBeenCalledWith(expect.objectContaining({
+        academyId: "demo-academy",
+        actorId: "student-1",
+        studentId: "student-1",
+        sessionId: "intro-1",
+      }));
+    });
+
     it("allows student to request and cancel their own booking", async () => {
       const store = createInMemoryScheduleStore();
       const resolveClientStudentScope = vi.fn(
@@ -1498,14 +1556,14 @@ describe("check-in proximity signal through the callables (T109)", () => {
     const scope = { store, resolveClientStudentScope: ownStudentScope };
 
     const own = (await createListStudentAttendanceHandler(scope)(
-      fakeRequest({}, "adultStudent", "student-1"),
+      fakeRequest({ studentId: "student-1" }, "adultStudent", "student-1"),
     )) as { attendance: readonly Record<string, unknown>[] };
     expect(own.attendance).toHaveLength(1);
     expect(own.attendance[0]).not.toHaveProperty("proximity");
     expect(JSON.stringify(own.attendance)).not.toContain("drifted");
 
     const history = (await createListAttendanceHistoryHandler(scope)(
-      fakeRequest({ sessionId }, "adultStudent", "student-1"),
+      fakeRequest({ sessionId, studentId: "student-1" }, "adultStudent", "student-1"),
     )) as { history: readonly Record<string, unknown>[] };
     expect(history.history.every((record) => !("proximity" in record))).toBe(true);
 

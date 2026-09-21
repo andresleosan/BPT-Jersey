@@ -34,7 +34,8 @@ import {
 
 import { clientIpFromRequest } from "../audit/client-ip.js";
 import { requireUserActor } from "../auth/user-authorization.js";
-import { BookingTransactionError } from "./booking-transaction-service.js";
+import { BookingTransactionError, type BookingFirestore } from "./booking-transaction-service.js";
+import { requestIntroBooking as requestIntroBookingTransaction, type IntroBookingCommand } from "./intro-booking-service.js";
 import { SessionQuorumSweepError } from "./quorum-sweep-service.js";
 import {
   ScheduleAttendanceError,
@@ -62,6 +63,7 @@ export type GuardianStudentScopeResolver = (input: GuardianStudentScopeInput) =>
 type StudentScopeOptions = Readonly<{
   store: ScheduleStore;
   resolveClientStudentScope?: CanonicalClientStudentScopeResolver;
+  requestIntroBooking?: (command: IntroBookingCommand) => ReturnType<typeof requestIntroBookingTransaction>;
 }>;
 
 export function createFirestoreGuardianStudentScopeResolver(
@@ -707,10 +709,21 @@ export function createRequestBookingHandler(options: StudentScopeOptions) {
     await requireStudentScope(request, parsed.value.studentId, options);
 
     try {
-      const booking = await store.requestBooking(actor.academyId, parsed.value, actor.userId, {
-        ip: clientIpFromRequest(request),
-        role: actor.role,
-      });
+      const booking = parsed.value.kind === "intro"
+        ? await (options.requestIntroBooking ?? ((command) =>
+            requestIntroBookingTransaction(getFirestore() as unknown as BookingFirestore, command)))({
+            academyId: actor.academyId,
+            actorId: actor.userId,
+            actorRole: actor.role,
+            actorIp: clientIpFromRequest(request),
+            studentId: parsed.value.studentId,
+            sessionId: parsed.value.sessionId,
+            now: new Date().toISOString(),
+          })
+        : await store.requestBooking(actor.academyId, parsed.value, actor.userId, {
+            ip: clientIpFromRequest(request),
+            role: actor.role,
+          });
       return {
         booking,
       };
