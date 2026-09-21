@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const levelCatalogVersions = Object.freeze(["ibjjf-v1", "ibjjf-v2"] as const);
+export const levelCatalogVersions = Object.freeze(["ibjjf-v1", "ibjjf-v2", "ibjjf-v3"] as const);
 export type LevelCatalogVersion = (typeof levelCatalogVersions)[number];
 
 export function isLevelCatalogVersion(value: unknown): value is LevelCatalogVersion {
@@ -49,6 +49,19 @@ export const levelCatalogVersionShapes: Readonly<
       hierarchyVisualsAndObservedSkills: "Regyfit; belt visuals from ibjjf-v1",
       conflicts:
         "Regyfit wins; differences listed in docs/data/ibjjf-criteria-diff-bpt-vs-regyfit.md",
+    }),
+  }),
+  "ibjjf-v3": Object.freeze({
+    definitions: 177,
+    belts: 27,
+    stripes: 150,
+    skills: 58,
+    requirements: 165,
+    displayName: "JIU-JITSU - IBJJF",
+    precedence: Object.freeze({
+      businessRules: "BPT operator ruling 2026-09-21 (20 classes / 60 days)",
+      hierarchyVisualsAndObservedSkills: "Regyfit; belt visuals from ibjjf-v1",
+      conflicts: "BPT v3 rule wins for adult WHITE BELT; ibjjf-v2 remains immutable",
     }),
   }),
 });
@@ -125,17 +138,26 @@ function record(value: unknown): Record<string, unknown> | null {
  * Every other criteria difference in the report is the years/months/days rounding, which v2 adopts.
  * A `null` in this table is an override too: it replaces whatever the capture holds.
  */
-const operatorCriteriaOverrides: ReadonlyMap<
+type CriteriaOverrides = ReadonlyMap<
   string,
   Readonly<{ minClasses: number | null; minDays: number | null }>
-> = new Map([
+>;
+
+const v2CriteriaOverrides: CriteriaOverrides = new Map([
   ["WHITE BELT", { minClasses: 25, minDays: 90 }],
   ["RED BELT", { minClasses: null, minDays: 0 }],
 ]);
 
-export function buildIbjjfV2CatalogSources(
+const v3CriteriaOverrides: CriteriaOverrides = new Map([
+  ["WHITE BELT", { minClasses: 20, minDays: 60 }],
+  ["RED BELT", { minClasses: null, minDays: 0 }],
+]);
+
+function buildIbjjfCatalogSources(
   v1Observed: unknown,
   regyfit: unknown,
+  systemId: "ibjjf-v2" | "ibjjf-v3",
+  criteriaOverrides: CriteriaOverrides,
 ): Readonly<{ observed: Record<string, unknown>; business: Record<string, unknown> }> {
   const structure = regyfitStructureSchema.parse(regyfit);
   const v1Levels = record(v1Observed)?.levels;
@@ -185,7 +207,7 @@ export function buildIbjjfV2CatalogSources(
         );
       }
     }
-    const override = operatorCriteriaOverrides.get(level.name);
+    const override = criteriaOverrides.get(level.name);
     const minClasses = override === undefined ? level.criteria.minClasses : override.minClasses;
     const minDays = override === undefined ? level.criteria.minDays : override.minDays;
     const criteria = {
@@ -222,7 +244,7 @@ export function buildIbjjfV2CatalogSources(
   return Object.freeze({
     observed: {
       schemaVersion: 1,
-      systemId: "ibjjf-v2",
+      systemId,
       observedAt: structure.observedAt,
       source: structure.source,
       skillRequirementSets,
@@ -231,8 +253,22 @@ export function buildIbjjfV2CatalogSources(
     },
     business: {
       schemaVersion: 1,
-      systemId: "ibjjf-v2",
+      systemId,
       levels: Object.fromEntries(levels.map((level) => [level.key, level.observedCriteria])),
     },
   });
+}
+
+export function buildIbjjfV2CatalogSources(
+  v1Observed: unknown,
+  regyfit: unknown,
+): Readonly<{ observed: Record<string, unknown>; business: Record<string, unknown> }> {
+  return buildIbjjfCatalogSources(v1Observed, regyfit, "ibjjf-v2", v2CriteriaOverrides);
+}
+
+export function buildIbjjfV3CatalogSources(
+  v1Observed: unknown,
+  regyfit: unknown,
+): Readonly<{ observed: Record<string, unknown>; business: Record<string, unknown> }> {
+  return buildIbjjfCatalogSources(v1Observed, regyfit, "ibjjf-v3", v3CriteriaOverrides);
 }

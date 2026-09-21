@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
 import regyfitJson from "../../../../docs/data/ibjjf-skills-observed.sanitized.json";
-import { buildIbjjfV2CatalogSources, levelCatalogVersionShapes } from "./level-catalog-v2";
+import {
+  buildIbjjfV2CatalogSources,
+  buildIbjjfV3CatalogSources,
+  levelCatalogVersionShapes,
+} from "./level-catalog-v2";
 import { parseLevelCatalogProjection, parseLevelCatalogSource } from "./level-contracts";
 
 describe("ibjjf-v2 catalogue sources", () => {
@@ -143,5 +147,55 @@ describe("ibjjf-v2 catalogue sources", () => {
     expect(() =>
       buildIbjjfV2CatalogSources(observedJson, { ...regyfitJson, members: [] }),
     ).toThrow();
+  });
+});
+
+describe("ibjjf-v3 catalogue sources", () => {
+  const v2Sources = buildIbjjfV2CatalogSources(observedJson, regyfitJson);
+  const v3Sources = buildIbjjfV3CatalogSources(observedJson, regyfitJson);
+  const v2 = parseLevelCatalogSource(v2Sources.observed, v2Sources.business);
+  const v3 = parseLevelCatalogSource(v3Sources.observed, v3Sources.business);
+
+  it("changes only the adult white-belt first-grade criteria", () => {
+    if (!v2.ok || !v3.ok) throw new Error("catalogue parse failed");
+    expect(v3.value.definitions.map(({ definitionKey }) => definitionKey)).toEqual(
+      v2.value.definitions.map(({ definitionKey }) => definitionKey),
+    );
+    const v2White = v2.value.definitions.find(
+      ({ definitionKey }) => definitionKey === "white-belt",
+    );
+    const v3White = v3.value.definitions.find(
+      ({ definitionKey }) => definitionKey === "white-belt",
+    );
+    expect(v2White?.criteria).toMatchObject({
+      minClasses: 25,
+      minimumTime: { days: 90 },
+    });
+    expect(v3White?.criteria).toMatchObject({
+      minClasses: 20,
+      minimumTime: { days: 60 },
+    });
+    const comparable = (catalog: typeof v2.value) =>
+      catalog.definitions.map(
+        ({ systemId: _systemId, criteria, observedCriteria, ...definition }) => ({
+          ...definition,
+          criteria: definition.definitionKey === "white-belt" ? null : criteria,
+          observedCriteria: definition.definitionKey === "white-belt" ? null : observedCriteria,
+        }),
+      );
+    expect(comparable(v3.value)).toEqual(comparable(v2.value));
+  });
+
+  it("keeps the v2 shape while assigning a distinct immutable system ID", () => {
+    if (!v3.ok) throw new Error("catalogue parse failed");
+    expect(v3.value.system.systemId).toBe("ibjjf-v3");
+    expect(v3.value.system.counts).toEqual({ definitions: 177, belts: 27, stripes: 150 });
+    expect(v3.value.skills).toHaveLength(58);
+    expect(v3.value.requirements).toHaveLength(165);
+    expect(levelCatalogVersionShapes["ibjjf-v3"]).toMatchObject({
+      definitions: 177,
+      skills: 58,
+      requirements: 165,
+    });
   });
 });

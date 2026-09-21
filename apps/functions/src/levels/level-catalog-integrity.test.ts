@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
+import regyfitJson from "../../../../docs/data/ibjjf-skills-observed.sanitized.json";
+import { buildIbjjfV3CatalogSources } from "@bpt-jersey/domain/levels";
 import {
   assertApprovedCatalogShape,
   assertStoredLevelCatalogIntegrity,
@@ -80,7 +82,7 @@ describe("Level catalog integrity manifest", () => {
     expect(() =>
       assertApprovedCatalogShape({
         ...normalized,
-        system: { ...normalized.system, systemId: "ibjjf-v3" },
+        system: { ...normalized.system, systemId: "ibjjf-v9" },
       }),
     ).toThrow(/does not match the approved publication shape/);
   });
@@ -95,6 +97,23 @@ describe("Level catalog integrity manifest", () => {
     });
     expect(v2Publication.manifest).toMatchObject({
       systemId: "ibjjf-v2",
+      catalogDocumentCount: 343,
+      definitionCount: 177,
+      requirementCount: 165,
+    });
+  });
+
+  it("binds an approved ibjjf-v3 source to the unchanged catalogue shape", () => {
+    const sources = buildIbjjfV3CatalogSources(observedJson, regyfitJson);
+    const v3 = normalizeLevelCatalogSource(sources.observed, sources.business);
+    const v3Publication = buildLevelCatalogPublication({
+      academyId: "demo-academy",
+      normalized: v3,
+      operationId: "seed-operation-v3",
+      publishedAuditEventId: "audit-level-catalog-published-v3",
+    });
+    expect(v3Publication.manifest).toMatchObject({
+      systemId: "ibjjf-v3",
       catalogDocumentCount: 343,
       definitionCount: 177,
       requirementCount: 165,
