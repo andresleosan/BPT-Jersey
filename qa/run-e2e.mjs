@@ -28,6 +28,16 @@ if (process.env.AUTH_EMULATOR_E2E === "true" && process.env.NEXT_PUBLIC_ADMIN_E2
   throw new Error("Auth Emulator E2E cannot run with NEXT_PUBLIC_ADMIN_E2E.");
 }
 
+for (const variable of ["FIRESTORE_EMULATOR_HOST", "FIREBASE_AUTH_EMULATOR_HOST"]) {
+  const value = process.env[variable];
+  if (value === undefined) continue;
+  const match = /^127\.0\.0\.1:([1-9]\d{3,4})$/u.exec(value);
+  const port = Number(match?.[1] ?? 0);
+  if (port < 1_024 || port > 65_535 || value !== `127.0.0.1:${port}`) {
+    throw new Error(`${variable} must point to a loopback non-privileged emulator port.`);
+  }
+}
+
 for (const variable of [
   "UNIFIED_LOGIN_LIVE_AUTH",
   "UNIFIED_LOGIN_CLIENT_EMAIL",
@@ -38,6 +48,8 @@ for (const variable of [
   "AUTH_EMULATOR_E2E_EMAIL",
   "AUTH_EMULATOR_E2E_PASSWORD",
   "AUTH_EMULATOR_E2E_ROLE",
+  "FIRESTORE_EMULATOR_HOST",
+  "FIREBASE_AUTH_EMULATOR_HOST",
   "RETENTION_EMULATOR_E2E",
   "WAITLIST_EMULATOR_E2E",
   "WAITLIST_UI_EMULATOR_E2E",

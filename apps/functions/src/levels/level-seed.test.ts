@@ -285,6 +285,13 @@ describe("Level Seed Guard and Execution", () => {
     expect(cliGuard("emulator", emulatorEnvironment())).toEqual(
       assertLevelSeedTargetEnvironment("emulator", emulatorEnvironment()),
     );
+    const alternatePortEnvironment = {
+      ...emulatorEnvironment(),
+      firestoreEmulatorHost: "127.0.0.1:8180",
+    };
+    expect(cliGuard("emulator", alternatePortEnvironment)).toEqual(
+      assertLevelSeedTargetEnvironment("emulator", alternatePortEnvironment),
+    );
     expect(cliGuard("production", productionEnvironment())).toEqual(
       assertLevelSeedTargetEnvironment("production", productionEnvironment()),
     );

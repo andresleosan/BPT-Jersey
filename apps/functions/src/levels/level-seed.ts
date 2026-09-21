@@ -115,7 +115,6 @@ export function loadApprovedLevelCatalog(
 }
 
 const demoProjectId = "demo-bpt-jersey";
-const demoFirestoreEmulatorHost = "127.0.0.1:8080";
 const knownProductionProjectIds: ReadonlySet<string> = new Set(["bptjersey-f5a25"]);
 // T099 must add an operator-approved, isolated project ID before staging can ever pass this guard.
 const approvedStagingProjectIds: ReadonlySet<string> = new Set();
@@ -130,6 +129,12 @@ export const productionV3RollbackConfirmation = "T091-LEVELS-V3-PRODUCTION-ROLLB
 
 function unsafeTarget(): never {
   throw new Error("Level seed target is not safe.");
+}
+
+function isSafeDemoFirestoreEmulatorHost(value: string | undefined): boolean {
+  const match = /^127\.0\.0\.1:([1-9]\d{3,4})$/u.exec(value ?? "");
+  const port = Number(match?.[1] ?? 0);
+  return port >= 1_024 && port <= 65_535 && value === `127.0.0.1:${port}`;
 }
 
 function normalizeProjectId(value: string | undefined): string | undefined {
@@ -225,7 +230,7 @@ export function assertLevelSeedTargetEnvironment(
   if (
     target === "emulator" &&
     (projectId !== demoProjectId ||
-      environment.firestoreEmulatorHost?.trim() !== demoFirestoreEmulatorHost)
+      !isSafeDemoFirestoreEmulatorHost(environment.firestoreEmulatorHost))
   ) {
     unsafeTarget();
   }

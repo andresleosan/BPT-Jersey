@@ -12,12 +12,21 @@ if (
   process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID !== projectId ||
   process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS !== "true" ||
   process.env.NEXT_PUBLIC_FIREBASE_ENV !== "local" ||
-  process.env.NEXT_PUBLIC_ADMIN_E2E ||
-  process.env.FIRESTORE_EMULATOR_HOST !== "127.0.0.1:8080" ||
-  process.env.FIREBASE_AUTH_EMULATOR_HOST !== "127.0.0.1:9099"
+  process.env.NEXT_PUBLIC_ADMIN_E2E
 ) {
   throw new Error("Member profile runner requires explicit local demo-project emulator flags.");
 }
+
+function requireLoopbackEmulator(value, label) {
+  const match = /^127\.0\.0\.1:([1-9]\d{3,4})$/u.exec(value ?? "");
+  const port = Number(match?.[1] ?? 0);
+  if (port < 1_024 || port > 65_535) {
+    throw new Error(`${label} must point to a loopback non-privileged emulator port.`);
+  }
+}
+
+requireLoopbackEmulator(process.env.FIRESTORE_EMULATOR_HOST, "FIRESTORE_EMULATOR_HOST");
+requireLoopbackEmulator(process.env.FIREBASE_AUTH_EMULATOR_HOST, "FIREBASE_AUTH_EMULATOR_HOST");
 
 function required(name) {
   const value = process.env[name]?.trim();
@@ -87,4 +96,5 @@ run([
   "--project=desktop-chromium",
   "--workers=1",
   "--retries=0",
+  ...process.argv.slice(2),
 ]);
