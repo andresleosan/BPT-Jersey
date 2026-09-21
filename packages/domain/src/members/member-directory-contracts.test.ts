@@ -65,9 +65,9 @@ const postalAddress = { line: "1 Synthetic Street, St Helier", postCode: "JE2 3A
 describe("canonical member directory contracts", () => {
   it("separates historical postal data from current mutation inputs", () => {
     expect(memberDirectoryContracts.legacyPostalAddressInputSchema).toBeDefined();
-    expect(
-      studentAdminProfileSchema.safeParse({ ...adminProfile, postalAddress }).success,
-    ).toBe(true);
+    expect(studentAdminProfileSchema.safeParse({ ...adminProfile, postalAddress }).success).toBe(
+      true,
+    );
 
     const currentCreate = {
       requestId: "request-current",
@@ -490,7 +490,7 @@ describe("canonical member directory contracts", () => {
         email: "adult@example.test",
         trainingCenter: "West",
         trainingTimePreferences: ["morning", "evening"],
-        membershipNumber: "bpt 00001234",
+        membershipNumber: "#00001234",
         idCardNumber: "id-1234",
         vatNumber: "vat-1234",
         gender: "unknown",
@@ -509,7 +509,7 @@ describe("canonical member directory contracts", () => {
         email: "adult@example.test",
         trainingCenter: "West",
         trainingTimePreferences: ["morning", "evening"],
-        membershipNumber: "BPT 00001234",
+        membershipNumber: "1234",
         idCardNumber: "ID-1234",
         vatNumber: "VAT-1234",
         gender: "unknown",
@@ -531,7 +531,7 @@ describe("canonical member directory contracts", () => {
         dateOfBirth: "2000-01-02",
         trainingCenter: "West",
         trainingTimePreferences: ["morning"],
-        membershipNumber: " new 0001 ",
+        membershipNumber: " #0001 ",
         gender: "female",
       },
       "2026-09-03",
@@ -546,7 +546,7 @@ describe("canonical member directory contracts", () => {
         dateOfBirth: "2000-01-02",
         trainingCenter: "West",
         trainingTimePreferences: ["morning"],
-        membershipNumber: "NEW 0001",
+        membershipNumber: "1",
         gender: "female",
       },
     });

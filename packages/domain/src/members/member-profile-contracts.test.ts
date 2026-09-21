@@ -97,6 +97,7 @@ describe("DETAILS helpers", () => {
     expect(nextFreeMemberNumber(["1", "0152", "A-7", undefined, "99"])).toBe("153");
     expect(nextFreeMemberNumber([])).toBe("1");
     expect(nextFreeMemberNumber(["BPT 0001"])).toBe("1");
+    expect(nextFreeMemberNumber(["#0033", "33"])).toBe("34");
   });
 });
 

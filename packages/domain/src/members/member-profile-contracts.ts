@@ -4,6 +4,10 @@ import { deriveUpcomingBirthdays } from "../birthdays/upcoming-birthday-contract
 import { currentMembershipStatuses } from "../memberships/membership-contracts";
 import { participantTypes, studentReviewFields } from "../profiles/profile-contracts";
 import {
+  canonicalMembershipNumberSchema,
+  nextMonotonicMembershipNumber,
+} from "./membership-number-contracts";
+import {
   adminUpdateStudentInputSchema,
   memberRecordMaintenanceDetailSchema,
 } from "./member-directory-contracts";
@@ -121,17 +125,11 @@ export function deriveShortNameVariants(fullName: string): readonly string[] {
 }
 
 /**
- * The number the DETAILS form proposes for a member without one: the highest purely numeric member
- * number plus one. Non-numeric numbers are ignored.
- * ponytail: numbers above 9 digits are ignored too; the academy issues sequential small numbers.
+ * The number the DETAILS form proposes for a member without one: one above the highest value that
+ * can be canonicalised. Invalid historical values are ignored and the sequence never reuses gaps.
  */
 export function nextFreeMemberNumber(existing: readonly (string | undefined)[]): string {
-  let highest = 0;
-  for (const value of existing) {
-    if (value === undefined || !/^\d{1,9}$/u.test(value)) continue;
-    highest = Math.max(highest, Number(value));
-  }
-  return String(highest + 1);
+  return nextMonotonicMembershipNumber(existing);
 }
 
 export const memberRecordTabs = Object.freeze([
@@ -215,10 +213,7 @@ const fullMemberProfileSchema = z.strictObject({
   header: memberProfileHeaderSchema,
   cards: memberProfileCardsSchema,
   details: memberDetailsSchema,
-  nextFreeMemberNumber: z
-    .string()
-    .regex(/^\d{1,10}$/u)
-    .optional(),
+  nextFreeMemberNumber: canonicalMembershipNumberSchema.optional(),
 });
 const coachMemberProfileSchema = z.strictObject({
   view: z.literal("coach"),

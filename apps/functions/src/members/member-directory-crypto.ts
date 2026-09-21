@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { normalizeAdministrativeIdentifier } from "@bpt-jersey/domain/members/directory";
+import { canonicaliseMembershipNumber } from "@bpt-jersey/domain/members/membership-number";
 import { z } from "zod";
 
 export const studentIdentityKeyKinds = Object.freeze([
@@ -479,6 +480,11 @@ export function createMemberDirectoryIdentityBaselineMac(
 
 function normalizedIdentityValue(kind: StudentIdentityKeyKind, value: string): string {
   if (kind === "auth-user-id") return requiredSafeIdentifier(value, "Auth user ID");
+  if (kind === "membership-number") {
+    const result = canonicaliseMembershipNumber(value);
+    if (result.ok) return result.value;
+    // Historical non-numeric reservations remain derivable until reconciliation removes them.
+  }
   const normalized = normalizeAdministrativeIdentifier(value);
   if (!administrativeIdentifierPattern.test(normalized)) {
     throw new Error("Invalid administrative identifier");

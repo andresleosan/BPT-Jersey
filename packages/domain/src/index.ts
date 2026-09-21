@@ -132,6 +132,14 @@ export {
 } from "./members/member-contracts";
 
 export {
+  canonicalMembershipNumberSchema,
+  canonicaliseMembershipNumber,
+  membershipNumberIssues,
+  nextMonotonicMembershipNumber,
+} from "./members/membership-number-contracts";
+export type { MembershipNumberIssue } from "./members/membership-number-contracts";
+
+export {
   adminDirectoryReadPurposes,
   adminDirectoryRowSchema,
   adminCreateStudentInputSchema,

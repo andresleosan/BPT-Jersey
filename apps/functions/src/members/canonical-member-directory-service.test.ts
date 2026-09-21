@@ -142,7 +142,7 @@ function input(requestId = "request-1") {
     email: "adult@example.test",
     trainingCenter: "Town",
     trainingTimePreferences: ["evening"],
-    membershipNumber: "bpt 00001234",
+    membershipNumber: "#00001234",
     idCardNumber: "id-1234",
     vatNumber: "vat-1234",
     frequencyNote: "Twice weekly",
@@ -173,7 +173,7 @@ function updateInput(requestId = "41cbb1aa-7020-4bb5-88a4-dbc73c5f0123") {
     dateOfBirth: "2000-01-02",
     trainingCenter: "West",
     trainingTimePreferences: ["morning"],
-    membershipNumber: "new 0001",
+    membershipNumber: "#001001",
     idCardNumber: "new-id-1",
     gender: "female",
   } as const;
@@ -251,6 +251,32 @@ function service(firestore: MemberDirectoryFirestore) {
 }
 
 describe("canonical administrative member writer", () => {
+  it("maps prefixed and plain member numbers to one transactional identity", async () => {
+    const conflictKey = buildStudentIdentityKey({
+      academyId: "academy-1",
+      kind: "membership-number",
+      value: "33",
+      ownerStudentId: "student-other",
+      secretMaterial: identitySecret,
+      secretVersion: "identity-v1",
+      now: "2026-09-03T20:00:00.000Z",
+      actorId: "system-1",
+    });
+    const harness = fakeFirestore(
+      existingMemberSeed({
+        ["academies/academy-1/studentIdentityKeys/" + conflictKey.keyId]: conflictKey,
+      }),
+    );
+
+    await expect(
+      service(harness.firestore).updateAdminMember({
+        actor: actor(),
+        value: { ...updateInput(), membershipNumber: "#0033" },
+        now,
+      }),
+    ).rejects.toMatchObject({ code: "conflict" });
+    expect(harness.committedWritePaths).toEqual([]);
+  });
   it("atomically replaces editable fields while preserving identity history and provenance", async () => {
     const harness = fakeFirestore(existingMemberSeed());
     const writer = service(harness.firestore);
@@ -281,7 +307,7 @@ describe("canonical administrative member writer", () => {
     ).toEqual({
       studentId: "student-existing-1",
       academyId: "academy-1",
-      membershipNumber: "NEW 0001",
+      membershipNumber: "1001",
       idCardNumber: "NEW-ID-1",
       gender: "female",
       source: "member-pdf-import",
@@ -369,7 +395,7 @@ describe("canonical administrative member writer", () => {
     const conflictKey = buildStudentIdentityKey({
       academyId: "academy-1",
       kind: "membership-number",
-      value: "NEW 0001",
+      value: "1001",
       ownerStudentId: "student-other",
       secretMaterial: identitySecret,
       secretVersion: "identity-v1",
@@ -474,7 +500,7 @@ describe("canonical administrative member writer", () => {
     expect(harness.records.get("academies/academy-1/studentAdminProfiles/student-new-1")).toEqual(
       expect.objectContaining({
         studentId: "student-new-1",
-        membershipNumber: "BPT 00001234",
+        membershipNumber: "1234",
         idCardNumber: "ID-1234",
         vatNumber: "VAT-1234",
         gender: "unknown",
@@ -620,7 +646,7 @@ describe("canonical administrative member writer", () => {
     const conflictKey = buildStudentIdentityKey({
       academyId: "academy-1",
       kind: "membership-number",
-      value: "BPT 00001234",
+      value: "1234",
       ownerStudentId: "student-existing",
       secretMaterial: identitySecret,
       secretVersion: "identity-v1",
@@ -892,7 +918,7 @@ describe("DETAILS block on the canonical update (T051V2)", () => {
     const conflictKey = buildStudentIdentityKey({
       academyId: "academy-1",
       kind: "membership-number",
-      value: "NEW 0001",
+      value: "1001",
       ownerStudentId: "student-other",
       secretMaterial: identitySecret,
       secretVersion: "identity-v1",
