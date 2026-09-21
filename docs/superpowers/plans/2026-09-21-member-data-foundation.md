@@ -870,3 +870,20 @@ The implementation stops before production effects. A later operator-authorised 
 8. Re-read representative synthetic/authorised records and compare audit receipts.
 
 None of these steps is implied by approval of this implementation plan.
+
+### Operator notes from the first production run (2026-09-21)
+
+- Launch every operator CLI from the deploy artefact, never from `apps/functions`:
+  `node apps/functions/scripts/build-deploy-artifact.mjs`, then `cd .firebase-functions` and
+  `node scripts/reconcile-membership-numbers.mjs …`. From `apps/functions` the compiled `lib/`
+  resolves `@bpt-jersey/domain/…` to uncompiled TypeScript and the CLI exits with only
+  "Membership number reconciliation failed."
+- Credentials are Application Default Credentials: `gcloud auth application-default login`, then
+  `gcloud auth application-default set-quota-project bptjersey-f5a25`. Without the quota project
+  Firestore rejects user credentials.
+- The plan hash covers `generatedAt`. Keep the `generatedAt` and `expectedConfirmation` printed by
+  the dry-run and pass the same `--generated-at` to `--apply`; otherwise the confirmation cannot
+  match. If any numbered member changes in between, the hash changes too: rerun the dry-run.
+- `--apply` also needs `--actor-id`, `--production-confirmation`, and
+  `MEMBER_DIRECTORY_IDENTITY_KEY_SECRET` in the environment (Secret Manager, never the chat or a file).
+- Step 1 on 2026-09-21: 148 numbered records, 147 already canonical, 1 reassignment proposed.
