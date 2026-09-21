@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { createStaffLoginService } from "./staff-login-service.js";
+import { isWeakStaffPassword } from "./staff-password-policy.js";
 
 const options = {
   ...browserAdminCallableOptions,
@@ -38,6 +39,7 @@ export const completeInitialStaffAccess = onCall(options, async (request) => {
   const claims = user.customClaims ?? {};
   if (typeof claims.academyId !== "string" || !["coach","administrator","owner"].includes(String(claims.role))) throw new HttpsError("permission-denied", "Staff access is unavailable.");
   if (claims.passwordChangeRequired !== true) return { completed: true };
+  if (method === "password" && isWeakStaffPassword(newPassword as string, user.email)) throw new HttpsError("invalid-argument", "Choose a password that does not contain your email and is not a repeated character.");
   const provider = String(request.auth.token.firebase?.sign_in_provider ?? "");
   const authTime = Number(request.auth.token.auth_time) * 1000;
   if (!Number.isFinite(authTime) || Date.now() - authTime > 5 * 60_000 || (method === "google" ? provider !== "google.com" || !user.providerData.some((item) => item.providerId === "google.com") : provider !== "password")) throw new HttpsError("permission-denied", "Sign in again before completing initial access.");

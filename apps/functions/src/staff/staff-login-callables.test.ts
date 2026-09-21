@@ -38,6 +38,26 @@ describe("completeInitialStaffAccess", () => {
     expect(auth.setCustomUserClaims).not.toHaveBeenCalled();
   });
 
+  it("refuses a replacement password built from the email", async () => {
+    auth.getUser.mockResolvedValue({
+      uid: "coach-1",
+      email: "miro.coach@example.test",
+      providerData: [],
+      customClaims: { academyId: "academy-1", role: "coach", passwordChangeRequired: true },
+    });
+    await expect(
+      completeInitialStaffAccess.run(
+        request({ method: "password", newPassword: "Miro.Coach-2026!" }),
+      ),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
+    await expect(
+      completeInitialStaffAccess.run(
+        request({ method: "password", newPassword: "aaaaaaaaaaaaaa" }),
+      ),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
+    expect(auth.updateUser).not.toHaveBeenCalled();
+  });
+
   it("sets the new password, then removes the flag and keeps the authority claims", async () => {
     await completeInitialStaffAccess.run(
       request({ method: "password", newPassword: "a-replacement-phrase" }),
