@@ -85,3 +85,11 @@ export const submitIntroMembershipApplication = onCall({ ...browserAdminCallable
   if (!input.success) throw new HttpsError("invalid-argument", "Invalid membership application");
   return submitApplication(getFirestore(), actor, input.data, createPrivateStorageR2Client());
 });
+
+import { requireActiveOfficeActor } from "../auth/office-actor.js";
+import { membershipApplicationDecisionSchema } from "@bpt-jersey/domain";
+import { getIntroProofUrl, listIntroApplications, reviewIntroApplication } from "./intro-application-admin-service.js";
+const applicationIdSchema = z.strictObject({ applicationId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u) });
+export const listIntroMembershipApplications = onCall(browserAdminCallableOptions, async (request) => { const actor = await requireActiveOfficeActor(request); if (request.data !== null) throw new HttpsError("invalid-argument", "Invalid application query"); return { applications: await listIntroApplications(getFirestore(), actor) }; });
+export const getIntroMembershipProofUrl = onCall({ ...browserAdminCallableOptions, secrets: introStorageSecrets }, async (request) => { const actor = await requireActiveOfficeActor(request); const input = applicationIdSchema.safeParse(request.data); if (!input.success) throw new HttpsError("invalid-argument", "Invalid application request"); return getIntroProofUrl(getFirestore(), actor, input.data.applicationId, createPrivateStorageR2Client()); });
+export const reviewIntroMembershipApplication = onCall(browserAdminCallableOptions, async (request) => { const actor = await requireActiveOfficeActor(request); const input = membershipApplicationDecisionSchema.safeParse(request.data); if (!input.success) throw new HttpsError("invalid-argument", "Invalid review decision"); return reviewIntroApplication(getFirestore(), actor, input.data); });
