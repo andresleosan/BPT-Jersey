@@ -13,6 +13,9 @@ export const metadata: Metadata = {
 export default function CoursesPage() {
   return (
     <main className="course-page">
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
       <nav className="course-topnav" aria-label="Course navigation">
         <a className="course-wordmark" href="/">
           BPT Jersey
@@ -20,7 +23,7 @@ export default function CoursesPage() {
         <a href="/account/courses">My courses</a>
       </nav>
 
-      <header className="course-page-hero">
+      <header className="course-page-hero" id="main-content">
         <p className="course-eyebrow">Focused training at BPT Jersey</p>
         <h1>Courses &amp; seminars</h1>
         <p className="course-intro">
