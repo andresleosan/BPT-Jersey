@@ -3,6 +3,8 @@
 import { deleteApp, getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
+import { assertMembershipNumberReconciliationTarget } from "./membership-number-reconciliation-target.mjs";
+
 class CliError extends Error {}
 
 function parseArguments(values) {
@@ -71,16 +73,6 @@ function assertProjectBinding(projectId) {
   }
 }
 
-function assertEmulatorApply(projectId) {
-  const host = process.env.FIRESTORE_EMULATOR_HOST;
-  if (!projectId.startsWith("demo-") || host === undefined) {
-    throw new CliError("--apply is restricted to an explicitly bound Firebase emulator project.");
-  }
-  if (!/^[A-Za-z0-9.-]+:[1-9][0-9]{0,4}$/u.test(host)) {
-    throw new CliError("FIRESTORE_EMULATOR_HOST is invalid.");
-  }
-}
-
 function safePlanView(plan, operationId, expectedConfirmation) {
   const counts = Object.create(null);
   for (const row of plan.rows) counts[row.action] = (counts[row.action] ?? 0) + 1;
@@ -105,17 +97,23 @@ try {
   const options = parseArguments(process.argv.slice(2));
   const allowedOptions = new Set([
     "project",
+    "target",
     "academy-id",
     "operation-id",
     "generated-at",
     "apply",
     "confirmation",
     "actor-id",
+    "production-confirmation",
   ]);
   for (const name of Object.keys(options)) {
     if (!allowedOptions.has(name)) throw new CliError(`Unknown --${name}.`);
   }
   const projectId = required(options, "project");
+  const target = options.target;
+  if (target !== "emulator" && target !== "production") {
+    throw new CliError("Missing or invalid --target.");
+  }
   const academyId = required(options, "academy-id");
   const operationId = options["operation-id"] ?? "membership-number-reconciliation";
   if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(operationId)) {
@@ -129,9 +127,20 @@ try {
     throw new CliError("Missing or invalid --generated-at.");
   }
   assertProjectBinding(projectId);
+  assertMembershipNumberReconciliationTarget({
+    target,
+    projectId,
+    apply: options.apply === true,
+    productionConfirmation: options["production-confirmation"],
+    environment: {
+      gcloudProjectId: process.env.GCLOUD_PROJECT,
+      googleCloudProjectId: process.env.GOOGLE_CLOUD_PROJECT,
+      firebaseConfig: process.env.FIREBASE_CONFIG,
+      firestoreEmulatorHost: process.env.FIRESTORE_EMULATOR_HOST,
+    },
+  });
   let applyActorId;
   if (options.apply === true) {
-    assertEmulatorApply(projectId);
     applyActorId = required(options, "actor-id");
     if (!process.env.MEMBER_DIRECTORY_IDENTITY_KEY_SECRET) {
       throw new CliError("The identity-key secret is required for --apply.");
