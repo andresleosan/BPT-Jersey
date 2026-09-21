@@ -3,12 +3,157 @@ import { useEffect, useState } from "react";
 import type { Course, CoursePage } from "@bpt-jersey/domain/courses";
 import { courseApi, courseError } from "../../../lib/courses/course-client";
 import { courseDate, type PublicCourseSlot } from "../../../lib/courses/course-public-client";
+import { CourseLoading } from "../../courses/course-ui";
 import { useCourseAction } from "../../../lib/courses/use-course-action";
-function localInput(instant: string) {const p = new Intl.DateTimeFormat("en-CA", {timeZone:"Europe/Jersey",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date(instant)); const get=(key:string)=>p.find(v=>v.type===key)?.value; return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;}
-export function CourseSessions({course, onChanged}: {course: Course; onChanged: () => void}) {
-  const [page,setPage]=useState<CoursePage<PublicCourseSlot> | null>(null);const [selected,setSelected]=useState<PublicCourseSlot | null>(null);const [error,setError]=useState("");const action=useCourseAction();
-  async function load(cursor?:string){try{const p=await courseApi.dates({courseId:course.courseId,...(cursor?{cursor}:{})});setPage(old=>({...p,items:cursor?[...(old?.items??[]),...p.items]:p.items}));}catch(e){setError(courseError(e));}}
-  useEffect(()=>{void load();},[course.courseId,course.revision]);
-  async function change(form:HTMLFormElement){if(!selected)return;const data=new FormData(form);const cancel=data.get("cancel")==="on";const reason=String(data.get("reason")); const start=String(data.get("start"));const end=String(data.get("end"));const input={courseId:course.courseId,sessionId:selected.sessionId,expectedRevision:course.revision,reason,startLocal:start,endLocal:end,cancel};const result=await action.run(JSON.stringify(input),requestId=>courseApi.reviseLocalSession({...input,requestId}),cancel?"Session cancelled.":"Session updated.");if(result){setSelected(null);onChanged();}}
-  return <section><h3>Course sessions</h3>{(error||action.error)&&<p role="alert" className="course-error">{error||action.error}</p>}<ol className="course-slots">{page?.items.map(s=><li key={s.sessionId}><span>Session {s.ordinal} · {courseDate(s.startAt)} · {s.status}</span>{s.startAt>new Date().toISOString()&&course.status==="published"&&<button className="course-link" onClick={()=>setSelected(s)}>Edit session {s.ordinal}</button>}</li>)}</ol>{page?.cursor&&<button className="course-button secondary" onClick={()=>void load(page.cursor!)}>Load more sessions</button>}{selected&&<form className="course-panel" onSubmit={e=>{e.preventDefault();void change(e.currentTarget);}} key={selected.sessionId}><h3>Edit session {selected.ordinal}</h3><p>Enter Jersey local times. Applicants receive an in-app notice.</p><div className="course-form-grid"><label>Start<input type="datetime-local" name="start" defaultValue={localInput(selected.startAt)} required/></label><label>Finish<input type="datetime-local" name="end" defaultValue={localInput(selected.endAt)} required/></label></div><label>Reason<textarea name="reason" maxLength={500} required/></label><label className="course-check"><input type="checkbox" name="cancel"/>Cancel this session</label><div className="course-actions"><button className="course-button" disabled={action.busy}>Save session change</button><button type="button" className="course-link" onClick={()=>setSelected(null)}>Keep current session</button></div></form>}</section>;
+function localInput(instant: string) {
+  const p = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Jersey",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(instant));
+  const get = (key: string) => p.find((v) => v.type === key)?.value;
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+}
+export function CourseSessions({ course, onChanged }: { course: Course; onChanged: () => void }) {
+  const [page, setPage] = useState<CoursePage<PublicCourseSlot> | null>(null);
+  const [selected, setSelected] = useState<PublicCourseSlot | null>(null);
+  const [error, setError] = useState("");
+  const action = useCourseAction();
+  async function load(cursor?: string) {
+    setError("");
+    try {
+      const p = await courseApi.dates({ courseId: course.courseId, ...(cursor ? { cursor } : {}) });
+      setPage((old) => ({ ...p, items: cursor ? [...(old?.items ?? []), ...p.items] : p.items }));
+    } catch (e) {
+      setError(courseError(e));
+    }
+  }
+  useEffect(() => {
+    void load();
+  }, [course.courseId, course.revision]);
+  async function change(form: HTMLFormElement) {
+    if (!selected) return;
+    const data = new FormData(form);
+    const cancel = data.get("cancel") === "on";
+    const reason = String(data.get("reason"));
+    const start = String(data.get("start"));
+    const end = String(data.get("end"));
+    const input = {
+      courseId: course.courseId,
+      sessionId: selected.sessionId,
+      expectedRevision: course.revision,
+      reason,
+      startLocal: start,
+      endLocal: end,
+      cancel,
+    };
+    const result = await action.run(
+      JSON.stringify(input),
+      (requestId) => courseApi.reviseLocalSession({ ...input, requestId }),
+      cancel ? "Session cancelled." : "Session updated.",
+    );
+    if (result) {
+      setSelected(null);
+      onChanged();
+    }
+  }
+  return (
+    <section className="course-session-section">
+      <h3>Session dates</h3>
+      <p className="course-meta">
+        All times are local to Jersey. Published sessions also appear in Classes &amp; Services 2.0.
+      </p>
+      {!page && !error && <CourseLoading label="Loading session dates" />}
+      {page?.items.length === 0 && (
+        <p className="course-guidance">
+          No session dates are available yet. Check Processing if publication is still in progress.
+        </p>
+      )}
+      {(error || action.error) && (
+        <p role="alert" className="course-error">
+          {error || action.error}
+        </p>
+      )}
+      <ol className="course-slots">
+        {page?.items.map((s) => (
+          <li key={s.sessionId}>
+            <div>
+              <span className="course-slot-number">
+                Session {s.ordinal} of {course.sessionCount}
+              </span>
+              <p>
+                <strong>{courseDate(s.startAt)}</strong>
+              </p>
+              <span className="course-meta">
+                {s.status === "cancelled" ? "Cancelled" : "Scheduled"}
+              </span>
+            </div>
+            {s.startAt > new Date().toISOString() && course.status === "published" && (
+              <button className="course-link" onClick={() => setSelected(s)}>
+                Edit session {s.ordinal}
+              </button>
+            )}
+          </li>
+        ))}
+      </ol>
+      {page?.cursor && (
+        <button className="course-button secondary" onClick={() => void load(page.cursor!)}>
+          Load more sessions
+        </button>
+      )}
+      {selected && (
+        <form
+          className="course-session-editor"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void change(e.currentTarget);
+          }}
+          key={selected.sessionId}
+        >
+          <h3>Edit session {selected.ordinal}</h3>
+          <p>Enter Jersey local times. Applicants receive an in-app notice.</p>
+          <div className="course-form-grid">
+            <label>
+              Start
+              <input
+                type="datetime-local"
+                name="start"
+                defaultValue={localInput(selected.startAt)}
+                required
+              />
+            </label>
+            <label>
+              Finish
+              <input
+                type="datetime-local"
+                name="end"
+                defaultValue={localInput(selected.endAt)}
+                required
+              />
+            </label>
+          </div>
+          <label>
+            Reason
+            <textarea name="reason" maxLength={500} required />
+          </label>
+          <label className="course-check">
+            <input type="checkbox" name="cancel" />
+            Cancel this session
+          </label>
+          <div className="course-actions">
+            <button className="course-button" disabled={action.busy}>
+              Save session change
+            </button>
+            <button type="button" className="course-link" onClick={() => setSelected(null)}>
+              Keep current session
+            </button>
+          </div>
+        </form>
+      )}
+    </section>
+  );
 }
