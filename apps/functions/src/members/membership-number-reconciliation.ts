@@ -6,6 +6,7 @@ import {
   membershipNumberPlanSchema,
   nextMonotonicMembershipNumber,
   type MembershipNumberPlan,
+  type MembershipNumberPlanPayload,
   type MembershipNumberPlanRow,
   type MembershipNumberSourceKind,
 } from "@bpt-jersey/domain/members/membership-number";
@@ -66,6 +67,11 @@ function canonicalJson(value: unknown): string {
     .sort(([left], [right]) => compareText(left, right))
     .map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`)
     .join(",")}}`;
+}
+
+export function membershipNumberPlanContentHash(value: MembershipNumberPlanPayload): string {
+  const payload = membershipNumberPlanPayloadSchema.parse(value);
+  return createHash("sha256").update(canonicalJson(payload)).digest("hex");
 }
 
 function compareText(left: string, right: string): number {
@@ -176,7 +182,7 @@ export function buildMembershipNumberReconciliationPlan(
     rows: plannedRows.sort(comparePlanRows),
     schemaVersion: "1",
   });
-  const contentHash = createHash("sha256").update(canonicalJson(payload)).digest("hex");
+  const contentHash = membershipNumberPlanContentHash(payload);
   const plan = membershipNumberPlanSchema.parse({ ...payload, contentHash });
   return Object.freeze({
     ...plan,
