@@ -30,6 +30,10 @@ export const completeInitialStaffAccess = onCall(options, async (request) => {
   if (!request.app || !request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
   const method = typeof request.data === "object" && request.data !== null ? (request.data as { method?: unknown }).method : undefined;
   if (method !== "password" && method !== "google") throw new HttpsError("invalid-argument", "Invalid access completion.");
+  // Operator decision 2026-09-21: the server sets the replacement password, so the flag can never
+  // be cleared while the password the administrator chose is still valid.
+  const newPassword = (request.data as { newPassword?: unknown }).newPassword;
+  if (method === "password" ? typeof newPassword !== "string" || newPassword.length < 12 || newPassword.length > 128 : newPassword !== undefined) throw new HttpsError("invalid-argument", "Use a password of 12 to 128 characters.");
   const user = await getAuth().getUser(request.auth.uid);
   const claims = user.customClaims ?? {};
   if (typeof claims.academyId !== "string" || !["coach","administrator","owner"].includes(String(claims.role))) throw new HttpsError("permission-denied", "Staff access is unavailable.");
@@ -40,6 +44,8 @@ export const completeInitialStaffAccess = onCall(options, async (request) => {
   // The claim is removed, never set to false: requireUserActor rejects any unknown custom claim.
   const remaining = { ...claims };
   delete remaining.passwordChangeRequired;
+  // Password first: if it fails the flag stays and the person simply retries.
+  if (method === "password") await getAuth().updateUser(user.uid, { password: newPassword as string });
   await getAuth().setCustomUserClaims(user.uid, remaining);
   return { completed: true };
 });
