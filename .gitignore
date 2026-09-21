@@ -76,3 +76,9 @@ apps/web/src/app/admin/real-members-data.ts
 qa/screenshots/*
 !qa/screenshots/cs-*.png
 !qa/screenshots/t051-*.png
+
+# Material local de trabajo: referencias visuales, caché de herramientas, auditorías y config de emuladores
+Assets/
+.impeccable/
+docs/audits/
+.firebase-release-e2e.json
