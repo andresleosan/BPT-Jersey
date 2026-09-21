@@ -118,6 +118,21 @@ function seedAcademy(
   store: ReturnType<typeof createFirestore>,
   session: Partial<Document> = {},
 ): void {
+  store.seed(`academies/${academyId}/users/s1`, {
+    userId: "s1",
+    academyId,
+    accountType: "client",
+    displayName: "Synthetic Student",
+    email: "s1@example.test",
+    phoneNumber: "+441534000000",
+    active: true,
+    status: "active",
+    schemaVersion: "1",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    createdBy: "owner-1",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    updatedBy: "owner-1",
+  });
   store.seed(`academies/${academyId}/sessions/sess1`, {
     sessionId: "sess1",
     academyId,
