@@ -1,5 +1,5 @@
 "use client";
-import { GoogleAuthProvider, browserPopupRedirectResolver, linkWithPopup, signInWithCustomToken } from "firebase/auth";
+import { GoogleAuthProvider, browserPopupRedirectResolver, linkWithPopup, signInWithCustomToken, updatePassword } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
 import { getFirebaseAuth, getFirebaseFunctions } from "./firebase-client";
 
@@ -22,6 +22,7 @@ export async function linkStaffGoogle() {
   provider.setCustomParameters({ prompt: "select_account" });
   // Linking preserves the authenticated UID and its coach profile.
   const result = await linkWithPopup(user, provider, browserPopupRedirectResolver);
+  await httpsCallable(getFirebaseFunctions(), "completeInitialStaffAccess")({ method: "google" });
   await result.user.getIdToken(true);
 }
 export async function changeStaffPassword(staffNumber: string, password: string, newPassword: string) {
@@ -37,4 +38,11 @@ export function staffAccessError(error: unknown): string {
   if (code === "functions/resource-exhausted") return "Too many attempts. Try again in 15 minutes.";
   if (code === "functions/unauthenticated") return "Check your staff ID and current password.";
   return "We could not update your access. Please try again or contact the office.";
+}
+export async function completeInitialStaffPassword(newPassword: string) {
+  const user = getFirebaseAuth().currentUser;
+  if (!user || newPassword.length < 12 || newPassword.length > 128) throw new Error("Sign in again and use 12 to 128 characters.");
+  await updatePassword(user, newPassword);
+  await httpsCallable(getFirebaseFunctions(), "completeInitialStaffAccess")({ method: "password" });
+  return user.getIdTokenResult(true);
 }

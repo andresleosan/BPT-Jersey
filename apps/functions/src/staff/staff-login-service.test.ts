@@ -61,7 +61,8 @@ function fixture() {
   };
   const auth = {
     getUser: vi.fn(async () => user),
-    createCustomToken: vi.fn(async () => "test-custom-token"),
+    createCustomToken: vi.fn(async () => "synthetic-custom-auth-result"),
+    setCustomUserClaims: vi.fn(async () => undefined),
   };
   return {
     records,
@@ -75,7 +76,7 @@ const input = { staffNumber: "100001", password: "initial-test-password" };
 describe("staff numeric login", () => {
   it("issues a token for the existing UID with no additional authority claims", async () => {
     const { service, auth } = fixture();
-    await expect(service.signIn(input, "test-ip")).resolves.toEqual({ token: "test-custom-token" });
+    await expect(service.signIn(input, "test-ip")).resolves.toEqual({ token: "synthetic-custom-auth-result" });
     expect(auth.createCustomToken).toHaveBeenCalledWith("coach-miro");
   });
   it.each(["administrator", "owner"])(

@@ -122,6 +122,8 @@ export function createStaffLoginService(firestore: Firestore, auth: Auth) {
           throw new HttpsError("aborted", "Account changed. Sign in again.");
         tx.update(ref, { ...hashed, updatedAt: new Date().toISOString() });
       });
+      const user = await auth.getUser(userId);
+      await auth.setCustomUserClaims(userId, { ...(user.customClaims ?? {}), passwordChangeRequired: false });
       return { changed: true };
     },
   };

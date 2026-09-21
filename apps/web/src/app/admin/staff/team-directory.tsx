@@ -15,6 +15,7 @@ import {
 } from "../../../lib/team-access-client";
 import { useAdminGateSession } from "../admin-gate";
 import { AdminDataTable } from "../admin-data-table";
+import { DirectStaffForm } from "./direct-staff-form";
 
 type AdministrativeRole = "administrator" | "owner";
 type InvitationRole = AdministrativeRole | "coach";
@@ -307,6 +308,7 @@ export function TeamDirectoryContent({ session }: { session: AdminSession }) {
           </div>
         </form>
       )}
+      <DirectStaffForm session={session} onCreated={() => void loadDirectory()} />
       {(owner || session.role === "administrator") && (
         <form className="staff-card" onSubmit={reviewInvitation}>
           <p className="admin-eyebrow">New team member</p>

@@ -30,3 +30,8 @@ export function cancelStaffInvitation(input: { id: string; version: string }) {
 export function acceptStaffInvitation() {
   return call("acceptStaffInvitation", {}, z.strictObject({ activated: z.boolean() }), "Unable to activate staff access. Use the invited Google account or contact an owner.");
 }
+
+const directStaffResultSchema = z.strictObject({ userId: z.string().min(1).max(128), email: z.email(), role: z.enum(["coach","administrator","owner"]), passwordChangeRequired: z.literal(true) });
+export function createStaffWithPassword(input: { displayName: string; email: string; password: string; role: "coach"|"administrator"|"owner" }) {
+  return call("createStaffWithPassword", input, directStaffResultSchema, "Unable to create this staff account. Check the email and try again.");
+}
