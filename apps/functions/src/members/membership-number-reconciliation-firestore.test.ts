@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { buildStudentIdentityKey } from "./member-directory-crypto.js";
+
 import {
   applyMembershipNumberReconciliation,
   expectedMembershipNumberReconciliationConfirmation,
@@ -238,6 +240,71 @@ describe("membership number Firestore reconciliation", () => {
     expect(harness.records.get(stalePath)?.data.membershipNumber).toBe("#33");
     expect(harness.writes).not.toContain(stalePath);
     expect(harness.writes).not.toContain(manualPath);
+  });
+
+  it("isolates a foreign reservation as manual review without rolling back its chunk", async () => {
+    const harness = fakeStore(seededRecords());
+    const plan = await buildPlan(harness);
+    const row = plan.rows.find(({ recordRef }) => recordRef === "members/legacy-a");
+    if (row?.proposed === undefined) throw new Error("Missing collision proposal");
+    const reservation = buildStudentIdentityKey({
+      academyId: plan.academyId,
+      kind: "membership-number",
+      value: row.proposed,
+      ownerStudentId: "different-owner",
+      secretMaterial: identitySecret,
+      secretVersion: "identity-v1",
+      actorId: "fixture",
+      now,
+    });
+    harness.records.set(`academies/academy-1/studentIdentityKeys/${reservation.keyId}`, {
+      version: "reservation-v1",
+      data: reservation,
+    });
+
+    const result = await applyMembershipNumberReconciliation(
+      harness.store,
+      plan,
+      confirmationFor(plan),
+    );
+
+    expect(result.rows).toEqual([
+      { recordRef: "studentAdminProfiles/canonical", status: "applied" },
+      { recordRef: "members/legacy-a", status: "manual_review" },
+    ]);
+    expect(
+      harness.records.get("academies/academy-1/studentAdminProfiles/canonical")?.data
+        .membershipNumber,
+    ).toBe("33");
+    expect(harness.records.get("academies/academy-1/members/legacy-a")?.data.membershipNumber).toBe(
+      "#33",
+    );
+  });
+
+  it("preserves stale and manual-review outcomes on an exact replay", async () => {
+    const seeded = seededRecords();
+    seeded["academies/academy-1/members/manual"] = {
+      version: "manual-v1",
+      data: { memberId: "manual", membershipNumber: "invalid-value" },
+    };
+    const harness = fakeStore(seeded);
+    const plan = await buildPlan(harness);
+    const stalePath = "academies/academy-1/members/legacy-a";
+    const stale = harness.records.get(stalePath);
+    if (stale === undefined) throw new Error("Missing stale fixture");
+    harness.records.set(stalePath, { ...stale, version: "legacy-v2" });
+    const confirmation = confirmationFor(plan);
+    await applyMembershipNumberReconciliation(harness.store, plan, confirmation);
+
+    const replay = await applyMembershipNumberReconciliation(harness.store, plan, confirmation);
+
+    expect(replay.rows).toEqual(
+      expect.arrayContaining([
+        { recordRef: "studentAdminProfiles/canonical", status: "already_applied" },
+        { recordRef: "members/legacy-a", status: "stale" },
+        { recordRef: "members/manual", status: "manual_review" },
+      ]),
+    );
   });
 
   it("rejects a tampered plan even when its declared hash is unchanged", async () => {
