@@ -207,7 +207,7 @@ describe("canonical member directory contracts", () => {
     );
   });
 
-  it("keeps the waiver contact and address out of general rows and inside the detail", () => {
+  it("keeps the waiver contact in maintenance detail and location only in stored history", () => {
     const profileWithWaiverBlocks = {
       ...adminProfile,
       emergencyContact: {
@@ -238,9 +238,12 @@ describe("canonical member directory contracts", () => {
     const detail = toMemberRecordMaintenanceDetail(student, profileWithWaiverBlocks);
     expect(memberRecordMaintenanceDetailSchema.safeParse(detail).success).toBe(true);
     expect(detail.emergencyContact).toEqual(profileWithWaiverBlocks.emergencyContact);
-    expect(detail.postalAddress).toEqual(profileWithWaiverBlocks.postalAddress);
+    expect(detail).not.toHaveProperty("postalAddress");
     expect(Object.isFrozen(detail.emergencyContact)).toBe(true);
-    expect(Object.isFrozen(detail.postalAddress)).toBe(true);
+    expect(profileWithWaiverBlocks.postalAddress).toEqual({
+      line: "1 Synthetic Street, St Helier",
+      postCode: "JE2 3AB",
+    });
   });
 
   it("parses optional complete waiver blocks in admin create and rejects partial ones", () => {
@@ -733,12 +736,13 @@ describe("member record DETAILS extension (T051V2)", () => {
     ).toBe(false);
   });
 
-  it("carries stored details into the maintenance detail and omits the key when absent", () => {
+  it("carries current stored details without legacy location and omits the key when absent", () => {
     const withDetails = toMemberRecordMaintenanceDetail(student, {
       ...adminProfile,
       details,
     } as StudentAdminProfile);
-    expect(withDetails.details).toEqual(details);
+    const { city: _city, country: _country, ...currentDetails } = details;
+    expect(withDetails.details).toEqual(currentDetails);
     expect(memberRecordMaintenanceDetailSchema.safeParse(withDetails).success).toBe(true);
     const without = toMemberRecordMaintenanceDetail(student, adminProfile as StudentAdminProfile);
     expect(Object.hasOwn(without, "details")).toBe(false);

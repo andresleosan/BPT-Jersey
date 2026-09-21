@@ -441,6 +441,10 @@ export const memberNameRowSchema = z.strictObject({
 });
 export type MemberNameRow = Readonly<z.infer<typeof memberNameRowSchema>>;
 
+const currentStudentAdminDetailsSchema = studentAdminDetailsSchema
+  .transform(({ city: _city, country: _country, ...details }) => details)
+  .readonly();
+
 export const memberRecordMaintenanceDetailSchema = z.strictObject({
   ...studentDirectoryShape,
   dateOfBirth: dateOnlySchema.optional(),
@@ -453,8 +457,7 @@ export const memberRecordMaintenanceDetailSchema = z.strictObject({
   gender: z.enum(memberGenders),
   frequencyNote: canonicalText(256).optional(),
   emergencyContact: emergencyContactSchema.optional(),
-  postalAddress: postalAddressSchema.optional(),
-  details: studentAdminDetailsSchema.optional(),
+  details: currentStudentAdminDetailsSchema.optional(),
 });
 
 export type MemberRecordMaintenanceDetail = Readonly<
@@ -703,6 +706,10 @@ export function toMemberRecordMaintenanceDetail(
   profile: StudentAdminProfile,
 ): MemberRecordMaintenanceDetail {
   assertProjectionBinding(student, profile);
+  const currentDetails =
+    profile.details === undefined
+      ? undefined
+      : currentStudentAdminDetailsSchema.parse(profile.details);
   return Object.freeze({
     studentId: student.studentId,
     fullName: student.fullName,
@@ -726,9 +733,6 @@ export function toMemberRecordMaintenanceDetail(
     ...(profile.emergencyContact === undefined
       ? {}
       : { emergencyContact: Object.freeze({ ...profile.emergencyContact }) }),
-    ...(profile.postalAddress === undefined
-      ? {}
-      : { postalAddress: Object.freeze({ ...profile.postalAddress }) }),
-    ...(profile.details === undefined ? {} : { details: Object.freeze({ ...profile.details }) }),
+    ...(currentDetails === undefined ? {} : { details: Object.freeze({ ...currentDetails }) }),
   });
 }
