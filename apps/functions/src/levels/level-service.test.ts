@@ -129,6 +129,22 @@ describe("Level Service & Store", () => {
     expect((await migratedStore.listPublished("demo-academy")).system.systemId).toBe("ibjjf-v3");
   });
 
+  it("keeps both immutable catalogues when rollback is requested during coexistence", async () => {
+    const store = createInMemoryLevelStore();
+    const v2 = loadApprovedLevelCatalog({ systemId: "ibjjf-v2" });
+    const v3 = loadApprovedLevelCatalog({ systemId: "ibjjf-v3" });
+    await store.seed({ academyId: "demo-academy", normalized: v2 });
+    await store.seed({ academyId: "demo-academy", normalized: v3 });
+
+    await expect(
+      store.rollback({ academyId: "demo-academy", systemId: "ibjjf-v2", normalized: v2 }),
+    ).rejects.toThrow(/versions coexist/i);
+    await expect(
+      store.rollback({ academyId: "demo-academy", systemId: "ibjjf-v3", normalized: v3 }),
+    ).rejects.toThrow(/versions coexist/i);
+    expect((await store.listPublished("demo-academy")).system.systemId).toBe("ibjjf-v2");
+  });
+
   it("fails closed on immutable version conflict (same systemId, different sourceHash)", async () => {
     const store = createInMemoryLevelStore();
 

@@ -341,26 +341,23 @@ describe("Level catalog publication integrity (T101)", () => {
     await expect(store.activate(activation)).resolves.toMatchObject({ idempotent: true });
   });
 
-  it("rolls back an inactive staged v3 catalogue without deleting active v2 state", async () => {
+  it("refuses destructive rollback of either catalogue while v2 and v3 coexist", async () => {
     const fake = createTransactionalFirestore();
     const store = createLevelCatalogStore({ firestore: fake.firestore });
     const v2 = loadApprovedLevelCatalog({ systemId: "ibjjf-v2" });
     const v3 = loadApprovedLevelCatalog({ systemId: "ibjjf-v3" });
     await store.seed({ academyId, normalized: v2, operationId: "seed-v2" });
     await store.seed({ academyId, normalized: v3, operationId: "seed-v3" });
-    fake.records.set(`${prefix}/studentLevelProgress/student-1`, {
-      academyId,
-      studentId: "student-1",
-      systemId: "ibjjf-v2",
-      currentDefinitionKey: "white-belt",
-      state: "initialized",
-    });
 
     await expect(
       store.rollback({ academyId, systemId: "ibjjf-v3", normalized: v3 }),
-    ).resolves.toMatchObject({ systemId: "ibjjf-v3", deletedSystems: 1 });
+    ).rejects.toThrow(/versions coexist/i);
+    await expect(
+      store.rollback({ academyId, systemId: "ibjjf-v2", normalized: v2 }),
+    ).rejects.toThrow(/versions coexist/i);
     expect((await store.listPublished(academyId)).system.systemId).toBe("ibjjf-v2");
-    expect(fake.records.has(`${prefix}/levelSystems/ibjjf-v3`)).toBe(false);
+    expect(fake.records.has(`${prefix}/levelSystems/ibjjf-v2`)).toBe(true);
+    expect(fake.records.has(`${prefix}/levelSystems/ibjjf-v3`)).toBe(true);
     expect(fake.records.has(`${prefix}/levelCatalogState/active`)).toBe(true);
   });
 });
