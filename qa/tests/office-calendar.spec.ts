@@ -186,6 +186,11 @@ for (const role of ["owner", "administrator"]) {
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.getByLabel("Class/service location").selectOption("west");
     await page.getByLabel("Class/service type").selectOption("nogi");
+    await page.getByLabel("Curriculum title").fill("Guard retention");
+    await page
+      .getByLabel("Techniques or topics (one per line)")
+      .fill("Closed guard\nHip bump sweep");
+    await page.getByLabel("Teaching details").fill("Focus on posture and safe partner resistance.");
     await page.screenshot({
       path: `../.tmp/calendar-editor-${role}-${info.project.name}.jpg`,
       type: "jpeg",
@@ -196,6 +201,11 @@ for (const role of ["owner", "administrator"]) {
     expect(calls.find((c) => c.name === "updateSession")?.data).toMatchObject({
       programId: "nogi",
       locationId: "west",
+      curriculum: {
+        title: "Guard retention",
+        techniques: ["Closed guard", "Hip bump sweep"],
+        details: "Focus on posture and safe partner resistance.",
+      },
     });
     await page.getByRole("button", { name: "Add a class", exact: true }).click();
     await page.getByLabel("Maximum capacity").fill("20");

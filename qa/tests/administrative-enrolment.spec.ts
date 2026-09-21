@@ -9,7 +9,9 @@ async function harness(
   options: { failPayment?: boolean; failRead?: boolean } = {},
 ) {
   const calls: { name: string; data: Record<string, unknown> }[] = [];
-  const plans = PLAN_CATALOG.slice(0, 2).map((plan) => ({ ...plan, active: true }));
+  const plans = PLAN_CATALOG.filter(
+    (plan, index) => index < 2 || plan.planId === "transit-free",
+  ).map((plan) => ({ ...plan, active: true }));
   let levelKey: string | null = null;
   let subscription: Record<string, unknown> | null = null;
   let paymentFailures = options.failPayment ? 1 : 0;
@@ -201,7 +203,37 @@ test("payment retry keeps the same operation and saved member", async ({ page })
   expect(payments[0]!.data).toEqual(payments[1]!.data);
   expect(calls.filter((call) => call.name === "createMember")).toHaveLength(1);
 });
-test("coach cannot open the administrative registration @member-data-foundation", async ({ page }) => {
+test("owner assigns Transit Free as indefinite complimentary access", async ({ page }) => {
+  const calls = await harness(page, "owner");
+  await register(page);
+  await openLevel(page);
+  await page
+    .getByRole("combobox", { name: "Subscription plan", exact: true })
+    .selectOption("transit-free");
+  await expect(page.getByLabel("No end date", { exact: true })).toBeChecked();
+  await expect(page.getByLabel("No end date", { exact: true })).toBeDisabled();
+  await expect(
+    page.getByRole("combobox", { name: "Payment for this period", exact: true }),
+  ).toHaveValue("complimentary");
+  await expect(
+    page.getByRole("combobox", { name: "Payment for this period", exact: true }),
+  ).toBeDisabled();
+  await page.getByRole("button", { name: "Assign subscription", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Registration complete", exact: true }),
+  ).toBeVisible();
+  const request = calls.find((call) => call.name === "manageMemberSubscription");
+  expect(request?.data).toMatchObject({
+    studentId,
+    operation: "assign",
+    planId: "transit-free",
+    endsAt: null,
+    settlement: { kind: "complimentary", reason: "Transit Free indefinite access" },
+  });
+});
+test("coach cannot open the administrative registration @member-data-foundation", async ({
+  page,
+}) => {
   const calls = await harness(page, "coach");
   await expect(page.getByRole("heading", { name: "Add adult student" })).toHaveCount(0);
   await expect(

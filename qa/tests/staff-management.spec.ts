@@ -131,6 +131,16 @@ async function installStaffHarness(
       return;
     }
 
+    if (request.url().includes("createStaffWithPassword")) {
+      await respond({
+        userId: "staff-direct-1",
+        email: "direct.coach@example.test",
+        role: "coach",
+        passwordChangeRequired: true,
+      });
+      return;
+    }
+
     if (request.url().includes("createStaffProfile")) {
       const created: StaffProfile = {
         staffKey: "staff-synthetic-3",
@@ -232,7 +242,7 @@ test.describe("staff management", () => {
     await expectNoBrowserHealthProblems(page, errors, directDataRequests);
   });
 
-  test("runs create, role, status, availability, and assignment flows with keyboard focus", async ({
+  test("runs create, status, availability, and assignment flows with keyboard focus", async ({
     page,
   }) => {
     const directDataRequests: string[] = [];
@@ -242,8 +252,6 @@ test.describe("staff management", () => {
 
     const rowAction = page.getByRole("button", { name: "Select staff staff-synthetic-1" });
     await rowAction.click();
-    await page.getByRole("combobox", { name: "Selected staff role" }).selectOption("coach");
-    await page.getByRole("button", { name: "Update role" }).click();
     await expect(
       page.getByRole("button", { name: "Select staff staff-synthetic-1" }),
     ).toBeFocused();
@@ -269,18 +277,21 @@ test.describe("staff management", () => {
       page.getByRole("status").filter({ hasText: "Staff assignment replaced." }),
     ).toHaveText("Staff assignment replaced.");
 
-    await page.getByLabel("User ID", { exact: true }).fill("user-synthetic-2");
-    await page.getByLabel("Request ID", { exact: true }).fill("request-synthetic-2");
-    await page.getByRole("button", { name: "Create staff profile" }).click();
-    await expect(page.getByRole("status").filter({ hasText: "Staff profile created." })).toHaveText(
-      "Staff profile created.",
-    );
-    await expect(page.getByText("staff-synthetic-3")).toBeVisible();
+    await page.getByLabel("Full name", { exact: true }).fill("Direct Coach");
+    await page.getByLabel("Direct staff email").fill("direct.coach@example.test");
+    await page.getByLabel("Initial password").fill("A-test-only-phrase-2026");
+    await page.getByLabel("Direct staff role").selectOption("coach");
+    await page.getByRole("button", { name: "Create staff account" }).click();
+    await expect(
+      page
+        .getByRole("status")
+        .filter({ hasText: "must change the initial password or link Google" }),
+    ).toBeVisible();
 
-    const userId = page.getByLabel("User ID", { exact: true });
-    await userId.focus();
+    const fullName = page.getByLabel("Full name", { exact: true });
+    await fullName.focus();
     await page.keyboard.press("Tab");
-    await expect(page.locator("#staff-create-role")).toBeFocused();
+    await expect(page.getByLabel("Direct staff email", { exact: true })).toBeFocused();
     await expectNoBrowserHealthProblems(page, errors, directDataRequests);
   });
 

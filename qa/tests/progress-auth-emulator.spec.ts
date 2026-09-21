@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { expect, test, type APIRequestContext } from "@playwright/test";
+import { enrolmentWaiverTermsVersion } from "@bpt-jersey/domain/consents/enrolment-waiver";
 
 /**
  * T097 authenticated Emulator E2E for progress on canonical data: the head coach opens a
@@ -14,8 +15,17 @@ const functionsPort = process.env.T097_FUNCTIONS_EMULATOR_PORT ?? "5001";
 const projectId = "demo-bpt-jersey";
 const academyId = process.env.T097_E2E_ACADEMY_ID ?? "";
 const functionsBaseUrl = `http://127.0.0.1:${functionsPort}/${projectId}/us-central1`;
-const authUrl = `http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo`;
-const firestoreRestBase = `http://127.0.0.1:8080/v1/projects/${projectId}/databases/(default)/documents`;
+function emulatorOrigin(name: string, fallbackPort: number): string {
+  const host = process.env[name] ?? `127.0.0.1:${fallbackPort}`;
+  const match = /^127\.0\.0\.1:([1-9]\d{3,4})$/u.exec(host);
+  const port = Number(match?.[1] ?? 0);
+  if (port < 1_024 || port > 65_535) {
+    throw new Error(`${name} must point to a loopback non-privileged emulator port.`);
+  }
+  return `http://${host}`;
+}
+const authUrl = `${emulatorOrigin("FIREBASE_AUTH_EMULATOR_HOST", 9_099)}/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo`;
+const firestoreRestBase = `${emulatorOrigin("FIRESTORE_EMULATOR_HOST", 8_080)}/v1/projects/${projectId}/databases/(default)/documents`;
 
 type CallableEnvelope = Readonly<{
   result?: unknown;
@@ -49,6 +59,7 @@ type Progress =
     }>;
 
 const hour = 3_600_000;
+const day = 86_400_000;
 const adultAge = 33;
 const minorAge = 10;
 
@@ -153,16 +164,16 @@ function publication(suffix: string) {
   };
 }
 
-const townAdultPlan = {
-  planId: "town-adult",
-  displayName: "Town Adult",
-  priceMinor: 8_500,
+const paygPlan = {
+  planId: "payg",
+  displayName: "West Pay as you go",
+  priceMinor: 1_000,
   currency: "GBP",
-  billingPeriod: "monthly",
+  billingPeriod: "per-session",
   eligibleParticipantTypes: ["adult"],
-  classSites: ["Town"],
+  classSites: ["West"],
   weeklyClassLimit: null,
-  openMatSites: ["Town"],
+  openMatSites: [],
   openMatFeeMinor: null,
 };
 
@@ -199,7 +210,7 @@ test.describe("T097 progress and promotions with Firebase Emulators", () => {
     test.setTimeout(180_000);
     const owner = await signIn(request, process.env.T097_OWNER_EMAIL);
     const headCoach = await signIn(request, process.env.T097_HEAD_COACH_EMAIL);
-    const adult = await signIn(request, process.env.T097_ADULT_EMAIL);
+    let adult = await signIn(request, process.env.T097_ADULT_EMAIL);
     const suffix = randomUUID().replace(/-/gu, "").slice(0, 8).toLowerCase();
 
     // Canonical catalog seeded by the runner; the head coach reads it like any staff member.
@@ -220,20 +231,73 @@ test.describe("T097 progress and promotions with Firebase Emulators", () => {
       owner,
     );
     const fullName = "Synthetic T097 Adult";
+    await ok(request, "savePlan", paygPlan, owner);
+    await ok(request, "activatePlan", { planId: "payg" }, owner);
+    const dateOfBirth = `${new Date().getUTCFullYear() - adultAge}-01-01`;
+    const submitted = await ok<{ enrolmentRequestId: string }>(
+      request,
+      "submitEnrolmentRequest",
+      {
+        requestId: randomUUID(),
+        applicantIsStudent: true,
+        applicant: {
+          fullName,
+          dateOfBirth,
+          phoneNumber: "+441534000971",
+          trainingCenter: "West",
+          trainingTimePreferences: ["evening"],
+          gender: "unknown",
+          emergencyContact: {
+            fullName: "Synthetic T097 Contact",
+            relationship: "Friend",
+            phoneNumber: "+441534000972",
+          },
+        },
+        minors: [],
+        planSelections: { applicant: "payg", minors: [] },
+        waiverAcceptance: { version: enrolmentWaiverTermsVersion, accepted: true },
+      },
+      adult,
+    );
+    const enrolmentApproval = await ok<{ studentIds: readonly string[] }>(
+      request,
+      "approveEnrolmentRequest",
+      {
+        enrolmentRequestId: submitted.enrolmentRequestId,
+        requestId: randomUUID(),
+        purpose: "enrolment-request-review",
+        setup: {
+          students: [
+            {
+              planId: "payg",
+              definitionKey: belt.definitionKey,
+              startsOn: new Date(Date.now() - 60 * day).toISOString().slice(0, 10),
+              endsOn: null,
+            },
+          ],
+          detailsVerified: true,
+          paymentVerified: true,
+        },
+      },
+      owner,
+    );
+    expect(enrolmentApproval.studentIds).toHaveLength(1);
+    const studentId = enrolmentApproval.studentIds[0]!;
+    adult = await signIn(request, process.env.T097_ADULT_EMAIL);
     const profile = await ok<{ student: { studentId: string } }>(
       request,
       "saveClientProfile",
       {
         requestId: `t097-profile-${suffix}`,
         fullName,
-        dateOfBirth: `${new Date().getUTCFullYear() - adultAge}-01-01`,
+        dateOfBirth,
         phoneNumber: "+441534000971",
-        trainingCenter: "Town",
+        trainingCenter: "West",
         trainingTimePreferences: ["evening"],
       },
       adult,
     );
-    const studentId = profile.student.studentId;
+    expect(profile.student.studentId).toBe(studentId);
     await ok(
       request,
       "acceptWaiver",
@@ -251,57 +315,33 @@ test.describe("T097 progress and promotions with Firebase Emulators", () => {
       },
       adult,
     );
-    await ok(request, "savePlan", townAdultPlan, owner);
-    const activation = await call(
-      request,
-      "activatePlan",
-      { planId: "town-adult" },
-      { session: owner },
-    );
-    expect([200, 400]).toContain(activation.status);
-    const membership = await ok<{ membershipId: string }>(
-      request,
-      "createMembership",
-      { studentId, planId: "town-adult", status: "active" },
-      owner,
-    );
-
-    // Before any level is opened the adult is honestly uninitialized.
-    const before = await ok<{ progress: Progress }>(
+    // Approval atomically creates both the initial level and the selected PAYG membership.
+    const afterApproval = await ok<{ progress: Progress }>(
       request,
       "getStudentProgressSummary",
       {},
       adult,
     );
-    expect(before.progress.state).toBe("uninitialized");
+    expect(afterApproval.progress.state).toBe("initialized");
+    if (afterApproval.progress.state === "initialized") {
+      expect(afterApproval.progress.currentDefinition.definitionKey).toBe(belt.definitionKey);
+    }
+    const memberships = await ok<
+      readonly { membershipId: string; studentId: string; planId: string; status: string }[]
+    >(request, "listMemberships", null, owner);
+    const membership = memberships.find(
+      (candidate) => candidate.studentId === studentId && candidate.planId === "payg",
+    );
+    expect(membership).toMatchObject({ studentId, planId: "payg", status: "active" });
 
-    // Only the current head coach opens a level, only once, only at a belt.
+    // The linked account cannot reopen its level; the head coach reaches the write, which then
+    // fails closed because the approved enrolment already opened it exactly once.
     const opening = {
       studentId,
       definitionKey: belt.definitionKey,
       decisionNotes: "Starts as a white belt after the trial classes.",
     };
-    await denied(request, "openStudentLevel", opening, owner, 403, "PERMISSION_DENIED");
     await denied(request, "openStudentLevel", opening, adult, 403, "PERMISSION_DENIED");
-    const stripe = catalog.definitions.find((definition) => definition.kind === "stripe");
-    await denied(
-      request,
-      "openStudentLevel",
-      { ...opening, definitionKey: stripe!.definitionKey },
-      headCoach,
-      400,
-      "FAILED_PRECONDITION",
-    );
-    const opened = await ok<{ head: { currentDefinitionKey: string; state: string } }>(
-      request,
-      "openStudentLevel",
-      opening,
-      headCoach,
-    );
-    expect(opened.head).toMatchObject({
-      currentDefinitionKey: belt.definitionKey,
-      state: "initialized",
-    });
     await denied(request, "openStudentLevel", opening, headCoach, 400, "FAILED_PRECONDITION");
 
     // Attendance in a head-coach session feeds the progress summary.
@@ -311,41 +351,40 @@ test.describe("T097 progress and promotions with Firebase Emulators", () => {
       { name: `T097 Adults ${suffix}`, ageBand: "adult", discipline: "bjj", level: "all-levels" },
       owner,
     );
-    const startAt = new Date(Date.now() + 2 * hour);
-    const { session } = await ok<{ session: { sessionId: string } }>(
-      request,
-      "saveSession",
-      {
-        classId: null,
-        programId: program.programId,
-        locationId: "town",
-        instructorId: headCoach.uid,
-        title: `T097 Town ${suffix}`,
-        startAt: startAt.toISOString(),
-        endAt: new Date(startAt.getTime() + hour).toISOString(),
-        capacity: 10,
-        minParticipants: 4,
-      },
-      headCoach,
-    );
-    await ok(
-      request,
-      "requestBooking",
-      { sessionId: session.sessionId, studentId, membershipId: membership.membershipId },
-      adult,
-    );
-    await ok(
-      request,
-      "checkIn",
-      { sessionId: session.sessionId, studentId, method: "manual" },
-      headCoach,
-    );
+    let sessionId = "";
+    for (let attendanceIndex = 0; attendanceIndex < 20; attendanceIndex += 1) {
+      const startAt = new Date(Date.now() + (attendanceIndex + 2) * hour);
+      const created = await ok<{ session: { sessionId: string } }>(
+        request,
+        "saveSession",
+        {
+          classId: null,
+          programId: program.programId,
+          locationId: "west",
+          instructorId: headCoach.uid,
+          title: `T097 West ${suffix} ${attendanceIndex + 1}`,
+          startAt: startAt.toISOString(),
+          endAt: new Date(startAt.getTime() + hour).toISOString(),
+          capacity: 10,
+          minParticipants: 1,
+        },
+        headCoach,
+      );
+      sessionId = created.session.sessionId;
+      await ok(
+        request,
+        "requestBooking",
+        { sessionId, studentId, membershipId: membership!.membershipId },
+        adult,
+      );
+      await ok(request, "checkIn", { sessionId, studentId, method: "manual" }, headCoach);
+    }
 
     const after = await ok<{ progress: Progress }>(request, "getStudentProgressSummary", {}, adult);
     expect(after.progress.state).toBe("initialized");
     if (after.progress.state === "initialized") {
       expect(after.progress.currentDefinition.definitionKey).toBe(belt.definitionKey);
-      expect(after.progress.totalAttendedClasses).toBeGreaterThanOrEqual(0);
+      expect(after.progress.totalAttendedClasses).toBe(20);
     }
     const staffView = await ok<{ progress: Progress }>(
       request,
@@ -358,7 +397,7 @@ test.describe("T097 progress and promotions with Firebase Emulators", () => {
     // Evaluations are recorded by coaches with evidence; clients never record them.
     const evaluationInput = {
       studentId,
-      sessionId: session.sessionId,
+      sessionId,
       definitionKey: belt.definitionKey,
       skillKey,
       score: 4,
@@ -522,15 +561,15 @@ test.describe("T097 progress and promotions with Firebase Emulators", () => {
       expect(after.progress.studentId).toBe(minorId);
     }
 
-    // Nobody else reaches that child. An adult may never name a student at all, so its attempt is
-    // refused at the payload; a guardian naming a child it is not linked to is refused on authority.
+    // Nobody else reaches that child. An adult is denied before member-specific payload access;
+    // a guardian naming a child it is not linked to is refused on authority.
     await denied(
       request,
       "getStudentProgressSummary",
       { studentId: minorId },
       adult,
-      400,
-      "INVALID_ARGUMENT",
+      403,
+      "PERMISSION_DENIED",
     );
     await denied(
       request,
