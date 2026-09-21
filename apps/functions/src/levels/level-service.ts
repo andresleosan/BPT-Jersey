@@ -445,6 +445,17 @@ function activeLevelCatalogSystemId(
   return published[0]!.id;
 }
 
+function isSupportedCatalogTransitionPair(
+  systemId: string,
+  otherSystems: readonly Readonly<{ id: string }>[],
+): boolean {
+  return (
+    otherSystems.length === 1 &&
+    new Set([systemId, otherSystems[0]!.id]).size === 2 &&
+    [systemId, otherSystems[0]!.id].every((id) => id === "ibjjf-v2" || id === "ibjjf-v3")
+  );
+}
+
 async function transactionalActiveLevelCatalogSystemId(
   transaction: GenericTransaction,
   firestore: GenericFirestore,
@@ -1377,14 +1388,7 @@ export function createLevelCatalogStore({
           transaction.get(stateRef),
         ]);
         const otherSystems = systemsSnapshot.docs.filter((document) => document.id !== systemId);
-        if (
-          otherSystems.length > 0 &&
-          !(
-            systemId === "ibjjf-v3" &&
-            otherSystems.length === 1 &&
-            otherSystems[0]?.id === "ibjjf-v2"
-          )
-        ) {
+        if (otherSystems.length > 0 && !isSupportedCatalogTransitionPair(systemId, otherSystems)) {
           throw new LevelStoreError("conflict", "Another level catalogue is already published.");
         }
         if (stateSnapshot.exists) {
@@ -3049,10 +3053,9 @@ export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
       );
       if (
         otherSystems.length > 0 &&
-        !(
-          systemId === "ibjjf-v3" &&
-          otherSystems.length === 1 &&
-          otherSystems[0]?.["systemId"] === "ibjjf-v2"
+        !isSupportedCatalogTransitionPair(
+          systemId,
+          otherSystems.map((system) => ({ id: String(system["systemId"]) })),
         )
       ) {
         throw new LevelStoreError("conflict", "Another level catalogue is already published.");

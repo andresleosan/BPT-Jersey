@@ -303,6 +303,9 @@ describe("Level catalog publication integrity (T101)", () => {
     const v3 = loadApprovedLevelCatalog({ systemId: "ibjjf-v3" });
     await store.seed({ academyId, normalized: v2, operationId: "seed-v2" });
     await store.seed({ academyId, normalized: v3, operationId: "seed-v3" });
+    await expect(
+      store.seed({ academyId, normalized: v2, operationId: "seed-v2" }),
+    ).resolves.toMatchObject({ systemId: "ibjjf-v2", idempotent: true });
     expect((await store.listPublished(academyId)).system.systemId).toBe("ibjjf-v2");
     expect(fake.records.has(`${prefix}/levelSystems/ibjjf-v2`)).toBe(true);
     expect(fake.records.has(`${prefix}/levelDefinitions/white-belt`)).toBe(true);
