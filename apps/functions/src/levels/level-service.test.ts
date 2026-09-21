@@ -6,6 +6,7 @@ import regyfitJson from "../../../../docs/data/ibjjf-skills-observed.sanitized.j
 import { buildIbjjfV3CatalogSources } from "@bpt-jersey/domain/levels";
 import { normalizeLevelCatalogSource } from "./level-source";
 import { createInMemoryLevelStore, createLevelProgressMigrationStore } from "./level-service";
+import { loadApprovedLevelCatalog } from "./level-seed";
 
 describe("Level Service & Store", () => {
   const normalized = normalizeLevelCatalogSource(observedJson, businessCriteriaJson);
@@ -88,6 +89,44 @@ describe("Level Service & Store", () => {
       published.definitions.find(({ definitionKey }) => definitionKey === "white-1st-stripe")
         ?.criteria,
     ).toMatchObject({ minClasses: 20, minimumTime: { days: 60 } });
+  });
+
+  it("stages immutable v3 beside v2 and activates it only after every head migrated", async () => {
+    const store = createInMemoryLevelStore();
+    const v2 = loadApprovedLevelCatalog({ systemId: "ibjjf-v2" });
+    const v3 = loadApprovedLevelCatalog({ systemId: "ibjjf-v3" });
+    await store.seed({ academyId: "demo-academy", normalized: v2 });
+    await openConsecutiveLevel(store, "student-1");
+    await store.seed({ academyId: "demo-academy", normalized: v3 });
+
+    expect((await store.listPublished("demo-academy")).system.systemId).toBe("ibjjf-v2");
+    await expect(
+      store.activate({
+        academyId: "demo-academy",
+        fromSystemId: "ibjjf-v2",
+        toSystemId: "ibjjf-v3",
+        operationId: "activate-v3",
+        contentHash: "a".repeat(64),
+        actorId: "system-level-progress-migration",
+        activatedAt: "2026-09-21T08:00:00.000Z",
+      }),
+    ).rejects.toThrow(/progress heads/i);
+
+    const migratedStore = createInMemoryLevelStore();
+    await migratedStore.seed({ academyId: "demo-academy", normalized: v2 });
+    await migratedStore.seed({ academyId: "demo-academy", normalized: v3 });
+    await expect(
+      migratedStore.activate({
+        academyId: "demo-academy",
+        fromSystemId: "ibjjf-v2",
+        toSystemId: "ibjjf-v3",
+        operationId: "activate-v3",
+        contentHash: "a".repeat(64),
+        actorId: "system-level-progress-migration",
+        activatedAt: "2026-09-21T08:00:00.000Z",
+      }),
+    ).resolves.toMatchObject({ activeSystemId: "ibjjf-v3", idempotent: false });
+    expect((await migratedStore.listPublished("demo-academy")).system.systemId).toBe("ibjjf-v3");
   });
 
   it("fails closed on immutable version conflict (same systemId, different sourceHash)", async () => {

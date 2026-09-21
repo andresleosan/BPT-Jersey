@@ -77,6 +77,13 @@ describe("Level catalog integrity manifest", () => {
         definitionKeys,
       ),
     ).toBe(false);
+    expect(
+      levelCatalogDocumentReferencesSystem(
+        { systemId: "ibjjf-v2", currentDefinitionKey: definitionKey },
+        "ibjjf-v3",
+        definitionKeys,
+      ),
+    ).toBe(false);
   });
   it("refuses an unknown system version even when its counts match ibjjf-v1", () => {
     expect(() =>

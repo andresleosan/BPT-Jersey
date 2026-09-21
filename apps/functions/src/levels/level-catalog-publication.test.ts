@@ -128,8 +128,9 @@ describe("Level catalog publication integrity (T101)", () => {
     expect(pathsUnder(fake.records, "levelDefinitions")).toHaveLength(171);
     expect(pathsUnder(fake.records, "levelRequirements")).toHaveLength(165);
     expect(pathsUnder(fake.records, "levelCatalogManifests")).toHaveLength(1);
+    expect(pathsUnder(fake.records, "levelCatalogState")).toHaveLength(1);
     expect(pathsUnder(fake.records, "auditEvents")).toHaveLength(1);
-    expect(fake.records.size).toBe(LEVEL_CATALOG_DOCUMENT_COUNT + 2);
+    expect(fake.records.size).toBe(LEVEL_CATALOG_DOCUMENT_COUNT + 3);
 
     const manifest = fake.records.get(`${prefix}/levelCatalogManifests/ibjjf-v1`);
     expect(manifest).toMatchObject({
@@ -216,6 +217,7 @@ describe("Level catalog publication integrity (T101)", () => {
     const { fake, store } = await publishedFixture();
     fake.records.delete(`${prefix}/levelSystems/ibjjf-v1`);
     fake.records.delete(`${prefix}/levelCatalogManifests/ibjjf-v1`);
+    fake.records.delete(`${prefix}/levelCatalogState/active`);
     const before = fake.snapshot();
 
     await expect(store.seed({ academyId, normalized })).rejects.toThrow(
@@ -292,5 +294,70 @@ describe("Level catalog publication integrity (T101)", () => {
       }),
     ).rejects.toThrow(/Another level catalogue is already published/);
     expect(fake.snapshot()).toEqual(before);
+  });
+
+  it("stages v3 beside referenced v2 and switches the active pointer only after migration", async () => {
+    const fake = createTransactionalFirestore();
+    const store = createLevelCatalogStore({ firestore: fake.firestore });
+    const v2 = loadApprovedLevelCatalog({ systemId: "ibjjf-v2" });
+    const v3 = loadApprovedLevelCatalog({ systemId: "ibjjf-v3" });
+    await store.seed({ academyId, normalized: v2, operationId: "seed-v2" });
+    await store.seed({ academyId, normalized: v3, operationId: "seed-v3" });
+    expect((await store.listPublished(academyId)).system.systemId).toBe("ibjjf-v2");
+    expect(fake.records.has(`${prefix}/levelSystems/ibjjf-v2`)).toBe(true);
+    expect(fake.records.has(`${prefix}/levelDefinitions/white-belt`)).toBe(true);
+    expect(fake.records.has(`${prefix}/levelDefinitions/ibjjf-v3--white-belt`)).toBe(true);
+
+    const headPath = `${prefix}/studentLevelProgress/student-1`;
+    fake.records.set(headPath, {
+      academyId,
+      studentId: "student-1",
+      systemId: "ibjjf-v2",
+      currentDefinitionKey: "white-belt",
+      state: "initialized",
+    });
+    const activation = {
+      academyId,
+      fromSystemId: "ibjjf-v2",
+      toSystemId: "ibjjf-v3",
+      operationId: "activate-v3",
+      contentHash: "a".repeat(64),
+      actorId: "system-level-progress-migration",
+      activatedAt: "2026-09-21T08:00:00.000Z",
+    } as const;
+    await expect(store.activate(activation)).rejects.toThrow(/progress heads/i);
+
+    fake.records.set(headPath, { ...fake.records.get(headPath), systemId: "ibjjf-v3" });
+    await expect(store.activate(activation)).resolves.toEqual({
+      activeSystemId: "ibjjf-v3",
+      previousSystemId: "ibjjf-v2",
+      idempotent: false,
+    });
+    expect((await store.listPublished(academyId)).system.systemId).toBe("ibjjf-v3");
+    expect(fake.records.has(`${prefix}/levelSystems/ibjjf-v2`)).toBe(true);
+    await expect(store.activate(activation)).resolves.toMatchObject({ idempotent: true });
+  });
+
+  it("rolls back an inactive staged v3 catalogue without deleting active v2 state", async () => {
+    const fake = createTransactionalFirestore();
+    const store = createLevelCatalogStore({ firestore: fake.firestore });
+    const v2 = loadApprovedLevelCatalog({ systemId: "ibjjf-v2" });
+    const v3 = loadApprovedLevelCatalog({ systemId: "ibjjf-v3" });
+    await store.seed({ academyId, normalized: v2, operationId: "seed-v2" });
+    await store.seed({ academyId, normalized: v3, operationId: "seed-v3" });
+    fake.records.set(`${prefix}/studentLevelProgress/student-1`, {
+      academyId,
+      studentId: "student-1",
+      systemId: "ibjjf-v2",
+      currentDefinitionKey: "white-belt",
+      state: "initialized",
+    });
+
+    await expect(
+      store.rollback({ academyId, systemId: "ibjjf-v3", normalized: v3 }),
+    ).resolves.toMatchObject({ systemId: "ibjjf-v3", deletedSystems: 1 });
+    expect((await store.listPublished(academyId)).system.systemId).toBe("ibjjf-v2");
+    expect(fake.records.has(`${prefix}/levelSystems/ibjjf-v3`)).toBe(false);
+    expect(fake.records.has(`${prefix}/levelCatalogState/active`)).toBe(true);
   });
 });

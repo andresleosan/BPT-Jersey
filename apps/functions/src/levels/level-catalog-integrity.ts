@@ -50,6 +50,10 @@ export type StoredLevelCatalogDocument = Readonly<{
 const sha256Pattern = /^[a-f0-9]{64}$/u;
 const safeOperationIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 
+export function levelCatalogStorageId(systemId: string, logicalId: string): string {
+  return systemId === "ibjjf-v3" ? `${systemId}--${logicalId}` : logicalId;
+}
+
 function canonicalJson(value: unknown): string {
   if (value === null) return "null";
   if (typeof value === "string" || typeof value === "boolean") return JSON.stringify(value);
@@ -139,7 +143,7 @@ export function buildLevelCatalogPublication(
     input.normalized.definitions
       .map((definition) =>
         Object.freeze({
-          id: definition.definitionKey,
+          id: levelCatalogStorageId(systemId, definition.definitionKey),
           data: Object.freeze({ ...definition, academyId: input.academyId }),
         }),
       )
@@ -149,7 +153,7 @@ export function buildLevelCatalogPublication(
     input.normalized.requirements
       .map((requirement) =>
         Object.freeze({
-          id: requirement.requirementKey,
+          id: levelCatalogStorageId(systemId, requirement.requirementKey),
           data: Object.freeze({ ...requirement, academyId: input.academyId }),
         }),
       )
@@ -258,7 +262,10 @@ export function levelCatalogDocumentReferencesSystem(
   systemId: string,
   definitionKeys: ReadonlySet<string>,
 ): boolean {
-  if (data.systemId === systemId || data.levelSystemId === systemId) return true;
+  const explicitSystemIds = [data.systemId, data.levelSystemId].filter(
+    (value): value is string => typeof value === "string",
+  );
+  if (explicitSystemIds.length > 0) return explicitSystemIds.includes(systemId);
 
   const directKeys = [
     data.definitionKey,

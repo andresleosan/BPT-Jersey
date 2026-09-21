@@ -60,6 +60,7 @@ import {
   assertStoredLevelCatalogIntegrity,
   buildLevelCatalogPublication,
   levelCatalogDocumentReferencesSystem,
+  levelCatalogStorageId,
   type LevelCatalogPublication,
 } from "./level-catalog-integrity.js";
 import type { NormalizedLevelCatalog } from "./level-source.js";
@@ -92,6 +93,12 @@ export type LevelRollbackResult = Readonly<{
   deletedSystems: number;
 }>;
 
+export type LevelCatalogActivationResult = Readonly<{
+  activeSystemId: string;
+  previousSystemId: string;
+  idempotent: boolean;
+}>;
+
 export type StudentSkillSummaryItem = Readonly<{
   count: number;
   maxScore: number;
@@ -101,13 +108,22 @@ export type StudentSkillSummaryItem = Readonly<{
 
 export type StudentSkillSummary = Record<string, StudentSkillSummaryItem>;
 
-export type LevelCatalogStore = Readonly<{
+export type LevelCatalogLifecycleStore = Readonly<{
   listPublished: (academyId: string) => Promise<LevelCatalogProjection>;
   seed: (input: {
     academyId: string;
     normalized: NormalizedLevelCatalog;
     operationId?: string;
   }) => Promise<LevelSeedResult>;
+  activate: (input: {
+    academyId: string;
+    fromSystemId: string;
+    toSystemId: string;
+    operationId: string;
+    contentHash: string;
+    actorId: string;
+    activatedAt: string;
+  }) => Promise<LevelCatalogActivationResult>;
   rollback: (input: {
     academyId: string;
     systemId: string;
@@ -217,6 +233,8 @@ export type LevelCatalogStore = Readonly<{
   }) => Promise<VoidPromotionResult>;
   getStudentLevelHistory: (academyId: string, studentId: string) => Promise<StudentLevelHistory>;
 }>;
+
+export type LevelCatalogStore = Omit<LevelCatalogLifecycleStore, "activate">;
 
 /**
  * T113 (operator decision 2026-09-06): opening a level out of the catalog age band is still the
@@ -393,6 +411,7 @@ export type GenericFirestore = {
 };
 
 const MAX_LEVEL_RECORDS = 400;
+const activeLevelCatalogStateId = "active";
 const levelCatalogReferenceCollections = Object.freeze([
   "assessments",
   "studentLevelProgress",
@@ -400,6 +419,49 @@ const levelCatalogReferenceCollections = Object.freeze([
   "students",
   "recognitions",
 ] as const);
+
+function activeLevelCatalogSystemId(
+  academyId: string,
+  systems: readonly Readonly<{ id: string; data: Readonly<Record<string, unknown>> }>[],
+  state: Readonly<Record<string, unknown>> | undefined,
+): string {
+  const published = systems.filter(
+    ({ id, data }) => data.status === "published" || id === "ibjjf-v1",
+  );
+  if (state !== undefined) {
+    const activeSystemId = state.activeSystemId;
+    if (
+      state.academyId !== academyId ||
+      typeof activeSystemId !== "string" ||
+      !published.some(({ id }) => id === activeSystemId)
+    ) {
+      throw new LevelStoreError("conflict", "Active level catalogue state is invalid.");
+    }
+    return activeSystemId;
+  }
+  if (published.length !== 1) {
+    throw new LevelStoreError("conflict", "Active level catalogue is ambiguous.");
+  }
+  return published[0]!.id;
+}
+
+async function transactionalActiveLevelCatalogSystemId(
+  transaction: GenericTransaction,
+  firestore: GenericFirestore,
+  academyId: string,
+): Promise<string> {
+  const [systemsSnapshot, stateSnapshot] = await Promise.all([
+    transaction.get(firestore.collection(`academies/${academyId}/levelSystems`)),
+    transaction.get(
+      firestore.doc(`academies/${academyId}/levelCatalogState/${activeLevelCatalogStateId}`),
+    ),
+  ]);
+  return activeLevelCatalogSystemId(
+    academyId,
+    systemsSnapshot.docs.map((document) => ({ id: document.id, data: document.data() })),
+    stateSnapshot.data(),
+  );
+}
 
 function levelCatalogCorrelationId(
   action: "level.catalog.published" | "level.catalog.rolled_back",
@@ -518,7 +580,9 @@ function assertNoActiveLevelCatalogReferences(
   snapshots: readonly GenericQuerySnapshot[],
   publication: LevelCatalogPublication,
 ): void {
-  const definitionKeys = new Set(publication.definitions.map((definition) => definition.id));
+  const definitionKeys = new Set(
+    publication.definitions.map((definition) => String(definition.data.definitionKey)),
+  );
   if (
     snapshots.some((snapshot) =>
       snapshot.docs.some((document) =>
@@ -1200,18 +1264,23 @@ export function createLevelCatalogStore({
   firestore,
 }: {
   firestore: GenericFirestore;
-}): LevelCatalogStore {
+}): LevelCatalogLifecycleStore {
   return {
     async listPublished(academyId: string): Promise<LevelCatalogProjection> {
       assertValidAcademyId(academyId);
 
-      const systemsSnapshot = await firestore
-        .collection(`academies/${academyId}/levelSystems`)
-        .get();
-
-      const publishedDoc = systemsSnapshot.docs.find(
-        (d) => d.data()["status"] === "published" || d.id === "ibjjf-v1",
+      const [systemsSnapshot, stateSnapshot] = await Promise.all([
+        firestore.collection(`academies/${academyId}/levelSystems`).get(),
+        firestore
+          .doc(`academies/${academyId}/levelCatalogState/${activeLevelCatalogStateId}`)
+          .get(),
+      ]);
+      const activeSystemId = activeLevelCatalogSystemId(
+        academyId,
+        systemsSnapshot.docs.map((document) => ({ id: document.id, data: document.data() })),
+        stateSnapshot.data(),
       );
+      const publishedDoc = systemsSnapshot.docs.find((document) => document.id === activeSystemId);
 
       if (!publishedDoc) {
         throw new LevelStoreError(
@@ -1283,6 +1352,9 @@ export function createLevelCatalogStore({
       });
       const systemRef = firestore.doc(`academies/${academyId}/levelSystems/${systemId}`);
       const manifestRef = firestore.doc(`academies/${academyId}/levelCatalogManifests/${systemId}`);
+      const stateRef = firestore.doc(
+        `academies/${academyId}/levelCatalogState/${activeLevelCatalogStateId}`,
+      );
       const definitionsCollection = firestore.collection(`academies/${academyId}/levelDefinitions`);
       const requirementsCollection = firestore.collection(
         `academies/${academyId}/levelRequirements`,
@@ -1295,16 +1367,41 @@ export function createLevelCatalogStore({
           definitionsSnapshot,
           requirementsSnapshot,
           systemsSnapshot,
+          stateSnapshot,
         ] = await Promise.all([
           transaction.get(systemRef),
           transaction.get(manifestRef),
           transaction.get(definitionsCollection),
           transaction.get(requirementsCollection),
           transaction.get(firestore.collection(`academies/${academyId}/levelSystems`)),
+          transaction.get(stateRef),
         ]);
-        if (systemsSnapshot.docs.some((document) => document.id !== systemId)) {
-          // ponytail: one published catalogue per academy; switching versions is rollback + seed.
+        const otherSystems = systemsSnapshot.docs.filter((document) => document.id !== systemId);
+        if (
+          otherSystems.length > 0 &&
+          !(
+            systemId === "ibjjf-v3" &&
+            otherSystems.length === 1 &&
+            otherSystems[0]?.id === "ibjjf-v2"
+          )
+        ) {
           throw new LevelStoreError("conflict", "Another level catalogue is already published.");
+        }
+        if (stateSnapshot.exists) {
+          activeLevelCatalogSystemId(
+            academyId,
+            systemsSnapshot.docs.map((document) => ({
+              id: document.id,
+              data: document.data(),
+            })),
+            stateSnapshot.data(),
+          );
+        } else {
+          transaction.create(stateRef, {
+            academyId,
+            activeSystemId: otherSystems[0]?.id ?? systemId,
+            schemaVersion: "1",
+          });
         }
         const storedDefinitions = catalogDocumentsForSystem(
           withinLimit(definitionsSnapshot, "Level definitions"),
@@ -1381,6 +1478,111 @@ export function createLevelCatalogStore({
       });
     },
 
+    async activate(input): Promise<LevelCatalogActivationResult> {
+      assertValidAcademyId(input.academyId);
+      for (const value of [
+        input.fromSystemId,
+        input.toSystemId,
+        input.operationId,
+        input.actorId,
+      ]) {
+        if (!safeIdentifierPattern.test(value)) {
+          throw new LevelStoreError("invalid", "Invalid level catalogue activation input.");
+        }
+      }
+      if (
+        input.fromSystemId === input.toSystemId ||
+        !/^[a-f0-9]{64}$/u.test(input.contentHash) ||
+        Number.isNaN(Date.parse(input.activatedAt)) ||
+        new Date(input.activatedAt).toISOString() !== input.activatedAt
+      ) {
+        throw new LevelStoreError("invalid", "Invalid level catalogue activation input.");
+      }
+      const { academyId } = input;
+      const stateRef = firestore.doc(
+        `academies/${academyId}/levelCatalogState/${activeLevelCatalogStateId}`,
+      );
+      const receiptRef = firestore.doc(
+        `academies/${academyId}/levelCatalogActivations/${input.operationId}`,
+      );
+      return firestore.runTransaction(async (transaction) => {
+        const [stateSnapshot, systemsSnapshot, headsSnapshot, receiptSnapshot] = await Promise.all([
+          transaction.get(stateRef),
+          transaction.get(firestore.collection(`academies/${academyId}/levelSystems`)),
+          transaction.get(firestore.collection(`academies/${academyId}/studentLevelProgress`)),
+          transaction.get(receiptRef),
+        ]);
+        const systems = systemsSnapshot.docs.map((document) => ({
+          id: document.id,
+          data: document.data(),
+        }));
+        const activeSystemId = activeLevelCatalogSystemId(academyId, systems, stateSnapshot.data());
+        const receipt = receiptSnapshot.data();
+        if (receiptSnapshot.exists) {
+          if (
+            activeSystemId !== input.toSystemId ||
+            receipt?.academyId !== academyId ||
+            receipt.fromSystemId !== input.fromSystemId ||
+            receipt.toSystemId !== input.toSystemId ||
+            receipt.operationId !== input.operationId ||
+            receipt.contentHash !== input.contentHash ||
+            receipt.actorId !== input.actorId ||
+            receipt.activatedAt !== input.activatedAt
+          ) {
+            throw new LevelStoreError("conflict", "Level catalogue activation receipt conflict.");
+          }
+          return {
+            activeSystemId: input.toSystemId,
+            previousSystemId: input.fromSystemId,
+            idempotent: true,
+          };
+        }
+        if (activeSystemId !== input.fromSystemId) {
+          throw new LevelStoreError(
+            "conflict",
+            "Active level catalogue changed before activation.",
+          );
+        }
+        const target = systems.find(({ id }) => id === input.toSystemId);
+        if (target?.data.status !== "published") {
+          throw new LevelStoreError("conflict", "Target level catalogue is not published.");
+        }
+        if (
+          headsSnapshot.docs.some((document) => {
+            const data = document.data();
+            return data.academyId !== academyId || data.systemId !== input.toSystemId;
+          })
+        ) {
+          throw new LevelStoreError("conflict", "Level progress heads are not fully migrated.");
+        }
+        transaction.set(stateRef, {
+          academyId,
+          activeSystemId: input.toSystemId,
+          previousSystemId: input.fromSystemId,
+          operationId: input.operationId,
+          contentHash: input.contentHash,
+          activatedAt: input.activatedAt,
+          activatedBy: input.actorId,
+          schemaVersion: "1",
+        });
+        transaction.create(receiptRef, {
+          academyId,
+          fromSystemId: input.fromSystemId,
+          toSystemId: input.toSystemId,
+          operationId: input.operationId,
+          contentHash: input.contentHash,
+          actorId: input.actorId,
+          activatedAt: input.activatedAt,
+          schemaVersion: "1",
+        });
+        return {
+          activeSystemId: input.toSystemId,
+          previousSystemId: input.fromSystemId,
+          idempotent: false,
+        };
+      });
+    },
+
     async rollback(input: {
       academyId: string;
       systemId: string;
@@ -1405,6 +1607,9 @@ export function createLevelCatalogStore({
       const rollbackAuditEventId = levelCatalogAuditEventId(rollbackAudit);
       const systemRef = firestore.doc(`academies/${academyId}/levelSystems/${systemId}`);
       const manifestRef = firestore.doc(`academies/${academyId}/levelCatalogManifests/${systemId}`);
+      const stateRef = firestore.doc(
+        `academies/${academyId}/levelCatalogState/${activeLevelCatalogStateId}`,
+      );
       const definitionsCollection = firestore.collection(`academies/${academyId}/levelDefinitions`);
       const requirementsCollection = firestore.collection(
         `academies/${academyId}/levelRequirements`,
@@ -1414,13 +1619,19 @@ export function createLevelCatalogStore({
       );
 
       return firestore.runTransaction(async (transaction) => {
-        const [systemSnapshot, manifestSnapshot, definitionsSnapshot, requirementsSnapshot] =
-          await Promise.all([
-            transaction.get(systemRef),
-            transaction.get(manifestRef),
-            transaction.get(definitionsCollection),
-            transaction.get(requirementsCollection),
-          ]);
+        const [
+          systemSnapshot,
+          manifestSnapshot,
+          definitionsSnapshot,
+          requirementsSnapshot,
+          stateSnapshot,
+        ] = await Promise.all([
+          transaction.get(systemRef),
+          transaction.get(manifestRef),
+          transaction.get(definitionsCollection),
+          transaction.get(requirementsCollection),
+          transaction.get(stateRef),
+        ]);
         const referenceSnapshots = await Promise.all(
           referenceCollections.map((collection) => transaction.get(collection)),
         );
@@ -1480,6 +1691,7 @@ export function createLevelCatalogStore({
         for (const requirement of storedRequirements) transaction.delete(requirement.ref);
         transaction.delete(systemRef);
         transaction.delete(manifestRef);
+        if (stateSnapshot.data()?.activeSystemId === systemId) transaction.delete(stateRef);
         appendAuditEventInTransaction(
           transaction,
           firestore.doc(`academies/${academyId}/auditEvents/${rollbackAuditEventId}`),
@@ -1552,10 +1764,17 @@ export function createLevelCatalogStore({
           input.studentId,
         );
         assertActiveStudent(student);
+        const activeSystemId = await transactionalActiveLevelCatalogSystemId(
+          transaction,
+          firestore,
+          academyId,
+        );
         const [session, definition, existing] = await Promise.all([
           transaction.get(firestore.doc(`academies/${academyId}/sessions/${input.sessionId}`)),
           transaction.get(
-            firestore.doc(`academies/${academyId}/levelDefinitions/${input.definitionKey}`),
+            firestore.doc(
+              `academies/${academyId}/levelDefinitions/${levelCatalogStorageId(activeSystemId, input.definitionKey)}`,
+            ),
           ),
           transaction.get(assessmentRef),
         ]);
@@ -1570,7 +1789,7 @@ export function createLevelCatalogStore({
           !definition.exists ||
           definitionData?.academyId !== academyId ||
           definitionData.definitionKey !== input.definitionKey ||
-          typeof definitionData.systemId !== "string" ||
+          definitionData.systemId !== activeSystemId ||
           existing.exists
         ) {
           throw new LevelStoreError("conflict", "Assessment references are not current");
@@ -1653,15 +1872,22 @@ export function createLevelCatalogStore({
           studentId,
         );
         assertActiveStudent(student);
+        const activeSystemId = await transactionalActiveLevelCatalogSystemId(
+          transaction,
+          firestore,
+          academyId,
+        );
         const definition = await transaction.get(
-          firestore.doc(`academies/${academyId}/levelDefinitions/${definitionKey}`),
+          firestore.doc(
+            `academies/${academyId}/levelDefinitions/${levelCatalogStorageId(activeSystemId, definitionKey)}`,
+          ),
         );
         const definitionData = definition.data();
         if (
           !definition.exists ||
           definitionData?.academyId !== academyId ||
           definitionData.definitionKey !== definitionKey ||
-          typeof definitionData.systemId !== "string"
+          definitionData.systemId !== activeSystemId
         ) {
           throw new LevelStoreError("conflict", "Assessment references are not current");
         }
@@ -2139,17 +2365,24 @@ export function createLevelCatalogStore({
           input.studentId,
         );
         assertActiveStudent(student);
-        const [head, fromDefinition, toDefinition, existingPromotion] = await Promise.all([
+        const [head, existingPromotion, activeSystemId] = await Promise.all([
           transaction.get(headRef),
-          transaction.get(
-            firestore.doc(`academies/${academyId}/levelDefinitions/${input.fromDefinitionKey}`),
-          ),
-          transaction.get(
-            firestore.doc(`academies/${academyId}/levelDefinitions/${input.toDefinitionKey}`),
-          ),
           transaction.get(promotionRef),
+          transactionalActiveLevelCatalogSystemId(transaction, firestore, academyId),
         ]);
         const headData = head.data();
+        const [fromDefinition, toDefinition] = await Promise.all([
+          transaction.get(
+            firestore.doc(
+              `academies/${academyId}/levelDefinitions/${levelCatalogStorageId(activeSystemId, input.fromDefinitionKey)}`,
+            ),
+          ),
+          transaction.get(
+            firestore.doc(
+              `academies/${academyId}/levelDefinitions/${levelCatalogStorageId(activeSystemId, input.toDefinitionKey)}`,
+            ),
+          ),
+        ]);
         const fromData = fromDefinition.data();
         const toData = toDefinition.data();
         if (
@@ -2157,6 +2390,7 @@ export function createLevelCatalogStore({
           headData?.academyId !== academyId ||
           headData.studentId !== input.studentId ||
           headData.state !== "initialized" ||
+          headData.systemId !== activeSystemId ||
           headData.currentDefinitionKey !== input.fromDefinitionKey ||
           !fromDefinition.exists ||
           !toDefinition.exists ||
@@ -2234,10 +2468,17 @@ export function createLevelCatalogStore({
           input.studentId,
         );
         assertActiveStudent(student);
+        const activeSystemId = await transactionalActiveLevelCatalogSystemId(
+          transaction,
+          firestore,
+          academyId,
+        );
         const [head, definition, existingAudit] = await Promise.all([
           transaction.get(headRef),
           transaction.get(
-            firestore.doc(`academies/${academyId}/levelDefinitions/${input.definitionKey}`),
+            firestore.doc(
+              `academies/${academyId}/levelDefinitions/${levelCatalogStorageId(activeSystemId, input.definitionKey)}`,
+            ),
           ),
           transaction.get(auditRef),
         ]);
@@ -2249,7 +2490,7 @@ export function createLevelCatalogStore({
           !definition.exists ||
           definitionData?.academyId !== academyId ||
           definitionData.definitionKey !== input.definitionKey ||
-          typeof definitionData.systemId !== "string"
+          definitionData.systemId !== activeSystemId
         ) {
           throw new LevelStoreError("conflict", "Level definition is not current");
         }
@@ -2616,12 +2857,19 @@ export function createLevelCatalogStore({
           input.studentId,
         );
         assertActiveStudent(student);
+        const activeSystemId = await transactionalActiveLevelCatalogSystemId(
+          transaction,
+          firestore,
+          academyId,
+        );
         const [head, definition, existingPromotion] = await Promise.all([
           transaction.get(
             firestore.doc(`academies/${academyId}/studentLevelProgress/${input.studentId}`),
           ),
           transaction.get(
-            firestore.doc(`academies/${academyId}/levelDefinitions/${input.targetDefinitionKey}`),
+            firestore.doc(
+              `academies/${academyId}/levelDefinitions/${levelCatalogStorageId(activeSystemId, input.targetDefinitionKey)}`,
+            ),
           ),
           transaction.get(promotionRef),
         ]);
@@ -2631,10 +2879,12 @@ export function createLevelCatalogStore({
           !definition.exists ||
           definitionData?.academyId !== academyId ||
           definitionData.definitionKey !== input.targetDefinitionKey ||
-          typeof definitionData.systemId !== "string" ||
+          definitionData.systemId !== activeSystemId ||
           existingPromotion.exists ||
           (head.exists &&
-            (headData?.academyId !== academyId || headData.studentId !== input.studentId))
+            (headData?.academyId !== academyId ||
+              headData.studentId !== input.studentId ||
+              headData.systemId !== activeSystemId))
         ) {
           throw new LevelStoreError("conflict", "Promotion references are not current");
         }
@@ -2717,12 +2967,14 @@ export function createLevelCatalogStore({
   };
 }
 
-export function createInMemoryLevelStore(): LevelCatalogStore {
+export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
   const systems = new Map<string, Record<string, unknown>>();
+  const activeSystems = new Map<string, string>();
   const definitions = new Map<string, Record<string, unknown>>();
   const requirements = new Map<string, Record<string, unknown>>();
   const manifests = new Map<string, Record<string, unknown>>();
   const auditEvents = new Map<string, Record<string, unknown>>();
+  const activationReceipts = new Map<string, Record<string, unknown>>();
   const evaluations = new Map<string, EvaluationRecord>();
   const medicalLeaves = new Map<string, MedicalLeaveRecord>();
   // Like the Firestore promotion document, an approved promotion carries its `restore`; `rejected`
@@ -2741,11 +2993,17 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
     async listPublished(academyId: string): Promise<LevelCatalogProjection> {
       assertValidAcademyId(academyId);
 
-      const publishedSystem = Array.from(systems.values()).find(
-        (s) =>
-          s["academyId"] === academyId &&
-          (s["status"] === "published" || s["systemId"] === "ibjjf-v1"),
+      const academySystems = Array.from(systems.values())
+        .filter((system) => system["academyId"] === academyId)
+        .map((system) => ({ id: String(system["systemId"]), data: system }));
+      const activeSystemId = activeLevelCatalogSystemId(
+        academyId,
+        academySystems,
+        activeSystems.has(academyId)
+          ? { academyId, activeSystemId: activeSystems.get(academyId) }
+          : undefined,
       );
+      const publishedSystem = academySystems.find(({ id }) => id === activeSystemId)?.data;
 
       if (!publishedSystem) {
         throw new LevelStoreError(
@@ -2786,12 +3044,17 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
 
       const existing = systems.get(systemKey);
       const existingManifest = manifests.get(manifestKey);
+      const otherSystems = [...systems.values()].filter(
+        (system) => system["academyId"] === academyId && system["systemId"] !== systemId,
+      );
       if (
-        [...systems.values()].some(
-          (system) => system["academyId"] === academyId && system["systemId"] !== systemId,
+        otherSystems.length > 0 &&
+        !(
+          systemId === "ibjjf-v3" &&
+          otherSystems.length === 1 &&
+          otherSystems[0]?.["systemId"] === "ibjjf-v2"
         )
       ) {
-        // ponytail: one published catalogue per academy; switching versions is rollback + seed.
         throw new LevelStoreError("conflict", "Another level catalogue is already published.");
       }
       if (existing !== undefined || existingManifest !== undefined) {
@@ -2808,7 +3071,7 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
             (definition) => definition.academyId === academyId && definition.systemId === systemId,
           )
           .map((definition) => ({
-            id: String(definition.definitionKey),
+            id: levelCatalogStorageId(systemId, String(definition.definitionKey)),
             data: () => definition,
           }));
         const storedRequirements = Array.from(requirements.values())
@@ -2817,7 +3080,7 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
               requirement.academyId === academyId && requirement.systemId === systemId,
           )
           .map((requirement) => ({
-            id: String(requirement.requirementKey),
+            id: levelCatalogStorageId(systemId, String(requirement.requirementKey)),
             data: () => requirement,
           }));
         assertStoredLevelCatalogIntegrity({
@@ -2883,7 +3146,81 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
         publishedAuditEventId,
         materializeInMemoryAuditEvent(publishedAuditEventId, publishedAudit),
       );
+      if (!activeSystems.has(academyId)) {
+        activeSystems.set(academyId, String(otherSystems[0]?.["systemId"] ?? systemId));
+      }
       return levelSeedResult(normalized, false);
+    },
+
+    async activate(input): Promise<LevelCatalogActivationResult> {
+      assertValidAcademyId(input.academyId);
+      for (const value of [
+        input.fromSystemId,
+        input.toSystemId,
+        input.operationId,
+        input.actorId,
+      ]) {
+        if (!safeIdentifierPattern.test(value)) {
+          throw new LevelStoreError("invalid", "Invalid level catalogue activation input.");
+        }
+      }
+      if (
+        input.fromSystemId === input.toSystemId ||
+        !/^[a-f0-9]{64}$/u.test(input.contentHash) ||
+        Number.isNaN(Date.parse(input.activatedAt)) ||
+        new Date(input.activatedAt).toISOString() !== input.activatedAt
+      ) {
+        throw new LevelStoreError("invalid", "Invalid level catalogue activation input.");
+      }
+      const receiptKey = `${input.academyId}__${input.operationId}`;
+      const receipt = activationReceipts.get(receiptKey);
+      if (receipt !== undefined) {
+        if (
+          activeSystems.get(input.academyId) !== input.toSystemId ||
+          receipt.fromSystemId !== input.fromSystemId ||
+          receipt.toSystemId !== input.toSystemId ||
+          receipt.contentHash !== input.contentHash ||
+          receipt.actorId !== input.actorId ||
+          receipt.activatedAt !== input.activatedAt
+        ) {
+          throw new LevelStoreError("conflict", "Level catalogue activation receipt conflict.");
+        }
+        return {
+          activeSystemId: input.toSystemId,
+          previousSystemId: input.fromSystemId,
+          idempotent: true,
+        };
+      }
+      if (activeSystems.get(input.academyId) !== input.fromSystemId) {
+        throw new LevelStoreError("conflict", "Active level catalogue changed before activation.");
+      }
+      const target = systems.get(`${input.academyId}__${input.toSystemId}`);
+      if (target?.status !== "published") {
+        throw new LevelStoreError("conflict", "Target level catalogue is not published.");
+      }
+      if (
+        [...heads.values()].some(
+          (head) => head.academyId === input.academyId && head.systemId !== input.toSystemId,
+        )
+      ) {
+        throw new LevelStoreError("conflict", "Level progress heads are not fully migrated.");
+      }
+      activeSystems.set(input.academyId, input.toSystemId);
+      activationReceipts.set(receiptKey, {
+        academyId: input.academyId,
+        fromSystemId: input.fromSystemId,
+        toSystemId: input.toSystemId,
+        operationId: input.operationId,
+        contentHash: input.contentHash,
+        actorId: input.actorId,
+        activatedAt: input.activatedAt,
+        schemaVersion: "1",
+      });
+      return {
+        activeSystemId: input.toSystemId,
+        previousSystemId: input.fromSystemId,
+        idempotent: false,
+      };
     },
 
     async rollback(input: {
@@ -2922,7 +3259,7 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
           (definition) => definition.academyId === academyId && definition.systemId === systemId,
         )
         .map((definition) => ({
-          id: String(definition.definitionKey),
+          id: levelCatalogStorageId(systemId, String(definition.definitionKey)),
           data: () => definition,
         }));
       const storedRequirements = Array.from(requirements.values())
@@ -2930,7 +3267,7 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
           (requirement) => requirement.academyId === academyId && requirement.systemId === systemId,
         )
         .map((requirement) => ({
-          id: String(requirement.requirementKey),
+          id: levelCatalogStorageId(systemId, String(requirement.requirementKey)),
           data: () => requirement,
         }));
       assertStoredLevelCatalogIntegrity({
@@ -2954,7 +3291,9 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
         throw new LevelStoreError("conflict", "Stored level catalog publication audit is invalid.");
       }
       const definitionKeys = new Set(
-        storedPublication.publication.definitions.map((definition) => definition.id),
+        storedPublication.publication.definitions.map((definition) =>
+          String(definition.data.definitionKey),
+        ),
       );
       if (
         Array.from(evaluations.values()).some(
@@ -2976,6 +3315,7 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
 
       systems.delete(systemKey);
       manifests.delete(systemKey);
+      if (activeSystems.get(academyId) === systemId) activeSystems.delete(academyId);
 
       let deletedDefs = 0;
       for (const [key, def] of definitions.entries()) {

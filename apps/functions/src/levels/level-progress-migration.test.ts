@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyLevelProgressMigration,
   decideProgressHeadMigration,
+  expectedLevelCatalogActivationConfirmation,
   expectedLevelProgressMigrationConfirmation,
   planLevelProgressMigration,
   type LevelProgressMigrationStore,
@@ -117,7 +118,7 @@ function fixtures() {
     [`academies/${academyId}/levelSystems/ibjjf-v3`]: {
       data: { academyId, systemId: "ibjjf-v3", status: "published" },
     },
-    [`academies/${academyId}/levelDefinitions/white-belt`]: {
+    [`academies/${academyId}/levelDefinitions/ibjjf-v3--white-belt`]: {
       data: { academyId, systemId: "ibjjf-v3", definitionKey: "white-belt" },
     },
     [`academies/${academyId}/levelPromotions/promotion-1`]: {
@@ -158,6 +159,9 @@ describe("level progress v3 migration", () => {
     expect(plan.rows).toEqual([
       expect.objectContaining({ studentId, expectedUpdatedAt: updatedAt, status: "migrate" }),
     ]);
+    expect(expectedLevelCatalogActivationConfirmation(plan)).toBe(
+      `ACTIVATE LEVEL CATALOG V3 ${academyId} progress-v3-1 ${plan.contentHash}`,
+    );
     expect(harness.writes).toEqual([]);
   });
 
