@@ -1,5 +1,5 @@
 "use client";
-import { GoogleAuthProvider, browserPopupRedirectResolver, linkWithPopup, signInWithCustomToken, updatePassword } from "firebase/auth";
+import { GoogleAuthProvider, browserPopupRedirectResolver, linkWithPopup, signInWithCustomToken, signInWithEmailAndPassword } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
 import { getFirebaseAuth, getFirebaseFunctions } from "./firebase-client";
 
@@ -41,8 +41,9 @@ export function staffAccessError(error: unknown): string {
 }
 export async function completeInitialStaffPassword(newPassword: string) {
   const user = getFirebaseAuth().currentUser;
-  if (!user || newPassword.length < 12 || newPassword.length > 128) throw new Error("Sign in again and use 12 to 128 characters.");
-  await updatePassword(user, newPassword);
-  await httpsCallable(getFirebaseFunctions(), "completeInitialStaffAccess")({ method: "password" });
-  return user.getIdTokenResult(true);
+  if (!user?.email || newPassword.length < 12 || newPassword.length > 128) throw new Error("Sign in again and use 12 to 128 characters.");
+  // The server replaces the password, which revokes this session; sign straight back in with it.
+  await httpsCallable(getFirebaseFunctions(), "completeInitialStaffAccess")({ method: "password", newPassword });
+  const credential = await signInWithEmailAndPassword(getFirebaseAuth(), user.email, newPassword);
+  return credential.user.getIdTokenResult(true);
 }
