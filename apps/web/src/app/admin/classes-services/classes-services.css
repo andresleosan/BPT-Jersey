@@ -814,6 +814,9 @@ body:has(.cs-session-dialog[open]) {
 .cs-session-dialog .cs-session-when {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
+.cs-session-dialog .cs-session-classification {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
 .cs-session-dialog .cs-field {
   min-width: 0;
   gap: 0.375rem;

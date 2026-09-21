@@ -60,6 +60,21 @@ describe("weekly session repetition", () => {
     expect(future.every((row) => row.startAt.includes("T17:00:"))).toBe(true);
     expect(await store.listSessions("b", october)).toEqual([]);
   });
+  it("preserves access mode through weekly materialisation and following edits", async () => {
+    const store = createInMemoryScheduleStore();
+    const first = await store.createSession("a", { ...seed, accessMode: "intro" }, "owner");
+    const original = await store.listSessions("a", october);
+    expect(original.every((row) => row.accessMode === "intro")).toBe(true);
+
+    await store.updateSession(
+      "a",
+      { sessionId: first.sessionId, accessMode: "membership", repeatScope: "following" },
+      "owner",
+    );
+    const updated = await store.listSessions("a", october);
+    expect(updated.every((row) => row.accessMode === "membership")).toBe(true);
+  });
+
   it("can enable repetition on an existing session and leaves non-repeating sessions alone", async () => {
     const store = createInMemoryScheduleStore();
     const first = await store.createSession("a", { ...seed, repeatWeekly: false }, "owner");

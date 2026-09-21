@@ -65,6 +65,38 @@ describe("Schedule Service (In-Memory Store)", () => {
     expect(all[0]?.capacity).toBe(30);
   });
 
+  it("persists explicit intro access and projects it to generated sessions", async () => {
+    const store = createInMemoryScheduleStore();
+    const draft = {
+      programId: "adult-fundamentals",
+      locationId: "town",
+      name: "Intro Class",
+      recurrenceRules: [{ dayOfWeek: 2 as const, startTime: "19:00", durationMinutes: 60 }],
+      instructorIds: ["coach-1"],
+      capacity: 20,
+    };
+
+    const intro = await store.createClass("academy-1", { ...draft, accessMode: "intro" }, "owner-1");
+    const generated = await store.generateSessions(
+      "academy-1",
+      intro.classId,
+      "2026-09-01",
+      "2026-09-08",
+      "Europe/Jersey",
+      "owner-1",
+    );
+    const paid = await store.createClass(
+      "academy-1",
+      { ...draft, name: "Intro Class", accessMode: "membership" },
+      "owner-1",
+    );
+
+    expect(intro.accessMode).toBe("intro");
+    expect(generated).toHaveLength(2);
+    expect(generated.every((session) => session.accessMode === "intro")).toBe(true);
+    expect(paid.accessMode).toBe("membership");
+  });
+
   it("creates, queries, and cancels sessions", async () => {
     const store = createInMemoryScheduleStore();
 

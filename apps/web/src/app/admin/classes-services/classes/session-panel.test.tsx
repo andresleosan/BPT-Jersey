@@ -161,6 +161,64 @@ describe("SessionPanel", () => {
     expect(onSaved).toHaveBeenCalled();
   });
 
+  it("submits the selected class access mode", async () => {
+    mocks.saveSession.mockResolvedValue({ ...sessionFixture, accessMode: "intro" });
+    render(
+      <SessionPanel
+        mode="create"
+        catalog={catalog}
+        staff={staff}
+        timezone="Europe/Jersey"
+        defaults={{ date: "2026-09-14", startTime: "17:30" }}
+        canEdit
+        canReadMemberships
+        onSaved={vi.fn()}
+        onCancelled={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "coach-a" }));
+    fireEvent.change(screen.getByLabelText("Maximum capacity"), { target: { value: "20" } });
+    fireEvent.change(screen.getByLabelText("Class access"), { target: { value: "intro" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create session" }));
+
+    await waitFor(() =>
+      expect(mocks.saveSession).toHaveBeenCalledWith(
+        expect.objectContaining({ accessMode: "intro" }),
+      ),
+    );
+  });
+
+  it("loads and updates the access mode of an existing session", async () => {
+    mocks.updateSession.mockResolvedValue({ ...sessionFixture, accessMode: "membership" });
+    render(
+      <SessionPanel
+        mode="edit"
+        session={{ ...sessionFixture, accessMode: "intro" }}
+        catalog={catalog}
+        staff={staff}
+        timezone="Europe/Jersey"
+        canEdit
+        canReadMemberships
+        onSaved={vi.fn()}
+        onCancelled={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText("Class access")).toHaveValue("intro");
+    fireEvent.change(screen.getByLabelText("Class access"), {
+      target: { value: "membership" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() =>
+      expect(mocks.updateSession).toHaveBeenCalledWith(
+        expect.objectContaining({ sessionId: "s1", accessMode: "membership" }),
+      ),
+    );
+  });
+
   function renderCapacityPanel(mode: "create" | "edit", minimum = 4, maximum = 20) {
     return render(
       <SessionPanel
