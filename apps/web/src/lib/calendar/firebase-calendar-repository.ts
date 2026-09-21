@@ -1,12 +1,13 @@
 import { courseApi } from "../courses/course-client";
 import type { CalendarWeekData } from "./calendar-repository";
-import type { ProgramRecord } from "@bpt-jersey/domain/schedule";
+import { isIntroBooking, sessionAccessMode, type ProgramRecord } from "@bpt-jersey/domain/schedule";
 /** Firebase-backed member calendar. Access grants are refreshed with every week load. */
 import { getStudentGroupAccess } from "../student-group-access-client";
 import type { PlanDraft } from "@bpt-jersey/domain/memberships";
 import { listAvailableMembershipPlans } from "../membership-client";
 
 import { getFamily } from "../family-client";
+import { getClientProfile } from "../profile-client";
 import { participantBand } from "../participant-band";
 import { listNoShowPenalties } from "../no-show-penalties-client";
 import {
@@ -64,43 +65,94 @@ export function createFirebaseCalendarRepository(session: {
 }): CalendarRepository {
   const ordinaryRole = session.scope !== "courses" && ["guardian", "adultStudent", "teenStudent"].includes(session.role);
   const membershipStudents = new Set<string>();
+  const canonicalStudents = new Set<string>();
+  const introSites = new Map<string, "Town" | "West">();
   const courseSessions = new Set<string>();
   return {
     async loadMember(): Promise<CalendarMember> {
       membershipStudents.clear();
-      const [memberships, plans] = await Promise.all([
-        ordinaryRole ? listClientMemberships() : Promise.resolve([]), ordinaryRole ? listAvailableMembershipPlans() : Promise.resolve([]),
+      canonicalStudents.clear();
+      introSites.clear();
+      const subjectsPromise = !ordinaryRole
+        ? Promise.resolve([])
+        : session.role === "guardian"
+          ? getFamily().then((family) => family?.students ?? [])
+          : getClientProfile().then((profile) => profile ? [profile.student] : []);
+      const [memberships, plans, subjects] = await Promise.all([
+        ordinaryRole ? listClientMemberships() : Promise.resolve([]),
+        ordinaryRole ? listAvailableMembershipPlans() : Promise.resolve([]),
+        subjectsPromise,
       ]);
-      const current = memberships.filter((m) => m.status === "active" || m.status === "trial");
-      const names = new Map<string, string>();
-      const births = new Map<string, string>();
-      if (ordinaryRole && session.role === "guardian") {
-        const family = await getFamily();
-        for (const student of family?.students ?? []) {
-          names.set(student.studentId, student.fullName);
-          if (student.dateOfBirth !== undefined) births.set(student.studentId, student.dateOfBirth);
-        }
-      }
+      const current = memberships.filter((membership) =>
+        membership.status === "active" || membership.status === "trial"
+      );
+      const introAttendance = new Map<string, boolean>();
+      await Promise.all(subjects.map(async (subject) => {
+        const [bookings, attendance] = await Promise.all([
+          listStudentBookings(subject.studentId),
+          listStudentAttendance(subject.studentId),
+        ]);
+        const attendedSessions = new Set(attendance
+          .filter((record) => record.state === "attended" || record.state === "late")
+          .map((record) => record.sessionId));
+        introAttendance.set(subject.studentId, bookings.some((booking) =>
+          isIntroBooking(booking) && attendedSessions.has(booking.sessionId)
+        ));
+      }));
       const participants: CalendarParticipant[] = [];
-      for (const membership of current) {
-        if (participants.some((p) => p.studentId === membership.studentId)) continue;
-        const plan = plans.find((candidate) => candidate.planId === membership.planId);
-        if (!plan) continue;
-        const participant = participantFromPlan(
-          membership.studentId,
-          membership.membershipId,
-          plan,
-          names.get(membership.studentId) ?? session.displayName,
-          births.get(membership.studentId),
-        );
-        if (participant) {participants.push({ ...participant, membershipStartsAt: membership.startsAt, membershipEndsAt: membership.endsAt }); membershipStudents.add(participant.studentId);}
+      for (const subject of subjects) {
+        canonicalStudents.add(subject.studentId);
+        introSites.set(subject.studentId, subject.trainingCenter);
+        const membership = current.find((candidate) => candidate.studentId === subject.studentId);
+        const plan = membership
+          ? plans.find((candidate) => candidate.planId === membership.planId)
+          : undefined;
+        const fromPlan = membership && plan
+          ? participantFromPlan(
+              subject.studentId, membership.membershipId, plan, subject.fullName, subject.dateOfBirth,
+            )
+          : undefined;
+        const participantType = subject.dateOfBirth
+          ? participantBand(subject.dateOfBirth) ?? "adult"
+          : "adult";
+        participants.push(fromPlan ? {
+          ...fromPlan,
+          membershipStartsAt: membership!.startsAt,
+          membershipEndsAt: membership!.endsAt,
+          introSite: subject.trainingCenter,
+          hasAttendedIntro: introAttendance.get(subject.studentId) ?? false,
+          hasActiveMembership: true,
+        } : {
+          studentId: subject.studentId,
+          firstName: firstName(subject.fullName),
+          membershipId: null,
+          planId: null,
+          participantType,
+          planClassSites: [],
+          planOpenMatSites: [],
+          weeklyClassLimit: null,
+          introSite: subject.trainingCenter,
+          hasAttendedIntro: introAttendance.get(subject.studentId) ?? false,
+          hasActiveMembership: false,
+        });
+        if (membership) membershipStudents.add(subject.studentId);
       }
       let cursor: string | undefined;
       do {
         const page = await courseApi.participants(cursor ? {cursor} : {});
         for (const participant of page.items) {
-          if (!participant.studentId || participants.some(p => p.studentId === participant.studentId)) continue;
-          participants.push({studentId: participant.studentId, firstName: firstName(participant.fullName), membershipId: null, planId: null, participantType: participantBand(participant.dateOfBirth) ?? "adult", planClassSites: [], planOpenMatSites: [], weeklyClassLimit: null});
+          if (!participant.studentId || participants.some((row) => row.studentId === participant.studentId)) continue;
+          participants.push({
+            studentId: participant.studentId,
+            firstName: firstName(participant.fullName),
+            membershipId: null,
+            planId: null,
+            participantType: participantBand(participant.dateOfBirth) ?? "adult",
+            planClassSites: [],
+            planOpenMatSites: [],
+            weeklyClassLimit: null,
+            hasActiveMembership: false,
+          });
         }
         cursor = page.cursor ?? undefined;
       } while (cursor);
@@ -121,11 +173,32 @@ export function createFirebaseCalendarRepository(session: {
         } while (cursor);
       };
       const loadOrdinary = async (): Promise<CalendarWeekData> => {
-        if (!membershipStudents.has(studentId)) return {sessions: [], programs: [], bookings: [], attendance: [], bookedCounts: {}};
+        if (!canonicalStudents.has(studentId)) {
+          return {sessions: [], programs: [], bookings: [], attendance: [], bookedCounts: {}};
+        }
+        const hasMembership = membershipStudents.has(studentId);
         const [sessions, catalog, bookings, attendance, bookedCounts, groupAccess] = await Promise.all([
-          listSessions({from: fromIso, to: toIso}), getScheduleCatalog(), listStudentBookings(studentId), listStudentAttendance(studentId), listSessionBookedCounts({from: fromIso, to: toIso}).catch(() => ({})), getStudentGroupAccess(studentId),
+          listSessions({from: fromIso, to: toIso}),
+          getScheduleCatalog(),
+          listStudentBookings(studentId),
+          listStudentAttendance(studentId),
+          listSessionBookedCounts({from: fromIso, to: toIso}).catch(() => ({})),
+          hasMembership ? getStudentGroupAccess(studentId) : Promise.resolve(undefined),
         ]);
-        return {sessions: sessions.filter(s => !s.courseId), programs: catalog.programs, bookings: bookings.filter(b => b.schemaVersion !== "2"), attendance: attendance.filter(a => !a.courseId), bookedCounts, groupAccess};
+        const introLocationId = introSites.get(studentId)?.toLowerCase();
+        const visibleSessions = sessions.filter((record) =>
+          !record.courseId && (hasMembership || (
+            sessionAccessMode(record) === "intro" && record.locationId === introLocationId
+          ))
+        );
+        return {
+          sessions: visibleSessions,
+          programs: catalog.programs,
+          bookings: bookings.filter((booking) => booking.schemaVersion !== "2"),
+          attendance: attendance.filter((record) => !record.courseId),
+          bookedCounts,
+          ...(groupAccess ? {groupAccess} : {}),
+        };
       };
       const [ordinary] = await Promise.all([loadOrdinary(), loadCourses()]);
       const seminar: ProgramRecord = {programId: "seminar", academyId: courses.sessions[0]?.academyId ?? "", name: "Course / seminar", ageBand: "all", discipline: "self-defence", level: "all-levels", active: true, schemaVersion: "1"};

@@ -192,6 +192,7 @@ describe("Schedule Client", () => {
       data: { booking: { bookingId: "s-1__std-1", status: "confirmed" } },
     });
     const booking = await requestBooking({
+      kind: "membership",
       sessionId: "s-1",
       studentId: "std-1",
       membershipId: "m-1",

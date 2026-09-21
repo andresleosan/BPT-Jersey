@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { PLAN_CATALOG } from "@bpt-jersey/domain/memberships";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createFixtureCalendarRepository } from "../../../lib/calendar/fixture-calendar-repository";
@@ -16,6 +17,19 @@ const schedule = vi.hoisted(() => ({
   selfCheckIn: vi.fn(),
 }));
 vi.mock("../../../lib/schedule-client", () => schedule);
+vi.mock("../../../lib/membership-client", () => ({
+  listAvailableMembershipPlans: vi.fn().mockResolvedValue(PLAN_CATALOG),
+}));
+vi.mock("../../../lib/student-group-access-client", () => ({
+  getStudentGroupAccess: vi
+    .fn()
+    .mockResolvedValue({
+      studentId: "s-1",
+      programIds: [],
+      revision: 0,
+      dateOfBirth: "1990-01-01",
+    }),
+}));
 vi.mock("../../../lib/waitlist-client", () => ({
   listClientMemberships: vi
     .fn()
@@ -24,6 +38,24 @@ vi.mock("../../../lib/waitlist-client", () => ({
     ]),
 }));
 vi.mock("../../../lib/family-client", () => ({ getFamily: vi.fn() }));
+vi.mock("../../../lib/profile-client", () => ({
+  getClientProfile: vi.fn().mockResolvedValue({
+    student: {
+      studentId: "s-1",
+      fullName: "Alex",
+      dateOfBirth: "1990-01-01",
+      trainingCenter: "Town",
+    },
+  }),
+}));
+vi.mock("../../../lib/courses/course-client", () => ({
+  courseApi: {
+    participants: vi.fn().mockResolvedValue({ items: [], cursor: null }),
+    calendar: vi
+      .fn()
+      .mockResolvedValue({ sessions: [], bookings: [], attendance: [], cursor: null }),
+  },
+}));
 vi.mock("../../../lib/no-show-penalties-client", () => ({
   listNoShowPenalties: vi.fn().mockResolvedValue([]),
 }));
@@ -203,6 +235,52 @@ describe("MemberCalendar", () => {
     expect(friday).toHaveAttribute("data-status", "locked");
     await userEvent.click(within(friday).getByRole("button", { name: "Not available" }));
     expect(within(friday).getByText("Weekly class limit reached")).toBeInTheDocument();
+  });
+
+  it("books an eligible free Intro Class without a membership", async () => {
+    stubViewport(false);
+    const base = createFixtureCalendarRepository("teenStudent");
+    const book = vi.fn(base.book);
+    const repository = {
+      ...base,
+      book,
+      loadMember: async () => ({
+        role: "teenStudent" as const,
+        displayName: "Sam Demo",
+        participants: [
+          {
+            studentId: "sam",
+            firstName: "Sam",
+            membershipId: null,
+            planId: null,
+            participantType: "teens" as const,
+            planClassSites: [],
+            planOpenMatSites: [],
+            weeklyClassLimit: null,
+            introSite: "Town" as const,
+            hasAttendedIntro: false,
+            hasActiveMembership: false,
+          },
+        ],
+      }),
+      loadWeek: async (...args: Parameters<typeof base.loadWeek>) => {
+        const week = await base.loadWeek(...args);
+        return {
+          ...week,
+          sessions: week.sessions.map((record) => ({ ...record, accessMode: "intro" as const })),
+        };
+      },
+    };
+    render(<MemberCalendar onSignOut={vi.fn()} repository={repository} session={teen} />);
+
+    await userEvent.click((await screen.findAllByRole("button", { name: "Book free intro" }))[0]!);
+
+    expect(book).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "intro",
+        studentId: "sam",
+      }),
+    );
   });
 
   it("shows an error panel with retry when loading fails", async () => {
@@ -610,10 +688,7 @@ describe("MemberCalendar", () => {
         resolveLeo?.();
       });
       await screen.findByRole("slider", { name: /Kids BJJ/u });
-      expect(document.querySelector('[data-session-id="' + mayaSessionId + '"]')).toHaveAttribute(
-        "data-status",
-        "locked",
-      );
+      expect(document.querySelector('[data-session-id="' + mayaSessionId + '"]')).toBeNull();
     });
 
     it("ignores a deferred check-in after navigating to a new week", async () => {

@@ -12,6 +12,15 @@ const schedule = vi.hoisted(() => ({
   listSessionBookedCounts: vi.fn(),
 }));
 const penalties = vi.hoisted(() => ({ listNoShowPenalties: vi.fn() }));
+const profile = vi.hoisted(() => ({ getClientProfile: vi.fn() }));
+const courses = vi.hoisted(() => ({
+  courseApi: {
+    participants: vi.fn(),
+    calendar: vi.fn(),
+    absence: vi.fn(),
+    checkIn: vi.fn(),
+  },
+}));
 vi.mock("../schedule-client", () => schedule);
 vi.mock("../membership-client", () => ({ listAvailableMembershipPlans: async () => PLAN_CATALOG }));
 vi.mock("../student-group-access-client", () => ({ getStudentGroupAccess: async (studentId: string) => ({ studentId, programIds: [], revision: 0, dateOfBirth: null }) }));
@@ -20,11 +29,25 @@ const family = vi.hoisted(() => ({ getFamily: vi.fn() }));
 vi.mock("../waitlist-client", () => waitlist);
 vi.mock("../family-client", () => family);
 vi.mock("../no-show-penalties-client", () => penalties);
+vi.mock("../profile-client", () => profile);
+vi.mock("../courses/course-client", () => courses);
 
 import { createFirebaseCalendarRepository } from "./firebase-calendar-repository";
 
 describe("firebase calendar repository", () => {
   beforeEach(() => {
+    profile.getClientProfile.mockResolvedValue({
+      user: { displayName: "Alex Demo" },
+      student: {
+        studentId: "s-1", fullName: "Alex Demo", dateOfBirth: "1990-01-01",
+        trainingCenter: "Town",
+      },
+    });
+    family.getFamily.mockResolvedValue(undefined);
+    courses.courseApi.participants.mockResolvedValue({ items: [], cursor: null });
+    courses.courseApi.calendar.mockResolvedValue({
+      sessions: [], bookings: [], attendance: [], cursor: null,
+    });
     waitlist.listClientMemberships.mockResolvedValue([
       { membershipId: "m-1", studentId: "s-1", planId: "bpt-jersey-adult", status: "active", startsAt: "2026-08-01T00:00:00Z", endsAt: "2026-10-01T00:00:00Z" },
     ]);
@@ -44,13 +67,14 @@ describe("firebase calendar repository", () => {
       role: "adultStudent",
       displayName: "Alex Demo",
     });
+    await repo.loadMember();
     const week = await repo.loadWeek("s-1", "2026-09-14T00:00:00.000Z", "2026-09-20T23:59:59.999Z");
     expect(schedule.listSessionBookedCounts).toHaveBeenCalledWith({
       from: "2026-09-14T00:00:00.000Z",
       to: "2026-09-20T23:59:59.999Z",
     });
     expect(week.bookedCounts).toEqual({ s1: 20 });
-    expect(week.programs).toEqual([{ programId: "p" }]);
+    expect(week.programs).toEqual(expect.arrayContaining([{ programId: "p" }]));
   });
 
   it("keeps rendering the calendar when booked counts fail to load", async () => {
@@ -59,6 +83,7 @@ describe("firebase calendar repository", () => {
       role: "adultStudent",
       displayName: "Alex Demo",
     });
+    await repo.loadMember();
     const week = await repo.loadWeek("s-1", "2026-09-14T00:00:00.000Z", "2026-09-20T23:59:59.999Z");
     expect(week.bookedCounts).toEqual({});
     expect(week.sessions).toEqual([{ sessionId: "s1" }]);
@@ -71,8 +96,8 @@ describe("firebase calendar repository", () => {
       displayName: "Alex Demo",
     });
 
-    const [member, week, noShowPenalties] = await Promise.all([
-      repo.loadMember(),
+    const member = await repo.loadMember();
+    const [week, noShowPenalties] = await Promise.all([
       repo.loadWeek("s-1", "2026-09-14T00:00:00.000Z", "2026-09-20T23:59:59.999Z"),
       repo.loadPenalties("s-1"),
     ]);
@@ -111,6 +136,24 @@ describe("firebase calendar repository", () => {
         weeklyClassLimit: 2,
       }),
     ]);
+  });
+
+  it("loads a canonical adult without membership and only exposes the Intro Class at their centre", async () => {
+    waitlist.listClientMemberships.mockResolvedValue([]);
+    schedule.listSessions.mockResolvedValue([
+      { sessionId: "intro-town", accessMode: "intro", locationId: "town" },
+      { sessionId: "intro-west", accessMode: "intro", locationId: "west" },
+      { sessionId: "ordinary", accessMode: "membership", locationId: "town" },
+    ]);
+    const repo = createFirebaseCalendarRepository({ role: "adultStudent", displayName: "Alex Demo" });
+
+    const member = await repo.loadMember();
+    const week = await repo.loadWeek("s-1", "2026-09-14T00:00:00.000Z", "2026-09-20T23:59:59.999Z");
+
+    expect(member.participants[0]).toMatchObject({
+      studentId: "s-1", membershipId: null, introSite: "Town", hasActiveMembership: false,
+    });
+    expect(week.sessions).toEqual([{ sessionId: "intro-town", accessMode: "intro", locationId: "town" }]);
   });
 
   it("delegates member clock-in to the selfCheckIn callable", async () => {

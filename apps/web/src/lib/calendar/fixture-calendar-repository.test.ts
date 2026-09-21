@@ -57,7 +57,7 @@ describe("fixture calendar repository", () => {
     );
     expect(target).toBeDefined();
     const sessionId = target?.sessionId ?? "";
-    const booking = await repo.book({ sessionId, studentId: "sam", membershipId: "m-sam" });
+    const booking = await repo.book({ kind: "membership", sessionId, studentId: "sam", membershipId: "m-sam" });
     expect(booking.status).toBe("confirmed");
     const after = await repo.loadWeek("sam", weekAgo, inThreeWeeks);
     expect(after.bookings.some((b) => b.sessionId === sessionId && b.status === "confirmed")).toBe(
@@ -82,7 +82,7 @@ describe("fixture calendar repository", () => {
     );
     expect(full).toBeDefined();
     await expect(
-      repo.book({ sessionId: full?.sessionId ?? "", studentId: "sam", membershipId: "m-sam" }),
+      repo.book({ kind: "membership", sessionId: full?.sessionId ?? "", studentId: "sam", membershipId: "m-sam" }),
     ).rejects.toMatchObject({ code: "functions/failed-precondition" });
   });
 

@@ -77,6 +77,14 @@ describe("SessionCard", () => {
     expect(onBook).toHaveBeenCalledTimes(1);
   });
 
+  it("labels a free Intro Class and exposes its dedicated action", async () => {
+    const onBook = vi.fn();
+    renderCard({ entry: entry("open", { session: { ...session, accessMode: "intro" } }), onBook });
+    expect(screen.getByText(/Free Intro Class/u)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Book free intro" }));
+    expect(onBook).toHaveBeenCalledTimes(1);
+  });
+
   it("offers Cancel while cancellable and says closed after the cut-off", () => {
     const { unmount } = renderCard({ entry: entry("booked") });
     expect(screen.getByRole("button", { name: "Booked · Cancel" })).toBeInTheDocument();

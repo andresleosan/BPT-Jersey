@@ -14,7 +14,11 @@ import {
   type CalendarDay,
   type CalendarViewport,
 } from "@bpt-jersey/domain/schedule/member-calendar";
-import type { AttendanceRecord, BookingRecord } from "@bpt-jersey/domain/schedule";
+import {
+  sessionAccessMode,
+  type AttendanceRecord,
+  type BookingRecord,
+} from "@bpt-jersey/domain/schedule";
 import type { NoShowPenaltyRecord } from "@bpt-jersey/domain/penalties";
 import {
   nextSelfCheckInSession,
@@ -133,7 +137,7 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
     }>
   >({ studentId: "", names: [] });
 
-  const days = useMemo(() => visibleDays({ now, viewport, offset, includeSunday: true }), [now, viewport, offset]);
+  const days = useMemo(() => visibleDays({ now, viewport, offset }), [now, viewport, offset]);
   const firstDay = days[0];
   const lastDay = days[days.length - 1];
   const loadFrom = firstDay
@@ -253,6 +257,13 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
       planClassSites: participant.planClassSites,
       planOpenMatSites: participant.planOpenMatSites,
       weeklyClassLimit: participant.weeklyClassLimit,
+      ...(participant.introSite ? { introSite: participant.introSite } : {}),
+      ...(participant.hasAttendedIntro !== undefined
+        ? { hasAttendedIntro: participant.hasAttendedIntro }
+        : {}),
+      ...(participant.hasActiveMembership !== undefined
+        ? { hasActiveMembership: participant.hasActiveMembership }
+        : {}),
       ...(selectedWeek.groupAccess
         ? {
             additionalProgramIds: selectedWeek.groupAccess.programIds,
@@ -263,7 +274,8 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
     const classesBookedByWeek = new Map<string, number>();
     for (const row of selectedWeek.sessions) {
       const rowProgram = programs.get(row.programId);
-      if (row.courseId || row.status === "cancelled" || !bookings.has(row.sessionId) || !rowProgram) continue;
+      if (row.courseId || row.status === "cancelled" || !bookings.has(row.sessionId) || !rowProgram)
+        continue;
       if (
         rowProgram.discipline === "open-mat" ||
         memberContext.additionalProgramIds?.includes(row.programId)
@@ -425,16 +437,27 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
 
   const handleBook = useCallback(
     async (entry: CalendarEntry) => {
-      if (!participant || !participant.membershipId || entry.session.courseId) return;
+      if (!participant || entry.session.courseId) return;
+      const isIntro = sessionAccessMode(entry.session) === "intro";
+      if (!isIntro && !participant.membershipId) return;
       setBusyKey(entry.session.sessionId);
       try {
-        const booking = await repository.book({
-          sessionId: entry.session.sessionId,
-          studentId: participant.studentId,
-          membershipId: participant.membershipId,
-        });
+        const booking = await repository.book(
+          isIntro
+            ? {
+                kind: "intro",
+                sessionId: entry.session.sessionId,
+                studentId: participant.studentId,
+              }
+            : {
+                kind: "membership",
+                sessionId: entry.session.sessionId,
+                studentId: participant.studentId,
+                membershipId: participant.membershipId!,
+              },
+        );
         applyBooking(booking);
-        flashNote(entry.session.sessionId, bookedNote);
+        flashNote(entry.session.sessionId, isIntro ? "Intro Class booked." : bookedNote);
       } catch (error) {
         flashNote(entry.session.sessionId, bookingFailureMessage(error));
       } finally {
@@ -451,7 +474,13 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
       try {
         if (entry.session.courseId && repository.setCourseAbsence) {
           const absent = entry.booking?.schemaVersion === "2" && entry.booking.absent;
-          applyBooking(await repository.setCourseAbsence(entry.session.sessionId, participant.studentId, !absent));
+          applyBooking(
+            await repository.setCourseAbsence(
+              entry.session.sessionId,
+              participant.studentId,
+              !absent,
+            ),
+          );
           return;
         }
         const booking = await repository.cancel({
@@ -544,7 +573,9 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
                 notes={notes}
                 now={now}
                 onBook={(entry) => void handleBook(entry)}
-                onCancelRequest={(entry) => entry.session.courseId ? void handleConfirmCancel(entry) : setCancelling(entry)}
+                onCancelRequest={(entry) =>
+                  entry.session.courseId ? void handleConfirmCancel(entry) : setCancelling(entry)
+                }
               />
             ))}
           </div>
