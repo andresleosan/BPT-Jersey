@@ -181,7 +181,7 @@ describe("enrolment request page", () => {
     expect(screen.queryByText("£85 per month")).not.toBeInTheDocument();
     expect(screen.queryByRole("radio", { name: /Kids|Teens/ })).not.toBeInTheDocument();
     expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: /continue to payment/i }));
+    await user.click(screen.getByRole("button", { name: /continue to review/i }));
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Choose an available plan for every student",
     );
@@ -485,6 +485,23 @@ describe("enrolment steps", () => {
     await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
   }
 
+  it("collects centre and plan without collecting postal or medical data", async () => {
+    const user = userEvent.setup();
+    render(<EnrolPage />);
+
+    expect(screen.queryByLabelText(/^Address$/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Post code/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("textbox", { name: /medical conditions/i }),
+    ).not.toBeInTheDocument();
+
+    await fillAdult(user);
+    await user.selectOptions(screen.getByLabelText("Training centre"), "West");
+    await user.click(screen.getByRole("button", { name: /continue to plans/i }));
+
+    expect(screen.getByRole("radio", { name: /West Adult/i })).toBeVisible();
+  });
+
   it("preserves details and choices on back, then resets a choice when the centre changes", async () => {
     const user = userEvent.setup();
     render(<EnrolPage />);
@@ -581,7 +598,7 @@ describe("enrolment steps", () => {
     expect(await screen.findByRole("heading", { name: "Waiting for the academy" })).toBeVisible();
   });
 
-  it("validates partial contacts, partial addresses and age before showing plans", async () => {
+  it("validates partial contacts and age before showing plans", async () => {
     const user = userEvent.setup();
     render(<EnrolPage />);
     await fillAdult(user);
@@ -589,10 +606,6 @@ describe("enrolment steps", () => {
     await user.click(screen.getByRole("button", { name: /continue to plans/i }));
     expect(screen.getByRole("alert")).toHaveTextContent("Complete the emergency contact");
     await user.clear(screen.getByLabelText("Name", { exact: true }));
-    await user.type(screen.getByLabelText("Post code"), "JE2 4WW");
-    await user.click(screen.getByRole("button", { name: /continue to plans/i }));
-    expect(screen.getByRole("alert")).toHaveTextContent("Enter both the address and the post code");
-    await user.clear(screen.getByLabelText("Post code"));
     await user.clear(screen.getByLabelText("Date of birth"));
     await user.type(screen.getByLabelText("Date of birth"), "2020-01-01");
     await user.click(screen.getByRole("button", { name: /continue to plans/i }));
