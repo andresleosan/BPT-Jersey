@@ -301,6 +301,9 @@ export {
 
 export { getStudentGroupAccess, saveStudentGroupAccess } from "./schedule/student-group-access-callables.js";
 
+export { listMemberNotifications, markMemberNotificationRead } from "./memberships/intro-conversion-callables.js";
+export { introAttendanceCreated } from "./memberships/intro-conversion-trigger.js";
+
 export { getMemberInventoryPage } from "./members/member-inventory-callables.js";
 
 export { getMemberReconciliationCase, decideMemberReconciliation, closeMemberReconciliation, previewMemberIdentityAlias, approveMemberIdentityAlias } from "./members/member-reconciliation-callables.js";

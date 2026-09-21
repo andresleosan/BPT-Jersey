@@ -6,6 +6,7 @@ import { createCalendarRepository, type CalendarRole } from "../../lib/calendar"
 import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../lib/client-auth";
 import { requireClientSession } from "../../lib/login-flow";
 import { MemberCalendar } from "./calendar/member-calendar";
+import { IntroNotices } from "./intro-notices";
 import { StreakPanel } from "./streak/streak-panel";
 
 import "./account.css";
@@ -39,7 +40,7 @@ function AccountContent() {
       onSignOut={() => void handleSignOut()}
       repository={repository}
       session={{ role, displayName }}
-      topSlot={<StreakPanel />}
+      topSlot={<><IntroNotices /><StreakPanel /></>}
     />
   );
 }
