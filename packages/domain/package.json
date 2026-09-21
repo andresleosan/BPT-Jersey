@@ -130,6 +130,11 @@
       "import": "./src/memberships/membership-contracts.ts",
       "default": "./lib/memberships/membership-contracts.js"
     },
+    "./memberships/intro-conversion": {
+      "types": "./src/memberships/intro-conversion-contracts.ts",
+      "import": "./src/memberships/intro-conversion-contracts.ts",
+      "default": "./lib/memberships/intro-conversion-contracts.js"
+    },
     "./finance": {
       "types": "./src/finance/finance-contracts.ts",
       "import": "./src/finance/finance-contracts.ts",

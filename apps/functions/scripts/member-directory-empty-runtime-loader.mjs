@@ -20,5 +20,14 @@ export async function resolve(specifier, context, nextResolve) {
     }
     return { url: memberDirectoryDomainUrl, shortCircuit: true };
   }
+  if (specifier === "@bpt-jersey/domain/members/membership-number") {
+    if (memberDirectoryDomainUrl === undefined) {
+      throw new Error("Missing member-directory runner runtime mapping.");
+    }
+    return {
+      url: new URL("./membership-number-contracts.js", memberDirectoryDomainUrl).href,
+      shortCircuit: true,
+    };
+  }
   return nextResolve(specifier, context);
 }

@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 export const domainImportReplacements: Readonly<Record<string, string>> = Object.freeze({
   "@bpt-jersey/domain/members/reconciliation": "../../domain/members/member-reconciliation-contracts.js",
+  "@bpt-jersey/domain/members/membership-number": "../../domain/members/membership-number-contracts.js",
   "@bpt-jersey/domain/members/inventory": "../../domain/members/member-inventory-contracts.js",
   "@bpt-jersey/domain/members/history": "../../domain/members/member-history-contracts.js",
   "@bpt-jersey/domain/members/access": "../../domain/members/member-access-contracts.js",
@@ -32,6 +33,7 @@ export const domainImportReplacements: Readonly<Record<string, string>> = Object
   "@bpt-jersey/domain/members/engagement": "../../domain/members/member-engagement-contracts.js",
   "@bpt-jersey/domain/members/profile": "../../domain/members/member-profile-contracts.js",
   "@bpt-jersey/domain/memberships/lifecycle": "../../domain/memberships/membership-contracts.js",
+  "@bpt-jersey/domain/memberships/intro-conversion": "../../domain/memberships/intro-conversion-contracts.js",
   "@bpt-jersey/domain/memberships/admin":
     "../../domain/memberships/subscription-admin-contracts.js",
   "@bpt-jersey/domain/memberships": "../../domain/memberships/plan-contracts.js",
