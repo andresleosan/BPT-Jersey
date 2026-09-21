@@ -10,6 +10,8 @@ export function GroupAccessEditor({ studentId }: Readonly<{ studentId: string }>
   const [access, setAccess] = useState<StudentGroupAccess>();
   const [programs, setPrograms] = useState<readonly ProgramRecord[]>([]);
   const [selected, setSelected] = useState<readonly string[]>([]);
+  const [reason, setReason] = useState("");
+  const [expiresOn, setExpiresOn] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -27,6 +29,8 @@ export function GroupAccessEditor({ studentId }: Readonly<{ studentId: string }>
         if (!active) return;
         setAccess(result);
         setSelected(result.programIds);
+        setReason(result.reason ?? "");
+        setExpiresOn(result.expiresOn ?? "");
         setPrograms(catalog.programs);
         setLoading(false);
       },
@@ -40,21 +44,28 @@ export function GroupAccessEditor({ studentId }: Readonly<{ studentId: string }>
   }, [studentId, attempt]);
 
   const changed = access !== undefined && (
-    selected.length !== access.programIds.length || selected.some((id) => !access.programIds.includes(id))
+    selected.length !== access.programIds.length || selected.some((id) => !access.programIds.includes(id)) ||
+    reason.trim() !== (access.reason ?? "") || expiresOn !== (access.expiresOn ?? "")
   );
+  const reasonMissing = selected.length > 0 && reason.trim().length < 2;
   const available = programs.filter((program) => program.active || selected.includes(program.programId));
   const missing = selected.filter((id) => !programs.some((program) => program.programId === id));
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!access || saving || !changed) return;
+    if (!access || saving || !changed || reasonMissing) return;
     setSaving(true);
     setError("");
     setNotice("");
     try {
-      const result = await saveStudentGroupAccess({ studentId, programIds: [...selected], revision: access.revision });
+      const result = await saveStudentGroupAccess({
+        studentId, programIds: [...selected], revision: access.revision,
+        ...(selected.length > 0 ? { reason: reason.trim(), expiresOn: expiresOn || null } : {}),
+      });
       setAccess(result);
       setSelected(result.programIds);
+      setReason(result.reason ?? "");
+      setExpiresOn(result.expiresOn ?? "");
       setNotice("Group access saved. The member's calendar will update on its next refresh.");
     } catch (caught) {
       const code = typeof caught === "object" && caught !== null && "code" in caught ? caught.code : undefined;
@@ -97,9 +108,18 @@ export function GroupAccessEditor({ studentId }: Readonly<{ studentId: string }>
               </label>
             ))}
             {!available.length && !missing.length ? <p>No groups are available.</p> : null}
+            <label className="member-group-access-field">
+              Reason for this exception
+              <textarea rows={2} maxLength={500} value={reason} required={selected.length > 0} aria-describedby="member-group-access-reason-help" onChange={(event) => { setNotice(""); setReason(event.target.value); }} />
+            </label>
+            <p id="member-group-access-reason-help">Required while any group is selected. Only the office can read it.</p>
+            <label className="member-group-access-field">
+              Ends on (optional)
+              <input type="date" value={expiresOn} onChange={(event) => { setNotice(""); setExpiresOn(event.target.value); }} />
+            </label>
           </fieldset>
           <div className="member-group-access-actions">
-            <button className="member-record-button" type="submit" disabled={saving || !changed}>{saving ? "Saving access…" : "Save group access"}</button>
+            <button className="member-record-button" type="submit" disabled={saving || !changed || reasonMissing}>{saving ? "Saving access…" : "Save group access"}</button>
             <button className="member-record-button" type="button" disabled={saving} onClick={() => setAttempt((value) => value + 1)}>Reload saved access</button>
           </div>
         </form>

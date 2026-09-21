@@ -5019,6 +5019,31 @@ a.admin-birthday-badge:focus-visible,
   font-size: 1rem;
 }
 
+.member-group-access-field {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 1.25rem;
+  max-width: 32rem;
+  font-weight: 700;
+}
+
+.member-group-access-field textarea,
+.member-group-access-field input {
+  min-height: 2.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--line);
+  background: var(--canvas);
+  color: inherit;
+  font: inherit;
+  font-weight: 400;
+}
+
+.member-group-access-field textarea:focus-visible,
+.member-group-access-field input:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+
 .member-group-access-actions {
   display: flex;
   flex-wrap: wrap;
