@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactElement } from "react";
 
 import type {
+  ClassAccessMode,
   CreateSessionInput,
   SessionRecord,
   UpdateSessionInput,
@@ -49,6 +50,7 @@ type Draft = Readonly<{
   endTime: string;
   locationId: string;
   programId: string;
+  accessMode: ClassAccessMode;
   capacity: string;
   minParticipants: string;
   trainers: readonly string[];
@@ -107,6 +109,7 @@ function draftFor(
       endTime: timeFrom(session.endAt, timezone),
       locationId: session.locationId,
       programId: session.programId,
+      accessMode: session.accessMode ?? "membership",
       capacity: session.capacity === null ? "" : String(session.capacity),
       minParticipants: String(session.minParticipants ?? 4),
       trainers: session.instructorIds ?? [session.instructorId],
@@ -127,6 +130,7 @@ function draftFor(
     endTime: timeOf(minutesOf(startTime) + defaultDurationMinutes),
     locationId: catalog.locations[0]?.locationId ?? "",
     programId: catalog.programs[0]?.programId ?? "",
+    accessMode: "membership",
     capacity: "",
     minParticipants: "4",
     trainers: [],
@@ -267,6 +271,8 @@ export function SessionPanel({
             catalog.programs.find((row) => row.programId === draft.programId)?.name ??
             session.title;
         }
+        if (draft.accessMode !== (session.accessMode ?? "membership"))
+          changes.accessMode = draft.accessMode;
         if (Date.parse(startAt) !== Date.parse(session.startAt)) changes.startAt = startAt;
         if (Date.parse(endAt) !== Date.parse(session.endAt)) changes.endAt = endAt;
         if (capacity !== session.capacity) changes.capacity = capacity;
@@ -306,6 +312,7 @@ export function SessionPanel({
         instructorIds,
         bookingRules,
         waitingList: draft.waitingList,
+        accessMode: draft.accessMode,
         ...(draft.repeatWeekly ? { repeatWeekly: true } : {}),
       };
       onSaved(await saveSession(input));
@@ -495,7 +502,7 @@ export function SessionPanel({
               </p>
             ) : null}
             <h3>Class and location</h3>
-            <div className="cs-form-row">
+            <div className="cs-form-row cs-session-classification">
               <label className="cs-field">
                 <span>Class/service location</span>
                 <select
@@ -524,6 +531,22 @@ export function SessionPanel({
                       {program.name}
                     </option>
                   ))}
+                </select>
+              </label>
+              <label className="cs-field">
+                <span>Class access</span>
+                <select
+                  value={draft.accessMode}
+                  disabled={readOnly || locked}
+                  title={locked ? lockedHint : undefined}
+                  onChange={(event) =>
+                    patch({
+                      accessMode: event.target.value === "intro" ? "intro" : "membership",
+                    })
+                  }
+                >
+                  <option value="membership">Membership required</option>
+                  <option value="intro">Free Intro Class</option>
                 </select>
               </label>
             </div>
