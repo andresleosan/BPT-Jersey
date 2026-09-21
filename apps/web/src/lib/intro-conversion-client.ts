@@ -26,3 +26,16 @@ export async function submitIntroMembershipApplication(input: { requestId: strin
   try { const response = await httpsCallable<typeof input, unknown>(getFirebaseFunctions(), "submitIntroMembershipApplication")(input); return membershipApplicationSchema.parse(response.data); }
   catch { throw new Error(safeError); }
 }
+
+export async function listIntroMembershipApplications() {
+  try { const response = await httpsCallable<null, unknown>(getFirebaseFunctions(), "listIntroMembershipApplications")(null); return z.strictObject({ applications: z.array(membershipApplicationSchema).max(100) }).parse(response.data).applications; }
+  catch { throw new Error("Membership applications are unavailable."); }
+}
+export async function getIntroMembershipProofUrl(applicationId: string) {
+  try { const response = await httpsCallable<{applicationId:string}, unknown>(getFirebaseFunctions(), "getIntroMembershipProofUrl")({ applicationId }); return z.strictObject({ url: z.url().refine((value) => value.startsWith("https://")), expiresAt: z.iso.datetime() }).parse(response.data); }
+  catch { throw new Error("Payment evidence is unavailable."); }
+}
+export async function reviewIntroMembershipApplication(input: { applicationId: string; expectedRevision: number; decision: "approve"; occurredAt: string } | { applicationId: string; expectedRevision: number; decision: "needs_correction"|"reject"; reason: string }) {
+  try { const response = await httpsCallable<typeof input, unknown>(getFirebaseFunctions(), "reviewIntroMembershipApplication")(input); return response.data; }
+  catch { throw new Error("The application could not be reviewed."); }
+}
