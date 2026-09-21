@@ -93,9 +93,6 @@ async function identityIds(
           data: snapshot.data(),
         }));
       },
-      create: () => fail("invalid", "Identity writes are unavailable"),
-      set: () => fail("invalid", "Identity writes are unavailable"),
-      listStudents: () => Promise.resolve([]),
     },
     academyId,
     studentId,
@@ -446,7 +443,7 @@ export async function requestIntroBooking(
       sessionId,
       studentId,
       membershipId: null,
-      source: { kind: "intro" },
+      source: { kind: "intro" as const },
       status: "confirmed",
       requestedAt: command.now,
       cancelledAt: null,
