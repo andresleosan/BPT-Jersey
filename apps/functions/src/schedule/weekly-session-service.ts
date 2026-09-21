@@ -1,4 +1,4 @@
-import type { Firestore } from "firebase-admin/firestore";
+import type { DocumentReference, Firestore } from "firebase-admin/firestore";
 import type {
   ListSessionsQuery,
   SessionRecord,
@@ -234,7 +234,30 @@ export function createWeeklySessionStore(firestore: Firestore) {
         }
       };
       const series = await seriesCollection(academy).get();
+      // Steady state is "every occurrence already exists": one plain batched read finds the series
+      // that still need work, instead of one transaction per series on every calendar load.
+      const pending = new Set<string>();
+      const planned: { path: string; ref: DocumentReference }[] = [];
       for (const document of series.docs) {
+        try {
+          for (const row of occurrences(document.data() as WeeklySeries)) {
+            planned.push({
+              path: document.ref.path,
+              ref: sessionsCollection(academy).doc(row.sessionId),
+            });
+          }
+        } catch {
+          pending.add(document.ref.path); // Reported per series by the loop below.
+        }
+      }
+      if (planned.length > 0) {
+        const found = await firestore.getAll(...planned.map((item) => item.ref));
+        for (const [index, snapshot] of found.entries()) {
+          if (!snapshot.exists) pending.add(planned[index]!.path);
+        }
+      }
+      for (const document of series.docs) {
+        if (!pending.has(document.ref.path)) continue;
         try {
           const initial = document.data() as WeeklySeries;
           if (occurrences(initial).length === 0) continue;
