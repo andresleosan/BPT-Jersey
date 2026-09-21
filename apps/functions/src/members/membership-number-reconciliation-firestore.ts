@@ -152,7 +152,10 @@ function sameReceipt(
 }
 
 function replayRows(receipt: z.infer<typeof receiptSchema>) {
-  return receipt.rows.map((row) => ({ ...row, status: "already_applied" as const }));
+  return receipt.rows.map((row) => ({
+    ...row,
+    status: row.status === "applied" ? ("already_applied" as const) : row.status,
+  }));
 }
 
 function chunks<T>(values: readonly T[], size: number): readonly (readonly T[])[] {
@@ -238,8 +241,12 @@ export async function applyMembershipNumberReconciliation(
         const identitySnapshot = await transaction.get(identityReference);
         if (identitySnapshot.exists) {
           const existingIdentity = studentIdentityKeySchema.safeParse(identitySnapshot.data());
-          if (!existingIdentity.success || existingIdentity.data.ownerStudentId !== row.ownerId) {
+          if (!existingIdentity.success) {
             throw new Error("Membership number identity reservation conflict");
+          }
+          if (existingIdentity.data.ownerStudentId !== row.ownerId) {
+            appliedRows.push({ recordRef: row.recordRef, status: "manual_review" });
+            continue;
           }
         } else {
           transaction.create(identityReference, identity);
