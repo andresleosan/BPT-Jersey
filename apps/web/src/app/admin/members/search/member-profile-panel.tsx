@@ -252,13 +252,20 @@ function DetailsTabContent({ record }: { record: RegyfitMemberRecord }) {
   );
 }
 
-function MembershipTabContent({ record }: { record: RegyfitMemberRecord }) {
+function MembershipTabContent({
+  record,
+  role,
+}: {
+  record: RegyfitMemberRecord;
+  role?: string | null | undefined;
+}) {
   const { plan } = record;
   return (
     <>
       <ProfileSubscriptionEditor
         key={`${record.recordId}:${record.memberNumber ?? ""}`}
         record={record}
+        role={role}
       />
       <p className="member-subscription-help">
         Imported membership details below reflect the imported record. Changes to the current
@@ -385,10 +392,18 @@ function ClassesTabContent({ record }: { record: RegyfitMemberRecord }) {
   );
 }
 
-function TabContent({ tab, record }: { tab: ProfileTab; record: RegyfitMemberRecord }) {
+function TabContent({
+  tab,
+  record,
+  role,
+}: {
+  tab: ProfileTab;
+  record: RegyfitMemberRecord;
+  role?: string | null | undefined;
+}) {
   if (tab === "Profile") return <ProfileTabContent record={record} />;
   if (tab === "Details") return <DetailsTabContent record={record} />;
-  if (tab === "Membership") return <MembershipTabContent record={record} />;
+  if (tab === "Membership") return <MembershipTabContent record={record} role={role} />;
   if (tab === "Payments") return <PaymentsTabContent record={record} />;
   if (tab === "Classes") return <ClassesTabContent record={record} />;
   if (tab === "Notes") {
@@ -412,10 +427,13 @@ export function MemberProfilePanel({
   record,
   onClose,
   onCanonicalLookup,
+  role,
 }: {
   record: RegyfitMemberRecord;
   onClose: () => void;
   onCanonicalLookup: (membershipNumber: string) => void;
+  /** D13: forwarded to the Membership tab so only an owner actor can assign Transit Free. */
+  role?: string | null | undefined;
 }) {
   const [activeTab, setActiveTab] = useState<ProfileTab>("Profile");
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -504,7 +522,7 @@ export function MemberProfilePanel({
         role="tabpanel"
         tabIndex={0}
       >
-        <TabContent record={record} tab={activeTab} />
+        <TabContent record={record} role={role} tab={activeTab} />
       </div>
     </section>
   );

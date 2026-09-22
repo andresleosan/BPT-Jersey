@@ -501,6 +501,7 @@ function SearchMembersContent() {
           onCanonicalLookup={handleCanonicalLookup}
           onClose={() => setSelected({ status: "idle" })}
           record={selected.record}
+          role={session.role}
         />
       ) : null}
       {office ? (
