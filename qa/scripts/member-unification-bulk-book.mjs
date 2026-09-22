@@ -22,6 +22,7 @@ import { reportScriptError, resolveTarget, SafeScriptError } from "./member-unif
 const confirmationPhrase = "member-unification-book-v1";
 const skippableCodes = new Set(["capacity", "capacity-not-set", "conflict", "financial", "ineligible", "not-found", "weekly-limit"]);
 const perMemberLimit = 200;
+const concurrency = 8;
 
 /** Memberships covering `now`, one per student (the latest-ending). Pure, self-checkable. */
 export function liveMembershipByStudent(memberships, now) {
@@ -69,6 +70,18 @@ export function bookableSessions(sessions, from) {
     )
     .sort((left, right) => left.startAt.localeCompare(right.startAt))
     .slice(0, perMemberLimit);
+}
+
+/**
+ * Monday of the session's week on the academy's local date, as the booking service counts it.
+ * ponytail: mirrors weekStart() in booking-transaction-service; a mismatch only skips an attempt,
+ * it can never book wrongly, because the service still enforces the real limit.
+ */
+export function weekStart(iso) {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Jersey", year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" }).formatToParts(new Date(iso));
+  const read = (type) => parts.find((part) => part.type === type)?.value ?? "";
+  const offset = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(read("weekday"));
+  return new Date(Date.UTC(Number(read("year")), Number(read("month")) - 1, Number(read("day")) - offset)).toISOString().slice(0, 10);
 }
 
 async function main() {
@@ -121,22 +134,33 @@ async function main() {
   console.log(`bookableSessionsInWindow: ${sessions.length}`);
   if (!apply) return;
 
-  const totals = { booked: 0, alreadyBooked: 0, skipped: 0, membersFailed: 0 };
+  const totals = { booked: 0, alreadyBooked: 0, skipped: 0, skippedWeekFull: 0, membersFailed: 0 };
   const skippedByCode = {};
-  for (const [index, [studentId, membership]] of targets.entries()) {
+  let done = 0;
+  const bookMember = async (index, studentId, membership) => {
     let existing;
     try {
       existing = await store.listStudentBookings(academyId, studentId);
     } catch {
       totals.membersFailed += 1;
-      continue;
+      return;
     }
     const confirmed = new Set(existing.filter((booking) => booking.status === "confirmed").map((booking) => booking.sessionId));
-    for (const session of sessions) {
+    const fullWeeks = new Set();
+    // Members start at different points of the list so two workers rarely contend on one session.
+    const shift = (index * 7) % Math.max(sessions.length, 1);
+    const ordered = [...sessions.slice(shift), ...sessions.slice(0, shift)];
+    for (const session of ordered) {
       if (confirmed.has(session.sessionId)) {
         totals.alreadyBooked += 1;
         continue;
       }
+      const week = weekStart(session.startAt);
+      if (fullWeeks.has(week)) {
+        totals.skippedWeekFull += 1;
+        continue;
+      }
+      const startedAt = Date.now();
       try {
         await store.requestBooking(
           academyId,
@@ -145,10 +169,14 @@ async function main() {
           { ip: null, role: "owner" }, // the audit draft needs an explicit ip: a script has none
         );
         totals.booked += 1;
+        if (env.BPT_OPERATOR_DEBUG === "1") console.log(`attempt booked ${Date.now() - startedAt}ms`);
       } catch (error) {
         if (error instanceof bookingModule.BookingTransactionError && skippableCodes.has(error.code)) {
           totals.skipped += 1;
           skippedByCode[error.code] = (skippedByCode[error.code] ?? 0) + 1;
+          if (error.code === "weekly-limit") fullWeeks.add(week);
+          // Codes only, never member data: enough to see where a long run spends its time.
+          if (env.BPT_OPERATOR_DEBUG === "1") console.log(`attempt ${error.code} ${Date.now() - startedAt}ms`);
           continue;
         }
         totals.membersFailed += 1;
@@ -156,11 +184,21 @@ async function main() {
           // Booking errors carry codes and fixed sentences, never member data.
           console.error(`memberFailed: ${error?.name ?? "Error"}/${error?.code ?? "-"}: ${String(error?.message ?? "").slice(0, 200)}`);
         }
-        break;
+        return;
       }
     }
-    console.log(`progress: member ${index + 1}/${targets.length} \u00b7 booked ${totals.booked}`);
-  }
+  };
+  // Every rejected attempt costs ~2 s of serial transactional reads, so members run side by side.
+  const queue = targets.map(([studentId, membership], index) => [index, studentId, membership]);
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+      for (let item = queue.shift(); item; item = queue.shift()) {
+        await bookMember(...item);
+        done += 1;
+        console.log(`progress: member ${done}/${targets.length} \u00b7 booked ${totals.booked}`);
+      }
+    }),
+  );
   for (const [key, value] of Object.entries(totals)) console.log(`${key}: ${value}`);
   for (const [code, count] of Object.entries(skippedByCode)) console.log(`skipped_${code}: ${count}`);
 }
