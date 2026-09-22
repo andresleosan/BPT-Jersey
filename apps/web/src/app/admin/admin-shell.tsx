@@ -13,7 +13,13 @@ import { staffRoutes } from "./admin-routes";
 
 import "./admin.css";
 
-type NavigationItem = Readonly<{ label: string; href: string; ownerOnly?: boolean }>;
+type NavigationItem = Readonly<{
+  label: string;
+  href: string;
+  ownerOnly?: boolean;
+  /** Shown to the mat only: the office reaches the same task from the unified Members page. */
+  staffOnly?: boolean;
+}>;
 type NavigationGroup = Readonly<{ label: string; items: readonly NavigationItem[] }>;
 
 /** Owners can reach every implemented administrative module without a member subscription.
@@ -31,10 +37,9 @@ const navigationGroups: readonly NavigationGroup[] = [
     label: "People",
     items: [
       { label: "Members", href: "/admin/members" },
-      { label: "Families", href: "/admin/families", ownerOnly: true },
-      { label: "Member search", href: "/admin/members/search" },
+      { label: "Member search", href: "/admin/members/search", staffOnly: true },
       { label: "Memberships", href: "/admin/memberships" },
-      { label: "Enrolmnet Requests", href: "/admin/members/requests" },
+      { label: "Enrolment requests", href: "/admin/members/requests" },
     ],
   },
   {
@@ -104,6 +109,7 @@ export function AdminShell({
       items: group.items.filter(
         (item) =>
           (!item.ownerOnly || session.role === "owner") &&
+          (!item.staffOnly || allowedRoutes !== undefined) &&
           (allowedRoutes === undefined || allowedRoutes.includes(item.href)),
       ),
     }))
