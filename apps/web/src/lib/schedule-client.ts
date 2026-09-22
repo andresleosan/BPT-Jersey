@@ -22,6 +22,7 @@ import type {
   SaveLocationGeofenceInput,
   SessionOperationalView,
   SessionRecord,
+  SessionRegistrationRecord,
   UpdateClassInput,
   UpdateSessionInput,
 } from "@bpt-jersey/domain/schedule";
@@ -394,9 +395,9 @@ export async function cancelBooking(input: CancelBookingInput): Promise<BookingR
   return result.data.booking;
 }
 
-export async function listSessionBookings(sessionId: string): Promise<readonly BookingRecord[]> {
+export async function listSessionBookings(sessionId: string): Promise<readonly SessionRegistrationRecord[]> {
   const functions = getFirebaseFunctions();
-  const callable = httpsCallable<{ sessionId: string }, { bookings: BookingRecord[] }>(
+  const callable = httpsCallable<{ sessionId: string }, { bookings: SessionRegistrationRecord[] }>(
     functions,
     "listSessionBookings",
   );

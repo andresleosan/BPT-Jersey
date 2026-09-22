@@ -1123,3 +1123,21 @@ body:has(.cs-session-dialog[open]) {
     margin-bottom: 0.5rem;
   }
 }
+
+.cs-registration-payment {
+  padding: 0.2rem 0.5rem;
+  border-left: 0.35rem solid var(--bpt-purple);
+  background: var(--canvas);
+  color: var(--mat-ink);
+  font-size: 1rem;
+}
+.cs-registration-payment[data-payment="paid"] {
+  border-left-color: #176b49;
+  background: #e7f6ee;
+  color: #176b49;
+}
+.cs-registration-payment[data-payment="due"] {
+  border-left-color: #c98b00;
+  background: #fff8e6;
+  color: #765400;
+}

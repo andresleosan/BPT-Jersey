@@ -1,3 +1,4 @@
+import { sessionRegistrations } from "./session-registrations.js";
 import { createFirestoreMemberAccessService } from "../members/member-access-service.js";
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { requireCourseActor } from "../courses/course-authorization.js";
@@ -1432,7 +1433,9 @@ export const cancelBooking = onCall(scheduleCallableOptions, async (request) =>
 
 export const listSessionBookings = onCall(scheduleCallableOptions, async (request) => {
   await guardCourseStaffSession(request);
-  return createListSessionBookingsHandler({ store: getStore() })(request);
+  const response = await createListSessionBookingsHandler({ store: getStore() })(request);
+  const actor = requireUserActor(request);
+  return { bookings: await sessionRegistrations(getFirestore(), actor.academyId, response.bookings) };
 });
 
 export const listStudentBookings = onCall(scheduleCallableOptions, async (request) =>
