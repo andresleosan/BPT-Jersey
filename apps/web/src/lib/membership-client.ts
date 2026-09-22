@@ -1,18 +1,13 @@
-import { administrativePlanIds, parsePlanDraft, type PlanDraft, type PlanId } from "@bpt-jersey/domain/memberships";
+import { administrativePlanIds, parsePlanDraft, type PlanDraft } from "@bpt-jersey/domain/memberships";
 import { httpsCallable } from "./callable";
 
-import {
-  createMembership,
-  listMemberships,
-  type AdminMembership,
-} from "./membership-admin-client";
+import { listMemberships, type AdminMembership } from "./membership-admin-client";
 import { getFirebaseFunctions } from "./firebase-client";
 
 export type ClientMembership = AdminMembership;
 export type AvailableMembershipPlan = PlanDraft;
 
 const loadPlansError = "Unable to load membership plans. Please try again.";
-const startTrialError = "Unable to start this trial. Check the waiver and try again.";
 
 export async function listAvailableMembershipPlans(
   options: Readonly<{ includeAdministrative?: boolean }> = {},
@@ -40,16 +35,4 @@ export async function listAvailableMembershipPlans(
 
 export async function listClientMemberships(): Promise<readonly ClientMembership[]> {
   return listMemberships();
-}
-
-export async function startTrialMembership(input: Readonly<{
-  familyId: string;
-  studentId: string;
-  planId: PlanId;
-}>): Promise<ClientMembership> {
-  try {
-    return await createMembership({ ...input, status: "trial" });
-  } catch {
-    throw new Error(startTrialError);
-  }
 }

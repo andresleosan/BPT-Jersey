@@ -28,7 +28,7 @@ export function DayColumn(props: DayColumnProps) {
       </div>
     );
   } else if (props.entries.length === 0) {
-    body = <p className="day-empty">No sessions</p>;
+    body = <p className="day-empty">No classes to book</p>;
   } else {
     body = (
       <ul className="day-list">

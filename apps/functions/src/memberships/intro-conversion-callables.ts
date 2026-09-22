@@ -3,6 +3,7 @@ import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/
 import { z } from "zod";
 import { memberNotificationSchema } from "@bpt-jersey/domain/memberships/intro-conversion";
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
+import { createFirestoreMemberAccessService } from "../members/member-access-service.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 
 const markReadSchema = z.strictObject({ notificationId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u) });
@@ -76,9 +77,9 @@ export const uploadIntroMembershipProof = onCall({ ...browserAdminCallableOption
   const actor = await requireMemberAccountActor(request);
   const input = proofUploadSchema.safeParse(request.data);
   if (!input.success) throw new HttpsError("invalid-argument", "Choose a PNG or JPEG screenshot up to 2 MB.");
-  // Storage is only written for a member who can actually apply; equality-only query, no composite index.
-  const ready = await getFirestore().collection(`academies/${actor.academyId}/introConversions`).where("recipientUid", "==", actor.userId).where("status", "==", "ready").limit(1).get();
-  if (ready.empty) throw new HttpsError("failed-precondition", "Intro conversion is unavailable");
+  // Storage is only written for an account that can apply for at least one member.
+  const profiles = await createFirestoreMemberAccessService().listProfiles(actor.academyId, actor.userId).catch(() => []);
+  if (profiles.length === 0) throw new HttpsError("failed-precondition", "Membership application is unavailable");
   return uploadIntroProof({ academyId: actor.academyId, userId: actor.userId, ...input.data }, createPrivateStorageR2Client());
 });
 

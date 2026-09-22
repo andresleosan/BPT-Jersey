@@ -9,7 +9,6 @@ import type {
 import { ClientAuthProvider, useClientSession } from "../../lib/client-auth";
 import {
   enrolmentWaiverTermsAcknowledgement,
-  enrolmentWaiverTermsSections,
   enrolmentWaiverTermsTitle,
   enrolmentWaiverTermsVersion,
 } from "@bpt-jersey/domain/consents/enrolment-waiver";
@@ -34,6 +33,7 @@ import type { LevelDefinitionRecord } from "@bpt-jersey/domain/levels";
 import { getLevelCatalog } from "../../lib/levels-client";
 import { EnrolmentBankDetails, useEnrolmentBankDetails } from "./payment-instructions";
 import { EnrolmentPlanChoices } from "./plan-choices";
+import { EnrolmentWaiverText } from "./waiver-text";
 import "./enrolment-steps.css";
 
 const preferenceOptions = [
@@ -236,23 +236,7 @@ function WaiverTerms({
       <p className="enrol-hint">
         Version {enrolmentWaiverTermsVersion}.
       </p>
-      <div className="enrol-waiver-scroll" tabIndex={0} role="region" aria-label="Waiver terms">
-        {enrolmentWaiverTermsSections.map((section) => (
-          <article key={section.heading}>
-            <h3>{section.heading}</h3>
-            {section.paragraphs.map((paragraph) => (
-              <p key={paragraph}>{paragraph}</p>
-            ))}
-            {section.bullets === undefined ? null : (
-              <ul>
-                {section.bullets.map((bullet) => (
-                  <li key={bullet}>{bullet}</li>
-                ))}
-              </ul>
-            )}
-          </article>
-        ))}
-      </div>
+      <EnrolmentWaiverText />
       <label className="enrol-waiver-accept">
         <input
           checked={accepted}

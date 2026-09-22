@@ -6,11 +6,14 @@ import type { AttendanceRecord, BookingRecord, SessionRecord } from "@bpt-jersey
 import type { SelfCheckInInput } from "@bpt-jersey/domain/schedule/self-check-in";
 import type { PublicCourseSlot } from "./course-public-client";
 const call = <I, O>(name: string) => async (input: I): Promise<O> => (await httpsCallable<I, O>(getFirebaseFunctions(), name, {limitedUseAppCheckTokens: true})(input)).data;
+// The member calendar reads these on every load. The server does not consume App Check tokens,
+// so a cached token is as good as a fresh one and saves a reCAPTCHA round trip per call.
+const read = <I, O>(name: string) => async (input: I): Promise<O> => (await httpsCallable<I, O>(getFirebaseFunctions(), name)(input)).data;
 type Page = {cursor?: string};
 type Mutation = CourseMutation;
 export const courseApi = {
   roster: call<{sessionId: string; cursor?: string}, PreClassView & {cursor: string | null}>("listCourseRoster"),
-  calendar: call<{studentId: string; from: string; to: string; cursor?: string}, {sessions: SessionRecord[]; bookings: BookingRecord[]; attendance: AttendanceRecord[]; cursor: string | null}>("getCourseCalendar"),
+  calendar: read<{studentId: string; from: string; to: string; cursor?: string}, {sessions: SessionRecord[]; bookings: BookingRecord[]; attendance: AttendanceRecord[]; cursor: string | null}>("getCourseCalendar"),
   absence: call<{requestId: string; sessionId: string; studentId: string; absent: boolean}, BookingRecord>("setCourseAbsence"),
   checkIn: call<SelfCheckInInput, {attendance: AttendanceRecord}>("courseSelfCheckIn"),
   detail: call<{enrolmentId: string}, {enrolment: CourseEnrolment; participant: {fullName: string; dateOfBirth: string}; courseTitle: string; waitlistPosition: number | null}>("getCourseEnrolmentDetail"),
@@ -26,7 +29,7 @@ export const courseApi = {
   reviseSession: call<{courseId: string; sessionId: string; expectedRevision: number; requestId: string; reason: string; startAt: string; endAt: string; cancel: boolean}, {ok: true}>("reviseCourseSession"),
   enrolments: call<Page & {courseId?: string; ownOnly?: boolean; status?: CourseEnrolment["status"]}, CoursePage<CourseEnrolment>>("listCourseEnrolments"),
   enrolment: call<{enrolmentId: string}, CourseEnrolment>("getCourseEnrolment"),
-  participants: call<Page, CoursePage<ParticipantScope>>("listCourseParticipants"),
+  participants: read<Page, CoursePage<ParticipantScope>>("listCourseParticipants"),
   candidate: call<Omit<CourseCandidate, "academyId" | "applicantUid" | "canonicalStudentId" | "frozen"> & {guardianDeclaration: boolean}, CourseCandidate>("saveCourseCandidate"),
   reserve: call<ReserveCourseInput, CourseEnrolment>("reserveCourse"),
   waitlist: call<ReserveCourseInput, CourseEnrolment>("joinCourseWaitlist"),

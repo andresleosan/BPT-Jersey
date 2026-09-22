@@ -169,6 +169,7 @@ export {
   withdrawDisclaimer,
   withdrawDisclaimerAcceptance,
 } from "./consents/disclaimer-callables.js";
+export { acceptEnrolmentWaiver, getEnrolmentWaiverStatus } from "./consents/enrolment-waiver-callables.js";
 export {
   grantStaffPermission,
   listStaffPermissionGrants,

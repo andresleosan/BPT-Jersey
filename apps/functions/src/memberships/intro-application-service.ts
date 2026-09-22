@@ -17,6 +17,8 @@ import {
   memberAccessDependenciesInTransaction,
 } from "../members/member-access-service.js";
 import type { R2Client } from "../storage/r2-client.js";
+import { createMemberDirectoryReadTransaction } from "../members/member-directory-firestore.js";
+import { resolveCanonicalStudentIdInTransaction } from "../members/member-identity-resolution.js";
 import { assertIntroProof } from "./intro-payment-proof.js";
 
 export async function getIntroMembershipContext(db: Firestore, actor: UserActorContext) {
@@ -119,25 +121,37 @@ export async function submitIntroMembershipApplication(
       memberAccessDependenciesInTransaction(db, tx),
     ).authorise(actor.academyId, actor.userId, input.studentId);
     if (!access.allowed) throw new HttpsError("permission-denied", "Member profile is unavailable");
-    const conversionRef = db.doc(`${base}/introConversions/${input.conversionId}`);
+    const direct = input.conversionId === null;
+    // A direct plan request is stored against the canonical member, the id Billing edits.
+    const studentId = direct
+      ? await resolveCanonicalStudentIdInTransaction(
+          createMemberDirectoryReadTransaction(db, tx),
+          actor.academyId,
+          input.studentId,
+        )
+      : input.studentId;
+    const conversionRef = direct ? null : db.doc(`${base}/introConversions/${input.conversionId}`);
     const applicationRef = db.doc(
-      `${base}/membershipApplications/intro-application-${input.requestId}`,
+      `${base}/membershipApplications/${direct ? "plan" : "intro"}-application-${input.requestId}`,
     );
     const [conversionDoc, applicationDoc, studentDoc, planDoc, instructionsDoc] = await Promise.all(
       [
-        tx.get(conversionRef),
+        conversionRef ? tx.get(conversionRef) : undefined,
         tx.get(applicationRef),
-        tx.get(db.doc(`${base}/students/${input.studentId}`)),
+        tx.get(db.doc(`${base}/students/${studentId}`)),
         tx.get(db.doc(`${base}/plans/${input.planId}`)),
         tx.get(db.doc(`${base}/settings/paymentInstructions`)),
       ],
     );
-    const conversion = introConversionStateSchema.safeParse(conversionDoc.data());
+    const conversion = conversionDoc
+      ? introConversionStateSchema.safeParse(conversionDoc.data())
+      : undefined;
     if (
-      !conversion.success ||
-      conversion.data.academyId !== actor.academyId ||
-      conversion.data.studentId !== input.studentId ||
-      conversion.data.recipientUid !== actor.userId
+      conversion !== undefined &&
+      (!conversion.success ||
+        conversion.data.academyId !== actor.academyId ||
+        conversion.data.studentId !== input.studentId ||
+        conversion.data.recipientUid !== actor.userId)
     )
       throw new HttpsError("failed-precondition", "Intro conversion is unavailable");
     // Replay first: a retried submit finds the conversion already pending and must get its result.
@@ -151,8 +165,23 @@ export async function submitIntroMembershipApplication(
         return existing.data;
       throw new HttpsError("already-exists", "Application request is already used");
     }
-    if (conversion.data.status !== "ready")
+    if (conversion?.success && conversion.data.status !== "ready")
       throw new HttpsError("failed-precondition", "Intro conversion is unavailable");
+    // Equality-only queries: served by single-field indexes, no composite index needed.
+    const [pending, memberships] = direct
+      ? await Promise.all([
+          tx.get(
+            db
+              .collection(`${base}/membershipApplications`)
+              .where("studentId", "==", studentId)
+              .where("status", "==", "pending_review")
+              .limit(1),
+          ),
+          tx.get(db.collection(`${base}/memberships`).where("studentId", "==", studentId).limit(20)),
+        ])
+      : [undefined, undefined];
+    if (pending && !pending.empty)
+      throw new HttpsError("already-exists", "A plan request is already waiting for the academy");
     const now = new Date().toISOString();
     const student = parseEffectiveStudentProfileAt(
       studentDoc.data(),
@@ -167,7 +196,7 @@ export async function submitIntroMembershipApplication(
     if (
       !student.ok ||
       student.value.academyId !== actor.academyId ||
-      student.value.studentId !== input.studentId ||
+      student.value.studentId !== studentId ||
       !student.value.active ||
       student.value.status !== "active"
     )
@@ -189,6 +218,16 @@ export async function submitIntroMembershipApplication(
           "failed-precondition",
           "Pay as you go applications do not need payment evidence",
         );
+      // Billing can only open Pay as you go as a new subscription, never as a renewal.
+      if (
+        memberships?.docs.some(
+          (doc) => doc.get("source") !== "legacy-import" && doc.get("status") !== "cancelled",
+        )
+      )
+        throw new HttpsError(
+          "failed-precondition",
+          "Ask the academy to move an existing subscription to Pay as you go",
+        );
     } else {
       // Evidence itself was already verified in R2 before this transaction opened (see above);
       // this authoritative re-check only guards against the plan's billing period having changed.
@@ -202,8 +241,9 @@ export async function submitIntroMembershipApplication(
       requestId: input.requestId,
       academyId: actor.academyId,
       applicantUid: actor.userId,
-      studentId: input.studentId,
+      studentId,
       conversionId: input.conversionId,
+      studentName: student.value.fullName,
       site: input.site,
       planId: input.planId,
       planName: plan.value.displayName,
@@ -222,7 +262,7 @@ export async function submitIntroMembershipApplication(
       schemaVersion: "1",
     });
     tx.create(applicationRef, application);
-    tx.update(conversionRef, { status: "application_pending", updatedAt: now });
+    if (conversionRef) tx.update(conversionRef, { status: "application_pending", updatedAt: now });
     return application;
   });
 }
