@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { startTransition, useEffect, useMemo, useState } from "react";
 import type { MemberOverview, MemberOverviewRow } from "@bpt-jersey/domain/members/overview";
-import { getMemberOverview } from "../../../lib/member-overview-client";
+import { deleteMemberAccount, getMemberOverview } from "../../../lib/member-overview-client";
 import { AdminSectionHeader } from "../admin-ui";
 import { AdminDataTable } from "../admin-data-table";
 import { MemberNameSearch } from "./member-name-search";
@@ -184,6 +184,11 @@ export function MembersWorkspace() {
           </span>
         ),
     },
+    {
+      key: "actions",
+      label: "Actions",
+      render: (row: MemberOverviewRow) => <DeleteAccountButton row={row} onDeleted={reload} />,
+    },
   ];
 
   return (
@@ -330,5 +335,38 @@ export function MembersWorkspace() {
         </section>
       )}
     </section>
+  );
+}
+
+function DeleteAccountButton({ row, onDeleted }: { row: MemberOverviewRow; onDeleted: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  async function remove() {
+    const sure = window.confirm(
+      `Delete the account of ${row.fullName}?\n\nThis removes the member record, its identifiers, memberships and future bookings. It cannot be undone.`,
+    );
+    if (!sure) return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      await deleteMemberAccount({ studentId: row.studentId, requestId: crypto.randomUUID() });
+      onDeleted();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Could not delete the account.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="members-cell">
+      <button className="membership-table-button membership-table-button-danger" disabled={busy} onClick={() => void remove()} type="button">
+        {busy ? "Deleting…" : "Delete account"}
+      </button>
+      {error ? (
+        <span className="members-cell-detail" role="alert">
+          {error}
+        </span>
+      ) : null}
+    </div>
   );
 }
