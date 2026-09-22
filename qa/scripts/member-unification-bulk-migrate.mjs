@@ -142,14 +142,20 @@ async function main() {
   const firestore = getFirestore(initializeApp({ projectId }));
   const actor = Object.freeze({ actorId, academyId, role: "owner", active: true, appCheckVerified: true });
   const store = migrationStore.createFirestoreMemberMigrationStore(firestore);
-  const writer = directoryService.createCanonicalMemberDirectoryService({
-    firestore: directoryFirestore.createMemberDirectoryFirestoreAdapters(firestore).writer,
-    projectId,
-    identitySecretMaterial: identitySecret || "dry-run",
-    identitySecretVersion: "identity-v1",
-    integritySecretMaterial: integritySecret || "dry-run",
-    integritySecretVersion: "integrity-v1",
-  });
+  const refuse = () => {
+    throw new SafeScriptError("Dry-run must not write");
+  };
+  // The writer validates its secrets on construction, so a dry-run (which never decides) gets a stub.
+  const writer = apply
+    ? directoryService.createCanonicalMemberDirectoryService({
+        firestore: directoryFirestore.createMemberDirectoryFirestoreAdapters(firestore).writer,
+        projectId,
+        identitySecretMaterial: identitySecret,
+        identitySecretVersion: "identity-v1",
+        integritySecretMaterial: integritySecret,
+        integritySecretVersion: "integrity-v1",
+      })
+    : { registerLegacyMember: refuse, skipLegacyMember: refuse };
   const service = migrationService.createMemberMigrationService({ store, writer, now: () => new Date().toISOString() });
   const today = new Date().toISOString().slice(0, 10);
 
