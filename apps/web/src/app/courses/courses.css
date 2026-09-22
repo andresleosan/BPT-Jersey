@@ -1271,3 +1271,29 @@
   .course-weekly-slot-fields { grid-template-columns: minmax(0, 1fr); }
   .course-weekly-slot-fields .course-link { justify-self: start; }
 }
+
+.course-page.course-landing {
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.course-description-preview {
+  max-width: 62ch;
+  margin: 0 0 1rem;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.course-techniques-preview {
+  margin: 0 0 1rem;
+}
+.course-techniques-preview summary {
+  display: list-item;
+  min-height: 2.75rem;
+  padding: 0.5rem 0;
+  font-weight: 600;
+  cursor: pointer;
+}
+.course-techniques-preview summary:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
