@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   calendarMaxOffsetDays,
   canCancelBooking,
+  canViewMemberSession,
   cancelDeadlineLabel,
   clampOffset,
   dateKeyInJersey,
@@ -474,5 +475,110 @@ describe("cancel rules and labels", () => {
 
   it("formats a day heading", () => {
     expect(formatDayHeading({ weekday: "Wed", dayNumber: 16 })).toBe("Wednesday 16");
+  });
+});
+
+// ── Trial access ──
+
+const trial = {
+  site: "West" as const,
+  allowance: 2 as const,
+  attendedCount: 0,
+  futureBookings: 0,
+  expiresAt: "2026-10-22T10:00:00.000Z",
+  status: "active" as const,
+};
+const trialMember: CalendarMemberContext = {
+  ...maya,
+  membershipId: null,
+  hasActiveMembership: false,
+  trial,
+  dateOfBirth: "1990-01-01",
+};
+const westIntro: SessionRecord = { ...session, locationId: "west", accessMode: "intro" };
+const westClass: SessionRecord = { ...session, locationId: "west" };
+
+describe("trial calendar access", () => {
+  it("lets a 16+ trial member book intro sessions at their site only", () => {
+    expect(canViewMemberSession(westIntro, teensProgram, trialMember)).toBe(true);
+    expect(
+      deriveSessionStatus({
+        session: westClass,
+        program: teensProgram,
+        member: trialMember,
+        bookedCount: 0,
+        now: twoHoursBefore,
+      }).lockedReason,
+    ).toBe("trial_intro_only");
+    expect(
+      deriveSessionStatus({
+        session: { ...westIntro, locationId: "town" },
+        program: teensProgram,
+        member: trialMember,
+        bookedCount: 0,
+        now: twoHoursBefore,
+      }).lockedReason,
+    ).toBe("site");
+  });
+
+  it("lets an under-16 trial member book classes of their age band", () => {
+    const kid = { ...trialMember, dateOfBirth: "2018-01-01" };
+    expect(canViewMemberSession(westClass, kidsProgram, kid)).toBe(true);
+    expect(
+      deriveSessionStatus({
+        session: westClass,
+        program: { ...teensProgram, ageBand: "adult" },
+        member: kid,
+        bookedCount: 0,
+        now: twoHoursBefore,
+      }).lockedReason,
+    ).toBe("age_band");
+  });
+
+  it("locks everything once the allowance is used or the trial expired", () => {
+    const used = { ...trialMember, trial: { ...trial, attendedCount: 1, futureBookings: 1 } };
+    expect(
+      deriveSessionStatus({
+        session: westIntro,
+        program: teensProgram,
+        member: used,
+        bookedCount: 0,
+        now: twoHoursBefore,
+      }).lockedReason,
+    ).toBe("trial_ended");
+    const expired = { ...trialMember, trial: { ...trial, status: "expired" as const } };
+    expect(
+      deriveSessionStatus({
+        session: westIntro,
+        program: teensProgram,
+        member: expired,
+        bookedCount: 0,
+        now: twoHoursBefore,
+      }).lockedReason,
+    ).toBe("trial_ended");
+  });
+
+  it("still shows a held session as booked after the trial locks", () => {
+    const used = { ...trialMember, trial: { ...trial, attendedCount: 1, futureBookings: 1 } };
+    const introBooking: BookingRecord = { ...booking, sessionId: westIntro.sessionId, status: "confirmed" };
+    expect(
+      deriveSessionStatus({
+        session: westIntro,
+        program: teensProgram,
+        member: used,
+        booking: introBooking,
+        bookedCount: 1,
+        now: twoHoursBefore,
+      }).status,
+    ).toBe("booked");
+  });
+
+  it("labels the trial reasons", () => {
+    expect(lockedReasonLabel("trial_ended", "West", "all")).toBe(
+      "Your trial has ended. Choose a membership to keep training.",
+    );
+    expect(lockedReasonLabel("trial_intro_only", "West", "all")).toBe(
+      "During your trial you can book Introduction Classes only.",
+    );
   });
 });

@@ -12,6 +12,7 @@ import type {
   SessionRecord,
 } from "./schedule-contracts";
 import type { ParticipantType, Site, WeeklyClassLimit } from "../memberships/plan-contracts";
+import type { TrialAccessView } from "../memberships/trial-access-contracts";
 
 export const calendarTimeZone = "Europe/Jersey";
 export const calendarMaxOffsetDays = 14;
@@ -223,7 +224,14 @@ export const calendarSessionStatuses = Object.freeze([
 ] as const);
 export type CalendarSessionStatus = (typeof calendarSessionStatuses)[number];
 
-export type LockedReason = "age_band" | "site" | "open_mat" | "weekly_limit" | "paid_period";
+export type LockedReason =
+  | "age_band"
+  | "site"
+  | "open_mat"
+  | "weekly_limit"
+  | "paid_period"
+  | "trial_ended"
+  | "trial_intro_only";
 
 export type CalendarMemberContext = Readonly<{
   studentId: string;
@@ -243,6 +251,7 @@ export type CalendarMemberContext = Readonly<{
   hasAttendedIntro?: boolean;
   /** null means the live profile needs a date of birth; undefined supports fixture contexts. */
   dateOfBirth?: string | null;
+  trial?: TrialAccessView;
 }>;
 
 export type DerivedSessionStatus = Readonly<{
@@ -260,6 +269,8 @@ function lockedReasonFor(
   member: CalendarMemberContext,
 ): LockedReason | undefined {
   if (session.courseId) return member.courseSessionIds?.includes(session.sessionId) ? undefined : "paid_period";
+  if (member.trial && !member.hasActiveMembership && member.membershipId === null)
+    return trialLockedReason(session, program, member, member.trial);
   if (sessionAccessMode(session) === "intro") {
     if (member.hasActiveMembership || member.hasAttendedIntro) return "paid_period";
     return member.introSite !== undefined && member.introSite === sessionSite(session)
@@ -283,11 +294,36 @@ function lockedReasonFor(
   return member.planClassSites.includes(site) ? undefined : "site";
 }
 
-/** Use the session date so birthdays change group access on the correct day. */
-export function participantTypeOn(dateOfBirth: string, dateKey: string): ParticipantType {
+/** Age in whole years on the given Jersey date key. */
+export function ageOnDate(dateOfBirth: string, dateKey: string): number {
   let age = Number(dateKey.slice(0, 4)) - Number(dateOfBirth.slice(0, 4));
   if (dateKey.slice(5) < dateOfBirth.slice(5)) age -= 1;
+  return age;
+}
+
+/** Use the session date so birthdays change group access on the correct day. */
+export function participantTypeOn(dateOfBirth: string, dateKey: string): ParticipantType {
+  const age = ageOnDate(dateOfBirth, dateKey);
   return age >= 18 ? "adult" : age >= 12 ? "teens" : "kids";
+}
+
+function trialLockedReason(
+  session: SessionRecord,
+  program: ProgramRecord,
+  member: CalendarMemberContext,
+  trial: TrialAccessView,
+): LockedReason | undefined {
+  if (trial.status !== "active" || Date.parse(session.startAt) >= Date.parse(trial.expiresAt))
+    return "trial_ended";
+  if (trial.attendedCount + trial.futureBookings >= trial.allowance) return "trial_ended";
+  if (sessionSite(session) !== trial.site) return "site";
+  const dateKey = dateKeyInJersey(new Date(session.startAt));
+  const age = typeof member.dateOfBirth === "string" ? ageOnDate(member.dateOfBirth, dateKey) : 16;
+  if (sessionAccessMode(session) === "intro") return undefined;
+  if (age >= 16) return "trial_intro_only";
+  return program.ageBand === participantTypeOn(member.dateOfBirth as string, dateKey)
+    ? undefined
+    : "age_band";
 }
 
 /** Group/site access is visibility; capacity and temporary limits are session states. */
@@ -309,17 +345,15 @@ export function deriveSessionStatus(input: {
   weeklyClassesBooked?: number;
   now: Date;
 }): DerivedSessionStatus {
-  const lockedReason = lockedReasonFor(input.session, input.program, input.member);
-  if (lockedReason) return Object.freeze({ status: "locked", lockedReason });
-
-  if (input.attendance?.state === "no_show") return Object.freeze({ status: "missed" });
-  if (input.attendance?.state === "attended" || input.attendance?.state === "late") {
-    return Object.freeze({ status: "attended" });
-  }
-
+  const attended = input.attendance?.state === "attended" || input.attendance?.state === "late";
   const booked =
     input.booking !== undefined &&
     (input.booking.status === "confirmed" || input.booking.status === "requested");
+  const lockedReason = lockedReasonFor(input.session, input.program, input.member);
+  if (lockedReason && !attended && !booked) return Object.freeze({ status: "locked", lockedReason });
+
+  if (input.attendance?.state === "no_show") return Object.freeze({ status: "missed" });
+  if (attended) return Object.freeze({ status: "attended" });
   if (booked) return Object.freeze({ status: "booked" });
   if (input.session.courseId) return Object.freeze({status: "closed"});
   const sessionTime = Date.parse(input.session.startAt);
@@ -407,6 +441,9 @@ export function lockedReasonLabel(
   if (reason === "paid_period") return "This class is outside your paid membership period";
   if (reason === "site") return `Your plan doesn't cover ${site}`;
   if (reason === "weekly_limit") return "Weekly class limit reached";
+  if (reason === "trial_ended") return "Your trial has ended. Choose a membership to keep training.";
+  if (reason === "trial_intro_only")
+    return "During your trial you can book Introduction Classes only.";
   return `Open Mats at ${site} aren't in your plan`;
 }
 
