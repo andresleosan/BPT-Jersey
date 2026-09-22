@@ -10,6 +10,7 @@ import {
   planIds,
   retiredPlanIds,
   type PlanDraft,
+  type PlanId,
   type Site,
 } from "../memberships/plan-contracts";
 import { deriveParticipantType } from "../profiles/profile-contracts";
@@ -139,11 +140,41 @@ const enrolmentDetailsShape = {
 export const enrolmentRequestDetailsSchema = z.strictObject(enrolmentDetailsShape).readonly();
 export type EnrolmentRequestDetails = Readonly<z.infer<typeof enrolmentRequestDetailsSchema>>;
 
+/** The free "Trial" choice: a Beginner gets two free Introduction Classes, a belted student one. */
+export const trialPlanChoice = "trial" as const;
+export type EnrolmentPlanChoice = PlanId | typeof trialPlanChoice;
+const enrolmentPlanChoiceSchema = z.union([z.enum(planIds), z.literal(trialPlanChoice)]);
+
+/** Whether a trial applicant has never trained before, or is declaring a prior belt. */
+export const enrolmentExperiences = Object.freeze(["beginner", "experienced"] as const);
+export type EnrolmentExperience = (typeof enrolmentExperiences)[number];
+
+/** Beginners get two free Introduction Classes; a student who declares a belt gets one. */
+export function enrolmentTrialAllowance(experience: EnrolmentExperience): 1 | 2 {
+  return experience === "beginner" ? 2 : 1;
+}
+
+export const enrolmentLevelDeclarationSchema = z
+  .strictObject({
+    experience: z.enum(enrolmentExperiences),
+    declaredLevelKey: opaqueIdentifierSchema.nullable(),
+  })
+  .readonly();
+export type EnrolmentLevelDeclaration = Readonly<z.infer<typeof enrolmentLevelDeclarationSchema>>;
+
+export const enrolmentLevelDeclarationsSchema = z
+  .strictObject({
+    applicant: enrolmentLevelDeclarationSchema.optional(),
+    minors: z.array(enrolmentLevelDeclarationSchema).max(maximumEnrolmentRequestMinors).readonly(),
+  })
+  .readonly();
+export type EnrolmentLevelDeclarations = Readonly<z.infer<typeof enrolmentLevelDeclarationsSchema>>;
+
 // Choices are indexed in the same order as the minors; the guardian has no plan of their own.
 export const enrolmentPlanSelectionsSchema = z
   .strictObject({
-    applicant: z.enum(planIds).optional(),
-    minors: z.array(z.enum(planIds)).max(maximumEnrolmentRequestMinors).readonly(),
+    applicant: enrolmentPlanChoiceSchema.optional(),
+    minors: z.array(enrolmentPlanChoiceSchema).max(maximumEnrolmentRequestMinors).readonly(),
   })
   .readonly();
 export type EnrolmentPlanSelections = Readonly<z.infer<typeof enrolmentPlanSelectionsSchema>>;
@@ -162,12 +193,14 @@ export const enrolmentApprovalSetupSchema = z
   .strictObject({
     students: z
       .array(
-        z.strictObject({
-          planId: z.enum(planIds),
-          definitionKey: opaqueIdentifierSchema,
-          startsOn: z.iso.date(),
-          endsOn: z.iso.date().nullable(),
-        }),
+        z
+          .strictObject({
+            planId: enrolmentPlanChoiceSchema,
+            definitionKey: opaqueIdentifierSchema,
+            startsOn: z.iso.date(),
+            endsOn: z.iso.date().nullable(),
+          })
+          .refine((s) => s.planId !== trialPlanChoice || s.endsOn === null, "Trial has no paid period"),
       )
       .min(1)
       .max(maximumEnrolmentRequestMinors + 1),
@@ -179,6 +212,7 @@ export type EnrolmentApprovalSetup = z.infer<typeof enrolmentApprovalSetupSchema
 
 /** Pay-as-you-go plans are paid per class, with no payment or proof required at registration. */
 export function enrolmentNeedsPayment(planId: string): boolean {
+  if (planId === trialPlanChoice) return false;
   const plan = PLAN_CATALOG.find((item) => item.planId === planId);
   return plan?.billingPeriod !== "per-session";
 }
@@ -197,6 +231,7 @@ export const enrolmentRequestSubmissionSchema = z
   .strictObject({
     ...enrolmentDetailsShape,
     planSelections: enrolmentPlanSelectionsSchema,
+    levelDeclarations: enrolmentLevelDeclarationsSchema.optional(),
     payment: enrolmentPaymentSchema.optional(),
   })
   .readonly();
@@ -213,6 +248,7 @@ export const enrolmentRequestRecordSchema = z
     minors: z.array(enrolmentMinorSchema).max(maximumEnrolmentRequestMinors).readonly(),
     // Older requests remain reviewable without a plan preference.
     planSelections: enrolmentPlanSelectionsSchema.optional(),
+    levelDeclarations: enrolmentLevelDeclarationsSchema.optional(),
     payment: enrolmentPaymentSchema.optional(),
     approvalSetup: enrolmentApprovalSetupSchema.optional(),
     approvalStartedAt: auditDateTimeSchema.optional(),
@@ -327,6 +363,7 @@ export type EnrolmentRequestDetail = Readonly<{
   applicant: EnrolmentApplicant;
   minors: readonly EnrolmentMinor[];
   planSelections?: EnrolmentPlanSelections;
+  levelDeclarations?: EnrolmentLevelDeclarations;
   payment?: EnrolmentPayment;
   paymentProofUrl?: string;
   approvalSetup?: EnrolmentApprovalSetup;
@@ -477,7 +514,7 @@ export function parseEnrolmentRequestSubmission(
   if (!isPlainData(value)) return err(issue([], "invalid_plain_data"));
   const parsed = enrolmentRequestSubmissionSchema.safeParse(value);
   if (!parsed.success) return err(issues(parsed.error));
-  const { planSelections, payment, ...details } = parsed.data;
+  const { planSelections, levelDeclarations, payment, ...details } = parsed.data;
   const checkedDetails = parseEnrolmentRequestDetails(details, effectiveDate);
   if (!checkedDetails.ok) return checkedDetails;
   const { applicantIsStudent, applicant, minors } = details;
@@ -489,6 +526,7 @@ export function parseEnrolmentRequestSubmission(
   }
   if (
     applicantIsStudent &&
+    planSelections.applicant !== trialPlanChoice &&
     !getEnrolmentPlans(applicant.dateOfBirth, applicant.trainingCenter, effectiveDate).some(
       (plan) => plan.planId === planSelections.applicant,
     )
@@ -497,11 +535,35 @@ export function parseEnrolmentRequestSubmission(
   }
   for (const [index, minor] of minors.entries()) {
     if (
+      planSelections.minors[index] !== trialPlanChoice &&
       !getEnrolmentPlans(minor.dateOfBirth, minor.trainingCenter, effectiveDate).some(
         (plan) => plan.planId === planSelections.minors[index],
       )
     ) {
       return err(issue(["planSelections", "minors", index], "plan_not_available"));
+    }
+  }
+  const trialChoices = applicantIsStudent
+    ? [
+        {
+          path: ["applicant"] as const,
+          plan: planSelections.applicant,
+          declaration: levelDeclarations?.applicant,
+        },
+      ]
+    : minors.map((_, index) => ({
+        path: ["minors", index] as const,
+        plan: planSelections.minors[index],
+        declaration: levelDeclarations?.minors[index],
+      }));
+  for (const { path, plan, declaration } of trialChoices) {
+    if (plan !== trialPlanChoice) continue;
+    if (!declaration) return err(issue(["levelDeclarations", ...path], "level_declaration_required"));
+    if (declaration.experience === "experienced" && declaration.declaredLevelKey === null) {
+      return err(issue(["levelDeclarations", ...path], "declared_level_required"));
+    }
+    if (declaration.experience === "beginner" && declaration.declaredLevelKey !== null) {
+      return err(issue(["levelDeclarations", ...path], "beginner_declares_no_level"));
     }
   }
   const total = enrolmentPaymentTotal(planSelections);
@@ -559,6 +621,9 @@ export function toEnrolmentRequestDetail(record: EnrolmentRequestRecord): Enrolm
     applicant: record.applicant,
     minors: Object.freeze([...record.minors]),
     ...(record.planSelections === undefined ? {} : { planSelections: record.planSelections }),
+    ...(record.levelDeclarations === undefined
+      ? {}
+      : { levelDeclarations: record.levelDeclarations }),
     ...(record.payment ? { payment: record.payment } : {}),
     ...(record.approvalSetup ? { approvalSetup: record.approvalSetup } : {}),
     ...(record.waiverAcceptance ? { waiverAcceptance: record.waiverAcceptance } : {}),
