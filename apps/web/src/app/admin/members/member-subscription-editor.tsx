@@ -551,10 +551,13 @@ export function MemberSubscriptionEditor({
   studentId,
   onStatusChange,
   previousRecord,
+  role,
 }: {
   studentId: string;
   onStatusChange?: (saved: boolean) => void;
   previousRecord?: RegyfitMemberRecord | undefined;
+  /** D13: Transit Free is never offered to members; only an owner actor may assign it. */
+  role?: string | null | undefined;
 }) {
   const [data, setData] = useState<{
     context: MemberSubscriptionContext;
@@ -579,7 +582,13 @@ export function MemberSubscriptionEditor({
     ]).then(
       ([context, plans, billing]) => {
         if (active) {
-          setData({ context, plans: plans.filter((plan) => plan.active), billing });
+          setData({
+            context,
+            plans: plans.filter(
+              (plan) => plan.active && (role === "owner" || plan.planId !== "transit-free"),
+            ),
+            billing,
+          });
           onStatusChange?.(context.memberships.some((item) => item.status !== "cancelled"));
         }
       },
@@ -591,7 +600,7 @@ export function MemberSubscriptionEditor({
     return () => {
       active = false;
     };
-  }, [studentId, reload, onStatusChange]);
+  }, [studentId, reload, onStatusChange, role]);
   function saved() {
     setSuccess("Subscription saved. Access follows the confirmed paid period.");
     refresh();
@@ -688,7 +697,13 @@ export function MemberSubscriptionPayments({ studentId }: { studentId: string })
   );
 }
 
-export function MemberSubscriptionAction({ studentId }: { studentId: string }) {
+export function MemberSubscriptionAction({
+  studentId,
+  role,
+}: {
+  studentId: string;
+  role?: string | null | undefined;
+}) {
   const [open, setOpen] = useState(false);
   const id = useId();
   return (
@@ -704,7 +719,7 @@ export function MemberSubscriptionAction({ studentId }: { studentId: string }) {
       </button>
       {open ? (
         <div id={id}>
-          <MemberSubscriptionEditor key={studentId} studentId={studentId} />
+          <MemberSubscriptionEditor key={studentId} studentId={studentId} role={role} />
         </div>
       ) : null}
     </div>

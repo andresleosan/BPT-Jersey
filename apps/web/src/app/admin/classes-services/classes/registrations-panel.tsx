@@ -2,7 +2,11 @@
 
 import { PaygPaymentDialog } from "./payg-payment-dialog";
 import type { InvoiceView } from "../../../../lib/billing-client";
-import { preparePaygClassPayment } from "../../../../lib/groups-client";
+import {
+  confirmPaygClassPayment,
+  getPaygClassProofUrl,
+  preparePaygClassPayment,
+} from "../../../../lib/groups-client";
 import { GroupRegistrations } from "./group-registrations";
 import { useEffect, useMemo, useState, type ReactElement } from "react";
 
@@ -200,10 +204,34 @@ export function RegistrationsPanel({
               </span>
               <span
                 className="cs-registration-payment"
-                data-payment={booking.paymentLabel === "PAYG Paid" ? "paid" : booking.paymentLabel === "PAYG Needs to pay" ? "due" : "other"}
+                data-payment={booking.paymentLabel === "PAYG Paid" ? "paid" : booking.paymentLabel === "PAYG Needs to pay" || booking.paymentLabel === "PAYG Pay at venue" || booking.paymentLabel === "PAYG Transfer sent" ? "due" : "other"}
               >
                 {booking.paymentLabel ?? "Payment status unavailable"}
               </span>
+              {/* Every roster viewer is staff (listSessionBookings is staff-only); the server
+                  re-checks staff roles in confirmPaygClassPayment (payg-class-payment.ts). */}
+              {booking.paymentLabel === "PAYG Pay at venue" ||
+              booking.paymentLabel === "PAYG Transfer sent" ||
+              booking.paymentLabel === "PAYG Needs to pay" ? (
+                <button className="cs-button" type="button" disabled={busy} onClick={async () => {
+                  setBusy(true); setMessages([]);
+                  try {
+                    await confirmPaygClassPayment(sessionId, booking.studentId);
+                    await refresh();
+                  } catch (error) { setMessages([messageOf(error, "Unable to confirm class payment")]); }
+                  finally { setBusy(false); }
+                }}>Confirm paid</button>
+              ) : null}
+              {canReadMemberships && booking.paymentLabel === "PAYG Transfer sent" ? (
+                <button className="cs-button" type="button" disabled={busy} onClick={async () => {
+                  setBusy(true); setMessages([]);
+                  try {
+                    const url = await getPaygClassProofUrl(sessionId, booking.studentId);
+                    window.open(url, "_blank", "noreferrer");
+                  } catch (error) { setMessages([messageOf(error, "Unable to load the transfer screenshot")]); }
+                  finally { setBusy(false); }
+                }}>View transfer</button>
+              ) : null}
               {canReadMemberships && booking.paymentLabel === "PAYG Needs to pay" ? (
                 <button className="cs-button" type="button" disabled={busy} onClick={async () => {
                   setBusy(true); setMessages([]);

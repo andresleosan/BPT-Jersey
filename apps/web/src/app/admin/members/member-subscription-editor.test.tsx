@@ -100,7 +100,7 @@ describe("manual subscription profile", () => {
   });
   it("assigns Transit Free as complimentary indefinite access", async () => {
     const user = userEvent.setup();
-    render(<MemberSubscriptionEditor studentId="student-1" />);
+    render(<MemberSubscriptionEditor studentId="student-1" role="owner" />);
     await user.selectOptions(await screen.findByLabelText("Subscription plan"), "transit-free");
     expect(screen.getByLabelText("No end date")).toBeChecked();
     expect(screen.getByLabelText("No end date")).toBeDisabled();
@@ -114,6 +114,12 @@ describe("manual subscription profile", () => {
       endsAt: null,
       settlement: { kind: "complimentary", reason: "Transit Free indefinite access" },
     });
+  });
+
+  it("hides Transit Free from an administrator", async () => {
+    render(<MemberSubscriptionEditor studentId="student-1" role="administrator" />);
+    await screen.findByLabelText("Subscription plan");
+    expect(screen.queryByText("Transit Free · unlimited, indefinite")).not.toBeInTheDocument();
   });
 
   it("changes to any active plan while preserving a recorded payment", async () => {

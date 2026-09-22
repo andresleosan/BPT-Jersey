@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   listMemberships: vi.fn(),
   listSessionBookings: vi.fn(),
   requestBooking: vi.fn(),
+  confirmPaygClassPayment: vi.fn(),
 }));
 
 vi.mock("../../../../lib/schedule-client", () => ({
@@ -17,6 +18,10 @@ vi.mock("../../../../lib/schedule-client", () => ({
 vi.mock("../../../../lib/members-client", () => ({ listMemberNames: mocks.listMemberNames }));
 vi.mock("../../../../lib/membership-admin-client", () => ({
   listMemberships: mocks.listMemberships,
+}));
+vi.mock("../../../../lib/groups-client", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  confirmPaygClassPayment: mocks.confirmPaygClassPayment,
 }));
 
 import { RegistrationsPanel } from "./registrations-panel";
@@ -235,6 +240,26 @@ describe("RegistrationsPanel", () => {
     render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships />);
     expect(await screen.findByText("st1")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("lets a coach confirm a Pay-at-venue PAYG payment from the roster", async () => {
+    mocks.listSessionBookings.mockResolvedValue([
+      {
+        bookingId: "b1",
+        sessionId: "s1",
+        studentId: "st1",
+        status: "confirmed",
+        paymentLabel: "PAYG Pay at venue",
+      },
+    ]);
+    mocks.confirmPaygClassPayment.mockResolvedValue({ status: "paid" });
+    render(
+      <RegistrationsPanel session={sessionFixture} canEdit={false} canReadMemberships={false} />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm paid" }));
+    await waitFor(() =>
+      expect(mocks.confirmPaygClassPayment).toHaveBeenCalledWith("s1", "st1"),
+    );
   });
 
   it("tells a head coach that enrolment needs an office account", async () => {
