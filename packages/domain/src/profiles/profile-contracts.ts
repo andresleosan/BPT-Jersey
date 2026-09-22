@@ -37,6 +37,8 @@ export type UserProfile = Readonly<{
 export const studentReviewFields = {
   guardianStatus: z.enum(["pending", "assigned"]).optional(),
   reviewReason: z.literal("date-of-birth-missing").optional(),
+  /** Bulk-migrated legacy members carry a placeholder centre until the office confirms it. */
+  trainingCenterStatus: z.literal("unconfirmed").optional(),
 };
 export const studentReviewSchema = z.strictObject(studentReviewFields);
 export type StudentReview = z.infer<typeof studentReviewSchema>;
@@ -95,6 +97,7 @@ const studentProfileFields = Object.freeze([
   "photoUrl",
   "guardianStatus",
   "reviewReason",
+  "trainingCenterStatus",
   "active",
   "status",
   "schemaVersion",
@@ -115,6 +118,7 @@ const studentRequiredProfileFields = Object.freeze(
         "dateOfBirth",
         "guardianStatus",
         "reviewReason",
+        "trainingCenterStatus",
       ].includes(field),
   ),
 );
@@ -289,6 +293,7 @@ export function parseStudentProfileAt(
     "dateOfBirth",
     "guardianStatus",
     "reviewReason",
+    "trainingCenterStatus",
   ]);
   if (!isNonEmptyText(value.fullName, 160)) issues.push(issue(["fullName"], "invalid_text"));
   const invalidDateOfBirth =
@@ -305,6 +310,7 @@ export function parseStudentProfileAt(
     !studentReviewSchema.safeParse({
       guardianStatus: value.guardianStatus,
       reviewReason: value.reviewReason,
+      trainingCenterStatus: value.trainingCenterStatus,
     }).success ||
     (value.reviewReason !== undefined &&
       (!missingDate ||

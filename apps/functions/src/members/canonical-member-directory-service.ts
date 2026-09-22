@@ -99,6 +99,8 @@ export type LegacyMemberRegistrationCommand = CreateAdminAdultCommand &
     recordId?: string;
     review: MigrationIdentityReview;
     trainingCenter: "Town" | "West";
+    /** Set when the centre is a placeholder the office still has to confirm (bulk migration). */
+    trainingCenterStatus?: "unconfirmed";
     trainingTimePreferences: readonly ("morning" | "afternoon" | "evening")[];
   }>;
 export type LegacyMemberSkipCommand = Readonly<{
@@ -391,6 +393,7 @@ function buildStudent(
   /** Present only when office is enrolling somebody whose account is already known. */
   link?: Readonly<{ userId?: string; familyId: string }>,
   legacy = false,
+  trainingCenterStatus?: "unconfirmed",
 ): StudentProfile {
   const record = {
     studentId,
@@ -403,6 +406,7 @@ function buildStudent(
     ...(input.phoneNumber === undefined ? {} : { phoneNumber: input.phoneNumber }),
     ...(input.email === undefined ? {} : { email: input.email }),
     trainingCenter: input.trainingCenter,
+    ...(trainingCenterStatus === undefined ? {} : { trainingCenterStatus }),
     trainingTimePreferences: input.trainingTimePreferences,
     participantType:
       input.dateOfBirth === undefined
@@ -886,6 +890,7 @@ export function createCanonicalMemberDirectoryService(
       legacyMemberId: string;
       review: MigrationIdentityReview;
       trainingCenter: string;
+      trainingCenterStatus?: "unconfirmed";
       trainingTimePreferences: readonly string[];
     }>,
     enrolmentRequestId?: string,
@@ -1177,6 +1182,7 @@ export function createCanonicalMemberDirectoryService(
             ? { familyId: `office-${studentId}` }
             : { userId: accountLink.userId, familyId: accountLink.familyId },
         legacy !== undefined,
+        legacy?.trainingCenterStatus,
       );
       const profile = buildAdminProfile(
         parsedInput.value,
@@ -1361,6 +1367,7 @@ export function createCanonicalMemberDirectoryService(
           ...(sourceRecordId ? { recordId: sourceRecordId } : {}),
           studentId,
           trainingCenter: legacy.trainingCenter,
+          ...(legacy.trainingCenterStatus ? { trainingCenterStatus: legacy.trainingCenterStatus } : {}),
           trainingTimePreferences: [...legacy.trainingTimePreferences],
           decidedAt: now,
           decidedBy: actorId,
@@ -1426,7 +1433,11 @@ export function createCanonicalMemberDirectoryService(
       const receiptRef = dependencies.firestore.doc(receiptPath(academyId, receiptId));
       const studentRef = dependencies.firestore.doc(studentPath(academyId, studentId));
       const action =
-        input.kind === "assign-guardian" ? "member.guardian.assigned" : "member.date-of-birth.set";
+        input.kind === "assign-guardian"
+          ? "member.guardian.assigned"
+          : input.kind === "set-date-of-birth"
+            ? "member.date-of-birth.set"
+            : "member.training-centre.confirmed";
       const auditDraft = {
         academyId,
         actorId,
@@ -1569,6 +1580,15 @@ export function createCanonicalMemberDirectoryService(
             updatedAt: now,
             updatedBy: actorId,
           };
+        } else if (input.kind === "confirm-training-centre") {
+          const base = { ...student.value };
+          delete base.trainingCenterStatus;
+          nextStudent = {
+            ...base,
+            trainingCenter: input.trainingCenter,
+            updatedAt: now,
+            updatedBy: actorId,
+          };
         } else {
           const base = { ...student.value };
           delete base.reviewReason;
@@ -1651,6 +1671,7 @@ export function createCanonicalMemberDirectoryService(
         legacyMemberId: command.legacyMemberId,
         review: command.review,
         trainingCenter: command.trainingCenter,
+        ...(command.trainingCenterStatus ? { trainingCenterStatus: command.trainingCenterStatus } : {}),
         trainingTimePreferences: command.trainingTimePreferences,
       });
     },

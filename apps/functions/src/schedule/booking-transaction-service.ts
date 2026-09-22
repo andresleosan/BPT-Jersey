@@ -763,6 +763,10 @@ async function executeBookingInTransaction(
     storedSession.startAt,
   );
   const storedStudent = student(studentSnapshot, academyId, studentId);
+  // A bulk-migrated member carries a placeholder centre until the office confirms Town or West.
+  if (storedStudent.trainingCenterStatus === "unconfirmed") {
+    return invalid("ineligible", "Confirm the member's training centre first");
+  }
   // Membership ownership follows the approved athlete identity; its original payer family
   // survives a guardian replacement and is used only for the financial eligibility read below.
   const capacityRevision = revision(capacitySnapshot, academyId, sessionId, "sessionId");
