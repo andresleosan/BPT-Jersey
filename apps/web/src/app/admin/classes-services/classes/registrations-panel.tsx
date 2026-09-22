@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type ReactElement } from "react";
 
 import type { MemberNameRow } from "@bpt-jersey/domain/members/directory";
-import type { BookingRecord, SessionRecord } from "@bpt-jersey/domain/schedule";
+import type { SessionRegistrationRecord, SessionRecord } from "@bpt-jersey/domain/schedule";
 
 import { listMemberNames } from "../../../../lib/members-client";
 import { listMemberships, type AdminMembership } from "../../../../lib/membership-admin-client";
@@ -75,7 +75,7 @@ export function RegistrationsPanel({
   canReadMemberships,
 }: RegistrationsPanelProps): ReactElement {
   const [tab, setTab] = useState<Tab>("member");
-  const [bookings, setBookings] = useState<readonly BookingRecord[]>([]);
+  const [bookings, setBookings] = useState<readonly SessionRegistrationRecord[]>([]);
   const [members, setMembers] = useState<readonly MemberNameRow[]>([]);
   const [memberships, setMemberships] = useState<readonly AdminMembership[]>([]);
   const [membershipsReady, setMembershipsReady] = useState(true);
@@ -91,7 +91,7 @@ export function RegistrationsPanel({
     let abandoned = false;
     void (async () => {
       // Three independent reads with three different permissions: one refusal must not blank the
-      // other two. Names simply fall back to the studentId, memberships to "no enrolment".
+      // other two. Roster names come from the session; directory names are an office fallback.
       // The directory and memberships are office-only, so the mat does not ask for either.
       const [bookingRows, memberRows, membershipRows] = await Promise.allSettled([
         listSessionBookings(sessionId),
@@ -133,6 +133,7 @@ export function RegistrationsPanel({
   async function refresh(): Promise<void> {
     try {
       setBookings(await listSessionBookings(sessionId));
+      setError(null);
     } catch (failure) {
       setError(messageOf(failure, "Unable to load the registrations"));
     }
@@ -204,6 +205,18 @@ export function RegistrationsPanel({
   return (
     <section className="cs-registrations" aria-label="Registrations">
       <h3>Registrations</h3>
+      <button
+        type="button"
+        className="cs-button"
+        disabled={loading || busy}
+        onClick={async () => {
+          setBusy(true);
+          await refresh();
+          setBusy(false);
+        }}
+      >
+        Refresh registrations
+      </button>
       {error === null ? null : (
         <p className="cs-notice" data-kind="error" role="alert">
           {error}
@@ -219,15 +232,21 @@ export function RegistrationsPanel({
         <ul className="cs-registered">
           {registered.map((booking) => (
             <li key={booking.bookingId}>
-              <span className="cs-registered-name">{nameOf(booking.studentId)}</span>
+              <span className="cs-registered-name">{booking.displayName ?? nameOf(booking.studentId)}</span>
               <span className="cs-registered-status">
                 {booking.status === "confirmed" ? "Confirmed" : "Requested"}
+              </span>
+              <span
+                className="cs-registration-payment"
+                data-payment={booking.paymentLabel === "PAYG Paid" ? "paid" : booking.paymentLabel === "PAYG Needs to pay" ? "due" : "other"}
+              >
+                {booking.paymentLabel ?? "Payment status unavailable"}
               </span>
               {canEdit ? (
                 <button
                   type="button"
                   className="cs-button"
-                  aria-label={`Remove ${nameOf(booking.studentId)}`}
+                  aria-label={`Remove ${booking.displayName ?? nameOf(booking.studentId)}`}
                   disabled={busy}
                   onClick={() => void remove(booking.studentId)}
                 >

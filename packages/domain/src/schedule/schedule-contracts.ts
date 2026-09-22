@@ -1444,6 +1444,12 @@ export type IntroBookingRecord = Omit<LegacyBookingRecord, "membershipId" | "sch
   source: { kind: "intro" };
 };
 export type BookingRecord = LegacyBookingRecord | CourseBookingRecord | IntroBookingRecord;
+/** Staff-only projection: no balances, payment references or family financial details. */
+export type SessionRegistrationRecord = BookingRecord & Readonly<{
+  displayName: string | null;
+  paymentLabel: "Subscription" | "PAYG Paid" | "PAYG Needs to pay" | "Course" | "Intro" | "Payment status unavailable";
+}>;
+
 export function isCourseBooking(value: BookingRecord): value is CourseBookingRecord {
   return (
     value.schemaVersion === "2" && value.membershipId === null && value.source.kind === "course"
