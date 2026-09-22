@@ -36,7 +36,7 @@ function groupLabel(row: MemberOverviewRow): string {
 }
 
 function planLabel(row: MemberOverviewRow): { title: string; detail: string } {
-  if (!row.plan) return { title: row.flags.includes("plan-to-confirm") ? "Previous plan" : "No plan", detail: row.flags.includes("plan-to-confirm") ? "Validity to be confirmed" : "—" };
+  if (!row.plan) return { title: "No plan", detail: row.source === "regyfit" ? "Previous plan not linked" : "—" };
   const ends = row.plan.endsAt ? new Date(row.plan.endsAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null;
   const detail =
     row.planState === "expired" ? `Expired on ${ends ?? "—"}` : ends ? `Valid until ${ends}` : "Ongoing";
@@ -48,7 +48,7 @@ export function matchesStatus(row: MemberOverviewRow, filter: StatusFilter): boo
     case "everyone":
       return true;
     case "active":
-      return row.active && (row.planState === "current" || row.planState === "expiring");
+      return row.active;
     case "expiring":
       return row.planState === "expiring";
     case "review":
