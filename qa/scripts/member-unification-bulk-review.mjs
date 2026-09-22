@@ -283,7 +283,10 @@ async function main() {
     }
     const recordsById = new Map(records.docs.map((document) => [document.id, document.data()]));
     const planned = [];
-    const counts = { pending: 0, parsed: 0, noArchive: 0, unparsable: 0 };
+    const counts = { pending: 0, parsed: 0, noArchive: 0, unparsable: 0, empty: 0 };
+    const shapes = {};
+    // Letters→a, digits→9, runs collapsed: shows the format without exposing anyone's contact.
+    const shapeOf = (text) => String(text ?? "").replace(/\p{L}+/gu, "a").replace(/\d+/gu, "9").replace(/\s+/gu, " ").slice(0, 40);
     for (const document of students.docs) {
       if (document.get("guardianStatus") !== "pending") continue;
       counts.pending += 1;
@@ -293,15 +296,22 @@ async function main() {
         counts.noArchive += 1;
         continue;
       }
+      if (!record.emergencyContact) {
+        counts.empty += 1;
+        continue;
+      }
       const contact = parseEmergencyContact(record.emergencyContact);
       if (!contact) {
         counts.unparsable += 1;
+        const shape = shapeOf(record.emergencyContact);
+        shapes[shape] = (shapes[shape] ?? 0) + 1;
         continue;
       }
       counts.parsed += 1;
       planned.push({ studentId: document.id, contact });
     }
     for (const [key, value] of Object.entries(counts)) console.log(`guardians_${key}: ${value}`);
+    for (const [shape, count] of Object.entries(shapes).sort(([, a], [, b]) => b - a).slice(0, 8)) console.log(`guardians_shape x${count}: "${shape}"`);
     console.log(`guardiansPlanned: ${planned.length}`);
     if (apply) {
       let applied = 0;
