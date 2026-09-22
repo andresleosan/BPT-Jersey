@@ -400,4 +400,9 @@ export { listMyMemberProfiles } from "./members/member-access-callables.js";
 
 export { listMemberGroups, saveMemberGroup, deleteMemberGroup, registerMemberGroup, removeGroupSessionMember, listSessionGroups } from "./schedule/group-callables.js";
 export { groupSessionWritten, groupAssignmentWritten, memberGroupWritten, groupMembershipWritten, groupStudentWritten, reconcileGroupRegistrations } from "./schedule/group-triggers.js";
-export { preparePaygClassPayment } from "./schedule/payg-class-payment.js";
+export {
+  confirmPaygClassPayment,
+  getPaygClassProofUrl,
+  preparePaygClassPayment,
+  uploadPaygClassProof,
+} from "./schedule/payg-class-payment.js";
