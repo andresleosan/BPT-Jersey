@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type {
   AdminDirectoryRow,
@@ -379,6 +380,14 @@ function ExactLookupSection({
 function SearchMembersContent() {
   const session = useAdminOrStaffSession();
   const office = session.role === "owner" || session.role === "administrator";
+  const router = useRouter();
+  // The office's directory is /admin/members now; this page stays the mat's search and, with
+  // `?archive`, the read-only imported archive until history moves into each member record.
+  const archiveRequested =
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).has("archive");
+  useEffect(() => {
+    if (office && !archiveRequested) router.replace("/admin/members");
+  }, [office, archiveRequested, router]);
   const [lookupKind, setLookupKind] =
     useState<PublicAdminIdentifierLookupKind>("membership-number");
   const [identifier, setIdentifier] = useState("");

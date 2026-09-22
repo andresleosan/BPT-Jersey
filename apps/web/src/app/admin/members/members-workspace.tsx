@@ -321,8 +321,9 @@ export function MembersWorkspace() {
           <details className="members-legacy-tools">
             <summary>Migration tools</summary>
             <p>
-              Legacy members not yet in this directory are decided in the <Link href="/admin/members/migration">migration queue</Link>;
-              the imported archive stays readable from each member record. Exact-name lookup:
+              Legacy members not yet in this directory are decided in the <Link href="/admin/members/migration">migration queue</Link>.
+              The <Link href="/admin/members/search?archive">imported archive</Link> stays readable until history moves into each record.
+              Family operations: <Link href="/admin/families">Families and minors</Link>. Exact-name lookup:
             </p>
             <MemberNameSearch />
           </details>
