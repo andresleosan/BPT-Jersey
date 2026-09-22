@@ -2,6 +2,7 @@ import { httpsCallable } from "firebase/functions";
 import type { z } from "zod";
 import {
   assignMemberGuardianInputSchema,
+  confirmMemberTrainingCenterInputSchema,
   setMemberDateOfBirthInputSchema,
   memberReviewResultSchema,
   decideMemberMigrationInputSchema,
@@ -50,4 +51,8 @@ export async function assignMemberGuardian(input: z.input<typeof assignMemberGua
 export async function setMemberDateOfBirth(input: z.input<typeof setMemberDateOfBirthInputSchema>) {
   try { return await call("setMemberDateOfBirth", setMemberDateOfBirthInputSchema.parse(input), memberReviewResultSchema); }
   catch { throw new Error("Could not set the date of birth. Please try again."); }
+}
+export async function confirmMemberTrainingCenter(input: z.input<typeof confirmMemberTrainingCenterInputSchema>) {
+  try { return await call("confirmMemberTrainingCenter", confirmMemberTrainingCenterInputSchema.parse(input), memberReviewResultSchema); }
+  catch { throw new Error("Could not confirm the training centre. Please try again."); }
 }

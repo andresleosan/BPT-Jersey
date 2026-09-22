@@ -138,7 +138,7 @@ export function MigrationQueue() {
   const [loadFailed, setLoadFailed] = useState(false);
   const [tab, setTab] = useState<Tab>("strong");
   const [centre, setCentre] = useState<Enrolment["trainingCenter"] | "">("");
-  const [preferences, setPreferences] = useState<Enrolment["trainingTimePreferences"]>([]);
+  const [preferences, setPreferences] = useState<NonNullable<Enrolment["trainingTimePreferences"]>>([]);
   const [identityEvidence, setIdentityEvidence] = useState("");
   const [reviewReason, setReviewReason] = useState("");
   const [fieldChoices, setFieldChoices] = useState<Record<string, "legacy" | "regyfit">>({});
