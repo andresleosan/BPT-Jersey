@@ -50,6 +50,7 @@ export const domainImportReplacements: Readonly<Record<string, string>> = Object
   "@bpt-jersey/domain/levels": "../../domain/levels/level-contracts.js",
   "@bpt-jersey/domain/levels/achievements": "../../domain/levels/achievement-contracts.js",
   "@bpt-jersey/domain/levels/lesson-planning": "../../domain/levels/lesson-planning-contracts.js",
+  "@bpt-jersey/domain/schedule/groups": "../../domain/schedule/groups.js",
   "@bpt-jersey/domain/schedule": "../../domain/schedule/schedule-contracts.js",
   "@bpt-jersey/domain/schedule/member-calendar":
     "../../domain/schedule/member-calendar-contracts.js",
