@@ -135,7 +135,7 @@ function draftFor(
     startTime,
     endTime: timeOf(minutesOf(startTime) + defaultDurationMinutes),
     locationId: catalog.locations[0]?.locationId ?? "",
-    programId: catalog.programs[0]?.programId ?? "",
+    programId: catalog.programs.find((program) => !program.deletedAt)?.programId ?? "",
     accessMode: "membership",
     capacity: "",
     minParticipants: "4",
@@ -567,11 +567,13 @@ export function SessionPanel({
                   title={locked ? lockedHint : undefined}
                   onChange={(event) => patch({ programId: event.target.value })}
                 >
-                  {catalog.programs.map((program) => (
-                    <option key={program.programId} value={program.programId}>
-                      {program.name}
-                    </option>
-                  ))}
+                  {catalog.programs
+                    .filter((program) => !program.deletedAt || program.programId === session?.programId)
+                    .map((program) => (
+                      <option key={program.programId} value={program.programId}>
+                        {program.name}{program.deletedAt ? " (deleted type)" : ""}
+                      </option>
+                    ))}
                 </select>
               </label>
               <label className="cs-field">

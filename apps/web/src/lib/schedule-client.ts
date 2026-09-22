@@ -39,6 +39,7 @@ import type {
   CreateLocationInput,
   CreateProgramInputV2,
   DeleteWeekInput,
+  DeleteProgramInput,
   UpdateLocationInput,
   UpdateProgramInput,
   WeekPreview,
@@ -229,6 +230,16 @@ export async function updateProgram(input: UpdateProgramInput): Promise<ProgramR
       "updateProgram",
       input,
       "Unable to update the class type",
+    )
+  ).program;
+}
+
+export async function deleteProgram(input: DeleteProgramInput): Promise<ProgramRecord> {
+  return (
+    await callSafely<DeleteProgramInput, { program: ProgramRecord }>(
+      "deleteProgram",
+      input,
+      "Unable to delete the class type. Try again.",
     )
   ).program;
 }

@@ -161,6 +161,20 @@ export type CreateProgramInputV2 = Readonly<{ name: string; abbreviation: string
 export type UpdateProgramInput = Readonly<{ programId: string }> &
   Partial<ProgramV2Fields & Readonly<{ name: string; active: boolean }>>;
 
+export type DeleteProgramInput = Readonly<{ programId: string }>;
+
+export function parseDeleteProgramInput(input: unknown): Result<DeleteProgramInput, string> {
+  if (
+    !isRecord(input) ||
+    !onlyKeys(input, ["programId"]) ||
+    typeof input.programId !== "string" ||
+    !/^[A-Za-z0-9_-]{1,128}$/u.test(input.programId)
+  ) {
+    return err("A valid programId is required");
+  }
+  return ok(Object.freeze({ programId: input.programId }));
+}
+
 const colourPattern = /^#[0-9a-fA-F]{6}$/u;
 export const programMessageMaxLength = 200;
 
@@ -189,8 +203,11 @@ export function parseUpdateProgramInput(input: unknown): Result<UpdateProgramInp
     "message",
   ];
   if (!isRecord(input) || !onlyKeys(input, allowed)) return err("Program update has unknown keys");
-  if (typeof input.programId !== "string" || input.programId.trim().length === 0)
-    return err("programId is required");
+  if (
+    typeof input.programId !== "string" ||
+    !/^[A-Za-z0-9_-]{1,128}$/u.test(input.programId.trim())
+  )
+    return err("A valid programId is required");
   const result: Record<string, unknown> = { programId: input.programId.trim() };
   if (input.name !== undefined) {
     const name = parseName(input.name, 2, 100, "name");

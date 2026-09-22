@@ -221,6 +221,7 @@ export type ScheduleStore = Readonly<{
   ) => Promise<ProgramRecord>;
   createProgramV2: (academyId: string, input: CreateProgramInputV2) => Promise<ProgramRecord>;
   updateProgramV2: (academyId: string, input: UpdateProgramInput) => Promise<ProgramRecord>;
+  deleteProgram: (academyId: string, programId: string, actorId: string) => Promise<ProgramRecord>;
   listClasses: (academyId: string) => Promise<readonly ClassRecord[]>;
   getClass: (academyId: string, classId: string) => Promise<ClassRecord | null>;
   createClass: (
@@ -582,7 +583,12 @@ function buildProgramV2(
   });
 }
 
+function programDocumentPath(academyId: string, programId: string): string {
+  return `academies/${academyId}/programs/${programId}`;
+}
+
 function mergeProgramV2(current: ProgramRecord, input: UpdateProgramInput): ProgramRecord {
+  if (current.deletedAt) throw new Error(`Program ${current.programId} does not exist`);
   return Object.freeze({
     ...current,
     ...(input.name !== undefined ? { name: input.name } : {}),
@@ -782,14 +788,16 @@ export function createFirestoreScheduleStore(options: {
    * first written type would otherwise hide the rest. Writing them once keeps the list whole.
    */
   const materialiseDefaultPrograms = async (academyId: string): Promise<void> => {
-    const collection = firestore.collection(`academies/${academyId}/programs`);
-    const snapshot = await collection.get();
-    if (snapshot.docs.length > 0) return;
-    await Promise.all(
-      defaultPrograms.map((program) =>
-        collection.doc(program.programId).set({ ...program, academyId }),
-      ),
-    );
+    const transactional = firestore as unknown as Firestore;
+    const collection = transactional.collection(`academies/${academyId}/programs`);
+    // Seed atomically so a concurrent first edit/delete cannot be overwritten by defaults.
+    await transactional.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(collection);
+      if (!snapshot.empty) return;
+      for (const program of defaultPrograms) {
+        transaction.set(collection.doc(program.programId), { ...program, academyId });
+      }
+    });
   };
 
   const requireAttendanceActorRole = (
@@ -1019,18 +1027,50 @@ export function createFirestoreScheduleStore(options: {
 
     async updateProgramV2(academyId: string, input: UpdateProgramInput): Promise<ProgramRecord> {
       await materialiseDefaultPrograms(academyId);
-      const docRef = firestore.collection(`academies/${academyId}/programs`).doc(input.programId);
-      const existing = await docRef.get();
-      const fallback = defaultPrograms.find((program) => program.programId === input.programId);
-      // A v1 `createProgram` fills the collection without seeding the canonical seven, so a
-      // canonical type can still be missing its own document here.
-      const current = existing.exists
-        ? (existing.data() as ProgramRecord)
-        : fallback && { ...fallback, academyId };
-      if (current === undefined) throw new Error(`Program ${input.programId} does not exist`);
-      const updated = mergeProgramV2(current, input);
-      await docRef.set(updated);
-      return updated;
+      const transactional = firestore as unknown as Firestore;
+      return transactional.runTransaction(async (transaction) => {
+        const ref = transactional.doc(programDocumentPath(academyId, input.programId));
+        const existing = await transaction.get(ref);
+        const fallback = defaultPrograms.find((program) => program.programId === input.programId);
+        const current = existing.exists
+          ? (existing.data() as ProgramRecord)
+          : fallback && { ...fallback, academyId };
+        if (!current || current.academyId !== academyId)
+          throw new Error(`Program ${input.programId} does not exist`);
+        const updated = mergeProgramV2(current, input);
+        transaction.set(ref, updated);
+        return updated;
+      });
+    },
+
+    async deleteProgram(
+      academyId: string,
+      programId: string,
+      actorId: string,
+    ): Promise<ProgramRecord> {
+      await materialiseDefaultPrograms(academyId);
+      const transactional = firestore as unknown as Firestore;
+      const ref = transactional.doc(programDocumentPath(academyId, programId));
+      return transactional.runTransaction(async (transaction) => {
+        const existing = await transaction.get(ref);
+        const fallback = defaultPrograms.find((program) => program.programId === programId);
+        const current = existing.exists
+          ? (existing.data() as ProgramRecord)
+          : fallback && { ...fallback, academyId };
+        if (!current || current.academyId !== academyId)
+          throw new Error(`Program ${programId} does not exist`);
+        if (current.deletedAt) return current;
+        // Keep the record so existing sessions and attendance can still resolve their type.
+        const deleted: ProgramRecord = {
+          ...current,
+          active: false,
+          showInList: false,
+          deletedAt: new Date().toISOString(),
+          deletedBy: actorId,
+        };
+        transaction.set(ref, deleted);
+        return deleted;
+      });
     },
 
     async listClasses(academyId: string): Promise<readonly ClassRecord[]> {
@@ -2046,6 +2086,27 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
       const updated = mergeProgramV2(list[index]!, input);
       list[index] = updated;
       return updated;
+    },
+
+    async deleteProgram(
+      academyId: string,
+      programId: string,
+      actorId: string,
+    ): Promise<ProgramRecord> {
+      const list = materialisedPrograms(academyId);
+      const index = list.findIndex((program) => program.programId === programId);
+      const current = list[index];
+      if (!current) throw new Error(`Program ${programId} does not exist`);
+      if (current.deletedAt) return current;
+      const deleted: ProgramRecord = Object.freeze({
+        ...current,
+        active: false,
+        showInList: false,
+        deletedAt: new Date().toISOString(),
+        deletedBy: actorId,
+      });
+      list[index] = deleted;
+      return deleted;
     },
 
     async listClasses(academyId: string): Promise<readonly ClassRecord[]> {
