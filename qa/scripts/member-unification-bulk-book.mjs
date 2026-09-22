@@ -145,6 +145,7 @@ async function main() {
           { ip: null, role: "owner" }, // the audit draft needs an explicit ip: a script has none
         );
         totals.booked += 1;
+        if (totals.booked % 10 === 0) console.log(`progress: booked ${totals.booked}`);
       } catch (error) {
         if (error instanceof bookingModule.BookingTransactionError && skippableCodes.has(error.code)) {
           totals.skipped += 1;
