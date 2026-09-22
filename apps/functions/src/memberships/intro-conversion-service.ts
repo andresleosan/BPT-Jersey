@@ -157,10 +157,12 @@ export async function projectIntroAttendance(
       validId(studentParsed.value.userId)
         ? studentParsed.value.userId
         : null;
+    let conversionUnreadable = false;
     if (existing.exists) {
       // The conversion already resolved the recipient once; reuse it instead of resolving again.
       const state = introConversionStateSchema.safeParse(existing.data());
       recipientUid = state.success ? state.data.recipientUid : null;
+      conversionUnreadable = !state.success;
     } else if (age !== null && age < ADULT_AGE) {
       const relationships = await transaction.get(
         db
@@ -206,27 +208,22 @@ export async function projectIntroAttendance(
       }
     }
 
-    // A West trial turns into Pay as you go the moment its allowance is used. Both writes are
-    // guarded by a read, so a retried attendance cannot fail the transaction on an existing doc.
-    const paygRecipientUid =
-      unresolvedReason === null &&
-      recipientUid !== null &&
+    // A West trial turns into Pay as you go the moment its allowance is used. The membership is
+    // about the trial, not about who gets told, so it is created even when no recipient resolves;
+    // only the notice needs one. Both writes are guarded by a read, so a retried attendance cannot
+    // fail the transaction on a document that already exists.
+    const paygDue =
       trial !== undefined &&
       allowanceUsed &&
       trial.site === "West" &&
       age !== null &&
-      age >= PAYG_MINIMUM_AGE
-        ? recipientUid
-        : null;
+      age >= PAYG_MINIMUM_AGE;
     const membershipRef = db.doc(`${base}/memberships/payg-trial-${studentId}`);
     const paygNoticeRef =
-      paygRecipientUid === null
-        ? null
-        : db.doc(
-            `${base}/memberNotifications/payg-${digest(`${conversionId}:${paygRecipientUid}`)}`,
-          );
-    const paygMembershipExists =
-      paygRecipientUid === null ? false : (await transaction.get(membershipRef)).exists;
+      paygDue && recipientUid !== null
+        ? db.doc(`${base}/memberNotifications/payg-${digest(`${conversionId}:${recipientUid}`)}`)
+        : null;
+    const paygMembershipExists = paygDue ? (await transaction.get(membershipRef)).exists : false;
     const paygNoticeExists =
       paygNoticeRef === null ? false : (await transaction.get(paygNoticeRef)).exists;
 
@@ -235,7 +232,13 @@ export async function projectIntroAttendance(
       trial !== undefined && allowanceUsed && trial.status !== "converted"
         ? "exhausted"
         : trial?.status;
-    if (paygNoticeRef !== null && paygRecipientUid !== null) {
+    // A conversion that was owed but could not be completed leaves a trail for staff instead of
+    // failing silently. Recipient problems below take precedence; a missing billing account wins
+    // over an unreadable conversion document because it is what stops the membership.
+    let conversionIssue: "billing_account_missing" | "conversion_unreadable" | null =
+      conversionUnreadable ? "conversion_unreadable" : null;
+    let convertedNow = false;
+    if (paygDue) {
       const membership = paygMembershipExists
         ? undefined
         : parseMembershipRecord({
@@ -255,15 +258,17 @@ export async function projectIntroAttendance(
             schemaVersion: "1",
           });
       if (membership?.ok === true) transaction.create(membershipRef, membership.value);
+      if (membership !== undefined && !membership.ok) conversionIssue = "billing_account_missing";
       if (paygMembershipExists || membership?.ok === true) {
         trialStatus = "converted";
-        if (!paygNoticeExists) {
+        convertedNow = true;
+        if (paygNoticeRef !== null && recipientUid !== null && !paygNoticeExists) {
           transaction.create(
             paygNoticeRef,
             memberNotificationSchema.parse({
               notificationId: paygNoticeRef.id,
               academyId: input.academyId,
-              recipientUid: paygRecipientUid,
+              recipientUid,
               kind: "intro_membership_ready",
               title: "You're now on Pay as you go",
               body: "Book classes at West and pay online or at the academy.",
@@ -287,7 +292,8 @@ export async function projectIntroAttendance(
         }),
       );
     }
-    if (unresolvedReason !== null) {
+    const issueReason = unresolvedReason ?? conversionIssue;
+    if (issueReason !== null) {
       transaction.set(issueRef, {
         issueId: conversionId,
         academyId: input.academyId,
@@ -295,16 +301,14 @@ export async function projectIntroAttendance(
         attendanceId: input.attendanceId,
         sessionId,
         status: "unresolved",
-        reason: unresolvedReason,
+        reason: issueReason,
         updatedAt: now,
         schemaVersion: "1",
       });
-      return "unresolved";
     }
+    if (unresolvedReason !== null) return "unresolved";
     if (existing.exists) return "existing";
 
-    const notificationId = `intro-${digest(`${conversionId}:${recipientUid}`)}`;
-    const notificationRef = db.doc(`${base}/memberNotifications/${notificationId}`);
     const conversion = introConversionStateSchema.parse({
       conversionId,
       academyId: input.academyId,
@@ -317,31 +321,40 @@ export async function projectIntroAttendance(
       updatedAt: now,
       schemaVersion: "1",
     });
-    const notification = memberNotificationSchema.parse({
-      notificationId,
-      academyId: input.academyId,
-      recipientUid,
-      kind: "intro_membership_ready",
-      title: "Did you enjoy training with us?",
-      body: "Tap here to get a membership and keep training with us.",
-      href: "/account/membership?from=intro",
-      readAt: null,
-      createdAt: now,
-      schemaVersion: "1",
-    });
     transaction.create(conversionRef, conversion);
-    transaction.set(issueRef, {
-      issueId: conversionId,
-      academyId: input.academyId,
-      studentId,
-      attendanceId: input.attendanceId,
-      sessionId,
-      status: "resolved",
-      reason: null,
-      updatedAt: now,
-      schemaVersion: "1",
-    });
-    transaction.create(notificationRef, notification);
+    if (issueReason === null) {
+      transaction.set(issueRef, {
+        issueId: conversionId,
+        academyId: input.academyId,
+        studentId,
+        attendanceId: input.attendanceId,
+        sessionId,
+        status: "resolved",
+        reason: null,
+        updatedAt: now,
+        schemaVersion: "1",
+      });
+    }
+    // A class that both uses the allowance and creates the Pay as you go membership must not also
+    // nudge for a membership: the notice it just sent links to the same page.
+    if (!convertedNow) {
+      const notificationId = `intro-${digest(`${conversionId}:${recipientUid}`)}`;
+      transaction.create(
+        db.doc(`${base}/memberNotifications/${notificationId}`),
+        memberNotificationSchema.parse({
+          notificationId,
+          academyId: input.academyId,
+          recipientUid,
+          kind: "intro_membership_ready",
+          title: "Did you enjoy training with us?",
+          body: "Tap here to get a membership and keep training with us.",
+          href: "/account/membership?from=intro",
+          readAt: null,
+          createdAt: now,
+          schemaVersion: "1",
+        }),
+      );
+    }
     return "created";
   });
 }
