@@ -591,7 +591,8 @@ export async function readFinancialAccountInTransaction(input: {
     invoices: Object.freeze(views),
     paymentInstructions,
     balanceMinor: calculateAccountBalance(scopedInvoices, scopedPayments),
-    paygDebtMinor: calculatePaygDebt(scopedInvoices, scopedPayments),
+    // D16: only a class that has already taken place is a debt that blocks the next booking.
+    paygDebtMinor: calculatePaygDebt(scopedInvoices, scopedPayments, new Date().toISOString()),
   });
 }
 

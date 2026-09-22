@@ -37,6 +37,15 @@ export async function sessionRegistrations(
       ({ ...booking, displayName, paymentLabel });
     if (booking.schemaVersion === "2") return result("Course");
     if (booking.schemaVersion === "3") return result("Intro");
+    // Unsettled is not the same as unanswered: the member already said how they mean to pay.
+    const unsettled = (): SessionRegistrationRecord =>
+      result(
+        booking.paygPayment?.method === "at_venue"
+          ? "PAYG Pay at venue"
+          : booking.paygPayment?.method === "bank_transfer"
+            ? "PAYG Transfer sent"
+            : "PAYG Needs to pay",
+      );
     try {
       const membership = await read("memberships", booking.membershipId);
       if (membership?.studentId !== booking.studentId || typeof membership.planId !== "string") {
@@ -62,7 +71,7 @@ export async function sessionRegistrations(
           invoice.chargeKind === "payg_session" && invoice.membershipId === booking.membershipId &&
           invoice.familyId === membership.familyId && invoice.status !== "void" ? [invoice] : [];
       });
-      if (!invoices.length) return result("PAYG Needs to pay");
+      if (!invoices.length) return unsettled();
       const settled = await Promise.all(invoices.map(async (invoice) => {
         const payments = await academy.collection("payments").where("invoiceId", "==", invoice.invoiceId).get();
         const recorded = payments.docs.flatMap((snapshot) => {
@@ -71,7 +80,7 @@ export async function sessionRegistrations(
         });
         return calculateInvoiceBalance(invoice, recorded) === 0;
       }));
-      return result(settled.every(Boolean) ? "PAYG Paid" : "PAYG Needs to pay");
+      return settled.every(Boolean) ? result("PAYG Paid") : unsettled();
     } catch {
       // A failed financial read must not hide the roster or claim that someone owes money.
       return result("Payment status unavailable");

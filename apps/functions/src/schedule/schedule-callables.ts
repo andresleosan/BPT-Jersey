@@ -54,6 +54,9 @@ import {
   createFirestoreCanonicalClientStudentScopeResolver,
   type CanonicalClientStudentScopeResolver,
 } from "./canonical-client-student-scope.js";
+import { enrolmentStorageSecrets } from "../members/enrolment-payment-proof.js";
+import { createPrivateStorageR2Client } from "../storage/r2-client.js";
+import { attachPaygBookingPayment, voidUnpaidPaygInvoice } from "./payg-booking-payment.js";
 import { scheduleCallableOptions } from "./schedule-callable-options.js";
 import { createFirestoreScheduleStore, type ScheduleStore } from "./schedule-service.js";
 
@@ -780,6 +783,21 @@ export function createRequestBookingHandler(options: StudentScopeOptions) {
               ip: clientIpFromRequest(request),
               role: actor.role,
             });
+      // The invoice can only exist once the booking does, so it is attached straight after and its
+      // failure surfaces to the member: the booking then simply has no payment choice on it yet,
+      // which the roster shows as "PAYG Needs to pay" and the office can still invoice by hand.
+      if (parsed.value.kind !== "intro" && parsed.value.paygPayment) {
+        await attachPaygBookingPayment(
+          getFirestore(),
+          parsed.value.paygPayment.method === "bank_transfer" ? createPrivateStorageR2Client() : null,
+          {
+            academyId: actor.academyId,
+            actorId: actor.userId,
+            booking,
+            paygPayment: parsed.value.paygPayment,
+          },
+        );
+      }
       return {
         booking,
       };
@@ -890,6 +908,20 @@ export function createCancelBookingHandler(options: StudentScopeOptions) {
       isStaff,
       { ip: clientIpFromRequest(request), role: actor.role },
     );
+    // A cancellation is never failed over an invoice; the office can still void it by hand.
+    if (booking.schemaVersion === "1" && booking.membershipId) {
+      const membershipId = booking.membershipId;
+      await Promise.resolve()
+        .then(() =>
+          voidUnpaidPaygInvoice(getFirestore(), {
+            academyId: actor.academyId,
+            actorId: actor.userId,
+            sessionId: parsed.value.sessionId,
+            membershipId,
+          }),
+        )
+        .catch(() => undefined);
+    }
 
     return {
       booking,
@@ -1443,8 +1475,9 @@ export const listSessionBookedCounts = onCall(scheduleCallableOptions, async (re
   createListSessionBookedCountsHandler({ store: getStore() })(request),
 );
 
-export const requestBooking = onCall(scheduleCallableOptions, async (request) =>
-  createRequestBookingHandler(getStudentScopeOptions())(request),
+export const requestBooking = onCall(
+  { ...scheduleCallableOptions, secrets: enrolmentStorageSecrets },
+  async (request) => createRequestBookingHandler(getStudentScopeOptions())(request),
 );
 
 export const bulkBookEligibleSessions = onCall(scheduleCallableOptions, async (request) =>
