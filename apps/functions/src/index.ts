@@ -1,3 +1,4 @@
+import "./global-options.js";
 import { initializeApp } from "firebase-admin/app";
 
 initializeApp();
