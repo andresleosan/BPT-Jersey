@@ -52,3 +52,26 @@ After activation, `/courses/` and `/admin/courses/` returned HTTP 200, the publi
 ## Verification status
 
 Production backend compilation, scoped web compilation and the static web build completed successfully for this authorised deployment. Deployment metadata, index readiness and the read-only HTTP responses above were checked. Per operator instruction, no automated test suites, browser sessions, Lighthouse, full-workspace lint checks or real payment/approval exercises ran. End-to-end authenticated behaviour and performance have not been measured. Independent source review found no remaining Critical/Important issues in the course flow and publication corrections; this is not a guarantee of runtime behaviour or a security certification.
+
+## Multiple weekly sessions
+
+New drafts support `weeklySchedule: {weeks, slots: [{weekday, startTime, endTime}]}`.
+Weekdays use Sunday = 0. `startsOn` is an inclusive repeat-from date: the first
+seven-day period starts there, and each slot occurs on its next matching weekday.
+Every following period repeats the full pattern. Two weekly slots for six weeks
+produce exactly 12 chronological sessions. Each slot uses Jersey wall time; DST
+changes preserve its local start and finish times. Invalid or overlapping weekly
+slots are rejected. Preview dates before publishing, especially around clock changes.
+
+`sessionCount` must equal weeks × slots. Existing records without `weeklySchedule`
+retain their original one-session-per-week recurrence. Published schedules stay
+immutable as a pattern; individual future sessions are managed from the course's
+session list, preserving existing enrolments and attendance. The office calendar
+links to creation and to the selected course when opening a course session.
+
+No calendar migration is required: publication still writes the same `sessions`
+records and stable ordinal IDs. Office and coach calendars read these records;
+approved participants receive them through the existing course calendar reader.
+The member calendar includes Sunday on both desktop and mobile.
+For release, update saveCourse, publishCourse, listCourseSessionDates and
+courseScheduler together, then publish the matching frontend.

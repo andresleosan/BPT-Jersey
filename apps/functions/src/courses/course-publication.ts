@@ -7,7 +7,12 @@ export async function saveCourse(db: Firestore, actor: CourseActor, draft: Cours
   const parsed = courseDraftSchema.safeParse(draft);
   if (!parsed.success) courseFailure("invalid", parsed.error.issues[0]?.message ?? "Check the course details.");
   const id = courseId ?? randomUUID();
-  courseSlot({...parsed.data, courseId: id}, parsed.data.sessionCount);
+  try {
+    courseSlot({...parsed.data, courseId: id}, 1);
+    courseSlot({...parsed.data, courseId: id}, parsed.data.sessionCount);
+  } catch (error) {
+    courseFailure("invalid", error instanceof Error ? error.message : "Check the course dates.");
+  }
   const ref = courseCollection(db, actor.academyId, "courses").doc(id);
   const payload = {draft: parsed.data, courseId, expectedRevision};
   return db.runTransaction(async tx => {
@@ -28,6 +33,8 @@ export async function saveCourse(db: Firestore, actor: CourseActor, draft: Cours
       if (old.status !== "published") courseFailure("conflict", "Only active courses can be edited.");
       for (const field of ["startsOn", "startTime", "endTime", "sessionCount", "locationId"] as const)
         if (old[field] !== parsed.data[field]) courseFailure("conflict", "Edit individual sessions or create a new course edition.");
+      if (JSON.stringify(old.weeklySchedule ?? null) !== JSON.stringify(parsed.data.weeklySchedule ?? null))
+        courseFailure("conflict", "Edit individual sessions or create a new course edition.");
       if (JSON.stringify(old.instructor) !== JSON.stringify(parsed.data.instructor)) courseFailure("conflict", "The published coach cannot be replaced through this form.");
     }
     if (old && parsed.data.capacity < old.committedSeats) courseFailure("full", "Capacity cannot be below committed places.");

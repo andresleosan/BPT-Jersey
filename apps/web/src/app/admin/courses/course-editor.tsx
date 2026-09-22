@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import type { Course, CourseDraft, CoursePage } from "@bpt-jersey/domain/courses";
+import { courseDraftSchema, type Course, type CourseDraft, type CoursePage, type CourseWeeklySlot } from "@bpt-jersey/domain/courses";
 import { courseDate, type PublicCourseSlot } from "../../../lib/courses/course-public-client";
 import { courseApi, courseError } from "../../../lib/courses/course-client";
 import { getScheduleCatalog, type ScheduleCatalogResponse } from "../../../lib/schedule-client";
 import { useCourseAction } from "../../../lib/courses/use-course-action";
+const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 export function CourseEditor({
   course,
   onSaved,
@@ -20,6 +21,22 @@ export function CourseEditor({
   const [loadError, setLoadError] = useState("");
   const [instructorKind, setInstructorKind] = useState(course?.instructor.kind ?? "staff");
   const action = useCourseAction();
+  const [weeks, setWeeks] = useState(String(course?.weeklySchedule?.weeks ?? course?.sessionCount ?? 6));
+  const [slots, setSlots] = useState<(CourseWeeklySlot & {key: number})[]>(() =>
+    (course?.weeklySchedule?.slots ?? [{
+      weekday: course ? new Date(`${course.startsOn}T12:00:00Z`).getUTCDay() : 6,
+      startTime: course?.startTime ?? "15:00",
+      endTime: course?.endTime ?? "16:00",
+    }]).map((slot, key) => ({...slot, key})),
+  );
+  const nextSlotKey = useRef(slots.length);
+  function changeSlot(key: number, patch: Partial<CourseWeeklySlot>) {
+    setSlots(current => current.map(slot => slot.key === key ? {...slot, ...patch} : slot));
+  }
+  function clearPreview() {
+    setPreview(null);
+    setPreviewDraft(null);
+  }
   useEffect(() => {
     let active = true;
     void Promise.all([getScheduleCatalog(), courseApi.coaches({})])
@@ -46,6 +63,10 @@ export function CourseEditor({
     const data = new FormData(form);
     const text = (name: string) => String(data.get(name) ?? "");
     const staff = coaches.find((c) => c.staffId === text("coach"));
+    setLoadError("");
+    const weeklySchedule = published ? course!.weeklySchedule : {
+      weeks: Number(weeks), slots: slots.map(({weekday, startTime, endTime}) => ({weekday, startTime, endTime})),
+    };
     const draft: CourseDraft = {
       kind: text("kind") as CourseDraft["kind"],
       title: text("title"),
@@ -66,10 +87,16 @@ export function CourseEditor({
       capacity: Number(text("capacity")),
       cancellationTerms: text("terms"),
       startsOn: published ? course!.startsOn : text("date"),
-      startTime: published ? course!.startTime : text("start"),
-      endTime: published ? course!.endTime : text("end"),
-      sessionCount: published ? course!.sessionCount : Number(text("count")),
+      startTime: published ? course!.startTime : slots[0]!.startTime,
+      endTime: published ? course!.endTime : slots[0]!.endTime,
+      sessionCount: published ? course!.sessionCount : Number(weeks) * slots.length,
+      ...(weeklySchedule ? {weeklySchedule} : {}),
     };
+    const checked = courseDraftSchema.safeParse(draft);
+    if (!checked.success) {
+      setLoadError(checked.error.issues[0]?.message ?? "Check the weekly schedule.");
+      return;
+    }
     if (previewOnly) {
       setLoadError("");
       try {
@@ -102,8 +129,8 @@ export function CourseEditor({
         </button>
       </div>
       <p>
-        Choose the first date and weekly time. The programme ends after the number of sessions you
-        set.
+        Choose the weekly days and times, then how many weeks the programme runs.
+        All session dates are created together when you publish.
       </p>
       {(loadError || action.error) && (
         <p className="course-error" role="alert">
@@ -112,10 +139,7 @@ export function CourseEditor({
       )}
       <form
         ref={formRef}
-        onChange={() => {
-          setPreview(null);
-          setPreviewDraft(null);
-        }}
+        onChange={clearPreview}
         onSubmit={(e) => {
           e.preventDefault();
           void save(e.currentTarget);
@@ -177,38 +201,71 @@ export function CourseEditor({
         <fieldset disabled={action.busy || published}>
           <legend>Weekly schedule</legend>
           <p className="course-fieldset-help">
-            Times use Jersey local time. Sessions repeat on the same weekday until the programme is
-            complete.
+            Times use Jersey local time, including clock changes. Each selected session repeats once
+            in every seven-day week, starting on or after the repeat-from date.
           </p>
           {published && <p>Use the session list to change a published date or time.</p>}
           <div className="course-form-grid">
             <label>
-              First session
+              Repeat from
               <input name="date" type="date" defaultValue={course?.startsOn} required />
             </label>
             <label>
-              Number of sessions
+              Number of weeks
               <input
-                name="count"
+                name="weeks"
                 type="number"
                 min={1}
-                defaultValue={course?.sessionCount ?? 6}
+                step={1}
+                value={weeks}
+                onChange={e => setWeeks(e.target.value)}
                 required
               />
             </label>
-            <label>
-              Start time
-              <input
-                name="start"
-                type="time"
-                defaultValue={course?.startTime ?? "15:00"}
-                required
-              />
-            </label>
-            <label>
-              Finish time
-              <input name="end" type="time" defaultValue={course?.endTime ?? "16:00"} required />
-            </label>
+          </div>
+          <ol className="course-weekly-slots" aria-label="Sessions each week">
+            {slots.map((slot, index) => (
+              <li key={slot.key}>
+                <strong>Weekly session {index + 1}</strong>
+                <div className="course-weekly-slot-fields">
+                  <label>
+                    Day of the week
+                    <select value={slot.weekday} onChange={e => changeSlot(slot.key, {weekday: Number(e.target.value)})}>
+                      {[1, 2, 3, 4, 5, 6, 0].map(day => <option key={day} value={day}>{weekdays[day]}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    Start time
+                    <input type="time" value={slot.startTime} onChange={e => changeSlot(slot.key, {startTime: e.target.value})} required />
+                  </label>
+                  <label>
+                    Finish time
+                    <input type="time" value={slot.endTime} onChange={e => changeSlot(slot.key, {endTime: e.target.value})} required />
+                  </label>
+                  {!published && <button type="button" className="course-link" disabled={slots.length === 1}
+                    aria-label={`Remove weekly session ${index + 1}`}
+                    onClick={() => {setSlots(current => current.filter(item => item.key !== slot.key)); clearPreview();}}>
+                    Remove
+                  </button>}
+                </div>
+              </li>
+            ))}
+          </ol>
+          {!published && <button type="button" className="course-button secondary" disabled={slots.length >= 28}
+            onClick={() => {
+              const previous = slots[slots.length - 1]!;
+              const key = nextSlotKey.current++;
+              setSlots(current => [...current, {key, weekday: (previous.weekday + 1) % 7, startTime: previous.startTime, endTime: previous.endTime}]);
+              clearPreview();
+            }}>
+            Add weekly session
+          </button>}
+          <p className="course-schedule-total" role="status">
+            {Number.isSafeInteger(Number(weeks)) && Number(weeks) > 0
+              ? `${slots.length} session${slots.length === 1 ? "" : "s"} per week × ${weeks} week${Number(weeks) === 1 ? "" : "s"} = ${Number(weeks) * slots.length} sessions in total.`
+              : "Enter the number of weeks to calculate the total sessions."}
+          </p>
+          <div className="course-form-grid">
             <label>
               Location
               <select name="location" defaultValue={course?.locationId ?? ""} required>

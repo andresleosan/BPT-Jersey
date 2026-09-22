@@ -40,6 +40,18 @@ export default function AdminCoursesPage() {
     }
     workspaceRef.current?.focus();
   }, [tab, editor, selected?.courseId, request]);
+  useEffect(() => {
+    let active = true;
+    const query = new URLSearchParams(window.location.search);
+    if (query.get("create") === "1") setEditor(true);
+    const courseId = query.get("course");
+    if (courseId) {
+      void courseApi.course({courseId}).then(course => {
+        if (active) {setSelected(course); setEditor(false);}
+      }).catch(error => {if (active) setError(courseError(error));});
+    }
+    return () => {active = false;};
+  }, []);
   const loadGeneration = useRef(0);
   const [failedCount, setFailedCount] = useState(0);
   useEffect(() => {
@@ -275,7 +287,9 @@ export default function AdminCoursesPage() {
             <dl className="course-facts course-facts-inline">
               <div>
                 <dt>Programme</dt>
-                <dd>{selected.sessionCount} weekly sessions</dd>
+                <dd>{selected.sessionCount} sessions{selected.weeklySchedule
+                  ? ` over ${selected.weeklySchedule.weeks} weeks (${selected.weeklySchedule.slots.length} per week)`
+                  : " (one per week)"}</dd>
               </div>
               <div>
                 <dt>One-time price</dt>
