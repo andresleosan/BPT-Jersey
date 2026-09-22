@@ -45,6 +45,7 @@
     "src/levels/achievement-contracts.ts",
     "src/levels/lesson-planning-contracts.ts",
     "src/schedule/schedule-contracts.ts",
+    "src/schedule/groups.ts",
     "src/schedule/advanced-booking-contracts.ts",
     "src/schedule/pre-class-contracts.ts",
     "src/schedule/member-calendar-contracts.ts",
