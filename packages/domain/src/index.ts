@@ -299,6 +299,20 @@ export type {
 } from "./memberships/intro-conversion-contracts";
 
 export {
+  TRIAL_DAYS,
+  trialAccessSchema,
+  trialAccessStatuses,
+  trialAttendedCount,
+  trialExpiresAt,
+  trialStatusAt,
+} from "./memberships/trial-access-contracts";
+export type {
+  TrialAccessRecord,
+  TrialAccessStatus,
+  TrialAccessView,
+} from "./memberships/trial-access-contracts";
+
+export {
   canTransitionMembership,
   currentMembershipStatuses,
   membershipStatuses as membershipLifecycleStatuses,
