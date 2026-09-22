@@ -5,6 +5,7 @@
 //      · one side empty → the side with a value;
 //      · email / mobile differ → the archive (later capture);
 //      · full name differs only in case, accents or spacing → the archive spelling;
+//      · gender "unknown" on one side → the side that knows;
 //      · identity fields really differ (name, birth date, gender, numbers) → left for the office.
 // 2. Centres: every linked member still `trainingCenterStatus: "unconfirmed"` gets Town or West
 //    inferred from its archive: plan label first ("strive"/"west" → West, "town" → Town), then
@@ -47,6 +48,9 @@ export function conflictChoices(legacy, archive, conflicts) {
       choices.push({ field, source: "regyfit", evidence: "Contact details differ; the archive is the later capture.", reason: "Later capture wins for contact fields" });
     } else if (field === "fullName" && normalizeName(left) === normalizeName(right)) {
       choices.push({ field, source: "regyfit", evidence: "Same name; only case, accents or spacing differ.", reason: "Archive spelling kept for a cosmetic difference" });
+    } else if (field === "gender" && (left === "unknown") !== (right === "unknown")) {
+      const source = left === "unknown" ? "regyfit" : "legacy";
+      choices.push({ field, source, evidence: "One source records the gender as unknown; the other states it.", reason: "The source that states the gender wins" });
     } else {
       return null;
     }
