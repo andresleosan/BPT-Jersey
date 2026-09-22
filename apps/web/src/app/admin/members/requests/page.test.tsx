@@ -423,10 +423,19 @@ describe("trial declarations and preselected level", () => {
     expect(screen.queryByText(/^Plan:/)).not.toBeInTheDocument();
   });
 
-  it("leaves the initial level empty with no declaration, so the guard still fires", async () => {
-    // A paid enrolment (the base `detail` fixture has no `levelDeclarations`) must not be
-    // preselected: office must still choose the level for an experienced paying member, so the
-    // approve guard has to keep firing when nobody has.
+  it("leaves the initial level empty for a paid plan even though it carries a beginner declaration, so the guard still fires", async () => {
+    // The public enrolment form sends a `beginner` declaration by default for every student, paid
+    // or trial (apps/web/src/app/enrol/page.tsx builds one for every selected plan) — so a paid
+    // enrolment arrives WITH `levelDeclarations`, not without it. Preselection must be keyed on
+    // the plan, not on the declaration's presence: office must still choose the level for a
+    // paying member, so the approve guard has to keep firing when nobody has.
+    enrolmentApi.getEnrolmentRequestDetail.mockResolvedValueOnce({
+      ...detail,
+      levelDeclarations: {
+        applicant: { experience: "beginner" as const, declaredLevelKey: null },
+        minors: [],
+      },
+    });
     render(<EnrolmentRequestQueuePage />);
     await screen.findByText("Alex Adult");
     await userEvent.click(firstButton(/review and enrol/i));
