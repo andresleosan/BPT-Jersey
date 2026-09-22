@@ -230,8 +230,7 @@ git commit -m "Accept a trial plan choice and level declaration in enrolment req
 **Files:**
 - Create: `packages/domain/src/memberships/trial-access-contracts.ts`
 - Create: `packages/domain/src/memberships/trial-access-contracts.test.ts`
-- Modify: `packages/domain/package.json` (add export `./memberships/trial-access`, mirror the `./memberships/intro-conversion` entry) — **this file is dirty in another session's tree: if `git status` still lists it, add the export anyway but commit only your hunk with `git add -p`; if that is not possible, stop and report.**
-- Modify: `packages/domain/src/index.ts` (re-export the new module next to the intro-conversion exports)
+- Modify: `packages/domain/src/index.ts` (re-export the new module next to the intro-conversion exports). Do NOT touch `packages/domain/package.json` (dirty in another session's tree): consumers in `apps/functions` and `apps/web` import these symbols from the package root `@bpt-jersey/domain`, which already re-exports `index.ts`.
 
 **Interfaces:**
 - Produces:
@@ -294,7 +293,6 @@ describe("trial access", () => {
 
 ```bash
 git add packages/domain/src/memberships/trial-access-contracts.ts packages/domain/src/memberships/trial-access-contracts.test.ts packages/domain/src/index.ts
-git add -p packages/domain/package.json   # only the ./memberships/trial-access export hunk
 git commit -m "Add trial access record contracts"
 ```
 
@@ -545,7 +543,7 @@ Look at `harness()` in the existing test to see how `documents` is exposed and h
           continue;
         }
 ```
-Imports: `trialPlanChoice, enrolmentTrialAllowance` from `@bpt-jersey/domain/members/enrolment-requests`; `trialAccessSchema, trialExpiresAt` from `@bpt-jersey/domain/memberships/trial-access`.
+Imports: `trialPlanChoice, enrolmentTrialAllowance` from `@bpt-jersey/domain/members/enrolment-requests`; `trialAccessSchema, trialExpiresAt` from `@bpt-jersey/domain` (package root).
 
 - [ ] **Step 4: Run → PASS.** Also run `apps/functions/src/members/enrolment-request-service.test.ts` to confirm the candidate change broke nothing.
 
@@ -712,7 +710,7 @@ export const getTrialAccess = onCall({ ...browserAdminCallableOptions, region: m
 ### Task 11: Functions — PAYG booking payment choice, invoice at booking, staff confirmation, proofs [D14][D15][D16]
 
 **Files:**
-- Modify: `apps/functions/src/schedule/payg-class-payment.ts` (extract `ensurePaygClassInvoice`; add `confirmPaygClassPayment`, `uploadPaygClassProof`, `getPaygClassProofUrl`)
+- Modify: `apps/functions/src/schedule/payg-class-payment.ts` (extract `ensurePaygClassInvoice`; add `confirmPaygClassPayment`, `uploadPaygClassProof`, `getPaygClassProofUrl`). **This file, `payg-attendance.ts`, `apps/web/src/lib/groups-client.ts` and the PAYG parts of `session-registrations.ts`/`registrations-panel.tsx` are UNTRACKED work of another session (git status `??`). Do not start this task until they are committed on `main`; then re-read them before editing.**
 - Create: `apps/functions/src/schedule/payg-booking-payment.ts`
 - Create: `apps/functions/src/schedule/payg-booking-payment.test.ts`
 - Modify: `apps/functions/src/schedule/session-registrations.ts` (labels)
