@@ -385,16 +385,19 @@ function EnrolmentRequestQueueContent() {
               ? detail.applicant.dateOfBirth
               : detail.minors[index]?.dateOfBirth;
             const age = dateOfBirth ? ageOnDate(dateOfBirth, today) : 0;
-            // Preselect only when the applicant declared a level (the trial flow): a paid
-            // enrolment must still start with an empty level, so the "choose every student's
-            // level" guard in `approve()` keeps firing for it.
+            // Preselect only for a trial plan. The public enrolment form sends a `beginner`
+            // declaration by default for every student, trial or paid, so gating on the
+            // declaration's presence would preselect a paid enrolment too; a paid enrolment must
+            // still start with an empty level, so the "choose every student's level" guard in
+            // `approve()` keeps firing for it.
             return {
               planId: planId ?? "town-adult",
-              definitionKey: declaration
-                ? (declaration.declaredLevelKey ??
-                  defaultWhiteBelt(loadedCatalog.definitions, age) ??
-                  "")
-                : "",
+              definitionKey:
+                planId === trialPlanChoice
+                  ? (declaration?.declaredLevelKey ??
+                    defaultWhiteBelt(loadedCatalog.definitions, age) ??
+                    "")
+                  : "",
               startsOn: today,
               endsOn:
                 PLAN_CATALOG.find((plan) => plan.planId === planId)?.billingPeriod === "monthly"
