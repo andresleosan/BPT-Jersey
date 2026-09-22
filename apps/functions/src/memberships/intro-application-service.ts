@@ -98,6 +98,22 @@ export async function submitIntroMembershipApplication(
 ) {
   const input = membershipApplicationSubmitSchema.parse(raw);
   const base = `academies/${actor.academyId}`;
+  // Decide, from a cheap non-transactional read, whether this submission needs payment evidence,
+  // and verify that evidence in R2 (an external network read) before opening the Firestore
+  // transaction. That keeps the network read out of the transaction body, so the Admin SDK never
+  // repeats it on a contention retry. The plan is re-read authoritatively inside the transaction
+  // below, so a plan whose billing period changes between these two reads is still caught there.
+  const prePlan = parsePlanRecord((await db.doc(`${base}/plans/${input.planId}`).get()).data());
+  if (!(prePlan.ok && prePlan.value.billingPeriod === "per-session")) {
+    if (input.proofId === null || input.bankReference === null)
+      throw new HttpsError("failed-precondition", "Payment evidence is required");
+    await assertIntroProof(storage, {
+      academyId: actor.academyId,
+      userId: actor.userId,
+      requestId: input.requestId,
+      proofId: input.proofId,
+    });
+  }
   return db.runTransaction(async (tx) => {
     const access = await createMemberAccessService(
       memberAccessDependenciesInTransaction(db, tx),
@@ -174,16 +190,12 @@ export async function submitIntroMembershipApplication(
           "Pay as you go applications do not need payment evidence",
         );
     } else {
+      // Evidence itself was already verified in R2 before this transaction opened (see above);
+      // this authoritative re-check only guards against the plan's billing period having changed.
       if (input.proofId === null || input.bankReference === null)
         throw new HttpsError("failed-precondition", "Payment evidence is required");
       if (!instructions.ok || instructions.value.academyId !== actor.academyId)
         throw new HttpsError("failed-precondition", "Payment instructions are unavailable");
-      await assertIntroProof(storage, {
-        academyId: actor.academyId,
-        userId: actor.userId,
-        requestId: input.requestId,
-        proofId: input.proofId,
-      });
     }
     const application = membershipApplicationSchema.parse({
       applicationId: applicationRef.id,
