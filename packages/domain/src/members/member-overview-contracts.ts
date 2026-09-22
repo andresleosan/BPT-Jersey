@@ -173,3 +173,14 @@ export function buildMemberOverview(input: {
   rows.sort((a, b) => a.fullName.localeCompare(b.fullName, "en-GB"));
   return { rows, counters, generatedAt: input.now };
 }
+
+/** Owner-only: removes a member record the office created by mistake (a migration duplicate). */
+export const deleteMemberAccountInputSchema = z.strictObject({
+  studentId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u),
+  requestId: z.uuid(),
+});
+export const deleteMemberAccountResultSchema = z.strictObject({
+  studentId: deleteMemberAccountInputSchema.shape.studentId,
+  cancelledBookings: z.number().int().min(0),
+  removedMemberships: z.number().int().min(0),
+});

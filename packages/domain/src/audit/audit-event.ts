@@ -13,6 +13,7 @@ export const auditActions = Object.freeze([
   "member.date-of-birth.set",
   "member.training-centre.confirmed",
   "member.billing-account.opened",
+  "member.account.deleted",
   "member.recovery.reviewed",
   "member.recovery.detail.read",
   "guardian.profile.created",
@@ -284,6 +285,7 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "member.date-of-birth.set"
           | "member.training-centre.confirmed"
           | "member.billing-account.opened"
+          | "member.account.deleted"
           | "member.migration.skipped"
           | "member.recovery.reviewed"
           | "member.recovery.detail.read"
@@ -467,6 +469,7 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "member.date-of-birth.set": commonFields,
   "member.training-centre.confirmed": commonFields,
   "member.billing-account.opened": commonFields,
+  "member.account.deleted": commonFields,
   "member.migration.skipped": commonFields,
   "member.recovery.reviewed": commonFields,
   "member.recovery.detail.read": commonFields,
@@ -806,7 +809,8 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
       parsedAction === "member.guardian.assigned" ||
       parsedAction === "member.date-of-birth.set" ||
       parsedAction === "member.training-centre.confirmed" ||
-      parsedAction === "member.billing-account.opened"
+      parsedAction === "member.billing-account.opened" ||
+      parsedAction === "member.account.deleted"
     ) {
       const expectedStudentPrefix = `academies/${snapshot.academyId as string}/students/`;
       const studentId =
