@@ -123,7 +123,7 @@ async function main() {
 
   const totals = { booked: 0, alreadyBooked: 0, skipped: 0, membersFailed: 0 };
   const skippedByCode = {};
-  for (const [studentId, membership] of targets) {
+  for (const [index, [studentId, membership]] of targets.entries()) {
     let existing;
     try {
       existing = await store.listStudentBookings(academyId, studentId);
@@ -145,7 +145,6 @@ async function main() {
           { ip: null, role: "owner" }, // the audit draft needs an explicit ip: a script has none
         );
         totals.booked += 1;
-        if (totals.booked % 10 === 0) console.log(`progress: booked ${totals.booked}`);
       } catch (error) {
         if (error instanceof bookingModule.BookingTransactionError && skippableCodes.has(error.code)) {
           totals.skipped += 1;
@@ -160,6 +159,7 @@ async function main() {
         break;
       }
     }
+    console.log(`progress: member ${index + 1}/${targets.length} \u00b7 booked ${totals.booked}`);
   }
   for (const [key, value] of Object.entries(totals)) console.log(`${key}: ${value}`);
   for (const [code, count] of Object.entries(skippedByCode)) console.log(`skipped_${code}: ${count}`);
