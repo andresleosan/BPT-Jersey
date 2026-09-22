@@ -169,16 +169,23 @@ async function main() {
   const actor = Object.freeze({ kind: "user", academyId, userId: actorId, role: "owner" });
   let applied = 0;
   let failed = 0;
+  const failures = {};
   for (const item of plan.planned) {
     try {
       await manualSubscription.saveManualSubscription(firestore, actor, item.input);
       applied += 1;
-    } catch {
-      failed += 1; // the reason may carry member data; the office re-runs the dry-run to see who is left
+    } catch (error) {
+      failed += 1;
+      if (env.BPT_OPERATOR_DEBUG === "1") {
+        // The subscription service raises fixed sentences (HttpsError); count them by message.
+        const message = `${error?.code ?? error?.constructor?.name ?? "Error"}: ${String(error?.message ?? "").slice(0, 160)}`;
+        failures[message] = (failures[message] ?? 0) + 1;
+      }
     }
   }
   console.log(`applied: ${applied}`);
   console.log(`failed: ${failed}`);
+  for (const [message, count] of Object.entries(failures)) console.error(`failure x${count}: ${message}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
