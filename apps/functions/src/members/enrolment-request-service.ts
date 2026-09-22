@@ -474,6 +474,9 @@ export function createEnrolmentRequestStore(
           minors: input.submission.minors,
           planSelections: input.submission.planSelections,
           ...(input.submission.payment ? { payment: input.submission.payment } : {}),
+          ...(input.submission.levelDeclarations
+            ? { levelDeclarations: input.submission.levelDeclarations }
+            : {}),
           submittedBy: actorId,
           submittedAt: now,
           // The client sends only the version it displayed. The hash and the timestamp are the

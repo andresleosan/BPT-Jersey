@@ -42,6 +42,10 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /academies/{academyId}/trialAccess/{studentId} {
+      allow read, write: if false;
+    }
+
     match /academies/{academyId}/enrolmentRequestHolds/{holdId} {
       allow read, write: if false;
     }
