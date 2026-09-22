@@ -1,6 +1,14 @@
-import { getEnrolmentPlans } from "@bpt-jersey/domain/members/enrolment-requests";
-import type { PlanId, Site } from "@bpt-jersey/domain/memberships";
+import {
+  enrolmentTrialAllowance,
+  getEnrolmentPlans,
+  trialPlanChoice,
+  type EnrolmentLevelDeclaration,
+  type EnrolmentPlanChoice,
+} from "@bpt-jersey/domain/members/enrolment-requests";
+import type { Site } from "@bpt-jersey/domain/memberships";
+import type { LevelDefinitionRecord } from "@bpt-jersey/domain/levels";
 import { describePlanAccess, formatPlanPrice } from "../../lib/plan-copy";
+import { LevelDeclaration } from "./level-declaration";
 
 export function EnrolmentPlanChoices({
   id,
@@ -9,6 +17,10 @@ export function EnrolmentPlanChoices({
   trainingCenter,
   effectiveDate,
   selectedPlan,
+  declaration,
+  onDeclarationChange,
+  age,
+  definitions,
   disabled,
   onChange,
 }: Readonly<{
@@ -17,9 +29,13 @@ export function EnrolmentPlanChoices({
   dateOfBirth: string;
   trainingCenter: Site;
   effectiveDate: string;
-  selectedPlan: PlanId | "";
+  selectedPlan: EnrolmentPlanChoice | "";
+  declaration: EnrolmentLevelDeclaration;
+  onDeclarationChange: (next: EnrolmentLevelDeclaration) => void;
+  age: number;
+  definitions: readonly LevelDefinitionRecord[];
   disabled: boolean;
-  onChange: (plan: PlanId) => void;
+  onChange: (plan: EnrolmentPlanChoice) => void;
 }>) {
   const plans = getEnrolmentPlans(dateOfBirth, trainingCenter, effectiveDate);
   const recommended =
@@ -30,6 +46,37 @@ export function EnrolmentPlanChoices({
       <legend>
         {fullName.trim()} · {trainingCenter}
       </legend>
+      {/*
+        The free trial comes first and is the choice nobody has to make: somebody who has never
+        trained finds their own option at the top instead of guessing at a plan. What they declare
+        here only decides how many free classes they are offered — the office confirms the level.
+      */}
+      <label className="enrol-plan-option">
+        <input
+          type="radio"
+          name={`enrol-plan-${id}`}
+          value={trialPlanChoice}
+          checked={selectedPlan === trialPlanChoice}
+          onChange={() => onChange(trialPlanChoice)}
+          aria-describedby={`enrol-plan-${id}-trial-access`}
+        />
+        <span>
+          <strong>I am a beginner</strong>
+          <span className="enrol-plan-access" id={`enrol-plan-${id}-trial-access`}>
+            {enrolmentTrialAllowance(declaration.experience) === 2
+              ? "Trial: 2 free Introduction Classes"
+              : "Trial: 1 free Introduction Class"}
+          </span>
+        </span>
+      </label>
+      <LevelDeclaration
+        id={`enrol-plan-${id}-level`}
+        age={age}
+        definitions={definitions}
+        value={declaration}
+        disabled={disabled}
+        onChange={onDeclarationChange}
+      />
       {plans.length === 0 ? (
         <p role="alert">
           No plans are available for these details. Go back and check the date of birth and training
