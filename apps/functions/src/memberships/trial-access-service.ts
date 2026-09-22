@@ -4,7 +4,7 @@ import {
   trialStatusAt,
   type TrialAccessRecord,
   type TrialAccessView,
-} from "@bpt-jersey/domain";
+} from "@bpt-jersey/domain/memberships/trial-access";
 import { isIntroBooking, type BookingRecord } from "@bpt-jersey/domain/schedule";
 
 export type TrialReader = { get(path: string): Promise<{ exists: boolean; data(): unknown }> };

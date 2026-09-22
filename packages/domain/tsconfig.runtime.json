@@ -70,6 +70,7 @@
     "src/consents/disclaimer-contracts.ts",
     "src/memberships/subscription-admin-contracts.ts",
     "src/memberships/intro-conversion-contracts.ts",
+    "src/memberships/trial-access-contracts.ts",
     "src/schedule/member-class-record-contracts.ts",
     "src/courses/index.ts",
     "src/members/member-access-contracts.ts",
