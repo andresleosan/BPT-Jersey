@@ -1,5 +1,9 @@
 "use client";
 
+import { PaygPaymentDialog } from "./payg-payment-dialog";
+import type { InvoiceView } from "../../../../lib/billing-client";
+import { preparePaygClassPayment } from "../../../../lib/groups-client";
+import { GroupRegistrations } from "./group-registrations";
 import { useEffect, useMemo, useState, type ReactElement } from "react";
 
 import type { MemberNameRow } from "@bpt-jersey/domain/members/directory";
@@ -38,42 +42,12 @@ function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.length > 0 ? error.message : fallback;
 }
 
-function surnameOf(fullName: string): string {
-  const words = fullName.trim().split(/\s+/u);
-  return words[words.length - 1] ?? fullName;
-}
-
-type Family = Readonly<{ familyId: string; label: string; members: readonly MemberNameRow[] }>;
-
-/** One button per family: the label is the surname most of its students share. */
-function familiesOf(members: readonly MemberNameRow[]): readonly Family[] {
-  const byFamily = new Map<string, MemberNameRow[]>();
-  for (const member of members) {
-    if (member.familyId === null) continue;
-    const group = byFamily.get(member.familyId);
-    if (group) group.push(member);
-    else byFamily.set(member.familyId, [member]);
-  }
-  return [...byFamily.entries()]
-    .map(([familyId, group]) => {
-      const counts = new Map<string, number>();
-      for (const member of group) {
-        const surname = surnameOf(member.fullName);
-        counts.set(surname, (counts.get(surname) ?? 0) + 1);
-      }
-      const [surname] = [...counts.entries()].sort(
-        (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
-      )[0] ?? [""];
-      return { familyId, label: `${surname} family`, members: group as readonly MemberNameRow[] };
-    })
-    .sort((a, b) => a.label.localeCompare(b.label));
-}
-
 export function RegistrationsPanel({
   session,
   canEdit,
   canReadMemberships,
 }: RegistrationsPanelProps): ReactElement {
+  const [paymentInvoice, setPaymentInvoice] = useState<InvoiceView | null>(null);
   const [tab, setTab] = useState<Tab>("member");
   const [bookings, setBookings] = useState<readonly SessionRegistrationRecord[]>([]);
   const [members, setMembers] = useState<readonly MemberNameRow[]>([]);
@@ -128,7 +102,6 @@ export function RegistrationsPanel({
           .filter((member) => member.fullName.toLowerCase().includes(query.trim().toLowerCase()))
           .slice(0, 20);
 
-  const families = useMemo(() => familiesOf(members), [members]);
 
   async function refresh(): Promise<void> {
     try {
@@ -179,18 +152,6 @@ export function RegistrationsPanel({
     setBusy(false);
   }
 
-  async function enrolFamily(family: Family): Promise<void> {
-    setBusy(true);
-    const failures: string[] = [];
-    for (const member of family.members) {
-      const failure = await enrol(member.studentId);
-      if (failure !== null) failures.push(`${member.fullName}: ${failure}`);
-    }
-    setMessages(failures);
-    await refresh();
-    setBusy(false);
-  }
-
   async function remove(studentId: string): Promise<void> {
     setBusy(true);
     try {
@@ -205,6 +166,7 @@ export function RegistrationsPanel({
   return (
     <section className="cs-registrations" aria-label="Registrations">
       <h3>Registrations</h3>
+      {paymentInvoice && canReadMemberships ? <PaygPaymentDialog invoice={paymentInvoice} onClose={() => setPaymentInvoice(null)} onRecorded={() => { setPaymentInvoice(null); void refresh(); }} /> : null}
       <button
         type="button"
         className="cs-button"
@@ -242,6 +204,17 @@ export function RegistrationsPanel({
               >
                 {booking.paymentLabel ?? "Payment status unavailable"}
               </span>
+              {canReadMemberships && booking.paymentLabel === "PAYG Needs to pay" ? (
+                <button className="cs-button" type="button" disabled={busy} onClick={async () => {
+                  setBusy(true); setMessages([]);
+                  try {
+                    const invoice = await preparePaygClassPayment(sessionId, booking.studentId);
+                    if (invoice.balanceMinor > 0) setPaymentInvoice(invoice);
+                    else await refresh();
+                  } catch (error) { setMessages([messageOf(error, "Unable to prepare class payment")]); }
+                  finally { setBusy(false); }
+                }}>Record class payment</button>
+              ) : null}
               {canEdit ? (
                 <button
                   type="button"
@@ -314,31 +287,8 @@ export function RegistrationsPanel({
             </ul>
           </div>
         ) : null}
-        {tab === "group" && canEdit ? (
-          <ul className="cs-results">
-            {canReadMemberships ? null : (
-              <li className="cs-placeholder">Enrolment needs an office account</li>
-            )}
-            {canReadMemberships && !membershipsReady ? (
-              <li className="cs-placeholder">{noMembershipList}</li>
-            ) : null}
-            {families.length === 0 ? (
-              <li className="cs-placeholder">No families yet.</li>
-            ) : (
-              families.map((family) => (
-                <li key={family.familyId}>
-                  <button
-                    type="button"
-                    className="cs-button"
-                    disabled={busy || !canEnrol}
-                    onClick={() => void enrolFamily(family)}
-                  >
-                    {family.label}
-                  </button>
-                </li>
-              ))
-            )}
-          </ul>
+        {tab === "group" ? (
+          <GroupRegistrations sessionId={sessionId} canManage={canReadMemberships} onChanged={refresh} />
         ) : null}
         {tab === "external" ? (
           <p className="cs-placeholder">Drop-in registrations arrive with the Drop-ins release.</p>

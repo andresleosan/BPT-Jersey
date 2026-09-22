@@ -1,3 +1,4 @@
+import { groupKey } from "./group-keys.js";
 import { canonicalMemberIdentityIds } from "../members/member-identity-resolution.js";
 import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 import { createMemberAccessService } from "../members/member-access-service.js";
@@ -116,6 +117,7 @@ export type ConfirmBookingInTransactionInput = Readonly<{
   actorRole: ClassActorRole;
   now: string;
   reservationWaitlistId?: string;
+  groupRegistration?: boolean;
 }>;
 
 const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
@@ -922,6 +924,11 @@ async function executeBookingInTransaction(
     updatedAt: input.now,
     updatedBy: actorId,
   });
+  if (!input.groupRegistration) {
+    input.transaction.set(input.firestore.doc(path(academyId, "groupBookingOrigins") + "/" + groupKey(sessionId, studentId)), {
+      academyId, sessionId, studentId, bookingId: record.bookingId, owned: false,
+    });
+  }
   input.transaction.set(target.reference, record);
   appendAuditEventInTransaction(
     input.transaction,
@@ -997,7 +1004,7 @@ export async function readConfirmedBookingReplayInTransaction(input: {
   return target.existing;
 }
 
-async function cancelBookingInTransaction(input: {
+export async function cancelBookingInTransaction(input: {
   firestore: BookingFirestore;
   transaction: BookingTransaction;
   academyId: string;
@@ -1007,6 +1014,7 @@ async function cancelBookingInTransaction(input: {
   actorRole: ClassActorRole;
   now: string;
   isStaffOverride: boolean;
+  suppressGroupRebooking?: boolean;
 }): Promise<BookingRecord> {
   const academyId = segment(input.academyId, "academyId");
   const actorId = segment(input.actorId, "actorId");
@@ -1061,6 +1069,11 @@ async function cancelBookingInTransaction(input: {
     updatedAt: input.now,
     updatedBy: actorId,
   });
+  if (input.suppressGroupRebooking !== false) {
+    input.transaction.set(input.firestore.doc(path(academyId, "groupSessionExclusions") + "/" + groupKey(sessionId, studentId)), {
+      academyId, sessionId, studentId, createdAt: input.now, createdBy: actorId,
+    });
+  }
   input.transaction.set(target.reference, updated);
   appendAuditEventInTransaction(
     input.transaction,

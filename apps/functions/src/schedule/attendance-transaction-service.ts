@@ -1,3 +1,4 @@
+import { isClassPaymentSettled } from "./payg-attendance.js";
 import type { Firestore, Transaction } from "firebase-admin/firestore";
 import { canAccessCourseSession, type Course, type CourseEnrolment } from "@bpt-jersey/domain/courses";
 import { assertCourseActorLive } from "../courses/course-store.js";
@@ -45,7 +46,7 @@ export type ScheduleMutationActorRole =
   "owner" | "administrator" | "headCoach" | "coach" | "guardian" | "adultStudent" | "teenStudent" | "shopper";
 
 type ScheduleAttendanceErrorCode =
-  "conflict" | "credential" | "ineligible" | "invalid" | "not-found" | "tenant";
+  "conflict" | "credential" | "ineligible" | "invalid" | "not-found" | "tenant" | "payment";
 
 export class ScheduleAttendanceError extends Error {
   public constructor(
@@ -511,6 +512,10 @@ export function createTransactionalAttendanceService(
         }
         if (auditSnapshot.exists) return fail("conflict", "Attendance evidence already exists");
 
+        if (!(await isClassPaymentSettled(options.firestore, transaction, academyId, sessionId, bookings))) {
+          return fail("payment", "Class payment must be confirmed before attendance can be recorded");
+        }
+
         const record: AttendanceRecord = Object.freeze({
           ...(typeof data(sessionSnapshot)?.courseId === "string" ? {courseId: String(data(sessionSnapshot)?.courseId)} : {}),
           attendanceId,
@@ -631,6 +636,10 @@ export function createTransactionalAttendanceService(
           throw new SelfCheckInRefusedError(decision.error.reason, decision.error.distanceMeters);
         }
 
+        if (!(await isClassPaymentSettled(options.firestore, transaction, academyId, sessionId, bookings))) {
+          return fail("payment", "Class payment must be confirmed before attendance can be recorded");
+        }
+
         const record: AttendanceRecord = Object.freeze({
           ...(typeof data(sessionSnapshot)?.courseId === "string" ? {courseId: String(data(sessionSnapshot)?.courseId)} : {}),
           attendanceId,
@@ -725,6 +734,11 @@ export function createTransactionalAttendanceService(
         }
         if (correctionSnapshot.exists || auditSnapshot.exists) {
           return fail("conflict", "Correction identifier already exists");
+        }
+
+        if ((context.input.newState === "attended" || context.input.newState === "late") &&
+          !(await isClassPaymentSettled(options.firestore, transaction, academyId, sessionId, bookings))) {
+          return fail("payment", "Class payment must be confirmed before attendance can be recorded");
         }
 
         const correction: AttendanceRecord = Object.freeze({

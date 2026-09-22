@@ -137,3 +137,19 @@ staff keep their existing roles. Approved participants receive remaining session
 calendar and coach roster. Course attendance is separate from ordinary quotas, fees and graduation
 counts. Cancellation closes future access; withdrawals and refunds have explicit office decisions.
 See `docs/runbooks/finite-courses.md` for configuration and recovery. Production activation is separate.
+
+
+## Administrator groups and class registrations (2026-09-22)
+
+Owners and administrators manage reusable Groups under Classes / Services using existing
+members; a member may belong to several groups. Registering a group creates individual class
+bookings without duplicates and explicitly authorises following dates of that weekly series.
+There are no group bookings before that office action (ADR-018 exception). Each date requires
+an active subscription and the usual access, capacity and allowance checks. Partial results
+are visible only to office and coaches; coaches receive names and operational reasons only.
+Session removals are exceptions for that date and never remove group membership. Directory
+deletion removes group membership; subscription loss keeps it with Missing Payment. Deleting
+a group stops future automatic registration and preserves existing bookings. PAYG attendance,
+including self check-in and attendance corrections, requires settled payment for that class.
+Office records class payments using the existing payment form; coaches have no payment controls.
+Production activation requires coordinated Functions, recurring jobs and frontend deployment.

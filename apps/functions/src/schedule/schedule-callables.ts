@@ -179,6 +179,7 @@ function mapQuorumSweepError(error: unknown): never {
 function mapAttendanceError(error: unknown): never {
   if (error instanceof HttpsError) throw error;
   if (error instanceof ScheduleAttendanceError) {
+    if (error.code === "payment") throw new HttpsError("failed-precondition", "Confirm payment for this class before recording attendance.", { reason: "payment" });
     if (error.code === "invalid") {
       throw new HttpsError("invalid-argument", "Attendance request is invalid");
     }

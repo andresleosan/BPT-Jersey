@@ -1,0 +1,53 @@
+.groups-page { display: grid; gap: 1.5rem; }
+.groups-heading, .groups-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.groups-heading h3, .groups-editor h4, .groups-empty h4 { font-family: var(--font-display), Impact, sans-serif; font-size: 2rem; line-height: 1.1; margin: 0 0 .4rem; text-transform: uppercase; }
+.groups-heading p, .groups-row p { margin: .25rem 0 0; color: var(--muted); }
+.groups-page .groups-primary, .cs-registrations .groups-primary { background: var(--bpt-purple); color: var(--gi-white); border-color: var(--bpt-purple); }
+.groups-page .groups-primary:hover, .cs-registrations .groups-primary:hover { background: var(--bpt-purple-dark, #211965); }
+.groups-page .groups-delete { color: #721626; border-color: #8d1c2f; }
+.groups-editor { background: var(--gi-white); border: 2px solid var(--mat-ink); border-top: .35rem solid var(--bpt-purple); padding: 1.25rem; }
+.groups-editor fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 1.25rem; min-width: 0; }
+.groups-editor > form { margin-top: 1rem; }
+.groups-member-picker { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; }
+.groups-member-picker h5 { font-size: 1.15rem; margin: 0 0 .5rem; }
+.groups-hint { color: var(--muted); font-size: 1rem; max-width: 65ch; margin: .5rem 0; }
+.groups-members, .groups-list { list-style: none; margin: 0; padding: 0; }
+.groups-members li { display: flex; gap: 1rem; justify-content: space-between; align-items: center; padding: .65rem 0; border-bottom: 1px solid var(--paper-edge, #d9d8d2); }
+.groups-members li > div, .groups-members li > span { min-width: 0; overflow-wrap: anywhere; }
+.groups-members .cs-button { flex-shrink: 0; }
+.groups-search-results { max-height: 25rem; overflow-y: auto; padding: 0 .25rem; }
+.groups-payment { display: block; color: #721626; font-size: 1rem; font-weight: 600; }
+.groups-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.groups-list > li { border-bottom: 1px solid var(--line); }
+.groups-row { padding: 1.1rem 0; }
+.groups-row h4 { margin: 0; font-size: 1.25rem; overflow-wrap: anywhere; }
+.groups-search { max-width: 30rem; margin-bottom: 1rem; }
+.groups-empty, .groups-empty-inline { background: var(--gi-white); padding: 1.5rem; border: 1px solid var(--line); }
+.groups-empty p { max-width: 60ch; }
+.groups-confirm { padding: 1rem; margin-bottom: 1rem; background: #fff0f2; color: #721626; border: 1px solid #8d1c2f; }
+.groups-notice { margin: 0; padding: 1rem; background: #e7f6ee; color: #176b49; border: 1px solid #176b49; }
+.groups-notice[data-error="true"] { background: #fff0f2; color: #721626; border-color: #8d1c2f; }
+.groups-loading { display: grid; gap: 1rem; padding: 1rem 0; }
+.groups-loading > div { height: 4rem; background: var(--paper-edge, #e8e7e3); }
+.group-session-list { display: grid; gap: .75rem; list-style: none; margin: 1rem 0; padding: 0; }
+.group-session-list > li { border: 1px solid var(--line); background: var(--gi-white); }
+.group-session-toggle { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; text-align: left; border: 0; padding: 1rem; background: transparent; color: var(--mat-ink); min-height: 44px; cursor: pointer; font: inherit; }
+.group-session-toggle strong { display: block; font-size: 1.15rem; }
+.group-session-toggle[aria-expanded="true"] { background: #f0efff; }
+.group-session-toggle:focus-visible { outline: 3px solid var(--bpt-purple); outline-offset: 3px; }
+.group-session-detail { padding: 1rem; }
+.group-session-detail .groups-members { margin-top: 1rem; }
+.group-session-detail .groups-members p { margin: .25rem 0 0; }
+.group-session-state[data-state="blocked"] { color: #721626; }
+.group-session-state[data-state="registered"] { color: #176b49; }
+@media (max-width: 50rem) {
+  .groups-member-picker { grid-template-columns: minmax(0, 1fr); }
+  .groups-heading, .groups-row { align-items: stretch; flex-direction: column; }
+  .groups-editor { padding: 1rem; }
+  .groups-actions .cs-button { flex: 1 1 auto; }
+}
+@media (max-width: 32rem) { .group-session-detail .groups-members li { align-items: flex-start; flex-wrap: wrap; } }
+.group-payment-dialog { width: min(52rem, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); padding: 0; border: 0; color: var(--mat-ink); background: var(--gi-white); overflow-y: auto; }
+.group-payment-dialog::backdrop { background: rgb(26 26 24 / 65%); }
+.group-payment-dialog .billing-dialog-backdrop { position: static; padding: 0; overflow: visible; background: transparent; }
+.group-payment-dialog .billing-dialog { max-width: none; box-shadow: none; }

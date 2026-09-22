@@ -11,7 +11,7 @@ dos caminos:
 2. El miembro (o su tutor) reserva desde el área de miembros (`/account`), incluido el botón
    «Book all my classes», porque lo pulsa la persona.
 
-Quedan prohibidos: scripts de reserva masiva, triggers o tareas programadas que creen reservas
+Salvo la excepción explícita de grupos descrita abajo, quedan prohibidos: scripts de reserva masiva, triggers o tareas programadas que creen reservas
 (por grupo, por plan, por inscripción o por cualquier otra regla) y cualquier «reservar por
 defecto» al alta de un miembro. La promoción desde la lista de espera no cuenta: el miembro pidió
 ese sitio.
@@ -29,4 +29,23 @@ ese sitio.
 
 Antes de escribir código que llame a `requestBooking` / `confirmBookingInTransaction`, comprobar
 que el actor es una persona en una petición (owner/administrator en oficina, o el propio miembro).
-Si la llamada viene de un trigger, un `onSchedule` o un script, no se hace.
+Si la llamada viene de un trigger, un `onSchedule` o un script, no se hace salvo la recurrencia de grupos expresamente autorizada abajo.
+
+
+## Excepción autorizada: grupos registrados expresamente (2026-09-22)
+
+El operador confirmó: «Permitir recurrencia del grupo tras la inscripción expresa del admin».
+Un owner o administrator debe pulsar **Register group** en una sesión. Esta acción autoriza
+esa sesión y las siguientes de la misma serie semanal, y guarda actor, fecha, alcance y
+referencia a la autorización. Crear un grupo, dar de alta un miembro o activar un plan por sí
+solos no autorizan ninguna reserva.
+
+Los procesos de grupos solo continúan asignaciones con esa autorización. Cada fecha vuelve a
+comprobar miembro, suscripción activa, acceso, cupo y límites. La baja de suscripción conserva
+el grupo y muestra **Missing Payment**; una exclusión de una sesión no modifica el grupo ni
+otras fechas y no se vuelve a inscribir automáticamente. Eliminar el grupo detiene nuevas
+reservas, conservando las existentes. La asistencia PAYG exige el pago de esa clase.
+
+Las reservas recurrentes se auditan como acciones del sistema y sus resultados enlazan la
+autorización humana original. Por tanto, una IP nula por sí sola ya no indica una violación:
+hay que comprobar que existe esa autorización y que coincide con el grupo y la serie.

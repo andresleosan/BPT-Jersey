@@ -2,7 +2,7 @@
 
 Read `PRODUCT.md` and `DESIGN.md` before product or interface changes. Reuse the existing admin shell, controls and brand tokens. Coach views must preserve their role restrictions and exclude financial workflows. Authentication, Google linking and attendance controls must remain functional.
 
-No process books classes for a member (ADR-018): a booking comes only from the owner/administrator in the office or from the member in `/account`. Never add scripts, triggers or schedules that create bookings.
+No process books classes for a member without explicit authorisation (ADR-018): a booking comes from the owner/administrator in the office or from the member in `/account`. The operator explicitly authorised one exception: after an owner/administrator registers a group, its following weekly sessions may be booked automatically under that recorded authorisation, rechecking eligibility for each date. Never add other scripts, triggers or schedules that create bookings.
 
 ## Current function-fix workflow (operator preference)
 
