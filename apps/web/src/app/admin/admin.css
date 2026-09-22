@@ -5181,3 +5181,10 @@ a.admin-birthday-badge:focus-visible,
   gap: 0.15rem;
   padding-left: 1rem;
 }
+.member-history {
+  display: grid;
+  gap: 1.25rem;
+}
+.member-history-group h4 {
+  margin: 0 0 0.5rem;
+}

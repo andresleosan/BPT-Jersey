@@ -141,6 +141,7 @@ export const memberRecordTabs = Object.freeze([
   "classes",
   "communication",
   "notes",
+  "history",
 ] as const);
 export type MemberRecordTab = (typeof memberRecordTabs)[number];
 
