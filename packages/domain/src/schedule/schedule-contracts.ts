@@ -1416,6 +1416,10 @@ function endWithZ(d: Date): string {
 export const bookingStatuses = Object.freeze(["requested", "confirmed", "cancelled"] as const);
 export type BookingStatus = (typeof bookingStatuses)[number];
 
+export type PaygBookingPayment =
+  | Readonly<{ method: "at_venue" }>
+  | Readonly<{ method: "bank_transfer"; proofId: string; reference: string }>;
+
 export type LegacyBookingRecord = Readonly<{
   bookingId: string; // canonical v2 length-prefixed ID; legacy pair IDs remain read-compatible
   academyId: string;
@@ -1431,6 +1435,7 @@ export type LegacyBookingRecord = Readonly<{
   createdBy: string;
   updatedAt: string;
   updatedBy: string;
+  paygPayment?: PaygBookingPayment;
 }>;
 
 export type CourseBookingRecord = Omit<LegacyBookingRecord, "membershipId" | "schemaVersion"> & {
@@ -1448,7 +1453,7 @@ export type BookingRecord = LegacyBookingRecord | CourseBookingRecord | IntroBoo
 /** Staff-only projection: no balances, payment references or family financial details. */
 export type SessionRegistrationRecord = BookingRecord & Readonly<{
   displayName: string | null;
-  paymentLabel: "Subscription" | "PAYG Paid" | "PAYG Needs to pay" | "Course" | "Intro" | "Payment status unavailable";
+  paymentLabel: "Subscription" | "PAYG Paid" | "PAYG Needs to pay" | "PAYG Pay at venue" | "PAYG Transfer sent" | "Course" | "Intro" | "Payment status unavailable";
 }>;
 
 export function isCourseBooking(value: BookingRecord): value is CourseBookingRecord {
@@ -1467,6 +1472,7 @@ export type RequestMembershipBookingInput = Readonly<{
   sessionId: string;
   studentId: string;
   membershipId: string;
+  paygPayment?: PaygBookingPayment;
 }>;
 
 export type RequestIntroBookingInput = Readonly<{
@@ -1553,7 +1559,7 @@ export function parseRequestBookingInput(input: unknown): Result<RequestBookingI
     return err("Booking request input must be an object");
   }
 
-  const { kind, sessionId, studentId, membershipId } = input;
+  const { kind, sessionId, studentId, membershipId, paygPayment: paygPaymentInput } = input;
   if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
     return err("sessionId is required");
   }
@@ -1563,6 +1569,7 @@ export function parseRequestBookingInput(input: unknown): Result<RequestBookingI
 
   if (kind === "intro") {
     if (membershipId !== undefined) return err("Intro bookings cannot include membershipId");
+    if (paygPaymentInput !== undefined) return err("Intro bookings cannot include a payment");
     return ok(
       Object.freeze({
         kind: "intro" as const,
@@ -1578,12 +1585,36 @@ export function parseRequestBookingInput(input: unknown): Result<RequestBookingI
     return err("membershipId is required");
   }
 
+  let paygPayment: PaygBookingPayment | undefined;
+  if (paygPaymentInput !== undefined) {
+    if (!isRecord(paygPaymentInput)) return err("paygPayment must be an object");
+    if (paygPaymentInput.method === "at_venue") {
+      paygPayment = Object.freeze({ method: "at_venue" as const });
+    } else if (paygPaymentInput.method === "bank_transfer") {
+      const { proofId, reference } = paygPaymentInput;
+      if (typeof proofId !== "string" || !/^[a-f0-9]{64}$/u.test(proofId)) {
+        return err("proofId is required for a bank transfer");
+      }
+      if (typeof reference !== "string" || reference.trim().length < 2 || reference.length > 120) {
+        return err("reference is required for a bank transfer");
+      }
+      paygPayment = Object.freeze({
+        method: "bank_transfer" as const,
+        proofId,
+        reference: reference.trim(),
+      });
+    } else {
+      return err("paygPayment.method must be at_venue or bank_transfer");
+    }
+  }
+
   return ok(
     Object.freeze({
       kind: "membership" as const,
       sessionId: sessionId.trim(),
       studentId: studentId.trim(),
       membershipId: membershipId.trim(),
+      ...(paygPayment ? { paygPayment } : {}),
     }),
   );
 }
