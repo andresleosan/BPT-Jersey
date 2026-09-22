@@ -142,7 +142,7 @@ async function main() {
           academyId,
           { kind: "membership", sessionId: session.sessionId, studentId, membershipId: membership.membershipId },
           actorId,
-          { role: "owner" },
+          { ip: null, role: "owner" }, // the audit draft needs an explicit ip: a script has none
         );
         totals.booked += 1;
       } catch (error) {
