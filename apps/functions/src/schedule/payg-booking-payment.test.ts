@@ -10,17 +10,28 @@ import type { R2Client } from "../storage/r2-client.js";
  * decisions around it, so the store is a recorder, exactly as the finance callable tests do.
  */
 const finance = vi.hoisted(() => ({
+  /** Set by `fakeFirestore`, so the mocked store persists into the same documents the code reads. */
+  docs: new Map<string, Record<string, unknown>>(),
   issued: [] as Record<string, string | number>[],
   voided: [] as Record<string, string>[],
+  seq: 0,
 }));
 
 vi.mock("../finance/finance-service.js", () => ({
   createFinanceStore: () => ({
     issuePaygInvoice: async (input: Record<string, string | number>) => {
       finance.issued.push(input);
+      const root = `academies/${input.academyId}`;
+      // The real store returns whatever invoice already holds this reference, void or not.
+      for (const [path, value] of finance.docs) {
+        if (path.startsWith(`${root}/invoices/`) && value.invoiceReference === input.invoiceReference) {
+          return value;
+        }
+      }
+      finance.seq += 1;
       const stamp = "2026-09-22T09:00:00.000Z";
-      return {
-        invoiceId: "invoice-new",
+      const invoice = {
+        invoiceId: `invoice-${finance.seq}`,
         academyId: input.academyId,
         familyId: input.familyId,
         membershipId: input.membershipId,
@@ -39,10 +50,15 @@ vi.mock("../finance/finance-service.js", () => ({
         invoiceReference: input.invoiceReference,
         description: input.description,
       };
+      finance.docs.set(`${root}/invoices/${invoice.invoiceId}`, invoice);
+      return invoice;
     },
     voidManualInvoice: async (input: Record<string, string>) => {
       finance.voided.push(input);
-      return { invoiceId: input.invoiceId, status: "void" };
+      const path = `academies/${input.academyId}/invoices/${input.invoiceId}`;
+      const voided = { ...finance.docs.get(path), status: "void" };
+      finance.docs.set(path, voided);
+      return voided;
     },
   }),
 }));
@@ -54,6 +70,7 @@ type Doc = Record<string, unknown>;
 
 function fakeFirestore(initial: Record<string, Doc>, reads: string[]) {
   const records = new Map(Object.entries(initial));
+  finance.docs = records;
   const parentOf = (path: string) => path.slice(0, path.lastIndexOf("/"));
   const idOf = (path: string) => path.slice(path.lastIndexOf("/") + 1);
   const query = (path: string, filters: { field: string; value: unknown }[] = []) => ({
@@ -210,7 +227,16 @@ function invoiceDoc(overrides: Doc = {}) {
 beforeEach(() => {
   finance.issued.length = 0;
   finance.voided.length = 0;
+  finance.docs = new Map();
+  finance.seq = 0;
 });
+
+function liveInvoices(records: Map<string, Doc>) {
+  return [...records.entries()]
+    .filter(([path]) => path.startsWith(`${root}/invoices/`))
+    .map(([, value]) => value)
+    .filter((invoice) => invoice.status !== "void");
+}
 
 describe("attachPaygBookingPayment", () => {
   it("records an at-venue choice and issues the class invoice", async () => {
@@ -235,9 +261,12 @@ describe("attachPaygBookingPayment", () => {
       chargeKind: "payg_session",
       sourceRef,
     });
+    // `updatedAt` must not advance on its own: the booking says who last touched it.
     expect(records.get(`${root}/bookings/${bookingId}`)).toMatchObject({
       paygPayment: { method: "at_venue" },
+      updatedBy: actorId,
     });
+    expect(records.get(`${root}/bookings/${bookingId}`)!.updatedAt).not.toBe(now);
     // No proof to check, so nothing at all is read from private storage.
     expect(order.filter((entry) => entry.startsWith("read:"))).toEqual([]);
   });
@@ -324,6 +353,101 @@ describe("attachPaygBookingPayment", () => {
       paygPayment: { method: "bank_transfer", proofId, reference: "BPT-1" },
     });
     expect(order[0]).toBe(`read:${objectKey}`);
+  });
+});
+
+describe("attachPaygBookingPayment · household proofs and booking shape", () => {
+  it("accepts the guardian's screenshot for a booking the teen requested", async () => {
+    // Both accounts may book for this student, so either may have paid for the class.
+    const household = { ...booking, createdBy: "guardian-1", updatedBy: "guardian-1" } as BookingRecord;
+    const objectKey = paygProofKey(academyId, "guardian-1", bookingId, proofId);
+    const order: string[] = [];
+    const { db, records } = fakeFirestore(
+      { ...seed("payg"), [`${root}/bookings/${bookingId}`]: { ...household } as Doc },
+      order,
+    );
+
+    await attachPaygBookingPayment(db, fakeStorage({ [objectKey]: png }, order), {
+      academyId,
+      actorId: "teen-1",
+      booking: household,
+      paygPayment: { method: "bank_transfer", proofId, reference: "BPT-1" },
+    });
+
+    expect(records.get(`${root}/bookings/${bookingId}`)).toMatchObject({
+      paygPayment: { method: "bank_transfer", proofId, reference: "BPT-1" },
+      updatedBy: "teen-1",
+    });
+    // The requester's own key is tried first, the guardian's second.
+    expect(order.filter((entry) => entry.startsWith("read:"))).toEqual([
+      `read:${paygProofKey(academyId, "teen-1", bookingId, proofId)}`,
+      `read:${objectKey}`,
+    ]);
+  });
+
+  it("names the booking, not the plan, when the booking is the wrong shape", async () => {
+    const { db } = fakeFirestore(seed("payg"), []);
+    const course = { ...booking, schemaVersion: "2", membershipId: null } as unknown as BookingRecord;
+
+    await expect(
+      attachPaygBookingPayment(db, null, {
+        academyId,
+        actorId,
+        booking: course,
+        paygPayment: { method: "at_venue" },
+      }),
+    ).rejects.toThrow(/regular class booking is required/);
+    expect(finance.issued).toEqual([]);
+  });
+});
+
+describe("book, cancel, re-book", () => {
+  it("leaves exactly one live payable invoice after the class is re-booked", async () => {
+    const { db, records } = fakeFirestore(seed("payg"), []);
+    const choice = { academyId, actorId, booking, paygPayment: { method: "at_venue" } } as const;
+
+    await attachPaygBookingPayment(db, null, choice);
+    await voidUnpaidPaygInvoice(db, {
+      academyId,
+      actorId,
+      sessionId: "session-1",
+      membershipId: "membership-1",
+    });
+    expect(finance.voided).toHaveLength(1);
+
+    // The voided invoice still holds the first reference, so a re-book must not be handed it back.
+    await expect(attachPaygBookingPayment(db, null, choice)).resolves.toBeUndefined();
+
+    const live = liveInvoices(records);
+    expect(live).toHaveLength(1);
+    expect(live[0]).toMatchObject({ status: "open", totalMinor: 1000, chargeKind: "payg_session" });
+    expect(finance.issued).toHaveLength(2);
+    expect(finance.issued[1]!.invoiceReference).not.toBe(finance.issued[0]!.invoiceReference);
+
+    // And the new reference stays idempotent: asking again reuses the live invoice.
+    await attachPaygBookingPayment(db, null, choice);
+    expect(finance.issued).toHaveLength(2);
+    expect(liveInvoices(records)).toHaveLength(1);
+  });
+
+  it("derives one reference for two re-bookings racing after the same void", async () => {
+    const { db, records } = fakeFirestore(seed("payg"), []);
+    const choice = { academyId, actorId, booking, paygPayment: { method: "at_venue" } } as const;
+
+    await attachPaygBookingPayment(db, null, choice);
+    await voidUnpaidPaygInvoice(db, {
+      academyId,
+      actorId,
+      sessionId: "session-1",
+      membershipId: "membership-1",
+    });
+    await Promise.all([
+      attachPaygBookingPayment(db, null, choice),
+      attachPaygBookingPayment(db, null, choice),
+    ]);
+
+    expect(new Set(finance.issued.slice(1).map((input) => input.invoiceReference)).size).toBe(1);
+    expect(liveInvoices(records)).toHaveLength(1);
   });
 });
 
