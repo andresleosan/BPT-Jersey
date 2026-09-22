@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { PLAN_CATALOG } from "@bpt-jersey/domain/memberships";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { TrialAccessView } from "@bpt-jersey/domain/memberships/trial-access";
+
 import { createFixtureCalendarRepository } from "../../../lib/calendar/fixture-calendar-repository";
 import { MemberCalendar } from "./member-calendar";
 
@@ -18,6 +20,7 @@ const schedule = vi.hoisted(() => {
   cancelBooking: vi.fn(),
   listSessionBookedCounts: vi.fn(),
   selfCheckIn: vi.fn(),
+  getTrialAccess: vi.fn().mockResolvedValue(null),
 };
   // Stands in for the server's single week call by composing the older per-resource mocks.
   mocks.getMemberCalendarWeek.mockImplementation(async ({ studentId, from, to }) => ({
@@ -800,5 +803,61 @@ describe("bulk booking calendar action", () => {
     expect(
       screen.getByText("2 classes booked · 1 already booked · 1 unavailable."),
     ).toBeInTheDocument();
+  });
+});
+
+describe("free trial", () => {
+  const trial: TrialAccessView = {
+    site: "Town",
+    allowance: 2,
+    attendedCount: 0,
+    futureBookings: 0,
+    expiresAt: "2026-10-31T12:00:00.000Z",
+    status: "active",
+  };
+
+  function trialRepository(overrides: Partial<TrialAccessView> = {}) {
+    const fixture = createFixtureCalendarRepository("teenStudent");
+    return {
+      ...fixture,
+      async loadMember() {
+        const member = await fixture.loadMember();
+        return {
+          ...member,
+          participants: member.participants.map((participant) => ({
+            ...participant,
+            membershipId: null,
+            planId: null,
+            trial: { ...trial, ...overrides },
+          })),
+        };
+      },
+    };
+  }
+
+  it("shows how many free trial classes are left above the week", async () => {
+    stubViewport(false);
+    render(<MemberCalendar onSignOut={vi.fn()} repository={trialRepository()} session={teen} />);
+    expect(
+      await screen.findByText("Trial · 2 of 2 classes left · ends 31/10/2026"),
+    ).toBeVisible();
+  });
+
+  it("asks an exhausted trial to choose a membership", async () => {
+    stubViewport(false);
+    render(
+      <MemberCalendar
+        onSignOut={vi.fn()}
+        repository={trialRepository({ attendedCount: 2, status: "exhausted" })}
+        session={teen}
+      />,
+    );
+    expect(
+      await screen.findByText(/Your trial has ended\. Choose a membership to keep training\./u),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: "Get a membership" })).toHaveAttribute(
+      "href",
+      "/account/membership?from=intro",
+    );
   });
 });

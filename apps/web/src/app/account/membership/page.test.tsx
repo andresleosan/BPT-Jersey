@@ -12,6 +12,8 @@ const membershipApi = vi.hoisted(() => ({
   startTrialMembership: vi.fn(),
 }));
 const profileApi = vi.hoisted(() => ({ getClientProfile: vi.fn() }));
+const scheduleApi = vi.hoisted(() => ({ getTrialAccess: vi.fn() }));
+const introApi = vi.hoisted(() => ({ getIntroMembershipContext: vi.fn() }));
 
 vi.mock("../../../lib/client-auth", () => ({
   ClientAuthGate: ({ children }: { children: React.ReactNode }) => children,
@@ -21,6 +23,12 @@ vi.mock("../../../lib/client-auth", () => ({
 vi.mock("../../../lib/membership-client", () => membershipApi);
 vi.mock("../../../lib/profile-client", () => profileApi);
 vi.mock("../../../lib/family-client", () => ({ getFamily: vi.fn() }));
+vi.mock("../../../lib/schedule-client", () => scheduleApi);
+vi.mock("../../../lib/intro-conversion-client", () => ({
+  getIntroMembershipContext: introApi.getIntroMembershipContext,
+  submitIntroMembershipApplication: vi.fn(),
+  uploadIntroMembershipProof: vi.fn(),
+}));
 
 import MembershipPage from "./page";
 
@@ -35,6 +43,13 @@ function adultAt(trainingCenter: "Town" | "West") {
   });
   membershipApi.listAvailableMembershipPlans.mockResolvedValue(PLAN_CATALOG);
   membershipApi.listClientMemberships.mockResolvedValue([]);
+  scheduleApi.getTrialAccess.mockResolvedValue(null);
+  introApi.getIntroMembershipContext.mockResolvedValue({
+    conversions: [],
+    applications: [],
+    plans: [],
+    instructions: null,
+  });
 }
 
 describe("client membership page", () => {
@@ -50,6 +65,69 @@ describe("client membership page", () => {
     const card = within(heading.closest("article")!);
     expect(card.getByText("£85 per month")).toBeVisible();
     expect(card.getByText("Unlimited classes at Town · open mats at Town")).toBeVisible();
+  });
+
+  it("shows the trial allowance in the membership status of a member without a membership", async () => {
+    adultAt("Town");
+    scheduleApi.getTrialAccess.mockResolvedValue({
+      site: "Town",
+      allowance: 2,
+      attendedCount: 1,
+      futureBookings: 0,
+      expiresAt: "2026-10-31T12:00:00.000Z",
+      status: "active",
+    });
+    render(<MembershipPage />);
+    expect(
+      await screen.findByText("Trial · 1 of 2 classes left · ends 31/10/2026"),
+    ).toBeVisible();
+  });
+
+  it("asks an ended trial to choose a membership", async () => {
+    adultAt("Town");
+    scheduleApi.getTrialAccess.mockResolvedValue({
+      site: "Town",
+      allowance: 2,
+      attendedCount: 2,
+      futureBookings: 0,
+      expiresAt: "2026-10-31T12:00:00.000Z",
+      status: "exhausted",
+    });
+    render(<MembershipPage />);
+    expect(
+      await screen.findByText("Your trial has ended. Choose a membership to keep training."),
+    ).toBeVisible();
+  });
+
+  it("opens the membership application when an intro conversion is ready", async () => {
+    adultAt("Town");
+    introApi.getIntroMembershipContext.mockResolvedValue({
+      conversions: [{ conversionId: "intro-student-1", studentId: "student-1", status: "ready" }],
+      applications: [],
+      plans: [
+        {
+          planId: "town-adult",
+          displayName: "Town Adult",
+          priceMinor: 8500,
+          currency: "GBP",
+          billingPeriod: "monthly",
+          eligibleParticipantTypes: ["adult"],
+          classSites: ["Town"],
+        },
+      ],
+      instructions: {
+        accountName: "BPT Jersey",
+        sortCode: "00-00-00",
+        accountNumber: "00000000",
+        bankName: "Synthetic Bank",
+        referenceHint: "MEMBER",
+      },
+    });
+    render(<MembershipPage />);
+    expect(
+      await screen.findByRole("heading", { name: "Choose your membership" }),
+    ).toBeVisible();
+    expect(screen.queryByLabelText("Trial plan")).not.toBeInTheDocument();
   });
 
   it("explains open mats only when an eligible plan has both a weekly limit and open mats", async () => {

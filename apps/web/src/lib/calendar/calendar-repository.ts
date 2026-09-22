@@ -16,6 +16,7 @@ import type {
   WeeklyClassLimit,
 } from "@bpt-jersey/domain/memberships";
 import type { NoShowPenaltyRecord } from "@bpt-jersey/domain/penalties";
+import type { TrialAccessView } from "@bpt-jersey/domain/memberships/trial-access";
 import type { SelfCheckInInput } from "@bpt-jersey/domain/schedule/self-check-in";
 
 /**
@@ -40,6 +41,8 @@ export type CalendarParticipant = Readonly<{
   introSite?: Site;
   hasAttendedIntro?: boolean;
   hasActiveMembership?: boolean;
+  /** The free trial a student without a membership is training on, when they have one. */
+  trial?: TrialAccessView;
 }>;
 
 export type CalendarMember = Readonly<{

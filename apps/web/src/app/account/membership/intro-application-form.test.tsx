@@ -77,6 +77,57 @@ describe("IntroApplicationForm", () => {
     );
     expect(await screen.findByText("Membership pending office approval.")).toBeVisible();
   });
+  it("asks for no payment evidence on a pay-as-you-go plan", async () => {
+    api.context.mockResolvedValue({
+      conversions: [conversion],
+      applications: [],
+      plans: [
+        {
+          planId: "west-teens-payg",
+          displayName: "West Teens single class",
+          priceMinor: 750,
+          currency: "GBP",
+          billingPeriod: "per-session",
+          eligibleParticipantTypes: ["teens"],
+          classSites: ["West"],
+        },
+      ],
+      instructions: {
+        accountName: "BPT Jersey",
+        sortCode: "00-00-00",
+        accountNumber: "00000000",
+        bankName: "Synthetic Bank",
+        referenceHint: "MEMBER",
+      },
+    });
+    render(<IntroApplicationForm />);
+    fireEvent.change(await screen.findByLabelText("Training centre"), {
+      target: { value: "West" },
+    });
+    await waitFor(() =>
+      expect(screen.getByLabelText("Membership plan")).toHaveValue("west-teens-payg"),
+    );
+    expect(
+      screen.getByText(
+        "£7.50 per class. Pay when you book — online by bank transfer or at the academy.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByLabelText("Bank transfer reference")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Payment screenshot or receipt")).not.toBeInTheDocument();
+
+    fireEvent.submit(screen.getByRole("button", { name: "Send for approval" }).closest("form")!);
+    await waitFor(() =>
+      expect(api.submit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          site: "West",
+          planId: "west-teens-payg",
+          proofId: null,
+          bankReference: null,
+        }),
+      ),
+    );
+    expect(api.upload).not.toHaveBeenCalled();
+  });
   it("allows a corrected application to be sent again", async () => {
     api.context.mockResolvedValue({
       conversions: [conversion],

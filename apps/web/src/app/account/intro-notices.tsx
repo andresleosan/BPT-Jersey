@@ -32,7 +32,7 @@ export function IntroNotices() {
         <article className="intro-notice" key={notice.notificationId}>
           <div><h3>{notice.title}</h3><p>{notice.body}</p></div>
           <div className="intro-notice-actions">
-            <a href={notice.href}>Choose membership</a>
+            <a href={notice.href}>Get a membership</a>
             <button type="button" onClick={() => void dismiss(notice.notificationId)}>Dismiss</button>
           </div>
         </article>

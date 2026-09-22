@@ -697,3 +697,110 @@
     flex-direction: column;
   }
 }
+
+/* Free trial: how many classes are left, above the week. */
+.calendar-trial-band {
+  align-items: baseline;
+  background: color-mix(in srgb, var(--bpt-lime) 22%, var(--gi-white));
+  border: 1px solid color-mix(in srgb, var(--bpt-purple) 22%, transparent);
+  border-radius: var(--radius, 1rem);
+  display: flex;
+  flex-wrap: wrap;
+  font-weight: 700;
+  gap: 0.5rem;
+  margin: 1rem clamp(1rem, 4vw, 3rem) 0;
+  padding: 0.9rem 1rem;
+}
+
+.calendar-trial-band a {
+  color: var(--bpt-purple-dark);
+  font-weight: 800;
+}
+
+/* Pay-as-you-go: how this class is paid for, asked at booking. */
+.payg-dialog {
+  border: 0;
+  border-radius: 1rem;
+  max-width: 28rem;
+  padding: 1.5rem;
+  width: calc(100% - 2rem);
+}
+
+.payg-dialog::backdrop {
+  background: rgba(26, 26, 24, 0.6);
+}
+
+.payg-dialog h2 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.6rem;
+  margin: 0 0 0.25rem;
+  text-transform: uppercase;
+}
+
+.payg-dialog-price {
+  font-weight: 800;
+  margin: 0 0 1rem;
+}
+
+.payg-dialog-methods {
+  border: 0;
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+}
+
+.payg-dialog-methods legend {
+  font-weight: 700;
+  padding: 0;
+}
+
+.payg-dialog-methods label {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+}
+
+.payg-dialog-transfer {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+}
+
+.payg-dialog-transfer input {
+  font: inherit;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0.5rem;
+}
+
+.payg-dialog-transfer label {
+  font-weight: 700;
+}
+
+.payg-dialog-note {
+  margin: 0.75rem 0 0;
+}
+
+.payg-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1.25rem;
+}
+
+.payg-dialog .button {
+  border-radius: 999px;
+}
+
+.payg-dialog .button-primary {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+.payg-dialog .button-secondary {
+  border-color: var(--mat-ink);
+  color: var(--mat-ink);
+}

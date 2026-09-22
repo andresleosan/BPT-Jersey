@@ -29,6 +29,8 @@ type SessionCardProps = Readonly<{
   entry: CalendarEntry;
   now: Date;
   busy: boolean;
+  /** The member is on a free trial, so an ordinary class is still one of their free ones. */
+  hasTrial?: boolean;
   note?: string | undefined;
   onBook: (entry: CalendarEntry) => void;
   onCancelRequest: (entry: CalendarEntry) => void;
@@ -41,7 +43,15 @@ const staticLabels: Readonly<Record<string, string>> = Object.freeze({
   full: "Full",
 });
 
-export function SessionCard({ entry, now, busy, note, onBook, onCancelRequest }: SessionCardProps) {
+export function SessionCard({
+  entry,
+  now,
+  busy,
+  hasTrial = false,
+  note,
+  onBook,
+  onCancelRequest,
+}: SessionCardProps) {
   const [showReason, setShowReason] = useState(false);
   const { session, program, derived } = entry;
   const status = derived.status;
@@ -80,7 +90,7 @@ export function SessionCard({ entry, now, busy, note, onBook, onCancelRequest }:
         onClick={() => onBook(entry)}
         type="button"
       >
-        {isIntro ? "Book free intro" : "Book"}
+        {isIntro ? "Book free intro" : hasTrial ? "Book free trial class" : "Book"}
       </button>
     );
   } else if (status === "booked") {

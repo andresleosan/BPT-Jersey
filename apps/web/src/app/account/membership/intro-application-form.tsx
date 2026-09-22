@@ -37,13 +37,17 @@ export function IntroApplicationForm() {
       plans.some((plan) => plan.planId === current) ? current : (plans[0]?.planId ?? ""),
     );
   }, [plans]);
+  const selectedPlan = plans.find((plan) => plan.planId === planId);
+  // A pay-as-you-go plan is not paid up front, so it asks for no transfer evidence at all.
+  const perSession = selectedPlan?.billingPeriod === "per-session";
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!conversion || !file || !planId || !reference.trim()) return;
+    if (!conversion || !planId) return;
+    if (!perSession && (!file || !reference.trim())) return;
     setStatus("busy");
     try {
       const requestId = crypto.randomUUID();
-      const proofId = await uploadIntroMembershipProof(requestId, file);
+      const proofId = perSession ? null : await uploadIntroMembershipProof(requestId, file!);
       await submitIntroMembershipApplication({
         requestId,
         conversionId: conversion.conversionId,
@@ -51,7 +55,7 @@ export function IntroApplicationForm() {
         site,
         planId,
         proofId,
-        bankReference: reference.trim(),
+        bankReference: perSession ? null : reference.trim(),
       });
       setStatus("done");
     } catch {
@@ -107,29 +111,37 @@ export function IntroApplicationForm() {
           </option>
         ))}
       </select>
-      <div className="client-bank-instructions">
-        <strong>{context.instructions.bankName}</strong>
-        <span>{context.instructions.accountName}</span>
-        <span>Sort code {context.instructions.sortCode}</span>
-        <span>Account {context.instructions.accountNumber}</span>
-      </div>
-      <label htmlFor="intro-reference">Bank transfer reference</label>
-      <input
-        id="intro-reference"
-        value={reference}
-        onChange={(event) => setReference(event.target.value)}
-        minLength={2}
-        maxLength={120}
-        required
-      />
-      <label htmlFor="intro-proof">Payment screenshot or receipt</label>
-      <input
-        id="intro-proof"
-        type="file"
-        accept="image/png,image/jpeg"
-        onChange={(event) => setFile(event.target.files?.[0])}
-        required
-      />
+      {perSession && selectedPlan ? (
+        <p>
+          {`${formatPlanPrice(selectedPlan)}. Pay when you book — online by bank transfer or at the academy.`}
+        </p>
+      ) : (
+        <>
+          <div className="client-bank-instructions">
+            <strong>{context.instructions.bankName}</strong>
+            <span>{context.instructions.accountName}</span>
+            <span>Sort code {context.instructions.sortCode}</span>
+            <span>Account {context.instructions.accountNumber}</span>
+          </div>
+          <label htmlFor="intro-reference">Bank transfer reference</label>
+          <input
+            id="intro-reference"
+            value={reference}
+            onChange={(event) => setReference(event.target.value)}
+            minLength={2}
+            maxLength={120}
+            required
+          />
+          <label htmlFor="intro-proof">Payment screenshot or receipt</label>
+          <input
+            id="intro-proof"
+            type="file"
+            accept="image/png,image/jpeg"
+            onChange={(event) => setFile(event.target.files?.[0])}
+            required
+          />
+        </>
+      )}
       <button
         className="button button-primary"
         disabled={status === "busy" || !planId}

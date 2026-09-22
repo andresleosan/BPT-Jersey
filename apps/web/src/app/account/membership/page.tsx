@@ -13,6 +13,9 @@ import {
   type ClientMembership,
 } from "../../../lib/membership-client";
 import { participantBand } from "../../../lib/participant-band";
+import { getTrialAccess } from "../../../lib/schedule-client";
+import { getIntroMembershipContext } from "../../../lib/intro-conversion-client";
+import type { TrialAccessView } from "@bpt-jersey/domain/memberships/trial-access";
 import { IntroApplicationForm } from "./intro-application-form";
 import { describePlanAccess, formatPlanPrice } from "../../../lib/plan-copy";
 import { getClientProfile } from "../../../lib/profile-client";
@@ -41,6 +44,8 @@ function MembershipContent() {
   const [selectedPlanId, setSelectedPlanId] = useState<PlanId | "">("");
   const [busy, setBusy] = useState(false);
   const [introFlow, setIntroFlow] = useState(false);
+  const [conversionReady, setConversionReady] = useState(false);
+  const [trial, setTrial] = useState<TrialAccessView>();
   const [notice, setNotice] = useState<Readonly<{ kind: "success" | "error"; text: string }>>();
 
   const load = useCallback(async () => {
@@ -108,6 +113,21 @@ function MembershipContent() {
     void load();
     setIntroFlow(new URLSearchParams(window.location.search).get("from") === "intro");
   }, [load]);
+
+  // The application belongs on this page as soon as an attended Intro Class opened a conversion,
+  // whether or not the member arrived through the notice's link.
+  useEffect(() => {
+    let active = true;
+    void getIntroMembershipContext()
+      .then((context) => {
+        if (active)
+          setConversionReady(context.conversions.some((item) => item.status === "ready"));
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
   const selectedSubject = workspace?.subjects.find(
     (subject) => subject.studentId === selectedStudentId,
   );
@@ -127,6 +147,21 @@ function MembershipContent() {
   const hasCurrentMembership = currentMemberships.some(
     (membership) => membership.status === "trial" || membership.status === "active",
   );
+
+  // Only a participant without a membership can still be on the free trial.
+  useEffect(() => {
+    setTrial(undefined);
+    if (selectedStudentId === "" || hasCurrentMembership) return;
+    let active = true;
+    void getTrialAccess(selectedStudentId)
+      .then((value) => {
+        if (active && value) setTrial(value);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [selectedStudentId, hasCurrentMembership]);
 
   useEffect(() => {
     setSelectedPlanId((current) =>
@@ -219,6 +254,14 @@ function MembershipContent() {
               >
                 <p className="account-eyebrow">Current record</p>
                 <h2 id="current-membership-title">Membership status</h2>
+                {trial ? (
+                  <p className="client-membership-trial">
+                    {trial.status === "active" &&
+                    trial.allowance - trial.attendedCount - trial.futureBookings > 0
+                      ? `Trial · ${trial.allowance - trial.attendedCount - trial.futureBookings} of ${trial.allowance} classes left · ends ${new Date(trial.expiresAt).toLocaleDateString("en-GB")}`
+                      : "Your trial has ended. Choose a membership to keep training."}
+                  </p>
+                ) : null}
                 {currentMemberships.length === 0 ? (
                   <p>No membership has been created for this participant.</p>
                 ) : (
@@ -266,7 +309,7 @@ function MembershipContent() {
                   </>
                 )}
               </section>
-              {introFlow ? <IntroApplicationForm /> : <form className="client-trial-form" onSubmit={(event) => void startTrial(event)}>
+              {introFlow || conversionReady ? <IntroApplicationForm /> : <form className="client-trial-form" onSubmit={(event) => void startTrial(event)}>
                 <label htmlFor="trial-plan">Trial plan</label>
                 <select
                   disabled={busy || hasCurrentMembership || eligiblePlans.length === 0}

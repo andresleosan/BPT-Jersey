@@ -14,11 +14,13 @@ import {
   bulkBookEligibleSessions,
   cancelBooking,
   getMemberCalendarWeek,
+  getTrialAccess,
   listStudentAttendance,
   listStudentBookings,
   requestBooking,
   selfCheckIn,
 } from "../schedule-client";
+import type { TrialAccessView } from "@bpt-jersey/domain/memberships/trial-access";
 import { listClientMemberships } from "../waitlist-client";
 import type {
   CalendarMember,
@@ -98,10 +100,17 @@ export function createFirebaseCalendarRepository(session: {
         membership.status === "active" || membership.status === "trial"
       );
       const introAttendance = new Map<string, boolean>();
-      // Only a member without a membership can still be offered an Intro Class.
+      const trials = new Map<string, TrialAccessView>();
+      // Only a member without a membership can still be offered an Intro Class — or be on a trial,
+      // which already counts their free classes for them and makes the intro scan pointless.
       await Promise.all(subjects.filter((subject) =>
         !current.some((membership) => membership.studentId === subject.studentId)
       ).map(async (subject) => {
+        const trial = await getTrialAccess(subject.studentId).catch(() => null);
+        if (trial) {
+          trials.set(subject.studentId, trial);
+          return;
+        }
         const [bookings, attendance] = await Promise.all([
           listStudentBookings(subject.studentId),
           listStudentAttendance(subject.studentId),
@@ -147,6 +156,7 @@ export function createFirebaseCalendarRepository(session: {
           introSite: subject.trainingCenter,
           hasAttendedIntro: introAttendance.get(subject.studentId) ?? false,
           hasActiveMembership: false,
+          ...(trials.has(subject.studentId) ? { trial: trials.get(subject.studentId)! } : {}),
         });
         if (fromPlan) membershipIds.set(subject.studentId, fromPlan.membershipId!);
       }

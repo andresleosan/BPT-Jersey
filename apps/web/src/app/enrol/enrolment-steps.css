@@ -91,3 +91,9 @@
 .enrol-form fieldset {
   min-inline-size: 0;
 }
+
+.enrol-level-declaration {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}

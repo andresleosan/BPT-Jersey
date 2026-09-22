@@ -146,3 +146,5 @@
 }
 
 .client-bank-instructions { background: var(--canvas); border-left: 0.25rem solid var(--bpt-purple); display: grid; gap: 0.2rem; padding: 0.8rem 1rem; }
+
+.client-membership-trial { font-weight: 800; margin: 0 0 0.5rem; }
