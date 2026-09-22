@@ -4,14 +4,20 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { PLAN_CATALOG, type PlanId } from "@bpt-jersey/domain/memberships";
 import { getLevelCatalog } from "../../../../lib/levels-client";
-import type { LevelCatalogProjection } from "@bpt-jersey/domain/levels";
+import type { LevelCatalogProjection, LevelDefinitionRecord } from "@bpt-jersey/domain/levels";
 import { addSubscriptionMonth } from "@bpt-jersey/domain/memberships/admin";
 import { formatPlanPrice } from "../../../../lib/plan-copy";
+import { ageOnDate } from "@bpt-jersey/domain/schedule/member-calendar";
+import { defaultWhiteBelt, stripesForBelt } from "../../../enrol/level-declaration";
 
 import {
   isReturnableEnrolmentRequest,
   type EnrolmentApprovalSetup,
+  type EnrolmentLevelDeclaration,
+  type EnrolmentPlanChoice,
   enrolmentNeedsPayment,
+  enrolmentTrialAllowance,
+  trialPlanChoice,
   type EnrolmentRequestDetail,
   type EnrolmentRequestRow,
 } from "@bpt-jersey/domain/members/enrolment-requests";
@@ -23,6 +29,7 @@ import {
 } from "../../../../lib/enrolment-client";
 import { useAdminOrStaffSession } from "../../admin-gate";
 import { AdminSectionHeader, AdminStatusBadge } from "../../admin-ui";
+import { IntroApplicationsPanel } from "../../billing/intro-applications-panel";
 
 import "../../admin.css";
 import "./requests.css";
@@ -58,7 +65,24 @@ function formatDate(value: string): string {
   return new Date(value).toLocaleDateString("en-GB");
 }
 
-function PlanPreference({ planId }: Readonly<{ planId: PlanId | undefined }>) {
+function PlanPreference({
+  planId,
+  declaration,
+}: Readonly<{
+  planId: EnrolmentPlanChoice | undefined;
+  declaration: EnrolmentLevelDeclaration | undefined;
+}>) {
+  if (planId === trialPlanChoice) {
+    const allowance = enrolmentTrialAllowance(declaration?.experience ?? "beginner");
+    return (
+      <p className="admin-request-meta">
+        <strong>Requested plan:</strong>{" "}
+        {allowance === 2
+          ? "Trial (2 free Introduction Classes)"
+          : "Trial (1 free Introduction Class)"}
+      </p>
+    );
+  }
   const plan = PLAN_CATALOG.find((item) => item.planId === planId);
   return (
     <p className="admin-request-meta">
@@ -68,8 +92,40 @@ function PlanPreference({ planId }: Readonly<{ planId: PlanId | undefined }>) {
   );
 }
 
-function DetailPanel({ detail }: Readonly<{ detail: EnrolmentRequestDetail }>) {
+/** "BLUE BELT" -> "Blue belt", matched against catalogue belt names read as a sentence. */
+function formatBeltName(name: string): string {
+  return `${name.charAt(0)}${name.slice(1).toLowerCase()}`;
+}
+
+/** `Level: Beginner` or `Level: Blue belt · 2 stripes (declared)`, or undefined with no declaration. */
+function levelDeclarationLabel(
+  declaration: EnrolmentLevelDeclaration | undefined,
+  definitions: readonly LevelDefinitionRecord[],
+): string | undefined {
+  if (!declaration) return undefined;
+  if (declaration.experience === "beginner") return "Beginner";
+  const declared = definitions.find((item) => item.definitionKey === declaration.declaredLevelKey);
+  if (!declared) return undefined;
+  const belt =
+    declared.kind === "stripe"
+      ? definitions.find((item) => item.definitionKey === declared.parentDefinitionKey)
+      : declared;
+  const beltLabel = formatBeltName(belt?.name ?? declared.name);
+  if (declared.kind !== "stripe" || !belt) return `${beltLabel} (declared)`;
+  const stripes = stripesForBelt(definitions, belt.definitionKey).find(
+    (item) => item.definitionKey === declared.definitionKey,
+  )?.stripes;
+  return stripes
+    ? `${beltLabel} · ${stripes} stripe${stripes === 1 ? "" : "s"} (declared)`
+    : `${beltLabel} (declared)`;
+}
+
+function DetailPanel({
+  detail,
+  definitions,
+}: Readonly<{ detail: EnrolmentRequestDetail; definitions: readonly LevelDefinitionRecord[] }>) {
   const { applicant } = detail;
+  const applicantLevel = levelDeclarationLabel(detail.levelDeclarations?.applicant, definitions);
   return (
     <div className="admin-request-detail">
       <h4>Applicant details</h4>
@@ -126,27 +182,43 @@ function DetailPanel({ detail }: Readonly<{ detail: EnrolmentRequestDetail }>) {
         </div>
       </dl>
       {detail.applicantIsStudent ? (
-        <PlanPreference planId={detail.planSelections?.applicant} />
+        <>
+          <PlanPreference
+            planId={detail.planSelections?.applicant}
+            declaration={detail.levelDeclarations?.applicant}
+          />
+          {applicantLevel ? <p className="admin-request-meta">Level: {applicantLevel}</p> : null}
+        </>
       ) : null}
       {detail.minors.length > 0 ? (
         <ul className="admin-request-minors" aria-label="Children in their care">
-          {detail.minors.map((minor, index) => (
-            <li key={`${minor.fullName}-${minor.dateOfBirth}`}>
-              {minor.fullName} · born {minor.dateOfBirth} · {minor.trainingCenter}
-              {minor.frequencyNote ? ` · ${minor.frequencyNote}` : ""}
-              <p>
-                Gender: {minor.gender ?? "Not provided"} · Training times:{" "}
-                {minor.trainingTimePreferences.join(", ")}
-              </p>
-              {minor.emergencyContact ? (
+          {detail.minors.map((minor, index) => {
+            const minorLevel = levelDeclarationLabel(
+              detail.levelDeclarations?.minors[index],
+              definitions,
+            );
+            return (
+              <li key={`${minor.fullName}-${minor.dateOfBirth}`}>
+                {minor.fullName} · born {minor.dateOfBirth} · {minor.trainingCenter}
+                {minor.frequencyNote ? ` · ${minor.frequencyNote}` : ""}
                 <p>
-                  Emergency contact: {minor.emergencyContact.fullName} (
-                  {minor.emergencyContact.relationship}) {minor.emergencyContact.phoneNumber}
+                  Gender: {minor.gender ?? "Not provided"} · Training times:{" "}
+                  {minor.trainingTimePreferences.join(", ")}
                 </p>
-              ) : null}
-              <PlanPreference planId={detail.planSelections?.minors[index]} />
-            </li>
-          ))}
+                {minor.emergencyContact ? (
+                  <p>
+                    Emergency contact: {minor.emergencyContact.fullName} (
+                    {minor.emergencyContact.relationship}) {minor.emergencyContact.phoneNumber}
+                  </p>
+                ) : null}
+                <PlanPreference
+                  planId={detail.planSelections?.minors[index]}
+                  declaration={detail.levelDeclarations?.minors[index]}
+                />
+                {minorLevel ? <p className="admin-request-meta">Level: {minorLevel}</p> : null}
+              </li>
+            );
+          })}
         </ul>
       ) : null}
       <p>
@@ -305,15 +377,27 @@ function EnrolmentRequestQueueContent() {
           (detail.applicantIsStudent
             ? [detail.planSelections?.applicant]
             : detail.minors.map((_, index) => detail.planSelections?.minors[index])
-          ).map((planId) => ({
-            planId: planId ?? "town-adult",
-            definitionKey: "",
-            startsOn: today,
-            endsOn:
-              PLAN_CATALOG.find((plan) => plan.planId === planId)?.billingPeriod === "monthly"
-                ? addSubscriptionMonth(`${today}T00:00:00.000Z`).slice(0, 10)
-                : null,
-          })),
+          ).map((planId, index) => {
+            const declaration = detail.applicantIsStudent
+              ? detail.levelDeclarations?.applicant
+              : detail.levelDeclarations?.minors[index];
+            const dateOfBirth = detail.applicantIsStudent
+              ? detail.applicant.dateOfBirth
+              : detail.minors[index]?.dateOfBirth;
+            const age = dateOfBirth ? ageOnDate(dateOfBirth, today) : 0;
+            return {
+              planId: planId ?? "town-adult",
+              definitionKey:
+                declaration?.declaredLevelKey ??
+                defaultWhiteBelt(loadedCatalog.definitions, age) ??
+                "",
+              startsOn: today,
+              endsOn:
+                PLAN_CATALOG.find((plan) => plan.planId === planId)?.billingPeriod === "monthly"
+                  ? addSubscriptionMonth(`${today}T00:00:00.000Z`).slice(0, 10)
+                  : null,
+            };
+          }),
       }));
       setDetails((current) => ({ ...current, [request.enrolmentRequestId]: detail }));
       setOpenDetailId(request.enrolmentRequestId);
@@ -675,6 +759,7 @@ function EnrolmentRequestQueueContent() {
                       </h3>
                       <DetailPanel
                         detail={details[request.enrolmentRequestId] as EnrolmentRequestDetail}
+                        definitions={catalog?.definitions ?? []}
                       />
                       <button
                         className="staff-secondary-button"
@@ -761,29 +846,37 @@ function EnrolmentRequestQueueContent() {
                                   }
                                 </p>
                               ) : null}
-                              <label className="shop-admin-field">
-                                Subscription start
-                                <input
-                                  type="date"
-                                  max={new Date().toISOString().slice(0, 10)}
-                                  value={student.startsOn}
-                                  onChange={(event) => change({ startsOn: event.target.value })}
-                                />
-                              </label>
-                              {enrolmentNeedsPayment(student.planId) ? (
-                                <label className="shop-admin-field">
-                                  Paid period ends
-                                  <input
-                                    type="date"
-                                    value={student.endsOn ?? ""}
-                                    min={student.startsOn}
-                                    onChange={(event) =>
-                                      change({ endsOn: event.target.value || null })
-                                    }
-                                  />
-                                </label>
+                              {student.planId === trialPlanChoice ? (
+                                <p>Trial — no plan, dates or payment. Confirm the initial level.</p>
                               ) : (
-                                <p>Pay per class. No initial payment or expiry required.</p>
+                                <>
+                                  <label className="shop-admin-field">
+                                    Subscription start
+                                    <input
+                                      type="date"
+                                      max={new Date().toISOString().slice(0, 10)}
+                                      value={student.startsOn}
+                                      onChange={(event) =>
+                                        change({ startsOn: event.target.value })
+                                      }
+                                    />
+                                  </label>
+                                  {enrolmentNeedsPayment(student.planId) ? (
+                                    <label className="shop-admin-field">
+                                      Paid period ends
+                                      <input
+                                        type="date"
+                                        value={student.endsOn ?? ""}
+                                        min={student.startsOn}
+                                        onChange={(event) =>
+                                          change({ endsOn: event.target.value || null })
+                                        }
+                                      />
+                                    </label>
+                                  ) : (
+                                    <p>Pay per class. No initial payment or expiry required.</p>
+                                  )}
+                                </>
                               )}
                             </fieldset>
                           );
@@ -810,6 +903,16 @@ function EnrolmentRequestQueueContent() {
           </ul>
         ) : null}
       </section>
+      {office ? (
+        <section aria-labelledby="membership-requests-title" className="admin-panel-card">
+          <div className="admin-panel-card-heading">
+            <div>
+              <h3 id="membership-requests-title">Membership requests</h3>
+            </div>
+          </div>
+          <IntroApplicationsPanel />
+        </section>
+      ) : null}
     </section>
   );
 }

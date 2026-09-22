@@ -31,7 +31,6 @@ import { MemberPicker } from "./member-picker";
 import { NoShowPenaltyQueue } from "./no-show-penalty-queue";
 import { PaymentInstructionsPanel } from "./payment-instructions-panel";
 import { RecordPaymentDialog } from "./record-payment-dialog";
-import { IntroApplicationsPanel } from "./intro-applications-panel";
 
 import "../admin.css";
 import "./billing.css";
@@ -330,8 +329,6 @@ export function BillingPage() {
           {feedback.text}
         </p>
       ) : null}
-
-      <IntroApplicationsPanel />
 
       {dashboardState === "loading" ? (
         <div aria-label="Loading billing" className="admin-metrics-grid" role="status">
