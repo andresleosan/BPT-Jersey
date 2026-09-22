@@ -129,9 +129,12 @@ function OfficeRegistration({
 export function ProfileSubscriptionEditor({
   record,
   paymentsOnly = false,
+  role,
 }: {
   record: RegyfitMemberRecord;
   paymentsOnly?: boolean;
+  /** D13: forwarded to MemberSubscriptionEditor so only an owner actor can assign Transit Free. */
+  role?: string | null | undefined;
 }) {
   const [state, setState] = useState<LookupState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -169,6 +172,7 @@ export function ProfileSubscriptionEditor({
         key={state.studentId}
         studentId={state.studentId}
         previousRecord={record}
+        role={role}
       />
     );
   return (
