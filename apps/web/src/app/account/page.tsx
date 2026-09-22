@@ -8,6 +8,8 @@ import { requireClientSession } from "../../lib/login-flow";
 import { MemberCalendar } from "./calendar/member-calendar";
 import { IntroNotices } from "./intro-notices";
 import { StreakPanel } from "./streak/streak-panel";
+import { WaiverAcceptance } from "./waiver-acceptance";
+import { clearCalendarCache } from "../../lib/calendar/calendar-cache";
 
 import "./account.css";
 
@@ -31,16 +33,18 @@ function AccountContent() {
   }
 
   async function handleSignOut(): Promise<void> {
+    clearCalendarCache(session!.uid);
     await signOut();
     window.location.assign(requireClientSession("/account").loginPath);
   }
 
   return (
     <MemberCalendar
+      cacheKey={session.uid}
       onSignOut={() => void handleSignOut()}
       repository={repository}
       session={{ role, displayName }}
-      topSlot={<><IntroNotices /><StreakPanel /></>}
+      topSlot={<><WaiverAcceptance /><IntroNotices /><StreakPanel /></>}
     />
   );
 }

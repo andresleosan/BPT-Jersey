@@ -33,6 +33,46 @@
   text-transform: uppercase;
 }
 
+.member-header-actions {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* The one way into choosing, changing or renewing a plan: lime on purple, as DESIGN.md §9 allows. */
+.member-plan-link {
+  align-items: center;
+  background: var(--bpt-lime);
+  border-radius: 999px;
+  color: var(--mat-ink);
+  display: inline-flex;
+  font-size: 0.8rem;
+  font-weight: 800;
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+  text-decoration: none;
+  transition: transform 160ms ease;
+}
+
+.member-plan-link:hover {
+  transform: translateY(-2px);
+}
+
+.member-plan-link:active {
+  transform: translateY(0);
+}
+
+.member-plan-link:focus-visible {
+  outline: 3px solid var(--gi-white);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .member-plan-link {
+    transition: none;
+  }
+}
+
 .member-signout {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.45);
@@ -788,4 +828,80 @@
 .payg-dialog .button-secondary {
   border-color: var(--mat-ink);
   color: var(--mat-ink);
+}
+
+/* One-off waiver acceptance for members who joined before online registration. */
+.waiver-band {
+  background: var(--gi-white);
+  border-radius: var(--radius);
+  border-top: 0.35rem solid var(--bpt-purple);
+  display: grid;
+  gap: 0.9rem;
+  margin: 1rem clamp(1rem, 4vw, 3rem) 0;
+  max-width: 58rem;
+  padding: 1.25rem;
+}
+
+.waiver-band-title {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.9rem, 5vw, 2.6rem);
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  line-height: 1;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.waiver-band-intro,
+.waiver-band-ack {
+  color: var(--muted);
+  margin: 0;
+  max-width: 58ch;
+}
+
+.waiver-band-ack {
+  color: var(--mat-ink);
+  font-weight: 600;
+}
+
+.waiver-band-people {
+  border: 0;
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+}
+
+.waiver-band-people legend {
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+}
+
+.waiver-band-people label {
+  min-height: 2.75rem;
+}
+
+.waiver-band-error,
+.waiver-band-saved {
+  border-radius: var(--radius);
+  font-weight: 700;
+  margin: 0;
+  padding: 0.8rem 1rem;
+}
+
+.waiver-band-error {
+  background: #fff0f2;
+  border-left: 0.35rem solid #8d1c2f;
+  color: #5f1020;
+}
+
+.waiver-band-saved {
+  background: #e7f6ee;
+  border-left: 0.35rem solid #176b49;
+  color: #0f4a32;
+  margin: 1rem clamp(1rem, 4vw, 3rem) 0;
+}
+
+.waiver-band .waiver-band-saved {
+  margin: 0;
 }

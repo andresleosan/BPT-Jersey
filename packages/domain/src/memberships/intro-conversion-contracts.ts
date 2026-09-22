@@ -50,7 +50,8 @@ export type MemberNotification = z.infer<typeof memberNotificationSchema>;
 
 export const membershipApplicationSubmitSchema = z.strictObject({
   requestId: z.uuid(),
-  conversionId: identifierSchema,
+  // null: a member choosing, changing or renewing a plan from /account without an Intro Class.
+  conversionId: identifierSchema.nullable(),
   studentId: identifierSchema,
   site: z.enum(siteValues),
   planId: z.enum(planIds),
@@ -65,7 +66,9 @@ export const membershipApplicationSchema = z.strictObject({
   academyId: identifierSchema,
   applicantUid: identifierSchema,
   studentId: identifierSchema,
-  conversionId: identifierSchema,
+  conversionId: identifierSchema.nullable(),
+  // Optional: applications stored before 2026-09-22 carry no name.
+  studentName: z.string().trim().min(1).max(160).optional(),
   site: z.enum(siteValues),
   planId: z.enum(planIds),
   planName: z.string().trim().min(1).max(160),

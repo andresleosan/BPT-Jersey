@@ -10,6 +10,7 @@ import {
 } from "@bpt-jersey/domain/memberships/intro-conversion";
 import { parsePlanRecord } from "@bpt-jersey/domain/memberships";
 import { addSubscriptionMonth } from "@bpt-jersey/domain/memberships/admin";
+import { parseMembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle";
 import type { UserActorContext } from "@bpt-jersey/domain";
 import type { R2Client } from "../storage/r2-client.js";
 import { introProofKey } from "./intro-payment-proof.js";
@@ -99,17 +100,21 @@ export async function reviewIntroApplication(
       throw new HttpsError("aborted", "Application changed. Refresh and try again");
     }
 
-    const conversionRef = db.doc(
-      `academies/${actor.academyId}/introConversions/${current.data.conversionId}`,
-    );
-    const conversion = introConversionStateSchema.safeParse((await tx.get(conversionRef)).data());
-    if (
-      !conversion.success ||
-      conversion.data.academyId !== actor.academyId ||
-      conversion.data.studentId !== current.data.studentId ||
-      conversion.data.recipientUid !== current.data.applicantUid
-    ) {
-      throw new HttpsError("failed-precondition", "Intro conversion is unavailable");
+    // A direct plan request (conversionId null) came from /account without an Intro Class.
+    const conversionRef =
+      current.data.conversionId === null
+        ? null
+        : db.doc(`academies/${actor.academyId}/introConversions/${current.data.conversionId}`);
+    if (conversionRef) {
+      const conversion = introConversionStateSchema.safeParse((await tx.get(conversionRef)).data());
+      if (
+        !conversion.success ||
+        conversion.data.academyId !== actor.academyId ||
+        conversion.data.studentId !== current.data.studentId ||
+        conversion.data.recipientUid !== current.data.applicantUid
+      ) {
+        throw new HttpsError("failed-precondition", "Intro conversion is unavailable");
+      }
     }
 
     const now = new Date().toISOString();
@@ -122,7 +127,7 @@ export async function reviewIntroApplication(
         updatedAt: now,
       });
       // Operator decision 2026-09-21: a rejection is not final; the member may apply again.
-      tx.update(conversionRef, { status: "ready", updatedAt: now });
+      if (conversionRef) tx.update(conversionRef, { status: "ready", updatedAt: now });
       const noticeId = `intro-${createHash("sha256")
         .update(`${current.data.applicationId}:${status}:${current.data.revision + 1}`)
         .digest("hex")}`;
@@ -138,7 +143,7 @@ export async function reviewIntroApplication(
               ? "Membership application update"
               : "Membership application needs changes",
           body: input.reason,
-          href: "/account/membership?from=intro",
+          href: conversionRef ? "/account/membership?from=intro" : "/account/membership",
           readAt: null,
           createdAt: now,
           schemaVersion: "1",
@@ -171,7 +176,33 @@ export async function reviewIntroApplication(
       current.data.studentId,
     );
 
-    const startsAt = input.occurredAt;
+    // A direct request renews or changes the member's one live subscription, or opens a new one.
+    const live = conversionRef
+      ? []
+      : (
+          await tx.get(
+            db
+              .collection(`academies/${actor.academyId}/memberships`)
+              .where("studentId", "==", current.data.studentId)
+              .limit(20),
+          )
+        ).docs
+          .filter((doc) => doc.get("source") !== "legacy-import")
+          .map((doc) => parseMembershipRecord(doc.data()))
+          .filter((record) => !record.ok || record.value.status !== "cancelled");
+    if (live.length > 1 || live.some((record) => !record.ok))
+      throw new HttpsError(
+        "failed-precondition",
+        "This member has several subscriptions. Resolve them in Billing first",
+      );
+    const renewing = live[0]?.ok ? live[0].value : undefined;
+    // Renewing the same plan early keeps the days already paid; a different plan starts today.
+    const startsAt =
+      renewing?.planId === current.data.planId &&
+      renewing.endsAt !== null &&
+      Date.parse(renewing.endsAt) > Date.parse(input.occurredAt)
+        ? renewing.endsAt
+        : input.occurredAt;
     const endsAt = current.data.billingPeriod === "monthly" ? addSubscriptionMonth(startsAt) : null;
     const settlement =
       current.data.billingPeriod === "per-session"
@@ -189,10 +220,10 @@ export async function reviewIntroApplication(
           };
     const subscription = await saveManualSubscriptionInTransaction(db, tx, actor, {
       studentId: current.data.studentId,
-      membershipId: null,
-      expectedUpdatedAt: null,
+      membershipId: renewing?.membershipId ?? null,
+      expectedUpdatedAt: renewing ? new Date(renewing.updatedAt).toISOString() : null,
       requestId: current.data.requestId,
-      operation: "assign",
+      operation: renewing ? "renew" : "assign",
       planId: current.data.planId,
       startsAt,
       endsAt,
@@ -206,7 +237,7 @@ export async function reviewIntroApplication(
       decisionReason: null,
       updatedAt: now,
     });
-    tx.update(conversionRef, { status: "converted", updatedAt: now });
+    if (conversionRef) tx.update(conversionRef, { status: "converted", updatedAt: now });
     if (trial) tx.update(trialRef, { status: "converted", updatedAt: now });
     return { status: "approved" as const, membershipId: subscription.membershipId };
   });

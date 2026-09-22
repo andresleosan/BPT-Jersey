@@ -38,8 +38,8 @@
 
 .client-current-membership h2,
 .client-plan-list h2,
-.client-plan-card h3,
-.client-trial-form label,
+.client-plan-name,
+.client-plan-payment h2,
 .client-membership-state h2 {
   font-family: var(--font-display), Impact, sans-serif;
   line-height: 0.95;
@@ -78,34 +78,171 @@
 }
 
 .client-plan-grid {
+  border: 0;
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  min-width: 0;
+  padding: 0;
 }
 
+/* Each plan is one radio: the whole ink card is the target, the lime price its signature. */
 .client-plan-card {
   background: var(--mat-ink);
+  border-top: 0.35rem solid var(--mat-ink);
   color: var(--gi-white);
+  cursor: pointer;
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
   padding: 1.25rem;
+  position: relative;
+  transition:
+    transform 220ms ease,
+    border-color 160ms ease;
 }
 
-.client-plan-card h3 {
+.client-plan-card input {
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  position: absolute;
+  cursor: inherit;
+}
+
+.client-plan-card:hover {
+  transform: translateY(-2px);
+}
+
+.client-plan-card:has(input:checked) {
+  border-top-color: var(--bpt-lime);
+  box-shadow: 0 0.6rem 0 rgba(47, 36, 131, 0.18);
+}
+
+.client-plan-card:has(input:focus-visible) {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 4px;
+}
+
+.client-plan-card:has(input:disabled),
+.client-plan-grid:disabled .client-plan-card {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+}
+
+.client-plan-card-current {
+  border-top-color: var(--bpt-purple);
+}
+
+.client-plan-tag {
+  color: var(--bpt-lime);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.client-plan-name {
   font-size: 2rem;
+}
+
+.client-plan-price {
+  color: var(--bpt-lime);
+  font-size: 1.6rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.client-plan-access {
+  color: #d7d6d0;
+}
+
+.client-current-line {
   margin: 0;
 }
 
-.client-plan-card p {
-  margin: 1rem 0 0.35rem;
+.client-plan-band {
+  font-weight: 700;
+  margin: 1rem 0 0;
+  padding: 0.9rem 1rem;
 }
 
-.client-plan-card p strong {
-  color: var(--bpt-lime);
+.client-plan-band-waiting {
+  background: #fff8e6;
+  border-left: 0.35rem solid #c98b00;
+  color: #765400;
+}
+
+.client-plan-band-returned {
+  background: #fff0f2;
+  border-left: 0.35rem solid #8d1c2f;
+  color: #5f1020;
+}
+
+.client-plan-payment {
+  scroll-margin-top: 2rem;
+}
+
+.client-plan-payment h2 {
+  font-size: clamp(2rem, 5vw, 3rem);
+  margin: 0;
+}
+
+.client-plan-payment h2:focus {
+  outline: none;
+}
+
+.client-plan-transfer {
+  border: 0;
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.client-plan-transfer input:not([type="file"]) {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  font: inherit;
+  min-height: 3rem;
+  padding: 0.6rem;
+}
+
+.client-plan-transfer input[type="file"] {
+  max-width: 100%;
+}
+
+.client-plan-payment .client-plan-total {
+  color: var(--mat-ink);
+  font-weight: 700;
+}
+
+.client-plan-total strong {
   font-variant-numeric: tabular-nums;
-  font-size: 1.6rem;
 }
 
-.client-plan-card > span {
-  color: #d7d6d0;
+.client-membership-skeleton {
+  display: grid;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.client-membership-skeleton div {
+  background: var(--paper-edge, #e8e7e3);
+  height: 7rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .client-plan-card {
+    transition: none;
+  }
+
+  .client-plan-card:hover {
+    transform: none;
+  }
 }
 
 .client-trial-form p {
@@ -115,7 +252,7 @@
 }
 
 .client-trial-form label {
-  font-size: 1.8rem;
+  font-weight: 700;
 }
 
 .client-trial-actions {
@@ -130,6 +267,12 @@
   font-weight: 800;
   margin-top: 1rem;
   padding: 1rem;
+}
+
+.client-membership-notice-success {
+  background: #e7f6ee;
+  border-left-color: #176b49;
+  color: #0f4a32;
 }
 
 .client-membership-notice-error {
@@ -148,3 +291,70 @@
 .client-bank-instructions { background: var(--canvas); border-left: 0.25rem solid var(--bpt-purple); display: grid; gap: 0.2rem; padding: 0.8rem 1rem; }
 
 .client-membership-trial { font-weight: 800; margin: 0 0 0.5rem; }
+
+/* Client area buttons sit on canvas (DESIGN.md §4): purple fill, Mat Ink outline. */
+.client-membership-page .button-primary {
+  background: var(--bpt-purple);
+  border-color: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+.client-membership-page .button-primary:hover {
+  background: var(--bpt-purple-dark);
+  border-color: var(--bpt-purple-dark);
+}
+
+.client-membership-page .button-secondary {
+  background: transparent;
+  border-color: var(--mat-ink);
+  color: var(--mat-ink);
+}
+
+.client-membership-page .button-secondary:hover {
+  background: var(--mat-ink);
+  color: var(--gi-white);
+}
+
+.client-membership-page .button:focus-visible {
+  box-shadow: none;
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 4px;
+}
+
+.client-membership-page .button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+}
+
+.client-plan-transfer .enrol-bank-details {
+  background: var(--canvas);
+  border-left: 0.3rem solid var(--bpt-purple);
+  display: grid;
+  gap: 0.35rem 1.5rem;
+  grid-template-columns: max-content minmax(0, 1fr);
+  margin: 0;
+  padding: 1rem;
+}
+
+.client-plan-transfer .enrol-bank-details dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.client-plan-transfer .enrol-bank-details dd {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 32rem) {
+  .client-plan-transfer .enrol-bank-details {
+    grid-template-columns: 1fr;
+  }
+
+  .client-plan-transfer .enrol-bank-details dd {
+    margin-bottom: 0.5rem;
+  }
+}

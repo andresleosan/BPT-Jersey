@@ -52,6 +52,8 @@ export const getMemberCalendarWeek = onCall(
   async (request) => {
     const actor = requireUserActor(request);
     const data = (request.data ?? {}) as Record<string, unknown>;
+    // Warm-up ping sent while /account loads the member: boots this instance, reads nothing.
+    if (data.warm === true) return { warm: true };
     const ids = studentGroupAccessQuerySchema.safeParse({ studentId: data.studentId });
     const membershipIdInput =
       data.membershipId === null || data.membershipId === undefined

@@ -35,6 +35,13 @@ import type {
   CalendarWeekData,
 } from "../../../lib/calendar";
 import {
+  cachedMember,
+  cachedWeek,
+  saveCachedMember,
+  saveCachedWeek,
+  weekCacheKey,
+} from "../../../lib/calendar/calendar-cache";
+import {
   bookingFailureMessage,
   cancellationFailureMessage,
 } from "../../../lib/calendar/booking-messages";
@@ -57,6 +64,8 @@ type MemberCalendarProps = Readonly<{
   onSignOut: () => void;
   /** Rendered after the check-in slider and before the purple header: the streak panel (T042V2). */
   topSlot?: ReactNode;
+  /** The signed-in uid: paints the last member and week at once while the live load runs. */
+  cacheKey?: string;
 }>;
 
 type LoadState = "loading" | "ready" | "error";
@@ -112,6 +121,7 @@ function dayOf(days: readonly CalendarDay[], startAt: string): CalendarDay | und
 }
 
 const trialEndedNotice = "Your trial has ended. Choose a membership to keep training.";
+const memberVisibleStatuses: ReadonlySet<string> = new Set(["open", "booked", "attended", "missed"]);
 
 /** How many free trial classes are still bookable: attended and booked ones are both spent. */
 function trialClassesLeft(trial: TrialAccessView): number {
@@ -127,7 +137,13 @@ function planPriceMinor(planId: PlanId | null): number {
   return PLAN_CATALOG.find((plan) => plan.planId === planId)?.priceMinor ?? 0;
 }
 
-export function MemberCalendar({ repository, session, onSignOut, topSlot }: MemberCalendarProps) {
+export function MemberCalendar({
+  repository,
+  session,
+  onSignOut,
+  topSlot,
+  cacheKey,
+}: MemberCalendarProps) {
   const viewport = useViewport();
   const now = useMinuteClock();
   const [offset, setOffset] = useState(0);
@@ -177,7 +193,8 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
 
   useEffect(() => {
     let active = true;
-    setMemberState("loading");
+    const cached = cacheKey ? cachedMember(cacheKey) : undefined;
+    setMemberState(cached ? "ready" : "loading");
     weekRevision.current += 1;
     activeWeekScope.current = undefined;
     loadedWeekScopeRef.current = undefined;
@@ -188,18 +205,23 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
     setWeekRangeTo("");
     setPenalties([]);
     setSiblingReady({ studentId: "", names: [] });
+    const applyMember = (loaded: CalendarMember) => {
+      setMember(loaded);
+      setSiblingReady({ studentId: "", names: [] });
+      setSelectedStudentId((current) =>
+        loaded.participants.some((p) => p.studentId === current)
+          ? current
+          : (loaded.participants[0]?.studentId ?? ""),
+      );
+      setMemberState("ready");
+    };
+    if (cached) applyMember(cached);
     repository
       .loadMember()
       .then((loaded) => {
         if (!active) return;
-        setMember(loaded);
-        setSiblingReady({ studentId: "", names: [] });
-        setSelectedStudentId((current) =>
-          loaded.participants.some((p) => p.studentId === current)
-            ? current
-            : (loaded.participants[0]?.studentId ?? ""),
-        );
-        setMemberState("ready");
+        applyMember(loaded);
+        if (cacheKey) saveCachedMember(cacheKey, loaded);
       })
       .catch(() => {
         if (active) setMemberState("error");
@@ -207,7 +229,7 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
     return () => {
       active = false;
     };
-  }, [repository, reloadToken]);
+  }, [repository, reloadToken, cacheKey]);
 
   useEffect(() => {
     if (!selectedStudentId || !rangeFrom || !rangeTo) return;
@@ -219,26 +241,35 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
       revision: weekRevision.current,
     };
     activeWeekScope.current = requestedScope;
-    if (!silentReload.current) setWeekState("loading");
+    const weekKey = weekCacheKey(requestedScope.studentId, rangeFrom, rangeTo);
+    const applyWeek = (loadedWeek: CalendarWeekData) => {
+      loadedWeekScopeRef.current = requestedScope;
+      setLoadedWeekScope(requestedScope);
+      setWeek(loadedWeek);
+      setWeekStudentId(requestedScope.studentId);
+      setWeekRangeFrom(requestedScope.rangeFrom);
+      setWeekRangeTo(requestedScope.rangeTo);
+      setWeekState("ready");
+    };
+    // A week this browser already showed paints now; the live answer below replaces it.
+    const stale = cacheKey && !silentReload.current ? cachedWeek(cacheKey, weekKey) : undefined;
+    if (stale) applyWeek(stale);
+    else if (!silentReload.current) setWeekState("loading");
     silentReload.current = false;
-    Promise.all([
-      repository.loadWeek(
-        requestedScope.studentId,
-        requestedScope.rangeFrom,
-        requestedScope.rangeTo,
-      ),
-      repository.loadPenalties(requestedScope.studentId),
-    ])
-      .then(([loadedWeek, loadedPenalties]) => {
+    // Penalties are an ancillary banner: they load beside the week and never hold it back.
+    void repository
+      .loadPenalties(requestedScope.studentId)
+      .then((loadedPenalties) => {
+        if (active && sameWeekScope(requestedScope, activeWeekScope.current))
+          setPenalties(loadedPenalties);
+      })
+      .catch(() => undefined);
+    repository
+      .loadWeek(requestedScope.studentId, requestedScope.rangeFrom, requestedScope.rangeTo)
+      .then((loadedWeek) => {
         if (!active || !sameWeekScope(requestedScope, activeWeekScope.current)) return;
-        loadedWeekScopeRef.current = requestedScope;
-        setLoadedWeekScope(requestedScope);
-        setWeek(loadedWeek);
-        setWeekStudentId(requestedScope.studentId);
-        setWeekRangeFrom(requestedScope.rangeFrom);
-        setWeekRangeTo(requestedScope.rangeTo);
-        setPenalties(loadedPenalties);
-        setWeekState("ready");
+        applyWeek(loadedWeek);
+        if (cacheKey) saveCachedWeek(cacheKey, weekKey, loadedWeek);
       })
       .catch(() => {
         if (active && sameWeekScope(requestedScope, activeWeekScope.current)) {
@@ -248,7 +279,7 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
     return () => {
       active = false;
     };
-  }, [repository, selectedStudentId, rangeFrom, rangeTo, reloadToken, pollToken]);
+  }, [repository, selectedStudentId, rangeFrom, rangeTo, reloadToken, pollToken, cacheKey]);
 
   const participant = member?.participants.find((p) => p.studentId === selectedStudentId);
   const selectedWeek =
@@ -328,6 +359,8 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
         weeklyClassesBooked: classesBookedByWeek.get(jerseyWeekKey(sessionRecord.startAt)) ?? 0,
         now,
       });
+      // Members see what they can book, plus their own bookings and attendance; nothing else.
+      if (!memberVisibleStatuses.has(derived.status)) continue;
       const list = map.get(day.dateKey) ?? [];
       list.push({ session: sessionRecord, program, derived, booking });
       map.set(day.dateKey, list);
@@ -617,9 +650,16 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
           ) : (
             <>
               {trialEndedNotice}{" "}
-              <a href="/account/membership?from=intro">Get a membership</a>
+              <a href="/account/membership">Choose a plan</a>
             </>
           )}
+        </p>
+      ) : null}
+      {!failed && memberState === "ready" && participant && !participant.trial &&
+      participant.hasActiveMembership === false ? (
+        <p className="calendar-trial-band" role="status">
+          {participant.firstName} has no active plan, so only free Intro Classes can be booked.{" "}
+          <a href="/account/membership">Choose a plan</a>
         </p>
       ) : null}
       <div className="member-body">
@@ -637,8 +677,8 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
         ) : noParticipants ? (
           <div className="calendar-error" role="status">
             <p>
-              You have no active membership to book classes with yet. Please contact the academy and
-              they will set it up for you.
+              Your account is not linked to a member yet. Please contact the academy and they will
+              set it up for you.
             </p>
           </div>
         ) : (

@@ -25,9 +25,14 @@ export function CalendarHeader(props: CalendarHeaderProps) {
     <header className="member-header">
       <div className="member-header-top">
         <p className="member-eyebrow">BPT Jersey / Member</p>
-        <button className="member-signout" onClick={props.onSignOut} type="button">
-          Sign out
-        </button>
+        <div className="member-header-actions">
+          <Link className="member-plan-link" href="/account/membership">
+            My plan
+          </Link>
+          <button className="member-signout" onClick={props.onSignOut} type="button">
+            Sign out
+          </button>
+        </div>
       </div>
       <h1 className="member-name">{firstName}</h1>
       <nav aria-label="Account" className="member-links">

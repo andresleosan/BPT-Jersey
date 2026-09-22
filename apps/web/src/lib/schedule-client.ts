@@ -437,6 +437,14 @@ export async function getMemberCalendarWeek(
   return (await callable(input)).data;
 }
 
+/** Starts the week function's instance so its cold start overlaps the member load. */
+export async function warmMemberCalendarWeek(): Promise<void> {
+  await firebaseHttpsCallable<{ warm: true }, unknown>(
+    getFirebaseFunctions(memberFunctionsRegion),
+    "getMemberCalendarWeek",
+  )({ warm: true });
+}
+
 export async function requestBooking(input: RequestBookingInput): Promise<BookingRecord> {
   const functions = getFirebaseFunctions(memberFunctionsRegion);
   const callable = httpsCallable<RequestBookingInput, { booking: BookingRecord }>(
