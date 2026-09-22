@@ -11,7 +11,6 @@ export const sweepSessionQuorumsSchedule = onSchedule(
   {
     schedule: "every 5 minutes",
     timeZone: "UTC",
-    region: "us-central1", // Same region as the existing schedules (SDK default).
     maxInstances: 1,
     concurrency: 1,
     timeoutSeconds: 540,
