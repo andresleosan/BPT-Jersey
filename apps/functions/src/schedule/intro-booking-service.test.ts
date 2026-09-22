@@ -178,6 +178,54 @@ function seedTrial(
   });
 }
 
+/** Mirrors the guardian/family/relationship seeding pattern used in
+ * canonical-client-student-scope.test.ts and schedule-security-boundary.test.ts. */
+function seedGuardianLink(
+  store: ReturnType<typeof createFirestore>,
+  studentId: string,
+  guardianUserId: string,
+  familyId: string,
+) {
+  store.seed(`academies/${academyId}/users/${guardianUserId}`, {
+    userId: guardianUserId,
+    academyId,
+    accountType: "client",
+    displayName: "Synthetic Guardian",
+    email: `${guardianUserId}@example.test`,
+    phoneNumber: "+441534000001",
+    active: true,
+    status: "active",
+    ...audit,
+  });
+  store.seed(`academies/${academyId}/families/${familyId}`, {
+    familyId,
+    academyId,
+    primaryContactUserId: guardianUserId,
+    billingContactUserId: guardianUserId,
+    active: true,
+    status: "active",
+    ...audit,
+  });
+  store.seed(`academies/${academyId}/relationships/relation-${studentId}`, {
+    relationshipId: `relation-${studentId}`,
+    academyId,
+    familyId,
+    studentId,
+    adultUserId: guardianUserId,
+    relationshipType: "guardian",
+    permissions: ["readProfile"],
+    validFrom: "2026-01-01T00:00:00.000Z",
+    active: true,
+    status: "active",
+    ...audit,
+  });
+  const student = store.records.get(`academies/${academyId}/students/${studentId}`);
+  store.seed(`academies/${academyId}/students/${studentId}`, {
+    ...student,
+    familyId,
+  });
+}
+
 function seededIntroStore(state?: "missing-waiver" | "active-membership" | "prior-intro-attendance" | "future-intro-booking") {
   const store = createFirestore();
   const actorId = seedStudent(store);
@@ -431,6 +479,42 @@ describe("intro booking transaction", () => {
     expect(store.documents(`academies/${academyId}/bookings`)).toHaveLength(1);
   });
 
+  it("lets a guardian book their under-16 trial member into a kids class", async () => {
+    const store = seededIntroStore();
+    store.seed(`academies/${academyId}/students/student-1`, {
+      ...store.records.get(`academies/${academyId}/students/student-1`),
+      dateOfBirth: "2018-01-01",
+      participantType: "minor",
+    });
+    seedGuardianLink(store, "student-1", "guardian-1", "family-1");
+    const template = store.records.get(`academies/${academyId}/sessions/session-1`)!;
+    store.seed(`academies/${academyId}/sessions/session-1`, {
+      ...template,
+      accessMode: undefined,
+      programId: "kids-fundamentals",
+    });
+    store.seed(`academies/${academyId}/programs/kids-fundamentals`, {
+      programId: "kids-fundamentals",
+      academyId,
+      name: "Kids Fundamentals",
+      ageBand: "kids",
+      discipline: "gi",
+      level: "fundamentals",
+      active: true,
+      schemaVersion: "1",
+    });
+    const booking = await requestIntroBooking(store.db, {
+      ...store.command,
+      actorId: "guardian-1",
+      actorRole: "guardian",
+    });
+    expect(booking).toMatchObject({
+      status: "confirmed",
+      source: { kind: "intro" },
+    });
+    expect(store.documents(`academies/${academyId}/bookings`)).toHaveLength(1);
+  });
+
   it("refuses an under-16 trial member outside their age band", async () => {
     const store = seededIntroStore();
     store.seed(`academies/${academyId}/students/student-1`, {
@@ -471,6 +555,20 @@ describe("intro booking transaction", () => {
     });
     await expect(requestIntroBooking(store.db, store.command)).rejects.toMatchObject({
       code: "ineligible",
+    });
+    expect(store.documents(`academies/${academyId}/bookings`)).toHaveLength(0);
+  });
+
+  it("refuses a session with a corrupted accessMode instead of throwing", async () => {
+    const store = seededIntroStore();
+    const template = store.records.get(`academies/${academyId}/sessions/session-1`)!;
+    store.seed(`academies/${academyId}/sessions/session-1`, {
+      ...template,
+      accessMode: "not-a-real-mode",
+    });
+    await expect(requestIntroBooking(store.db, store.command)).rejects.toMatchObject({
+      code: "ineligible",
+      message: "Session access mode is invalid",
     });
     expect(store.documents(`academies/${academyId}/bookings`)).toHaveLength(0);
   });
