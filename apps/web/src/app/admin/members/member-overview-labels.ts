@@ -4,7 +4,6 @@ export const flagLabels: Readonly<Record<MemberReviewFlag, string>> = {
   "centre-unconfirmed": "Centre to be confirmed",
   "date-of-birth-missing": "Check age",
   "guardian-required": "Guardian needed",
-  "plan-to-confirm": "Plan to confirm",
 };
 
 /** "white-1st-stripe" → "White · 1st stripe", "blue-belt" → "Blue belt". */

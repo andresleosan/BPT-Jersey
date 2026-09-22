@@ -44,11 +44,6 @@ export function DataReview({ rows, onSaved }: { rows: readonly MemberOverviewRow
                   onSaved={onSaved}
                 />
               ) : null}
-              {row.flags.includes("plan-to-confirm") ? (
-                <Link className="member-record-button" href={recordHref(row.studentId, "plan")}>
-                  Review plan
-                </Link>
-              ) : null}
             </div>
           </li>
         ))}

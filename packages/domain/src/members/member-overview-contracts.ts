@@ -10,7 +10,6 @@ export const memberReviewFlags = Object.freeze([
   "centre-unconfirmed",
   "date-of-birth-missing",
   "guardian-required",
-  "plan-to-confirm",
 ] as const);
 export type MemberReviewFlag = (typeof memberReviewFlags)[number];
 
@@ -137,12 +136,13 @@ export function buildMemberOverview(input: {
     if (student.trainingCenterStatus === "unconfirmed") flags.push("centre-unconfirmed");
     if (student.reviewReason === "date-of-birth-missing") flags.push("date-of-birth-missing");
     if (student.guardianStatus === "pending") flags.push("guardian-required");
-    if (student.legacy && planState === "none") flags.push("plan-to-confirm");
     const family = student.familyId ? input.familiesById.get(student.familyId) : undefined;
     const age = student.dateOfBirth ? ageOn(student.dateOfBirth, today) : undefined;
+    // Active means training on a live plan; anything else (no plan, lapsed, deactivated) is inactive.
+    const training = student.active && (planState === "current" || planState === "expiring");
     counters.total += 1;
-    if (!student.active) counters.inactive += 1;
-    else if (planState === "current" || planState === "expiring") counters.active += 1;
+    if (training) counters.active += 1;
+    else counters.inactive += 1;
     if (planState === "expiring") counters.expiring += 1;
     if (flags.length > 0) counters.review += 1;
     return {
@@ -151,7 +151,7 @@ export function buildMemberOverview(input: {
       ...(age === undefined ? {} : { age, ageBand: participantTypeOn(student.dateOfBirth as string, today) }),
       trainingCenter: student.trainingCenter,
       centreConfirmed: student.trainingCenterStatus !== "unconfirmed",
-      active: student.active,
+      active: training,
       source: student.legacy ? "regyfit" : "bpt",
       ...(input.levelByStudent.has(student.studentId) ? { levelKey: input.levelByStudent.get(student.studentId) as string } : {}),
       ...(membership
