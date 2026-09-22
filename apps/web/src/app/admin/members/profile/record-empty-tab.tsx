@@ -43,6 +43,13 @@ const linkedTabs: Readonly<Record<Exclude<RecordEmptyTabKey, "notes">, LinkedEmp
     action: "Open Attendance",
     href: () => "/admin/attendance",
   },
+  history: {
+    eyebrow: "History",
+    headline: "History opens with the full record",
+    sentence: "The linked archive's payments, attendance and level lines are shown to the office.",
+    action: "Open the directory",
+    href: () => "/admin/members",
+  },
   communication: {
     eyebrow: "Communication",
     headline: "Communication log is on its way",

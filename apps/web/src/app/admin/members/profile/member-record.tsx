@@ -30,6 +30,7 @@ import { ClassesTab } from "./classes-tab";
 import { DetailsTab } from "./details-tab";
 import { IbjjfCard } from "./ibjjf-card";
 import { ManageView, unsavedRatingsQuestion } from "./manage-view";
+import { HistoryTab } from "./history-tab";
 import { NotesTab } from "./notes-tab";
 import { PaymentsTab } from "./payments-tab";
 import { PlanTab } from "./plan-tab";
@@ -52,6 +53,7 @@ const tabLabels: Readonly<Record<MemberRecordTab, string>> = {
   classes: "Classes",
   communication: "Communication",
   notes: "Notes",
+  history: "History",
 };
 
 const unsavedDetailsQuestion = "You have unsaved changes in Details. Leave without saving?";
@@ -425,6 +427,8 @@ function MemberRecordSession({
           }}
         />
       );
+    if (activeTab === "history" && profile.view === "full")
+      return <HistoryTab key={profile.header.studentId} studentId={profile.header.studentId} />;
     if (activeTab === "details") {
       return profile.view === "full" ? (
         <DetailsTab
