@@ -33,6 +33,7 @@ export const domainImportReplacements: Readonly<Record<string, string>> = Object
     "../../domain/members/regyfit-member-record-contracts.js",
   "@bpt-jersey/domain/members/engagement": "../../domain/members/member-engagement-contracts.js",
   "@bpt-jersey/domain/members/profile": "../../domain/members/member-profile-contracts.js",
+  "@bpt-jersey/domain/memberships/trial-access": "../../domain/memberships/trial-access-contracts.js",
   "@bpt-jersey/domain/memberships/lifecycle": "../../domain/memberships/membership-contracts.js",
   "@bpt-jersey/domain/memberships/intro-conversion": "../../domain/memberships/intro-conversion-contracts.js",
   "@bpt-jersey/domain/memberships/admin":

@@ -1,7 +1,7 @@
 import type { UserActorContext } from "@bpt-jersey/domain";
 import { createHash } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
-import { trialAccessSchema, trialExpiresAt } from "@bpt-jersey/domain";
+import { trialAccessSchema, trialExpiresAt } from "@bpt-jersey/domain/memberships/trial-access";
 import { PLAN_CATALOG } from "@bpt-jersey/domain/memberships";
 import {
   enrolmentNeedsPayment,

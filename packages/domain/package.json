@@ -325,6 +325,11 @@
       "import": "./src/members/member-inventory-contracts.ts",
       "default": "./lib/members/member-inventory-contracts.js"
     },
+    "./memberships/trial-access": {
+      "types": "./src/memberships/trial-access-contracts.ts",
+      "import": "./src/memberships/trial-access-contracts.ts",
+      "default": "./lib/memberships/trial-access-contracts.js"
+    },
     "./schedule/groups": {
       "types": "./src/schedule/groups.ts",
       "import": "./src/schedule/groups.ts",
