@@ -50,6 +50,11 @@
       "import": "./src/members/member-reconciliation-contracts.ts",
       "default": "./lib/members/member-reconciliation-contracts.js"
     },
+    "./members/overview": {
+      "types": "./src/members/member-overview-contracts.ts",
+      "import": "./src/members/member-overview-contracts.ts",
+      "default": "./lib/members/member-overview-contracts.js"
+    },
     "./members/directory": {
       "types": "./src/members/member-directory-contracts.ts",
       "import": "./src/members/member-directory-contracts.ts",
