@@ -1,16 +1,25 @@
 import type { AuditEventDraft, ClassActorRole } from "@bpt-jersey/domain/audit";
 import {
+  ageOnDate,
+  dateKeyInJersey,
+  participantTypeOn,
+} from "@bpt-jersey/domain/schedule/member-calendar";
+import {
   buildBookingId,
   buildBookingIdCandidates,
   isWithinBookingCutoff,
   sessionAccessMode,
+  type AgeBand,
+  type BookingRecord,
   type IntroBookingRecord,
   type SessionRecord,
 } from "@bpt-jersey/domain/schedule";
+import { trialAttendedCount, trialStatusAt } from "@bpt-jersey/domain/memberships/trial-access";
 
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { consentRecordId } from "../consents/consent-identifiers.js";
 import { canonicalMemberIdentityIds } from "../members/member-identity-resolution.js";
+import { futureIntroBookingCount, readTrialAccess } from "../memberships/trial-access-service.js";
 import {
   assertBookingMemberAccess,
   BookingTransactionError,
@@ -121,13 +130,6 @@ function storedSession(
   ) {
     return fail("ineligible", "Intro session is not bookable");
   }
-  try {
-    if (sessionAccessMode(value) !== "intro") {
-      return fail("ineligible", "Session is not an Intro Class");
-    }
-  } catch {
-    return fail("ineligible", "Session access mode is invalid");
-  }
   return value as SessionRecord;
 }
 
@@ -211,50 +213,6 @@ async function assertNoMembershipHistory(
         return fail("tenant", "Membership scope is invalid");
       }
       return fail("ineligible", "Former and current members require office review");
-    }
-  }
-}
-
-async function assertNoIntroAttendance(
-  firestore: BookingFirestore,
-  transaction: BookingTransaction,
-  academyId: string,
-  ids: readonly string[],
-): Promise<void> {
-  const attendance: BookingDocumentData[] = [];
-  for (const studentId of ids) {
-    const docs = await bounded(
-      transaction,
-      firestore.collection(academyPath(academyId, "attendance")).where("studentId", "==", studentId),
-      "Attendance history",
-    );
-    for (const snapshot of docs) {
-      const value = snapshot.data();
-      if (!value || value.academyId !== academyId || value.studentId !== studentId) {
-        return fail("tenant", "Attendance scope is invalid");
-      }
-      if (value.state === "attended" || value.state === "late") attendance.push(value);
-    }
-  }
-  if (attendance.length > maxQueryRows) return fail("ineligible", "Attendance history requires office review");
-  const sessions = await Promise.all(
-    attendance.map((record) =>
-      transaction.get(
-        firestore.doc(`${academyPath(academyId, "sessions")}/${identifier(String(record.sessionId), "sessionId")}`),
-      ),
-    ),
-  );
-  for (const snapshot of sessions) {
-    const value = snapshot.data();
-    if (!snapshot.exists || !value || value.academyId !== academyId || value.sessionId !== snapshot.id) {
-      return fail("ineligible", "Attendance session history is unavailable");
-    }
-    try {
-      if (sessionAccessMode(value) === "intro") {
-        return fail("ineligible", "Intro Class attendance already exists");
-      }
-    } catch {
-      return fail("ineligible", "Attendance session access is invalid");
     }
   }
 }
@@ -369,8 +327,35 @@ export async function requestIntroBooking(
     ) {
       return fail("ineligible", "Student is not eligible");
     }
+    const trial = await readTrialAccess(
+      { get: (path) => transaction.get(firestore.doc(path)) },
+      academyId,
+      studentId,
+    );
+    if (!trial || trialStatusAt(trial, command.now) !== "active") {
+      return fail("ineligible", "Your trial is not active");
+    }
     const expectedSite = session.locationId === "town" ? "Town" : "West";
-    if (student.trainingCenter !== expectedSite) return fail("ineligible", "Intro venue is not eligible");
+    if (expectedSite !== trial.site) return fail("ineligible", "Intro venue is not eligible");
+    const isIntroSession = sessionAccessMode(session) === "intro";
+    if (!isIntroSession) {
+      const dateKey = dateKeyInJersey(new Date(session.startAt));
+      const age = typeof student.dateOfBirth === "string" ? ageOnDate(student.dateOfBirth, dateKey) : 16;
+      if (age >= 16) {
+        return fail("ineligible", "During your trial you can book Introduction Classes only");
+      }
+      const programSnapshot = await transaction.get(
+        firestore.doc(`${academyPath(academyId, "programs")}/${identifier(session.programId, "programId")}`),
+      );
+      const program = programSnapshot.data();
+      if (!programSnapshot.exists || !program || program.academyId !== academyId) {
+        return fail("ineligible", "Intro session is not bookable");
+      }
+      const band = participantTypeOn(student.dateOfBirth as string, dateKey);
+      if ((program.ageBand as AgeBand) !== band) {
+        return fail("ineligible", "This class is for another age group");
+      }
+    }
     if (!isWithinBookingCutoff(session.startAt, command.now, 60)) {
       return fail("ineligible", "Intro booking cutoff has passed");
     }
@@ -390,31 +375,30 @@ export async function requestIntroBooking(
 
     await acceptedCurrentWaiver(firestore, transaction, academyId, ids, command.now);
     await assertNoMembershipHistory(firestore, transaction, academyId, ids);
-    await assertNoIntroAttendance(firestore, transaction, academyId, ids);
     const priorIntroBookings = await introBookings(firestore, transaction, academyId, ids);
+    const otherIntroBookings = priorIntroBookings.filter((booking) => booking.sessionId !== sessionId);
     const otherSessions = await Promise.all(
-      priorIntroBookings
-        .filter((booking) => booking.sessionId !== sessionId)
-        .map((booking) =>
-          transaction.get(
-            firestore.doc(`${academyPath(academyId, "sessions")}/${identifier(String(booking.sessionId), "sessionId")}`),
-          ),
+      otherIntroBookings.map((booking) =>
+        transaction.get(
+          firestore.doc(`${academyPath(academyId, "sessions")}/${identifier(String(booking.sessionId), "sessionId")}`),
         ),
+      ),
     );
-    if (
-      otherSessions.some((snapshot) => {
-        const value = snapshot.data();
-        return (
-          snapshot.exists &&
-          value?.academyId === academyId &&
-          value.sessionId === snapshot.id &&
-          typeof value.startAt === "string" &&
-          Date.parse(value.startAt) > Date.parse(command.now) &&
-          sessionAccessMode(value) === "intro"
-        );
-      })
-    ) {
-      return fail("ineligible", "A future Intro Class booking already exists");
+    const sessionsById = new Map<string, { startAt: string }>();
+    for (const snapshot of otherSessions) {
+      const value = snapshot.data();
+      if (snapshot.exists && value?.academyId === academyId && value.sessionId === snapshot.id && typeof value.startAt === "string") {
+        sessionsById.set(snapshot.id, { startAt: value.startAt });
+      }
+    }
+    const futureCount = futureIntroBookingCount(
+      otherIntroBookings as unknown as readonly BookingRecord[],
+      sessionsById,
+      new Set<string>(),
+      command.now,
+    );
+    if (trialAttendedCount(trial) + futureCount >= trial.allowance) {
+      return fail("ineligible", "Your free classes are used up");
     }
 
     const capacityBookings = await bounded(
