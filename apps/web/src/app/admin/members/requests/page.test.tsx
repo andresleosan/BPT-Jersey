@@ -414,8 +414,34 @@ describe("trial declarations and preselected level", () => {
     expect(await screen.findByText("Trial (1 free Introduction Class)")).toBeVisible();
     expect(screen.getByText("Level: Blue belt · 2 stripes (declared)")).toBeVisible();
     expect(screen.getByLabelText("Initial level")).toHaveValue("blue-2nd-stripe");
-    expect(screen.getByText(/Trial — no plan, dates or payment\. Confirm the initial level\./)).toBeVisible();
+    expect(
+      screen.getByText(/Trial — no plan, dates or payment\. Confirm the initial level\./),
+    ).toBeVisible();
     expect(screen.queryByLabelText("Subscription start")).not.toBeInTheDocument();
+    // The trial has no plan to name, so the setup fieldset's "Plan: …" line must not render a bare
+    // "Plan:" for it (the catalogue has no "trial" entry).
+    expect(screen.queryByText(/^Plan:/)).not.toBeInTheDocument();
+  });
+
+  it("leaves the initial level empty with no declaration, so the guard still fires", async () => {
+    // A paid enrolment (the base `detail` fixture has no `levelDeclarations`) must not be
+    // preselected: office must still choose the level for an experienced paying member, so the
+    // approve guard has to keep firing when nobody has.
+    render(<EnrolmentRequestQueuePage />);
+    await screen.findByText("Alex Adult");
+    await userEvent.click(firstButton(/review and enrol/i));
+    await waitFor(() => expect(firstButton(/^approve$/i)).toBeEnabled());
+
+    expect(screen.getByLabelText("Initial level")).toHaveValue("");
+
+    await userEvent.click(firstButton(/^approve$/i));
+
+    expect(
+      await screen.findByText(
+        "Choose every student's level and subscription dates before approving.",
+      ),
+    ).toBeVisible();
+    expect(enrolmentApi.approveEnrolmentRequest).not.toHaveBeenCalled();
   });
 
   it("preselects the adult white belt for a beginner trial applicant", async () => {
@@ -512,8 +538,6 @@ describe("membership requests", () => {
     render(<EnrolmentRequestQueuePage />);
     await screen.findByText("Alex Adult");
 
-    expect(
-      screen.queryByRole("heading", { name: "Membership requests" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Membership requests" })).not.toBeInTheDocument();
   });
 });

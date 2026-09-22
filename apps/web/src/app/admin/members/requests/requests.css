@@ -333,3 +333,40 @@
     transform: none;
   }
 }
+
+/*
+ * Moved from apps/web/src/app/admin/billing/billing.css: the Membership requests section embeds
+ * IntroApplicationsPanel here now (Task 14), and this page never imported billing.css. Kept as the
+ * panel's own rules rather than importing billing.css, so this page and the billing page stay
+ * decoupled — either can change its own stylesheet without touching the other's.
+ */
+.intro-applications {
+  display: grid;
+  gap: 1rem;
+}
+.intro-application-row {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(12rem, 1fr) minmax(18rem, 2fr);
+  padding-top: 1rem;
+}
+.intro-application-row > div {
+  display: grid;
+  gap: 0.35rem;
+}
+.intro-application-actions {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.intro-application-actions label {
+  display: grid;
+  gap: 0.25rem;
+}
+@media (max-width: 52rem) {
+  .intro-application-row {
+    grid-template-columns: 1fr;
+  }
+}

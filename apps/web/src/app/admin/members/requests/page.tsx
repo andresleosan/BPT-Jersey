@@ -385,12 +385,16 @@ function EnrolmentRequestQueueContent() {
               ? detail.applicant.dateOfBirth
               : detail.minors[index]?.dateOfBirth;
             const age = dateOfBirth ? ageOnDate(dateOfBirth, today) : 0;
+            // Preselect only when the applicant declared a level (the trial flow): a paid
+            // enrolment must still start with an empty level, so the "choose every student's
+            // level" guard in `approve()` keeps firing for it.
             return {
               planId: planId ?? "town-adult",
-              definitionKey:
-                declaration?.declaredLevelKey ??
-                defaultWhiteBelt(loadedCatalog.definitions, age) ??
-                "",
+              definitionKey: declaration
+                ? (declaration.declaredLevelKey ??
+                  defaultWhiteBelt(loadedCatalog.definitions, age) ??
+                  "")
+                : "",
               startsOn: today,
               endsOn:
                 PLAN_CATALOG.find((plan) => plan.planId === planId)?.billingPeriod === "monthly"
@@ -794,13 +798,15 @@ function EnrolmentRequestQueueContent() {
                                   : details[request.enrolmentRequestId]?.minors[index]?.fullName}
                               </legend>
                               {details[request.enrolmentRequestId]?.planSelections ? (
-                                <p>
-                                  Plan:{" "}
-                                  {
-                                    PLAN_CATALOG.find((plan) => plan.planId === student.planId)
-                                      ?.displayName
-                                  }
-                                </p>
+                                student.planId === trialPlanChoice ? null : (
+                                  <p>
+                                    Plan:{" "}
+                                    {
+                                      PLAN_CATALOG.find((plan) => plan.planId === student.planId)
+                                        ?.displayName
+                                    }
+                                  </p>
+                                )
                               ) : (
                                 <label className="shop-admin-field">
                                   Subscription plan
@@ -856,9 +862,7 @@ function EnrolmentRequestQueueContent() {
                                       type="date"
                                       max={new Date().toISOString().slice(0, 10)}
                                       value={student.startsOn}
-                                      onChange={(event) =>
-                                        change({ startsOn: event.target.value })
-                                      }
+                                      onChange={(event) => change({ startsOn: event.target.value })}
                                     />
                                   </label>
                                   {enrolmentNeedsPayment(student.planId) ? (
