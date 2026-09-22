@@ -152,6 +152,10 @@ async function main() {
           continue;
         }
         totals.membersFailed += 1;
+        if (env.BPT_OPERATOR_DEBUG === "1") {
+          // Booking errors carry codes and fixed sentences, never member data.
+          console.error(`memberFailed: ${error?.name ?? "Error"}/${error?.code ?? "-"}: ${String(error?.message ?? "").slice(0, 200)}`);
+        }
         break;
       }
     }
