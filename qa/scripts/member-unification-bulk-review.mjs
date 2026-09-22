@@ -4,7 +4,8 @@
 //    strong-with-conflict rows → link, resolving each source conflict by policy:
 //      · one side empty → the side with a value;
 //      · email / mobile differ → the archive (later capture);
-//      · identity fields differ (name, birth date, gender, numbers) → left for the office.
+//      · full name differs only in case, accents or spacing → the archive spelling;
+//      · identity fields really differ (name, birth date, gender, numbers) → left for the office.
 // 2. Centres: every linked member still `trainingCenterStatus: "unconfirmed"` gets Town or West
 //    inferred from its archive: plan label first ("strive"/"west" → West, "town" → Town), then
 //    the majority of attended class names. No hint → left for Data review.
@@ -30,6 +31,8 @@ const evidenceFor = {
   none: "Bulk review: legacy census member with no archive record; created without a link (member-unification-review-v1).",
 };
 
+const normalizeName = (value) => String(value ?? "").normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
+
 /** Decide every conflicting field or return null when one needs a human. Pure. */
 export function conflictChoices(legacy, archive, conflicts) {
   const choices = [];
@@ -42,6 +45,8 @@ export function conflictChoices(legacy, archive, conflicts) {
       choices.push({ field, source: "legacy", evidence: "Archive has no value; census does.", reason: "Only source with a value" });
     } else if (contactFields.has(field)) {
       choices.push({ field, source: "regyfit", evidence: "Contact details differ; the archive is the later capture.", reason: "Later capture wins for contact fields" });
+    } else if (field === "fullName" && normalizeName(left) === normalizeName(right)) {
+      choices.push({ field, source: "regyfit", evidence: "Same name; only case, accents or spacing differ.", reason: "Archive spelling kept for a cosmetic difference" });
     } else {
       return null;
     }
