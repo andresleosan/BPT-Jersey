@@ -3,10 +3,21 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { RegyfitMemberRecord } from "@bpt-jersey/domain/members/regyfit-records";
+import { PLAN_CATALOG } from "@bpt-jersey/domain/memberships";
 
 const clientMocks = vi.hoisted(() => ({ revealRegyfitRecordField: vi.fn() }));
+const subscriptionMocks = vi.hoisted(() => ({
+  getMemberSubscriptions: vi.fn(),
+  getMemberSubscriptionBilling: vi.fn(),
+  manageManualSubscription: vi.fn(),
+  resolveImportedSubscription: vi.fn(),
+  registerImportedMember: vi.fn(),
+  listManagedPlans: vi.fn(),
+}));
 
 vi.mock("../../../../lib/members-client", () => clientMocks);
+vi.mock("../../../../lib/subscription-admin-client", () => subscriptionMocks);
+vi.mock("../../../../lib/membership-admin-client", () => subscriptionMocks);
 
 import { MemberProfilePanel } from "./member-profile-panel";
 
@@ -63,5 +74,69 @@ describe("Member profile panel restricted identifiers", () => {
     await user.click(screen.getByRole("tab", { name: "Details" }));
     expect(screen.queryByText("ID-000789")).not.toBeInTheDocument();
     expect(screen.getByText("•••444")).toBeVisible();
+  });
+});
+
+describe("Member profile panel Transit Free visibility", () => {
+  afterEach(() => {
+    cleanup();
+    vi.resetAllMocks();
+  });
+
+  it("shows Transit Free on the Membership tab for an owner", async () => {
+    const user = userEvent.setup();
+    subscriptionMocks.resolveImportedSubscription.mockResolvedValue({ studentId: "student-1" });
+    subscriptionMocks.getMemberSubscriptions.mockResolvedValue({
+      studentId: "student-1",
+      fullName: "Synthetic Child",
+      eligiblePlanIds: [],
+      memberships: [],
+    });
+    subscriptionMocks.getMemberSubscriptionBilling.mockResolvedValue([]);
+    subscriptionMocks.listManagedPlans.mockResolvedValue(
+      [PLAN_CATALOG[0]!, PLAN_CATALOG.find((plan) => plan.planId === "transit-free")!].map(
+        (plan) => ({ ...plan, active: true }),
+      ),
+    );
+    render(
+      <MemberProfilePanel
+        record={baseRecord}
+        onCanonicalLookup={() => {}}
+        onClose={() => {}}
+        role="owner"
+      />,
+    );
+    await user.click(screen.getByRole("tab", { name: "Membership" }));
+    expect(
+      await screen.findByText("Transit Free · unlimited, indefinite"),
+    ).toBeInTheDocument();
+  });
+
+  it("hides Transit Free on the Membership tab for an administrator", async () => {
+    const user = userEvent.setup();
+    subscriptionMocks.resolveImportedSubscription.mockResolvedValue({ studentId: "student-1" });
+    subscriptionMocks.getMemberSubscriptions.mockResolvedValue({
+      studentId: "student-1",
+      fullName: "Synthetic Child",
+      eligiblePlanIds: [],
+      memberships: [],
+    });
+    subscriptionMocks.getMemberSubscriptionBilling.mockResolvedValue([]);
+    subscriptionMocks.listManagedPlans.mockResolvedValue(
+      [PLAN_CATALOG[0]!, PLAN_CATALOG.find((plan) => plan.planId === "transit-free")!].map(
+        (plan) => ({ ...plan, active: true }),
+      ),
+    );
+    render(
+      <MemberProfilePanel
+        record={baseRecord}
+        onCanonicalLookup={() => {}}
+        onClose={() => {}}
+        role="administrator"
+      />,
+    );
+    await user.click(screen.getByRole("tab", { name: "Membership" }));
+    await screen.findByLabelText("Subscription plan");
+    expect(screen.queryByText("Transit Free · unlimited, indefinite")).not.toBeInTheDocument();
   });
 });
