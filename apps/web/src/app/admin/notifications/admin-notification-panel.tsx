@@ -17,7 +17,7 @@ import {
 import { MemberSubscriptionAction } from "../members/member-subscription-editor";
 import "./admin-notifications.css";
 
-export function AdminNotificationPanel() {
+export function AdminNotificationPanel({ role }: { role?: string | null | undefined } = {}) {
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [page, setPage] = useState<AdminInboxPage | null>(null);
   const [error, setError] = useState("");
@@ -231,7 +231,7 @@ export function AdminNotificationPanel() {
                 View details
               </Link>
             </div>
-            {notice.studentId ? <MemberSubscriptionAction studentId={notice.studentId} /> : null}
+            {notice.studentId ? <MemberSubscriptionAction studentId={notice.studentId} role={role} /> : null}
           </li>
         ))}
       </ol>

@@ -10,6 +10,8 @@ vi.mock("./registration-completion", () => ({
   RegistrationCompletion: ({ studentId }: { studentId: string }) => <p>Setup {studentId}</p>,
 }));
 
+vi.mock("../../admin-gate", () => ({ useAdminOrStaffSession: () => ({ role: "owner" }) }));
+
 import AddMemberRoute, { AddMemberPage } from "./page";
 
 async function fillRequiredAdult(user: ReturnType<typeof userEvent.setup>): Promise<void> {

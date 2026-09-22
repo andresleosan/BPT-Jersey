@@ -13,6 +13,7 @@ import {
 } from "@bpt-jersey/domain";
 import { createMember, type CreateMemberInput } from "../../../../lib/members-client";
 
+import { useAdminOrStaffSession } from "../../admin-gate";
 import { RegistrationCompletion } from "./registration-completion";
 
 import "../../admin.css";
@@ -122,7 +123,7 @@ function effectiveDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function AddMemberPage() {
+export function AddMemberPage({ role }: { role?: string | null | undefined } = {}) {
   const [values, setValues] = useState<FormValues>(initialValues);
   const [requestId, setRequestId] = useState(() => globalThis.crypto.randomUUID());
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -255,7 +256,7 @@ export function AddMemberPage() {
             manual membership.
           </p>
         </header>
-        <RegistrationCompletion key={createdMember} studentId={createdMember} onRestart={restart} />
+        <RegistrationCompletion key={createdMember} studentId={createdMember} onRestart={restart} role={role} />
       </section>
     );
 
@@ -474,5 +475,5 @@ export function AddMemberPage() {
 }
 
 export default function AddMemberRoute() {
-  return <AddMemberPage />;
+  return <AddMemberPage role={useAdminOrStaffSession().role} />;
 }
