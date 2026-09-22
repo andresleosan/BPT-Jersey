@@ -337,7 +337,12 @@ export async function requestIntroBooking(
     }
     const expectedSite = session.locationId === "town" ? "Town" : "West";
     if (expectedSite !== trial.site) return fail("ineligible", "Intro venue is not eligible");
-    const isIntroSession = sessionAccessMode(session) === "intro";
+    let isIntroSession: boolean;
+    try {
+      isIntroSession = sessionAccessMode(session) === "intro";
+    } catch {
+      return fail("ineligible", "Session access mode is invalid");
+    }
     if (!isIntroSession) {
       const dateKey = dateKeyInJersey(new Date(session.startAt));
       const age = typeof student.dateOfBirth === "string" ? ageOnDate(student.dateOfBirth, dateKey) : 16;
@@ -394,6 +399,8 @@ export async function requestIntroBooking(
     const futureCount = futureIntroBookingCount(
       otherIntroBookings as unknown as readonly BookingRecord[],
       sessionsById,
+      // Always empty by invariant: futureIntroBookingCount only counts sessions with
+      // startAt > now, and a future session cannot already have an attendance record.
       new Set<string>(),
       command.now,
     );
