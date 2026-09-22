@@ -297,6 +297,7 @@ export { listMemberClassRecords } from "./schedule/member-class-records-callable
 export {
   cancelBookingEu,
   getMemberCalendarWeek,
+  getTrialAccess,
   requestBookingEu,
 } from "./schedule/member-calendar-week-callables.js";
 
