@@ -1,7 +1,7 @@
-// Book every session a member's plan covers, for every member with a live membership: the office
-// equivalent of the member-area `bulkBookEligibleSessions`, built on the same booking transaction
-// (site, age band, plan, weekly limit, capacity, cutoff and the unconfirmed-centre gate all
-// apply). Dry-run by default; output is counters only.
+// Book every session a member's plan covers — for KIDS and TEENS with a live paid membership only.
+// Adults (and any other subscription) book their own classes. Office equivalent of the member-area
+// `bulkBookEligibleSessions`, built on the same booking transaction (site, age band, plan, weekly
+// limit, capacity, cutoff and the unconfirmed-centre gate all apply). Dry-run by default; counters only.
 //
 // ponytail: default window is 14 days, not the member area's 90 — an automatic booking a member
 // never asked for still counts as a no-show if they miss it. Widen with BULK_BOOK_DAYS.
@@ -15,6 +15,7 @@
 
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
+import { participantTypeOn } from "../../packages/domain/lib/schedule/member-calendar-contracts.js";
 import { sessionAccessMode } from "../../packages/domain/lib/schedule/schedule-contracts.js";
 import { reportScriptError, resolveTarget, SafeScriptError } from "./member-unification-s1-report.mjs";
 
@@ -32,6 +33,29 @@ export function liveMembershipByStudent(memberships, now) {
     if (!current || (membership.endsAt ?? "9") > (current.endsAt ?? "9")) byStudent.set(membership.studentId, membership);
   }
   return byStudent;
+}
+
+/** Operator rule (22 Sep 2026): automatic bookings are for kids and teens; adults book themselves. */
+export function autoBookedStudents(live, studentsById, today) {
+  const kept = new Map();
+  const skipped = { adult: 0, dateOfBirthMissing: 0, unknownStudent: 0 };
+  for (const [studentId, membership] of live) {
+    const student = studentsById.get(studentId);
+    if (!student) {
+      skipped.unknownStudent += 1;
+      continue;
+    }
+    if (!student.dateOfBirth) {
+      skipped.dateOfBirthMissing += 1;
+      continue;
+    }
+    if (participantTypeOn(student.dateOfBirth, today) === "adult") {
+      skipped.adult += 1;
+      continue;
+    }
+    kept.set(studentId, membership);
+  }
+  return { kept, skipped };
 }
 
 export function bookableSessions(sessions, from) {
@@ -79,13 +103,21 @@ async function main() {
   const now = new Date();
   const from = now.toISOString();
   const to = new Date(now.getTime() + days * 86_400_000).toISOString();
-  const memberships = (await firestore.collection(`academies/${academyId}/memberships`).get()).docs.map((document) => document.data());
-  const live = liveMembershipByStudent(memberships, from);
-  const targets = [...live.entries()].filter(([studentId]) => !onlyStudents || onlyStudents.has(studentId));
+  const [membershipDocs, studentDocs] = await Promise.all([
+    firestore.collection(`academies/${academyId}/memberships`).get(),
+    firestore.collection(`academies/${academyId}/students`).get(),
+  ]);
+  const live = liveMembershipByStudent(membershipDocs.docs.map((document) => document.data()), from);
+  const studentsById = new Map(studentDocs.docs.map((document) => [document.id, document.data()]));
+  const eligible = autoBookedStudents(live, studentsById, from.slice(0, 10));
+  const targets = [...eligible.kept.entries()].filter(([studentId]) => !onlyStudents || onlyStudents.has(studentId));
   const sessions = bookableSessions(await store.listSessions(academyId, { from, to }), from);
   console.log(`mode: ${apply ? "APPLY" : "dry-run"}`);
   console.log(`window: ${days} days`);
-  console.log(`membersWithLiveMembership: ${targets.length}`);
+  console.log(`membersWithLiveMembership: ${live.size}`);
+  console.log(`kidsAndTeensToAutoBook: ${targets.length}`);
+  console.log(`adultsBookThemselves: ${eligible.skipped.adult}`);
+  console.log(`skippedDateOfBirthMissing: ${eligible.skipped.dateOfBirthMissing}`);
   console.log(`bookableSessionsInWindow: ${sessions.length}`);
   if (!apply) return;
 
