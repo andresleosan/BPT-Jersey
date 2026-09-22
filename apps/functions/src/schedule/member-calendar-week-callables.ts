@@ -2,6 +2,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { parsePlanRecord } from "@bpt-jersey/domain/memberships";
 import { parseMembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle";
+import type { TrialAccessView } from "@bpt-jersey/domain/memberships/trial-access";
 import {
   isIntroBooking,
   parseListSessionsQuery,
@@ -17,6 +18,11 @@ import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { createMemberDirectoryReadTransaction } from "../members/member-directory-firestore.js";
 import { resolveCanonicalStudentIdInTransaction } from "../members/member-identity-resolution.js";
+import {
+  futureIntroBookingCount,
+  readTrialAccess,
+  trialView,
+} from "../memberships/trial-access-service.js";
 import { scheduleCallableOptions } from "./schedule-callable-options.js";
 import {
   attendanceForActor,
@@ -73,13 +79,20 @@ export const getMemberCalendarWeek = onCall(
             actor.academyId,
             ids.data.studentId,
           );
-          const [student, access, membership] = await tx.getAll(
+          const [student, access, membership, trialDoc] = await tx.getAll(
             db.doc(`${base}/students/${studentId}`),
             db.doc(`${base}/studentGroupAccess/${studentId}`),
             // A placeholder keeps getAll's shape; "-" is never a membership id.
             db.doc(`${base}/memberships/${membershipId ?? "-"}`),
+            db.doc(`${base}/trialAccess/${studentId}`),
           );
-          return { studentId, student: student!, access: access!, membership: membership! };
+          return {
+            studentId,
+            student: student!,
+            access: access!,
+            membership: membership!,
+            trialDoc: trialDoc!,
+          };
         },
         { readOnly: true },
       ),
@@ -110,6 +123,47 @@ export const getMemberCalendarWeek = onCall(
         .filter((record) => record.state === "attended" || record.state === "late")
         .map((record) => record.sessionId),
     );
+
+    const trial = membership
+      ? undefined
+      : await readTrialAccess(
+          { get: async () => records.trialDoc },
+          actor.academyId,
+          records.studentId,
+        );
+    let trialViewValue: TrialAccessView | undefined;
+    if (trial) {
+      const sessionsById = new Map<string, { startAt: string }>(
+        sessions.map((session) => [session.sessionId, { startAt: session.startAt }]),
+      );
+      const missingSessionIds = Array.from(
+        new Set(
+          bookings
+            .filter(
+              (booking) =>
+                isIntroBooking(booking) &&
+                booking.status === "confirmed" &&
+                !sessionsById.has(booking.sessionId),
+            )
+            .map((booking) => booking.sessionId),
+        ),
+      ).slice(0, 10);
+      if (missingSessionIds.length) {
+        const extraSessionDocs = await db.getAll(
+          ...missingSessionIds.map((sessionId) => db.doc(`${base}/sessions/${sessionId}`)),
+        );
+        for (const doc of extraSessionDocs) {
+          if (doc.exists) sessionsById.set(doc.id, { startAt: String(doc.get("startAt")) });
+        }
+      }
+      const now = new Date().toISOString();
+      trialViewValue = trialView(
+        trial,
+        futureIntroBookingCount(bookings, sessionsById, attended, now),
+        now,
+      );
+    }
+
     const member: CalendarMemberContext = {
       studentId: ids.data.studentId,
       membershipId: membership && plan ? membership.membershipId : null,
@@ -122,9 +176,13 @@ export const getMemberCalendarWeek = onCall(
       dateOfBirth: groupAccess.dateOfBirth,
       introSite: profile.trainingCenter,
       hasActiveMembership: membership !== undefined && plan !== undefined,
-      hasAttendedIntro: bookings.some(
-        (booking) => isIntroBooking(booking) && attended.has(booking.sessionId),
-      ),
+      ...(trialViewValue
+        ? { trial: trialViewValue }
+        : {
+            hasAttendedIntro: bookings.some(
+              (booking) => isIntroBooking(booking) && attended.has(booking.sessionId),
+            ),
+          }),
     };
     const programById = new Map(programs.map((program) => [program.programId, program]));
     const held = new Set(
@@ -137,7 +195,8 @@ export const getMemberCalendarWeek = onCall(
       if (held.has(session.sessionId)) return true;
       const program = programById.get(session.programId);
       if (!program) return false;
-      if (!member.hasActiveMembership && sessionAccessMode(session) !== "intro") return false;
+      if (!member.hasActiveMembership && !member.trial && sessionAccessMode(session) !== "intro")
+        return false;
       return canViewMemberSession(session, program, member);
     });
     const bookedCounts = await store
@@ -154,6 +213,7 @@ export const getMemberCalendarWeek = onCall(
       attendance: attendanceForActor(actor, attendance),
       bookedCounts,
       ...(member.hasActiveMembership ? { groupAccess } : {}),
+      ...(trialViewValue ? { trial: trialViewValue } : {}),
     };
   },
 );
@@ -166,4 +226,68 @@ export const requestBookingEu = onCall(memberBookingOptions, async (request) =>
 
 export const cancelBookingEu = onCall(memberBookingOptions, async (request) =>
   createCancelBookingHandler(getStudentScopeOptions())(request),
+);
+
+/** A member's trial status on its own, for surfaces that don't need the whole calendar week. */
+export const getTrialAccess = onCall(
+  { ...browserAdminCallableOptions, region: memberRegion },
+  async (request) => {
+    const actor = requireUserActor(request);
+    const ids = studentGroupAccessQuerySchema.safeParse({
+      studentId: (request.data as { studentId?: unknown } | null)?.studentId,
+    });
+    if (!ids.success) throw new HttpsError("invalid-argument", "Select a member.");
+    const options = getStudentScopeOptions();
+    await requireStudentScope(request, ids.data.studentId, options);
+
+    const db = getFirestore();
+    const base = `academies/${actor.academyId}`;
+    const studentId = await db.runTransaction(
+      (tx) =>
+        resolveCanonicalStudentIdInTransaction(
+          createMemberDirectoryReadTransaction(db, tx),
+          actor.academyId,
+          ids.data.studentId,
+        ),
+      { readOnly: true },
+    );
+    const trial = await readTrialAccess(
+      { get: (path) => db.doc(path).get() },
+      actor.academyId,
+      studentId,
+    );
+    if (!trial) return { trial: null };
+
+    const [bookings, attendance] = await Promise.all([
+      options.store.listStudentBookings(actor.academyId, studentId),
+      options.store.listStudentAttendance(actor.academyId, studentId),
+    ]);
+    const attended = new Set(
+      attendance
+        .filter((record) => record.state === "attended" || record.state === "late")
+        .map((record) => record.sessionId),
+    );
+    const pending = bookings
+      .filter(
+        (booking) =>
+          isIntroBooking(booking) &&
+          booking.status === "confirmed" &&
+          !attended.has(booking.sessionId),
+      )
+      .slice(0, 10);
+    const sessionDocs = pending.length
+      ? await db.getAll(
+          ...pending.map((booking) => db.doc(`${base}/sessions/${booking.sessionId}`)),
+        )
+      : [];
+    const sessionsById = new Map<string, { startAt: string }>(
+      sessionDocs
+        .filter((doc) => doc.exists)
+        .map((doc) => [doc.id, { startAt: String(doc.get("startAt")) }]),
+    );
+    const now = new Date().toISOString();
+    return {
+      trial: trialView(trial, futureIntroBookingCount(pending, sessionsById, attended, now), now),
+    };
+  },
 );
