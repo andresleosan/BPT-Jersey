@@ -21,6 +21,7 @@
     "src/authorization/access-policy.ts",
     "src/members/member-contracts.ts",
     "src/members/member-directory-contracts.ts",
+    "src/members/member-overview-contracts.ts",
     "src/members/member-migration-contracts.ts",
     "src/members/member-directory-migration-contracts.ts",
     "src/members/member-directory-operation-contracts.ts",

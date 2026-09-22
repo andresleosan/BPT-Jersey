@@ -51,6 +51,7 @@ export {
   listMemberMigrationQueue,
 } from "./members/member-migration-callables.js";
 export { listMemberNames } from "./members/member-names-callables.js";
+export { getMemberOverview } from "./members/member-overview-callables.js";
 export { getMemberProfile, searchMemberNames } from "./members/member-profile-callables.js";
 export { exportClassHistoryPdf, listClassHistory } from "./audit/class-history-callables.js";
 export { sweepClassIpRetentionSchedule } from "./audit/class-ip-retention-sweep.js";
