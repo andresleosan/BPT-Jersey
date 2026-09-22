@@ -1,4 +1,4 @@
-import { httpsCallable as firebaseHttpsCallable } from "firebase/functions";
+import { httpsCallable as firebaseHttpsCallable } from "./callable";
 
 import {
   upcomingBirthdayParticipantTypes,

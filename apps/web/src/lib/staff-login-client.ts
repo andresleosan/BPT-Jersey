@@ -1,6 +1,6 @@
 "use client";
 import { GoogleAuthProvider, browserPopupRedirectResolver, linkWithPopup, signInWithCustomToken, signInWithEmailAndPassword } from "firebase/auth";
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "./callable";
 import { getFirebaseAuth, getFirebaseFunctions } from "./firebase-client";
 
 export const isStaffNumber = (value: string) => /^[1-9]\d{5}$/u.test(value.trim());

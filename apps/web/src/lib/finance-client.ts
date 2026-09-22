@@ -3,7 +3,7 @@ import {
   type FinancialDashboard,
 } from "@bpt-jersey/domain/finance/dashboard";
 import { isRecentPaymentRow, type RecentPaymentRow } from "@bpt-jersey/domain/finance";
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "./callable";
 
 import { parseFinancialAccount, type FinancialAccount } from "./billing-client";
 import { getFirebaseFunctions } from "./firebase-client";

@@ -2,7 +2,9 @@ import type { CoursePage, CourseSlot, PublicCourse } from "@bpt-jersey/domain/co
 export type PublicCourseSlot = CourseSlot & {status: string};
 const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 const endpoint = process.env.NEXT_PUBLIC_COURSES_API_URL
-  ?? (projectId ? `https://us-central1-${projectId}.cloudfunctions.net/coursePublic` : "");
+  ?? (projectId ? `https://europe-west9-${projectId}.cloudfunctions.net/coursePublic` : "");
+// Until the us-central1 copy is deleted, a 404 from the new region means the move has not reached it yet.
+const legacyOrigin = projectId ? `https://us-central1-${projectId}.cloudfunctions.net` : "";
 type Entry = {data?: unknown; etag?: string | undefined; promise?: Promise<unknown> | undefined; controller?: AbortController | undefined; consumers: number};
 const cache = new Map<string, Entry>();
 /** Public JSON only. This module deliberately has no Firebase dependencies. */
@@ -12,7 +14,9 @@ function request<T>(parameters: Record<string, string>, signal: AbortSignal): Pr
   const key = url.href; const previous = cache.get(key); const entry: Entry = previous?.controller?.signal.aborted ? {consumers: 0} : previous ?? {consumers: 0}; cache.set(key, entry); entry.consumers++;
   if (!entry.promise) {
     entry.controller = new AbortController();
-    entry.promise = fetch(key, {signal: entry.controller.signal, credentials: "omit", cache: "no-cache", headers: entry.etag ? {"If-None-Match": entry.etag} : {}}).then(async response => {
+    const init: RequestInit = {signal: entry.controller.signal, credentials: "omit", cache: "no-cache", headers: entry.etag ? {"If-None-Match": entry.etag} : {}};
+    entry.promise = fetch(key, init).then(async response => {
+      if (response.status === 404 && legacyOrigin && url.origin !== legacyOrigin) response = await fetch(legacyOrigin + url.pathname + url.search, init);
       if (response.status === 304 && entry.data) return entry.data;
       if (!response.ok) {entry.data = undefined; entry.etag = undefined; throw new Error(response.status === 404 ? "Courses are not available yet." : "Courses could not be loaded. Please try again.");}
       const data: unknown = await response.json(); entry.data = data; entry.etag = response.headers.get("ETag") ?? undefined; return data;

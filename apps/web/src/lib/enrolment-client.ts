@@ -1,5 +1,5 @@
 import { parsePaymentInstructionsInput } from "@bpt-jersey/domain/finance";
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "./callable";
 
 import type {
   EnrolmentApprovalSetup,

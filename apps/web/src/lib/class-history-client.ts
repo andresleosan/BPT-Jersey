@@ -1,4 +1,4 @@
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "./callable";
 
 import { userRoles } from "@bpt-jersey/domain";
 import {

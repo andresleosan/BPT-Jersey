@@ -1,4 +1,4 @@
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "./callable";
 
 import type { InAppReminderRecord } from "@bpt-jersey/domain/reminders";
 import { getFirebaseFunctions } from "./firebase-client";
