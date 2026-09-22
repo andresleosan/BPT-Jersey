@@ -185,21 +185,6 @@
   padding: 0.9rem 1rem;
 }
 
-.calendar-bulk-booking {
-  align-items: start;
-  background: color-mix(in srgb, var(--bpt-lime) 16%, var(--gi-white));
-  border: 1px solid color-mix(in srgb, var(--bpt-purple) 22%, transparent);
-  border-radius: var(--radius);
-  display: grid;
-  gap: 0.35rem;
-  margin: 1rem clamp(1rem, 4vw, 3rem) 0;
-  padding: 0.9rem 1rem;
-}
-
-.calendar-bulk-booking p {
-  margin: 0;
-}
-
 .member-body {
   padding: 1rem clamp(1rem, 4vw, 3rem) 3rem;
 }
