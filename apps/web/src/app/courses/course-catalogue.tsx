@@ -52,7 +52,7 @@ export function CourseCatalogue() {
   return (
     <section className="course-catalogue" aria-labelledby="course-catalogue-title">
       <header className="course-section-heading">
-        <h2 id="course-catalogue-title">Upcoming programmes</h2>
+        <h2 id="course-catalogue-title">Courses &amp; seminars</h2>
         <p>Choose the dates and focus that fit your training.</p>
       </header>
 
@@ -95,6 +95,17 @@ export function CourseCatalogue() {
                 <h3>
                   <a href={`/courses/view?course=${course.courseId}`}>{course.title}</a>
                 </h3>
+                <p className="course-description-preview">
+                  {course.description.length > 420
+                    ? `${course.description.slice(0, 420).trimEnd()}…`
+                    : course.description}
+                </p>
+                {course.techniques.length > 0 && (
+                  <details className="course-techniques-preview">
+                    <summary>What you will learn</summary>
+                    <ul>{course.techniques.map((technique, index) => <li key={index}>{technique}</li>)}</ul>
+                  </details>
+                )}
                 <p className="course-byline">
                   {course.instructorName}
                   <span aria-hidden="true">/</span>

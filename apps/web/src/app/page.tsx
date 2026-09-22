@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { academyContent } from "../content/academy";
 import Image from "next/image";
 
+import { CourseCatalogue } from "./courses/course-catalogue";
 import { CoursePromotionBar } from "./courses/course-promotion-bar";
 
 import { PlanPriceList } from "./plan-price-list";
@@ -86,6 +87,9 @@ export default function HomePage() {
         </section>
 
         <CoursePromotionBar />
+        <div className="course-page course-landing" id="courses">
+          <CourseCatalogue />
+        </div>
 
         <section className="classes-section" id="classes" aria-labelledby="classes-title">
           <div className="section-heading">

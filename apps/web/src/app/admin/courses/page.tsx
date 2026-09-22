@@ -337,8 +337,9 @@ export default function AdminCoursesPage() {
             </div>
             {selected.status === "draft" && (
               <p className="course-guidance">
-                Check the dates below before publishing. Once all sessions are prepared, the
-                programme appears in the public catalogue and academy calendar.
+                This draft is private and does not appear on the homepage. Check the dates below,
+                then choose Publish course. Once all sessions are prepared, it appears on the
+                homepage, in the public catalogue and in the academy calendar.
               </p>
             )}
             <CourseSessions
