@@ -154,9 +154,34 @@ function seedStudent(store: ReturnType<typeof createFirestore>, studentId = "stu
   return actorId;
 }
 
+function seedTrial(
+  store: ReturnType<typeof createFirestore>,
+  studentId = "student-1",
+  overrides: Partial<Document> = {},
+) {
+  store.seed(`academies/${academyId}/trialAccess/${studentId}`, {
+    trialId: `trial-${studentId}`,
+    academyId,
+    studentId,
+    site: "Town",
+    experience: "beginner",
+    allowance: 2,
+    countedAttendanceIds: [],
+    status: "active",
+    startsAt: "2026-09-01T00:00:00.000Z",
+    expiresAt: "2026-10-01T00:00:00.000Z",
+    enrolmentRequestId: "enrolment-1",
+    createdAt: audit.createdAt,
+    updatedAt: audit.updatedAt,
+    schemaVersion: "1",
+    ...overrides,
+  });
+}
+
 function seededIntroStore(state?: "missing-waiver" | "active-membership" | "prior-intro-attendance" | "future-intro-booking") {
   const store = createFirestore();
   const actorId = seedStudent(store);
+  seedTrial(store);
   store.seed(`academies/${academyId}/sessions/session-1`, {
     sessionId: "session-1",
     academyId,
@@ -201,24 +226,10 @@ function seededIntroStore(state?: "missing-waiver" | "active-membership" | "prio
     });
   }
   if (state === "prior-intro-attendance") {
-    store.seed(`academies/${academyId}/sessions/session-old`, {
-      ...(store.records.get(`academies/${academyId}/sessions/session-1`) ?? {}),
-      sessionId: "session-old",
-      startAt: "2026-09-01T18:00:00.000Z",
-      endAt: "2026-09-01T19:00:00.000Z",
-      status: "completed",
-    });
-    store.seed(`academies/${academyId}/attendance/attendance-old`, {
-      attendanceId: "attendance-old",
-      academyId,
-      sessionId: "session-old",
-      studentId: "student-1",
-      state: "attended",
-      occurredAt: "2026-09-01T18:00:00.000Z",
-      ...audit,
-    });
+    seedTrial(store, "student-1", { allowance: 1, countedAttendanceIds: ["attendance-old"] });
   }
   if (state === "future-intro-booking") {
+    seedTrial(store, "student-1", { allowance: 1 });
     store.seed(`academies/${academyId}/sessions/session-other`, {
       ...(store.records.get(`academies/${academyId}/sessions/session-1`) ?? {}),
       sessionId: "session-other",
@@ -290,6 +301,7 @@ describe("intro booking transaction", () => {
     const session = store.records.get(`academies/${academyId}/sessions/session-1`)!;
     store.seed(`academies/${academyId}/sessions/session-1`, { ...session, capacity: 1 });
     seedStudent(store, "student-2");
+    seedTrial(store, "student-2");
     const results = await Promise.allSettled([
       requestIntroBooking(store.db, { ...store.command, actorRole: "owner" }),
       requestIntroBooking(store.db, {
@@ -305,5 +317,161 @@ describe("intro booking transaction", () => {
         .documents(`academies/${academyId}/bookings`)
         .filter((booking) => booking.status === "confirmed"),
     ).toHaveLength(1);
+  });
+
+  it("refuses a booking without an active trial", async () => {
+    const store = seededIntroStore();
+    store.records.delete(`academies/${academyId}/trialAccess/student-1`);
+    await expect(requestIntroBooking(store.db, store.command)).rejects.toMatchObject({
+      code: "ineligible",
+      message: "Your trial is not active",
+    });
+    expect(store.documents(`academies/${academyId}/bookings`)).toHaveLength(0);
+  });
+
+  it("lets a beginner hold two future intro bookings and no more", async () => {
+    const store = seededIntroStore();
+    const template = store.records.get(`academies/${academyId}/sessions/session-1`)!;
+    store.seed(`academies/${academyId}/sessions/session-2`, {
+      ...template,
+      sessionId: "session-2",
+      startAt: "2026-09-23T18:00:00.000Z",
+      endAt: "2026-09-23T19:00:00.000Z",
+    });
+    store.seed(`academies/${academyId}/sessions/session-3`, {
+      ...template,
+      sessionId: "session-3",
+      startAt: "2026-09-24T18:00:00.000Z",
+      endAt: "2026-09-24T19:00:00.000Z",
+    });
+    await requestIntroBooking(store.db, { ...store.command, sessionId: "session-1" });
+    await requestIntroBooking(store.db, { ...store.command, sessionId: "session-2" });
+    await expect(
+      requestIntroBooking(store.db, { ...store.command, sessionId: "session-3" }),
+    ).rejects.toMatchObject({
+      code: "ineligible",
+      message: "Your free classes are used up",
+    });
+    expect(store.documents(`academies/${academyId}/bookings`)).toHaveLength(2);
+  });
+
+  it("counts attended classes against the allowance", async () => {
+    const store = seededIntroStore();
+    seedTrial(store, "student-1", { countedAttendanceIds: ["att-1"] });
+    const template = store.records.get(`academies/${academyId}/sessions/session-1`)!;
+    store.seed(`academies/${academyId}/sessions/session-2`, {
+      ...template,
+      sessionId: "session-2",
+      startAt: "2026-09-23T18:00:00.000Z",
+      endAt: "2026-09-23T19:00:00.000Z",
+    });
+    const bookingId = buildBookingId("session-2", "student-1");
+    store.seed(`academies/${academyId}/bookings/${bookingId}`, {
+      ...audit,
+      bookingId,
+      academyId,
+      sessionId: "session-2",
+      studentId: "student-1",
+      membershipId: null,
+      source: { kind: "intro" },
+      status: "confirmed",
+      requestedAt: now,
+      cancelledAt: null,
+      cancellationReason: null,
+      schemaVersion: "3",
+    });
+    await expect(requestIntroBooking(store.db, store.command)).rejects.toMatchObject({
+      code: "ineligible",
+      message: "Your free classes are used up",
+    });
+    expect(store.documents(`academies/${academyId}/bookings`)).toHaveLength(1);
+  });
+
+  it("refuses an ordinary class for a 16+ trial member", async () => {
+    const store = seededIntroStore();
+    const template = store.records.get(`academies/${academyId}/sessions/session-1`)!;
+    store.seed(`academies/${academyId}/sessions/session-1`, {
+      ...template,
+      accessMode: undefined,
+    });
+    await expect(requestIntroBooking(store.db, store.command)).rejects.toMatchObject({
+      code: "ineligible",
+      message: "During your trial you can book Introduction Classes only",
+    });
+    expect(store.documents(`academies/${academyId}/bookings`)).toHaveLength(0);
+  });
+
+  it("lets an under-16 trial member book a kids class at their site", async () => {
+    const store = seededIntroStore();
+    store.seed(`academies/${academyId}/students/student-1`, {
+      ...store.records.get(`academies/${academyId}/students/student-1`),
+      dateOfBirth: "2018-01-01",
+    });
+    const template = store.records.get(`academies/${academyId}/sessions/session-1`)!;
+    store.seed(`academies/${academyId}/sessions/session-1`, {
+      ...template,
+      accessMode: undefined,
+      programId: "kids-fundamentals",
+    });
+    store.seed(`academies/${academyId}/programs/kids-fundamentals`, {
+      programId: "kids-fundamentals",
+      academyId,
+      name: "Kids Fundamentals",
+      ageBand: "kids",
+      discipline: "gi",
+      level: "fundamentals",
+      active: true,
+      schemaVersion: "1",
+    });
+    const booking = await requestIntroBooking(store.db, { ...store.command, actorRole: "owner" });
+    expect(booking).toMatchObject({
+      status: "confirmed",
+      source: { kind: "intro" },
+    });
+    expect(store.documents(`academies/${academyId}/bookings`)).toHaveLength(1);
+  });
+
+  it("refuses an under-16 trial member outside their age band", async () => {
+    const store = seededIntroStore();
+    store.seed(`academies/${academyId}/students/student-1`, {
+      ...store.records.get(`academies/${academyId}/students/student-1`),
+      dateOfBirth: "2018-01-01",
+    });
+    const template = store.records.get(`academies/${academyId}/sessions/session-1`)!;
+    store.seed(`academies/${academyId}/sessions/session-1`, {
+      ...template,
+      accessMode: undefined,
+      programId: "adult-open",
+    });
+    store.seed(`academies/${academyId}/programs/adult-open`, {
+      programId: "adult-open",
+      academyId,
+      name: "Adult Open Mat",
+      ageBand: "all",
+      discipline: "gi",
+      level: "fundamentals",
+      active: true,
+      schemaVersion: "1",
+    });
+    await expect(
+      requestIntroBooking(store.db, { ...store.command, actorRole: "owner" }),
+    ).rejects.toMatchObject({
+      code: "ineligible",
+      message: "This class is for another age group",
+    });
+    expect(store.documents(`academies/${academyId}/bookings`)).toHaveLength(0);
+  });
+
+  it("refuses a session at the other site", async () => {
+    const store = seededIntroStore();
+    const template = store.records.get(`academies/${academyId}/sessions/session-1`)!;
+    store.seed(`academies/${academyId}/sessions/session-1`, {
+      ...template,
+      locationId: "west",
+    });
+    await expect(requestIntroBooking(store.db, store.command)).rejects.toMatchObject({
+      code: "ineligible",
+    });
+    expect(store.documents(`academies/${academyId}/bookings`)).toHaveLength(0);
   });
 });
