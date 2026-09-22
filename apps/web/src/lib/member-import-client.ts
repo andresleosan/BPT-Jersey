@@ -6,7 +6,7 @@ import {
   type TrainingTimePreference,
 } from "@bpt-jersey/domain";
 import { normalizeMemberImportPdfFileName } from "@bpt-jersey/domain/members";
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "./callable";
 
 import { getFirebaseFunctions } from "./firebase-client";
 

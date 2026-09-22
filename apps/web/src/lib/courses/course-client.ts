@@ -1,4 +1,4 @@
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "../callable";
 import type { Course, CourseDraft, CourseEnrolment, CourseCandidate, CourseMutation, CourseNotice, CoursePage, CoursePaymentIncident, CourseRefund, CourseJob, ParticipantScope, ReserveCourseInput, PaymentSubmission } from "@bpt-jersey/domain/courses";
 import { getFirebaseFunctions } from "../firebase-client";
 import type { PreClassView } from "@bpt-jersey/domain/schedule/pre-class";

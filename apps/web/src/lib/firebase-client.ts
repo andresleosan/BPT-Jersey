@@ -208,15 +208,13 @@ export function getFirebaseFirestore(): Firestore {
   return firestore;
 }
 
-/** The member calendar's hot path runs beside Firestore; see member-calendar-week-callables.ts. */
+/** Every function runs beside Firestore since 22 September 2026; see functions/src/global-options.ts. */
 export const memberFunctionsRegion = "europe-west9";
 
-export function getFirebaseFunctions(region?: string): Functions {
+export function getFirebaseFunctions(region: string = memberFunctionsRegion): Functions {
   const useFirebaseEmulators = shouldUseFirebaseEmulators();
   initializeFirebaseAppCheck(useFirebaseEmulators);
-  const functions = region
-    ? getFunctions(getFirebaseClient(), region)
-    : getFunctions(getFirebaseClient());
+  const functions = getFunctions(getFirebaseClient(), region);
 
   if (useFirebaseEmulators && !functionsEmulatorConnected.has(region)) {
     connectFunctionsEmulator(functions, firestoreEmulatorHost, functionsEmulatorPort);

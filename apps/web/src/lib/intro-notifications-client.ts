@@ -1,4 +1,4 @@
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "./callable";
 import { z } from "zod";
 import { memberNotificationSchema, type MemberNotification } from "@bpt-jersey/domain";
 import { getFirebaseFunctions } from "./firebase-client";

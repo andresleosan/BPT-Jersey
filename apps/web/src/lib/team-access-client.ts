@@ -1,5 +1,5 @@
 "use client";
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "./callable";
 import { z } from "zod";
 import {
   teamDirectoryRequestSchema, teamDirectoryResponseSchema, changeTeamRoleSchema,

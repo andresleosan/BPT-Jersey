@@ -1,4 +1,4 @@
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "./callable";
 import { z } from "zod";
 import { introConversionStateSchema, membershipApplicationSchema } from "@bpt-jersey/domain";
 import { planIds, siteValues } from "@bpt-jersey/domain/memberships";

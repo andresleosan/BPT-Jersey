@@ -1,5 +1,5 @@
 import { administrativePlanIds, parsePlanDraft, type PlanDraft, type PlanId } from "@bpt-jersey/domain/memberships";
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "./callable";
 
 import {
   createMembership,

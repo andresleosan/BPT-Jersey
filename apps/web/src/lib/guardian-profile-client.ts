@@ -1,4 +1,4 @@
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "./callable";
 
 import { parseUserProfile, type UserProfile } from "@bpt-jersey/domain/profiles";
 

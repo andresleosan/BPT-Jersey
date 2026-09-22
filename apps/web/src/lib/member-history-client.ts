@@ -1,4 +1,4 @@
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "./callable";
 import { memberHistoryPageSchema, type MemberHistoryEntry } from "@bpt-jersey/domain/members/history";
 import type { z } from "zod";
 import { getFirebaseFunctions } from "./firebase-client";
