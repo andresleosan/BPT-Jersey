@@ -15,7 +15,9 @@ import {
   parseEnrolmentRequestRecord,
   parseEnrolmentRequestReview,
   parseEnrolmentRequestSubmission,
+  enrolmentNeedsPayment,
   enrolmentPaymentTotal,
+  enrolmentTrialAllowance,
   toEnrolmentRequestClientView,
   toEnrolmentRequestDetail,
   toEnrolmentRequestRow,
@@ -504,5 +506,140 @@ describe("enrolment plan preferences", () => {
     expect(ids("2008-09-06", "Town")).toEqual(["bpt-jersey-adult", "town-adult"]);
     expect(ids("2008-09-06", "Town")).not.toContain("transit-free");
     expect(ids("bad-date", "West")).toEqual([]);
+  });
+});
+
+describe("trial plan choice", () => {
+  const waiverAcceptance = { version: enrolmentWaiverTermsVersion, accepted: true };
+
+  it("needs no payment and counts nothing towards the transfer total", () => {
+    expect(enrolmentNeedsPayment("trial")).toBe(false);
+    expect(enrolmentPaymentTotal({ applicant: "trial", minors: [] })).toBe(0);
+    expect(enrolmentPaymentTotal({ minors: ["trial", "town-kids-1x"] })).toBe(9500);
+  });
+
+  it("gives a beginner 2 classes and an experienced student 1", () => {
+    expect(enrolmentTrialAllowance("beginner")).toBe(2);
+    expect(enrolmentTrialAllowance("experienced")).toBe(1);
+  });
+
+  it("accepts a beginner trial submission without payment", () => {
+    const result = parseEnrolmentRequestSubmission(
+      {
+        requestId,
+        applicantIsStudent: true,
+        applicant,
+        minors: [],
+        waiverAcceptance,
+        planSelections: { applicant: "trial", minors: [] },
+        levelDeclarations: {
+          applicant: { experience: "beginner", declaredLevelKey: null },
+          minors: [],
+        },
+      },
+      effectiveDate,
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it("requires a declared level for an experienced trial student", () => {
+    const result = parseEnrolmentRequestSubmission(
+      {
+        requestId,
+        applicantIsStudent: true,
+        applicant,
+        minors: [],
+        waiverAcceptance,
+        planSelections: { applicant: "trial", minors: [] },
+        levelDeclarations: {
+          applicant: { experience: "experienced", declaredLevelKey: null },
+          minors: [],
+        },
+      },
+      effectiveDate,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error[0]?.code).toBe("declared_level_required");
+  });
+
+  it("requires a declaration for every trial student", () => {
+    const result = parseEnrolmentRequestSubmission(
+      {
+        requestId,
+        applicantIsStudent: true,
+        applicant,
+        minors: [],
+        waiverAcceptance,
+        planSelections: { applicant: "trial", minors: [] },
+      },
+      effectiveDate,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error[0]?.code).toBe("level_declaration_required");
+  });
+
+  it("rejects a beginner who also declares a level", () => {
+    const result = parseEnrolmentRequestSubmission(
+      {
+        requestId,
+        applicantIsStudent: true,
+        applicant,
+        minors: [],
+        waiverAcceptance,
+        planSelections: { applicant: "trial", minors: [] },
+        levelDeclarations: {
+          applicant: { experience: "beginner", declaredLevelKey: "blue-belt" },
+          minors: [],
+        },
+      },
+      effectiveDate,
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it("approves a trial student only with an open-ended period", () => {
+    const base = {
+      enrolmentRequestId: "enrol-1",
+      requestId,
+      purpose: "enrolment-request-review" as const,
+    };
+    const ok = parseEnrolmentRequestApproval({
+      ...base,
+      setup: {
+        students: [
+          { planId: "trial", definitionKey: "white-belt", startsOn: "2026-09-06", endsOn: null },
+        ],
+        detailsVerified: true,
+        paymentVerified: true,
+      },
+    });
+    expect(ok.ok).toBe(true);
+    const bad = parseEnrolmentRequestApproval({
+      ...base,
+      setup: {
+        students: [
+          {
+            planId: "trial",
+            definitionKey: "white-belt",
+            startsOn: "2026-09-06",
+            endsOn: "2026-10-06",
+          },
+        ],
+        detailsVerified: true,
+        paymentVerified: true,
+      },
+    });
+    expect(bad.ok).toBe(false);
+  });
+
+  it("carries level declarations into the office detail", () => {
+    const detail = toEnrolmentRequestDetail({
+      ...record,
+      levelDeclarations: {
+        applicant: { experience: "experienced", declaredLevelKey: "blue-2nd-stripe" },
+        minors: [],
+      },
+    });
+    expect(detail.levelDeclarations?.applicant?.declaredLevelKey).toBe("blue-2nd-stripe");
   });
 });
