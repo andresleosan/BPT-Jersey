@@ -59,6 +59,26 @@ describe("intro conversion contracts", () => {
     expect(membershipApplicationSchema.parse(application)).toEqual(application);
   });
 
+  it("accepts a pay-as-you-go application submission without payment evidence", () => {
+    const payg = { ...submit, proofId: null, bankReference: null };
+    expect(membershipApplicationSubmitSchema.parse(payg)).toEqual(payg);
+  });
+
+  it("accepts a per-session application record with no proof of payment", () => {
+    const payg = {
+      ...application,
+      billingPeriod: "per-session",
+      proofId: null,
+      bankReference: null,
+    };
+    expect(membershipApplicationSchema.parse(payg)).toEqual(payg);
+  });
+
+  it("parses a null proof for other billing periods too (the service enforces the requirement)", () => {
+    const monthlyNullProof = { ...application, proofId: null, bankReference: null };
+    expect(membershipApplicationSchema.parse(monthlyNullProof)).toEqual(monthlyNullProof);
+  });
+
   it("restricts notifications to internal membership destinations", () => {
     const notice = {
       notificationId: "notice-1",

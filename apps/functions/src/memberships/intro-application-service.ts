@@ -52,7 +52,6 @@ export async function getIntroMembershipContext(db: Firestore, actor: UserActorC
       (value) =>
         value.academyId === actor.academyId &&
         value.active &&
-        value.billingPeriod !== "per-session" &&
         !administrativePlanIds.includes(value.planId),
     );
   const payment = parsePaymentInstructionsRecord(instructions.data());
@@ -98,12 +97,6 @@ export async function submitIntroMembershipApplication(
   storage: R2Client,
 ) {
   const input = membershipApplicationSubmitSchema.parse(raw);
-  await assertIntroProof(storage, {
-    academyId: actor.academyId,
-    userId: actor.userId,
-    requestId: input.requestId,
-    proofId: input.proofId,
-  });
   const base = `academies/${actor.academyId}`;
   return db.runTransaction(async (tx) => {
     const access = await createMemberAccessService(
@@ -169,14 +162,29 @@ export async function submitIntroMembershipApplication(
       plan.value.planId !== input.planId ||
       !plan.value.active ||
       administrativePlanIds.includes(plan.value.planId) ||
-      plan.value.billingPeriod === "per-session" ||
       !plan.value.classSites.includes(input.site) ||
       participantBand === null ||
       !plan.value.eligibleParticipantTypes.includes(participantBand)
     )
       throw new HttpsError("failed-precondition", "Plan is unavailable");
-    if (!instructions.ok || instructions.value.academyId !== actor.academyId)
-      throw new HttpsError("failed-precondition", "Payment instructions are unavailable");
+    if (plan.value.billingPeriod === "per-session") {
+      if (input.proofId !== null || input.bankReference !== null)
+        throw new HttpsError(
+          "failed-precondition",
+          "Pay as you go applications do not need payment evidence",
+        );
+    } else {
+      if (input.proofId === null || input.bankReference === null)
+        throw new HttpsError("failed-precondition", "Payment evidence is required");
+      if (!instructions.ok || instructions.value.academyId !== actor.academyId)
+        throw new HttpsError("failed-precondition", "Payment instructions are unavailable");
+      await assertIntroProof(storage, {
+        academyId: actor.academyId,
+        userId: actor.userId,
+        requestId: input.requestId,
+        proofId: input.proofId,
+      });
+    }
     const application = membershipApplicationSchema.parse({
       applicationId: applicationRef.id,
       requestId: input.requestId,
