@@ -4,7 +4,9 @@ import {
   migrationIdentityValues,
   reviewedMigrationValues,
   decideMemberMigrationInputSchema,
+  noTrainingTimePreference,
   toMemberMigrationQueueResponse,
+  unconfirmedTrainingCenterPlaceholder,
   type ArchiveRecordInput,
   type DecideMemberMigrationResult,
   type LegacyMemberInput,
@@ -188,10 +190,16 @@ function registrationFor(
     throw new MemberMigrationInputError("not-a-candidate");
   }
   const chosen = reviewedMigrationValues(member, record, decision.review);
-  const training = { trainingCenter: decision.trainingCenter, trainingTimePreferences: [...decision.trainingTimePreferences] };
+  // ponytail: no centre in the decision → placeholder flagged unconfirmed; no preference → all three.
+  const training = {
+    trainingCenter: decision.trainingCenter ?? unconfirmedTrainingCenterPlaceholder,
+    trainingTimePreferences: [...(decision.trainingTimePreferences ?? noTrainingTimePreference)],
+  };
+  const trainingCenterStatus = decision.trainingCenter === undefined ? ("unconfirmed" as const) : undefined;
   return {
     actor, now, legacyMemberId: member.memberId, ...(record ? { recordId: record.recordId } : {}),
     review: decision.review, ...training,
+    ...(trainingCenterStatus ? { trainingCenterStatus } : {}),
     value: {
       requestId: decision.requestId, fullName: chosen.fullName!,
       ...(chosen.birthDate ? { dateOfBirth: chosen.birthDate } : {}), ...training,

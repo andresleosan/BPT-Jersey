@@ -1,5 +1,6 @@
 import {
   assignMemberGuardianInputSchema,
+  confirmMemberTrainingCenterInputSchema,
   setMemberDateOfBirthInputSchema,
 } from "@bpt-jersey/domain/members/migration";
 import { CanonicalMemberDirectoryError } from "./canonical-member-directory-service.js";
@@ -94,13 +95,17 @@ export const decideMemberMigration = onCall(
 export async function reviewMemberHandler(
   actor: CanonicalMemberDirectoryActor,
   data: unknown,
-  kind: "assign-guardian" | "set-date-of-birth",
+  kind: "assign-guardian" | "set-date-of-birth" | "confirm-training-centre",
   writer: Pick<OfficeMemberDirectoryService, "reviewMember">,
   now: string,
 ) {
   requireOffice(actor);
   const schema =
-    kind === "assign-guardian" ? assignMemberGuardianInputSchema : setMemberDateOfBirthInputSchema;
+    kind === "assign-guardian"
+      ? assignMemberGuardianInputSchema
+      : kind === "set-date-of-birth"
+        ? setMemberDateOfBirthInputSchema
+        : confirmMemberTrainingCenterInputSchema;
   const parsed = schema.safeParse(data);
   if (!parsed.success)
     throw new HttpsError("invalid-argument", "Check the review details and try again.");
@@ -144,6 +149,21 @@ export const setMemberDateOfBirth = onCall(
       actor,
       request.data,
       "set-date-of-birth",
+      services.writer as OfficeMemberDirectoryService,
+      services.now(),
+    );
+  },
+);
+
+export const confirmMemberTrainingCenter = onCall(
+  { ...browserAdminCallableOptions, secrets },
+  async (request) => {
+    const services = defaultMemberDirectoryCallableServices();
+    const actor = await requireCanonicalMemberDirectoryActor(request, services.isActorActive);
+    return reviewMemberHandler(
+      actor,
+      request.data,
+      "confirm-training-centre",
       services.writer as OfficeMemberDirectoryService,
       services.now(),
     );

@@ -171,14 +171,22 @@ const legacyMemberIdSchema = z
   .max(128)
   .regex(/^[^/]+$/u);
 const recordIdSchema = z.string().regex(/^[0-9]{1,12}$/u);
+/**
+ * Both optional since the bulk migration: a legacy member may enter the directory before the office
+ * knows the centre. The writer then stores a placeholder centre flagged `trainingCenterStatus:
+ * "unconfirmed"` (no booking until confirmed) and "no preference" for the time of day.
+ */
 const trainingFields = {
-  trainingCenter: z.enum(["Town", "West"]),
+  trainingCenter: z.enum(["Town", "West"]).optional(),
   trainingTimePreferences: z
     .array(z.enum(["morning", "afternoon", "evening"]))
     .min(1)
     .max(3)
-    .refine((values) => new Set(values).size === values.length),
+    .refine((values) => new Set(values).size === values.length)
+    .optional(),
 };
+export const unconfirmedTrainingCenterPlaceholder = "Town" as const;
+export const noTrainingTimePreference = Object.freeze(["morning", "afternoon", "evening"] as const);
 
 export const migrationIdentityFields = ["fullName", "birthDate", "email", "mobileNumber", "membershipNumber", "idCardNumber", "vatNumber", "gender"] as const;
 export type MigrationIdentityField = (typeof migrationIdentityFields)[number];
@@ -288,6 +296,7 @@ export const memberMigrationDecisionRecordSchema = z.strictObject({
   studentId: z.string().min(1).optional(),
   reason: z.string().min(3).max(200).optional(),
   trainingCenter: z.enum(["Town", "West"]).optional(),
+  trainingCenterStatus: z.literal("unconfirmed").optional(),
   trainingTimePreferences: z.array(z.enum(["morning", "afternoon", "evening"])).optional(),
   decidedAt: z.string().min(1),
   decidedBy: z.string().min(1),
@@ -394,8 +403,13 @@ export const setMemberDateOfBirthInputSchema = z.strictObject({
   ...reviewInputFields,
   dateOfBirth: adminCreateStudentInputShape.dateOfBirth,
 });
+export const confirmMemberTrainingCenterInputSchema = z.strictObject({
+  ...reviewInputFields,
+  trainingCenter: z.enum(["Town", "West"]),
+});
 export const memberReviewInputSchema = z.discriminatedUnion("kind", [
   assignMemberGuardianInputSchema.extend({ kind: z.literal("assign-guardian") }),
   setMemberDateOfBirthInputSchema.extend({ kind: z.literal("set-date-of-birth") }),
+  confirmMemberTrainingCenterInputSchema.extend({ kind: z.literal("confirm-training-centre") }),
 ]);
 export const memberReviewResultSchema = z.strictObject({ studentId: reviewInputFields.studentId });
