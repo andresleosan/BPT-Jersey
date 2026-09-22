@@ -3,7 +3,8 @@
 // second coverage. Dry-run by default; output is counters only.
 //
 // Requires the plan mapping the office wrote from member-unification-plan-breakdown.mjs:
-//   { "45.00|kids": "town-kids-2x", "60.00|adult": "town-adult", ... }   (amount|ageBand → planId)
+//   { "65.00|adult": "west-adult", "95.00|kids": { "Town": "town-kids-1x", "West": "west-kids-1x" } }
+//   (amount|ageBand → planId, or → planId per confirmed centre when the price exists at both)
 // A member is skipped (and stays in Data review) when: no mapping, no birth date, centre still
 // unconfirmed, the plan does not cover the member's centre or age band, or a membership exists.
 //
@@ -28,8 +29,12 @@ export function parseMapping(text) {
   const raw = JSON.parse(text);
   const mapping = new Map();
   for (const [key, planId] of Object.entries(raw)) {
-    if (!/^(?:\d+\.\d{2}|unknown)\|(?:kids|teens|adult|unknown)$/u.test(key) || typeof planId !== "string") {
-      throw new SafeScriptError("Mapping keys must be amount|ageBand and values plan ids");
+    const bySite = planId !== null && typeof planId === "object" && !Array.isArray(planId);
+    const valid =
+      typeof planId === "string" ||
+      (bySite && Object.keys(planId).every((site) => ["Town", "West"].includes(site) && typeof planId[site] === "string"));
+    if (!/^(?:\d+\.\d{2}|unknown)\|(?:kids|teens|adult|unknown)$/u.test(key) || !valid) {
+      throw new SafeScriptError("Mapping keys must be amount|ageBand and values plan ids (or {Town, West} plan ids)");
     }
     mapping.set(key, planId);
   }
@@ -67,7 +72,8 @@ export function planCoverage({ links, recordsById, studentsById, plansById, memb
       skip("dateOfBirthMissing");
       continue;
     }
-    const planId = mapping.get(`${normalizeAmount(record.plan.amount)}|${band}`);
+    const mapped = mapping.get(`${normalizeAmount(record.plan.amount)}|${band}`);
+    const planId = typeof mapped === "string" ? mapped : mapped?.[student.trainingCenter];
     const plan = planId ? plansById.get(planId) : undefined;
     if (!plan) {
       skip("noMapping");
