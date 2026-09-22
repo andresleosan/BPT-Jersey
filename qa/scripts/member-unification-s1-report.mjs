@@ -18,6 +18,10 @@ export class SafeScriptError extends Error {}
 export function reportScriptError(error) {
   // Only explicitly safe guard messages may leave the script; SDK errors can contain personal data.
   console.error(error instanceof SafeScriptError ? `errors: 1 — ${error.message}` : "errors: 1");
+  // Same escape hatch as the operator CLIs: the cause only when the operator asks for it.
+  if (process.env.BPT_OPERATOR_DEBUG === "1" && !(error instanceof SafeScriptError)) {
+    console.error(`cause: ${error?.constructor?.name ?? "Error"}: ${String(error?.message ?? error).slice(0, 300)}`);
+  }
   process.exitCode = 1;
 }
 
