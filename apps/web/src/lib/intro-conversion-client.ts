@@ -6,7 +6,7 @@ import { getFirebaseFunctions } from "./firebase-client";
 
 const contextSchema = z.strictObject({
   conversions: z.array(introConversionStateSchema).max(20), applications: z.array(membershipApplicationSchema).max(20),
-  plans: z.array(z.strictObject({ planId: z.enum(planIds), displayName: z.string(), priceMinor: z.number().int().positive(), currency: z.literal("GBP"), billingPeriod: z.enum(["monthly", "term"]), eligibleParticipantTypes: z.array(z.enum(["kids", "teens", "adult"])), classSites: z.array(z.enum(siteValues)) })).max(20),
+  plans: z.array(z.strictObject({ planId: z.enum(planIds), displayName: z.string(), priceMinor: z.number().int().positive(), currency: z.literal("GBP"), billingPeriod: z.enum(["per-session", "monthly", "term"]), eligibleParticipantTypes: z.array(z.enum(["kids", "teens", "adult"])), classSites: z.array(z.enum(siteValues)) })).max(20),
   instructions: z.strictObject({ accountName: z.string(), sortCode: z.string(), accountNumber: z.string(), bankName: z.string(), referenceHint: z.string() }).nullable(),
 });
 export type IntroMembershipContext = z.infer<typeof contextSchema>;
@@ -22,7 +22,7 @@ export async function uploadIntroMembershipProof(requestId: string, file: File):
   try { const response = await httpsCallable<unknown, unknown>(getFirebaseFunctions(), "uploadIntroMembershipProof")({ requestId, contentType: file.type, base64: btoa(binary) }); return z.strictObject({ proofId: z.string().regex(/^[a-f0-9]{64}$/u) }).parse(response.data).proofId; }
   catch { throw new Error("The payment screenshot could not be uploaded."); }
 }
-export async function submitIntroMembershipApplication(input: { requestId: string; conversionId: string; studentId: string; site: "Town" | "West"; planId: (typeof planIds)[number]; proofId: string; bankReference: string }) {
+export async function submitIntroMembershipApplication(input: { requestId: string; conversionId: string; studentId: string; site: "Town" | "West"; planId: (typeof planIds)[number]; proofId: string | null; bankReference: string | null }) {
   try { const response = await httpsCallable<typeof input, unknown>(getFirebaseFunctions(), "submitIntroMembershipApplication")(input); return membershipApplicationSchema.parse(response.data); }
   catch { throw new Error(safeError); }
 }

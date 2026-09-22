@@ -13,6 +13,7 @@ const schedule = vi.hoisted(() => {
   cancelBooking: vi.fn(),
   selfCheckIn: vi.fn(),
   listSessionBookedCounts: vi.fn(),
+  getTrialAccess: vi.fn(),
 };
   // Stands in for the server's single week call by composing the older per-resource mocks.
   mocks.getMemberCalendarWeek.mockImplementation(async ({ studentId, from, to }) => ({
@@ -75,6 +76,7 @@ describe("firebase calendar repository", () => {
     schedule.listStudentAttendance.mockResolvedValue([]);
     schedule.listSessionBookedCounts.mockResolvedValue({ s1: 20 });
     penalties.listNoShowPenalties.mockResolvedValue([]);
+    schedule.getTrialAccess.mockResolvedValue(null);
   });
 
   it("loads the week with real booked counts", async () => {
@@ -173,6 +175,28 @@ describe("firebase calendar repository", () => {
       expect.objectContaining({ studentId: "s-1", membershipId: null }),
     );
     expect(week.sessions).toHaveLength(3);
+  });
+
+  it("carries the free trial of a student without a membership and skips the intro scan", async () => {
+    waitlist.listClientMemberships.mockResolvedValue([]);
+    const trial = {
+      site: "Town",
+      allowance: 2,
+      attendedCount: 1,
+      futureBookings: 0,
+      expiresAt: "2026-10-16T00:00:00.000Z",
+      status: "active",
+    };
+    schedule.getTrialAccess.mockResolvedValue(trial);
+    // Mocks are shared across this file's cases, so only this call matters here.
+    schedule.listStudentBookings.mockClear();
+    const repo = createFirebaseCalendarRepository({ role: "adultStudent", displayName: "Alex Demo" });
+
+    const member = await repo.loadMember();
+
+    expect(schedule.getTrialAccess).toHaveBeenCalledWith("s-1");
+    expect(member.participants[0]).toMatchObject({ studentId: "s-1", membershipId: null, trial });
+    expect(schedule.listStudentBookings).not.toHaveBeenCalled();
   });
 
   it("delegates member clock-in to the selfCheckIn callable", async () => {

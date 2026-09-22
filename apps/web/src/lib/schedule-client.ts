@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import { httpsCallable as firebaseHttpsCallable } from "./callable";
 import type {
   AttendanceRecord,
@@ -44,6 +46,12 @@ import type {
   UpdateProgramInput,
   WeekPreview,
 } from "@bpt-jersey/domain/schedule/classes-services";
+
+import { siteValues } from "@bpt-jersey/domain/memberships";
+import {
+  trialAccessStatuses,
+  type TrialAccessView,
+} from "@bpt-jersey/domain/memberships/trial-access";
 
 import { getFirebaseFunctions, memberFunctionsRegion } from "./firebase-client";
 
@@ -356,7 +364,64 @@ export type MemberCalendarWeek = Readonly<{
   attendance: readonly AttendanceRecord[];
   bookedCounts: Readonly<Record<string, number>>;
   groupAccess?: unknown;
+  /** Present only while the student trains on a free trial instead of a membership. */
+  trial?: TrialAccessView;
 }>;
+
+const trialAccessViewSchema = z.strictObject({
+  site: z.enum(siteValues),
+  allowance: z.union([z.literal(1), z.literal(2)]),
+  attendedCount: z.number().int().min(0),
+  futureBookings: z.number().int().min(0),
+  expiresAt: z.iso.datetime(),
+  status: z.enum(trialAccessStatuses),
+});
+
+/** The student's free trial, or `null` when they never had one or the academy cannot say. */
+export async function getTrialAccess(studentId: string): Promise<TrialAccessView | null> {
+  const callable = firebaseHttpsCallable<{ studentId: string }, unknown>(
+    getFirebaseFunctions(memberFunctionsRegion),
+    "getTrialAccess",
+  );
+  const parsed = z
+    .strictObject({ trial: trialAccessViewSchema.nullable() })
+    .safeParse((await callable({ studentId })).data);
+  if (!parsed.success) throw new Error("Trial details are unavailable.");
+  return parsed.data.trial;
+}
+
+/**
+ * The transfer screenshot for one pay-as-you-go class, uploaded before the booking that carries
+ * its proof id. Same base64 hand-off as the intro membership receipt.
+ */
+export async function uploadPaygClassProof(
+  sessionId: string,
+  studentId: string,
+  file: File,
+): Promise<string> {
+  if (!["image/png", "image/jpeg"].includes(file.type) || file.size < 1 || file.size > 2 * 1024 * 1024)
+    throw new Error("Choose a PNG or JPEG screenshot up to 2 MB.");
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  try {
+    const callable = firebaseHttpsCallable<unknown, unknown>(
+      getFirebaseFunctions(memberFunctionsRegion),
+      "uploadPaygClassProof",
+    );
+    const response = await callable({
+      sessionId,
+      studentId,
+      contentType: file.type,
+      base64: btoa(binary),
+    });
+    return z
+      .strictObject({ proofId: z.string().regex(/^[a-f0-9]{64}$/u) })
+      .parse(response.data).proofId;
+  } catch {
+    throw new Error("The payment screenshot could not be uploaded.");
+  }
+}
 
 /**
  * The member's week in one call, already narrowed server-side to the plan and group access.

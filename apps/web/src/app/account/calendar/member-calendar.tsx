@@ -18,8 +18,11 @@ import {
   sessionAccessMode,
   type AttendanceRecord,
   type BookingRecord,
+  type PaygBookingPayment,
 } from "@bpt-jersey/domain/schedule";
 import type { NoShowPenaltyRecord } from "@bpt-jersey/domain/penalties";
+import { PLAN_CATALOG, type PlanId } from "@bpt-jersey/domain/memberships";
+import type { TrialAccessView } from "@bpt-jersey/domain/memberships/trial-access";
 import {
   nextSelfCheckInSession,
   type SelfCheckInCandidate,
@@ -38,6 +41,7 @@ import {
 import { CalendarHeader } from "./calendar-header";
 import { CancelDialog } from "./cancel-dialog";
 import { DayColumn } from "./day-column";
+import { PaygPaymentDialog } from "./payg-payment-dialog";
 import { PenaltyBanner } from "./penalty-banner";
 import { ReadyForJiuJitsu } from "./ready-for-jiu-jitsu";
 import type { CalendarEntry } from "./session-card";
@@ -107,6 +111,22 @@ function dayOf(days: readonly CalendarDay[], startAt: string): CalendarDay | und
   return days.find((d) => startAt >= d.startAt && startAt < d.endAt);
 }
 
+const trialEndedNotice = "Your trial has ended. Choose a membership to keep training.";
+
+/** How many free trial classes are still bookable: attended and booked ones are both spent. */
+function trialClassesLeft(trial: TrialAccessView): number {
+  return trial.allowance - trial.attendedCount - trial.futureBookings;
+}
+
+/** A pay-as-you-go plan charges per class, so each booking has to be paid for as it is made. */
+function isPerSessionPlan(planId: PlanId | null): boolean {
+  return PLAN_CATALOG.find((plan) => plan.planId === planId)?.billingPeriod === "per-session";
+}
+
+function planPriceMinor(planId: PlanId | null): number {
+  return PLAN_CATALOG.find((plan) => plan.planId === planId)?.priceMinor ?? 0;
+}
+
 export function MemberCalendar({ repository, session, onSignOut, topSlot }: MemberCalendarProps) {
   const viewport = useViewport();
   const now = useMinuteClock();
@@ -124,6 +144,7 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
   const [bulkNotice, setBulkNotice] = useState("");
   const [notes, setNotes] = useState<Readonly<Record<string, string>>>({});
   const [cancelling, setCancelling] = useState<CalendarEntry>();
+  const [paying, setPaying] = useState<CalendarEntry>();
   const [reloadToken, setReloadToken] = useState(0);
   const [pollToken, setPollToken] = useState(0);
   const silentReload = useRef(false);
@@ -268,6 +289,7 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
       ...(participant.hasActiveMembership !== undefined
         ? { hasActiveMembership: participant.hasActiveMembership }
         : {}),
+      ...(participant.trial ? { trial: participant.trial } : {}),
       ...(selectedWeek.groupAccess
         ? {
             additionalProgramIds: selectedWeek.groupAccess.programIds,
@@ -449,10 +471,17 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
   }, []);
 
   const handleBook = useCallback(
-    async (entry: CalendarEntry) => {
+    async (entry: CalendarEntry, payment?: PaygBookingPayment) => {
       if (!participant || entry.session.courseId) return;
-      const isIntro = sessionAccessMode(entry.session) === "intro";
+      // A trial student has no membership, so every class they book is booked as an intro one.
+      const onTrial = participant.trial !== undefined && !participant.membershipId;
+      const isIntro = onTrial || sessionAccessMode(entry.session) === "intro";
       if (!isIntro && !participant.membershipId) return;
+      // Pay-as-you-go is paid for at booking: ask how before the place is taken.
+      if (!isIntro && payment === undefined && isPerSessionPlan(participant.planId)) {
+        setPaying(entry);
+        return;
+      }
       setBusyKey(entry.session.sessionId);
       // Show the place as taken at once; the server's answer confirms it or puts things back.
       if (!isIntro) {
@@ -488,6 +517,7 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
                 sessionId: entry.session.sessionId,
                 studentId: participant.studentId,
                 membershipId: participant.membershipId!,
+                ...(payment ? { paygPayment: payment } : {}),
               },
         );
         applyBooking(booking);
@@ -623,6 +653,18 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
           {bulkNotice ? <p role="status">{bulkNotice}</p> : null}
         </section>
       ) : null}
+      {!failed && participant?.trial ? (
+        <p className="calendar-trial-band" role="status">
+          {participant.trial.status === "active" && trialClassesLeft(participant.trial) > 0 ? (
+            `Trial · ${trialClassesLeft(participant.trial)} of ${participant.trial.allowance} classes left · ends ${new Date(participant.trial.expiresAt).toLocaleDateString("en-GB")}`
+          ) : (
+            <>
+              {trialEndedNotice}{" "}
+              <a href="/account/membership?from=intro">Get a membership</a>
+            </>
+          )}
+        </p>
+      ) : null}
       <div className="member-body">
         {failed ? (
           <div className="calendar-error" role="alert">
@@ -649,6 +691,7 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
                 busyKey={busyKey}
                 day={day}
                 entries={entriesByDay.get(day.dateKey) ?? []}
+                hasTrial={participant?.trial !== undefined}
                 key={day.dateKey}
                 loading={loading}
                 notes={notes}
@@ -669,6 +712,20 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
         onConfirm={(entry) => void handleConfirmCancel(entry)}
         onKeep={() => setCancelling(undefined)}
       />
+      {paying && participant ? (
+        <PaygPaymentDialog
+          key={paying.session.sessionId}
+          onChoose={(payment) => {
+            const entry = paying;
+            setPaying(undefined);
+            void handleBook(entry, payment);
+          }}
+          onClose={() => setPaying(undefined)}
+          priceMinor={planPriceMinor(participant.planId)}
+          session={paying.session}
+          studentId={participant.studentId}
+        />
+      ) : null}
     </main>
   );
 }
