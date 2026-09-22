@@ -221,10 +221,8 @@ function seeded(
       status: "active",
       ...audit,
     },
-    [`academies/${academyId}/bookings/booking-1`]: {
-      ...introBookingDoc("booking-1", "session-1"),
-      ...options.booking,
-    },
+    [`academies/${academyId}/bookings/booking-1`]:
+      options.booking ?? introBookingDoc("booking-1", "session-1"),
     ...(options.trial === undefined
       ? {}
       : { [`academies/${academyId}/trialAccess/student-1`]: options.trial }),
@@ -264,7 +262,18 @@ describe("intro attendance projection", () => {
       "a membership booking",
       seeded({
         accessMode: "membership",
-        booking: { membershipId: "membership-1", source: undefined, schemaVersion: "1" },
+        booking: {
+          bookingId: "booking-1",
+          academyId,
+          sessionId: "session-1",
+          studentId: "student-1",
+          membershipId: "membership-1",
+          status: "confirmed",
+          requestedAt: now,
+          cancelledAt: null,
+          cancellationReason: null,
+          ...audit,
+        },
       }),
     ],
   ])("ignores %s", async (_label, store) => {
@@ -358,6 +367,66 @@ describe("intro attendance projection", () => {
       href: "/account/membership",
       readAt: null,
     });
+    // The same class used the allowance and created the membership: no contradictory nudge.
+    expect(pathsUnder(store, "/memberNotifications/intro-")).toHaveLength(0);
+  });
+  it("still creates the membership when the recipient cannot be resolved", async () => {
+    const store = seeded({
+      student: { trainingCenter: "West", familyId: "family-1" },
+      trial: trialDoc({ site: "West", experience: "experienced", allowance: 1 }),
+    });
+    store.records.delete(`academies/${academyId}/users/user-1`);
+    await expect(project(store)).resolves.toBe("unresolved");
+    expect(
+      store.records.get(`academies/${academyId}/memberships/payg-trial-student-1`),
+    ).toMatchObject({ planId: "payg", status: "active", familyId: "family-1" });
+    expect(store.records.get(`academies/${academyId}/trialAccess/student-1`)).toMatchObject({
+      countedAttendanceIds: ["attendance-1"],
+      status: "converted",
+    });
+    expect(pathsUnder(store, "/memberNotifications/")).toHaveLength(0);
+    expect(
+      store.records.get(`academies/${academyId}/introConversionIssues/intro-student-1`),
+    ).toMatchObject({ status: "unresolved", reason: "recipient_inactive" });
+  });
+  it("records an issue when a West 12+ trial has no billing account", async () => {
+    const store = seeded({
+      student: { trainingCenter: "West" },
+      trial: trialDoc({ site: "West", experience: "experienced", allowance: 1 }),
+    });
+    await expect(project(store)).resolves.toBe("created");
+    expect(pathsUnder(store, "/memberships/")).toHaveLength(0);
+    expect(store.records.get(`academies/${academyId}/trialAccess/student-1`)).toMatchObject({
+      status: "exhausted",
+    });
+    expect(
+      store.records.get(`academies/${academyId}/introConversionIssues/intro-student-1`),
+    ).toMatchObject({
+      status: "unresolved",
+      reason: "billing_account_missing",
+      attendanceId: "attendance-1",
+    });
+    expect(pathsUnder(store, "/memberNotifications/intro-")).toHaveLength(1);
+  });
+  it("records an issue when the conversion document cannot be read", async () => {
+    const store = seeded({
+      student: { trainingCenter: "West", familyId: "family-1" },
+      trial: trialDoc({ site: "West", experience: "experienced", allowance: 1 }),
+      extra: {
+        [`academies/${academyId}/introConversions/intro-student-1`]: {
+          conversionId: "intro-student-1",
+          corrupted: true,
+        },
+      },
+    });
+    await expect(project(store)).resolves.toBe("existing");
+    expect(
+      store.records.get(`academies/${academyId}/memberships/payg-trial-student-1`),
+    ).toMatchObject({ planId: "payg", status: "active" });
+    expect(pathsUnder(store, "/memberNotifications/")).toHaveLength(0);
+    expect(
+      store.records.get(`academies/${academyId}/introConversionIssues/intro-student-1`),
+    ).toMatchObject({ status: "unresolved", reason: "conversion_unreadable" });
   });
   it("converts a West teen to the teens PAYG plan", async () => {
     const store = seeded({
@@ -407,7 +476,7 @@ describe("intro attendance projection", () => {
     await expect(project(store)).resolves.toBe("created");
     await expect(project(store, "attendance-2")).resolves.toBe("existing");
     expect(pathsUnder(store, "/memberships/")).toHaveLength(1);
-    expect(pathsUnder(store, "/memberNotifications/")).toHaveLength(2);
+    expect(pathsUnder(store, "/memberNotifications/")).toHaveLength(1);
     expect(store.records.get(`academies/${academyId}/trialAccess/student-1`)).toMatchObject({
       countedAttendanceIds: ["attendance-1", "attendance-2"],
       status: "converted",
