@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { HttpsError } from "firebase-functions/v2/https";
 import { parseInvoiceRecord, parseManualPaymentRecord } from "@bpt-jersey/domain/finance";
@@ -7,7 +6,7 @@ import { parseMembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle"
 import type { BookingRecord, PaygBookingPayment } from "@bpt-jersey/domain/schedule";
 import { groupIdSchema } from "@bpt-jersey/domain/schedule/groups";
 import type { R2Client } from "../storage/r2-client.js";
-import { ensurePaygClassInvoice, paygFinanceStore, paygProofKey } from "./payg-class-payment.js";
+import { ensurePaygClassInvoice, findPaygProof, paygFinanceStore, paygProofOwners } from "./payg-class-payment.js";
 
 /**
  * D14/D15: a pay-as-you-go member chooses at booking time how they pay, and the class invoice is
@@ -21,7 +20,7 @@ export async function attachPaygBookingPayment(
   const { academyId, actorId, booking, paygPayment } = input;
   const root = `academies/${academyId}`;
   if (booking.schemaVersion !== "1" || !groupIdSchema.safeParse(booking.membershipId).success) {
-    throw new HttpsError("failed-precondition", "This plan does not pay per class");
+    throw new HttpsError("failed-precondition", "A regular class booking is required.");
   }
   const membership = parseMembershipRecord((await db.doc(`${root}/memberships/${booking.membershipId}`).get()).data());
   if (!membership.ok || membership.value.academyId !== academyId || membership.value.studentId !== booking.studentId) {
@@ -34,22 +33,19 @@ export async function attachPaygBookingPayment(
   // Private storage is external I/O: the screenshot is proven before any transaction is opened,
   // because the Admin SDK re-runs a transaction callback on contention.
   if (paygPayment.method === "bank_transfer") {
-    await assertPaygProof(storage, academyId, actorId, booking.bookingId, paygPayment.proofId);
+    const owners = paygProofOwners(booking, actorId);
+    const proof = storage === null
+      ? undefined
+      : await findPaygProof(storage, academyId, booking.bookingId, paygPayment.proofId, owners);
+    if (proof === undefined) throw new HttpsError("failed-precondition", "Payment evidence is unavailable.");
   }
   await ensurePaygClassInvoice(db, {
     academyId, actorId, sessionId: booking.sessionId, studentId: booking.studentId,
     membershipId: booking.membershipId,
   });
-  await db.doc(`${root}/bookings/${booking.bookingId}`).update({ paygPayment, updatedAt: new Date().toISOString() });
-}
-
-async function assertPaygProof(storage: R2Client | null, academyId: string, userId: string, bookingId: string, proofId: string): Promise<void> {
-  const bytes = storage === null
-    ? undefined
-    : await storage.readObject(paygProofKey(academyId, userId, bookingId, proofId)).then((value) => Buffer.from(value)).catch(() => undefined);
-  if (!bytes?.length || createHash("sha256").update(bytes).digest("hex") !== proofId) {
-    throw new HttpsError("failed-precondition", "Payment evidence is unavailable.");
-  }
+  await db.doc(`${root}/bookings/${booking.bookingId}`).update({
+    paygPayment, updatedAt: new Date().toISOString(), updatedBy: actorId,
+  });
 }
 
 /**

@@ -42,6 +42,31 @@ export function paygProofKey(academyId: string, userId: string, bookingId: strin
   return `academies/${academyId}/payg-proofs/${owner}/${bookingId}/${proofId}`;
 }
 
+/** Deterministic per class and membership, so concurrent callers settle on one invoice. A voided
+ *  generation is never reused: the store returns an invoice by reference whatever its status. */
+export function paygInvoiceReference(sessionId: string, membershipId: string, generation = 0): string {
+  return `payg-${groupKey(sessionId, membershipId)}${generation === 0 ? "" : `-r${generation + 1}`}`;
+}
+
+/**
+ * Every account that could have uploaded this booking's screenshot. A guardian and their teen are
+ * both authorised to book for the same student, so either may have paid; the bytes still have to
+ * hash to the declared proof id, which is what actually admits the evidence.
+ */
+export function paygProofOwners(booking: Readonly<{ createdBy?: unknown; updatedBy?: unknown }>, ...also: readonly string[]): readonly string[] {
+  return [...new Set([...also, booking.updatedBy, booking.createdBy].filter((value): value is string => typeof value === "string" && value.length > 0))];
+}
+
+/** The first stored object under any owner whose bytes hash to `proofId`; undefined if there is none. */
+export async function findPaygProof(storage: R2Client, academyId: string, bookingId: string, proofId: string, owners: readonly string[]): Promise<{ objectKey: string; bytes: Buffer } | undefined> {
+  for (const owner of owners) {
+    const objectKey = paygProofKey(academyId, owner, bookingId, proofId);
+    const bytes = await storage.readObject(objectKey).then((value) => Buffer.from(value)).catch(() => undefined);
+    if (bytes?.length && createHash("sha256").update(bytes).digest("hex") === proofId) return { objectKey, bytes };
+  }
+  return undefined;
+}
+
 /** The single confirmed regular-class booking behind a PAYG payment action. */
 async function readConfirmedPaygBooking(db: Firestore, academyId: string, sessionId: string, studentId: string): Promise<DocumentData> {
   const root = `academies/${academyId}`;
@@ -67,16 +92,22 @@ export async function ensurePaygClassInvoice(db: Firestore, input: Readonly<{ ac
   if (!plan.ok || plan.value.academyId !== input.academyId || plan.value.billingPeriod !== "per-session" || !sessionDoc.exists || sessionDoc.get("academyId") !== input.academyId) throw new HttpsError("failed-precondition", "This booking does not use a PAYG plan.");
   const sourceRef = `${root}/sessions/${input.sessionId}`;
   const existing = await db.collection(`${root}/invoices`).where("sourceRef", "==", sourceRef).get();
-  const invoices = existing.docs.flatMap((doc) => {
+  const forThisClass = existing.docs.flatMap((doc) => {
     const parsed = parseInvoiceRecord(doc.data());
-    return parsed.ok && parsed.value.academyId === input.academyId && parsed.value.invoiceId === doc.id && parsed.value.membershipId === membership.value.membershipId && parsed.value.familyId === membership.value.familyId && parsed.value.chargeKind === "payg_session" && parsed.value.status !== "void" ? [parsed.value] : [];
+    return parsed.ok && parsed.value.academyId === input.academyId && parsed.value.invoiceId === doc.id && parsed.value.membershipId === membership.value.membershipId && parsed.value.familyId === membership.value.familyId && parsed.value.chargeKind === "payg_session" ? [parsed.value] : [];
   });
-  const existingInvoice = invoices.find((invoice) => invoice.status !== "paid") ?? invoices[0];
+  const live = forThisClass.filter((invoice) => invoice.status !== "void");
+  const existingInvoice = live.find((invoice) => invoice.status !== "paid") ?? live[0];
+  // Cancelling voids the class invoice, and the finance store hands back whatever invoice already
+  // holds a reference, void or not. Re-booking therefore needs a NEW reference, counted from the
+  // voided invoices already there so that two racing re-bookings still derive the same one and
+  // settle on a single invoice.
+  const generation = forThisClass.length - live.length;
   const invoice = existingInvoice ?? await paygFinanceStore(db).issuePaygInvoice({
     academyId: input.academyId, actorId: input.actorId, familyId: membership.value.familyId,
     membershipId: membership.value.membershipId, totalMinor: plan.value.priceMinor,
     dueAt: String(sessionDoc.get("startAt")), chargeKind: "payg_session", sourceRef,
-    invoiceReference: `payg-${groupKey(input.sessionId, membership.value.membershipId)}`, description: `PAYG class: ${String(sessionDoc.get("startAt")).slice(0, 10)}`,
+    invoiceReference: paygInvoiceReference(input.sessionId, membership.value.membershipId, generation), description: `PAYG class: ${String(sessionDoc.get("startAt")).slice(0, 10)}`,
   });
   if (invoice.status === "void") throw new HttpsError("failed-precondition", "This class invoice was voided. Review it in Billing.");
   return invoice;
@@ -114,8 +145,9 @@ export const confirmPaygClassPayment = onCall(scheduleCallableOptions, async (re
   await store.recordManualPayment({
     academyId: actor.academyId, actorId: actor.userId, invoiceId: invoice.invoiceId,
     amountMinor: view.balanceMinor, method: transfer ? "bank_transfer" : "cash",
-    // Manual references carry no underscore, so the method reads as a plain word here.
-    manualReference: `payg-${groupKey(input.data.sessionId, membershipId)}-${transfer ? "transfer" : "cash"}`,
+    // Same shape as before, taken from the invoice so a re-booked generation gets its own
+    // reference. Manual references carry no underscore, so the method reads as a plain word.
+    manualReference: `${invoice.invoiceReference}-${transfer ? "transfer" : "cash"}`,
     occurredAt: new Date().toISOString(),
   });
   return { status: "paid" as const };
@@ -133,20 +165,6 @@ export const uploadPaygClassProof = onCall({ ...scheduleCallableOptions, secrets
   return { proofId: validated.proofId };
 });
 
-/**
- * The proof lives under the uid that uploaded it, and a booking can have been created by one
- * member account and re-requested by another, so both are tried and only the matching bytes win.
- */
-async function readPaygProof(storage: R2Client, academyId: string, booking: DocumentData, proofId: string): Promise<{ objectKey: string; bytes: Buffer } | undefined> {
-  for (const uid of new Set([booking.updatedBy, booking.createdBy])) {
-    if (typeof uid !== "string" || !uid) continue;
-    const objectKey = paygProofKey(academyId, uid, String(booking.bookingId), proofId);
-    const bytes = await storage.readObject(objectKey).then((value) => Buffer.from(value)).catch(() => undefined);
-    if (bytes?.length && createHash("sha256").update(bytes).digest("hex") === proofId) return { objectKey, bytes };
-  }
-  return undefined;
-}
-
 /** Office-only, 60-second signed view of the member's transfer screenshot. */
 export const getPaygClassProofUrl = onCall({ ...scheduleCallableOptions, secrets: enrolmentStorageSecrets }, async (request) => {
   const actor = await requireActiveOfficeActor(request);
@@ -157,7 +175,7 @@ export const getPaygClassProofUrl = onCall({ ...scheduleCallableOptions, secrets
   const payment = booking.paygPayment as PaygBookingPayment | undefined;
   if (payment?.method !== "bank_transfer") throw new HttpsError("failed-precondition", "Payment evidence is unavailable.");
   const storage = createPrivateStorageR2Client();
-  const proof = await readPaygProof(storage, actor.academyId, booking, payment.proofId);
+  const proof = await findPaygProof(storage, actor.academyId, String(booking.bookingId), payment.proofId, paygProofOwners(booking));
   const contentType = proof === undefined ? null : proof.bytes.subarray(0, 8).equals(pngMagic) ? ("image/png" as const) : proof.bytes[0] === 255 && proof.bytes[1] === 216 && proof.bytes[2] === 255 ? ("image/jpeg" as const) : null;
   if (!proof || !contentType || !storage.createPrivateImageUrl) throw new HttpsError("failed-precondition", "Payment evidence is unavailable.");
   return { url: await storage.createPrivateImageUrl({ objectKey: proof.objectKey, expiresInSeconds: 60, contentType }), expiresAt: new Date(Date.now() + 60_000).toISOString() };
