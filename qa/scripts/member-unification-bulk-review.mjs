@@ -76,6 +76,7 @@ export function inferCentre(record) {
 export function planQueueDecisions({ queue, valuesFor }) {
   const planned = [];
   const left = { suggestedIdentityConflict: 0, strongIdentityConflict: 0, ambiguous: 0, suggestedSeveralCandidates: 0 };
+  const leftFields = {};
   for (const row of queue.rows) {
     if (row.category === "none") {
       planned.push({ kind: "create-unlinked", legacyMemberId: row.legacyMemberId, requestId: randomUUID(), review: { legacyVersion: row.sourceVersion, identityEvidence: evidenceFor.none, choices: [] } });
@@ -94,6 +95,9 @@ export function planQueueDecisions({ queue, valuesFor }) {
     const choices = conflictChoices(legacy, archive, candidate.conflicts);
     if (choices === null) {
       left[row.category === "strong" ? "strongIdentityConflict" : "suggestedIdentityConflict"] += 1;
+      for (const field of candidate.conflicts) {
+        if (legacy[field] != null && archive[field] != null && !contactFields.has(field)) leftFields[field] = (leftFields[field] ?? 0) + 1;
+      }
       continue;
     }
     if (row.category === "strong" && choices.length === 0) continue; // the bulk migration's job, not ours
@@ -102,7 +106,7 @@ export function planQueueDecisions({ queue, valuesFor }) {
       review: { legacyVersion: row.sourceVersion, recordVersion: candidate.sourceVersion, identityEvidence: evidenceFor[row.category], choices },
     });
   }
-  return { planned, left };
+  return { planned, left, leftFields };
 }
 
 async function loadArtifact() {
@@ -180,6 +184,7 @@ async function main() {
     console.log(`queuePlannedLinks: ${byKind.link}`);
     console.log(`queuePlannedCreateUnlinked: ${byKind["create-unlinked"]}`);
     for (const [key, value] of Object.entries(plan.left)) console.log(`queueLeftForOffice_${key}: ${value}`);
+    for (const [field, value] of Object.entries(plan.leftFields)) console.log(`queueLeftConflictField_${field}: ${value}`);
     if (apply) {
       const results = { applied: 0, rejected: {} };
       for (const decision of plan.planned) {
