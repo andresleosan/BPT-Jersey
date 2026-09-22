@@ -407,9 +407,12 @@ export const confirmMemberTrainingCenterInputSchema = z.strictObject({
   ...reviewInputFields,
   trainingCenter: z.enum(["Town", "West"]),
 });
+/** Opens the office billing account a migrated minor needs before any subscription can be held. */
+export const openMemberBillingAccountInputSchema = z.strictObject({ ...reviewInputFields });
 export const memberReviewInputSchema = z.discriminatedUnion("kind", [
   assignMemberGuardianInputSchema.extend({ kind: z.literal("assign-guardian") }),
   setMemberDateOfBirthInputSchema.extend({ kind: z.literal("set-date-of-birth") }),
   confirmMemberTrainingCenterInputSchema.extend({ kind: z.literal("confirm-training-centre") }),
+  openMemberBillingAccountInputSchema.extend({ kind: z.literal("open-billing-account") }),
 ]);
 export const memberReviewResultSchema = z.strictObject({ studentId: reviewInputFields.studentId });

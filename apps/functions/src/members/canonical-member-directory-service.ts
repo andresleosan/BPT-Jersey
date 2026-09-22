@@ -1452,7 +1452,9 @@ export function createCanonicalMemberDirectoryService(
           ? "member.guardian.assigned"
           : input.kind === "set-date-of-birth"
             ? "member.date-of-birth.set"
-            : "member.training-centre.confirmed";
+            : input.kind === "confirm-training-centre"
+              ? "member.training-centre.confirmed"
+              : "member.billing-account.opened";
       const auditDraft = {
         academyId,
         actorId,
@@ -1595,6 +1597,43 @@ export function createCanonicalMemberDirectoryService(
             updatedAt: now,
             updatedBy: actorId,
           };
+        } else if (input.kind === "open-billing-account") {
+          // ponytail: the same contactless office family a non-review legacy member is born with.
+          // guardianStatus stays "pending" so Data review keeps asking for the real guardian.
+          if (student.value.participantType !== "minor" || student.value.familyId !== undefined)
+            throw new CanonicalMemberDirectoryError(
+              "conflict",
+              "Member does not need an office billing account",
+            );
+          const familyId = `office-${studentId}`;
+          familyRef = dependencies.firestore.doc(familyPath(academyId, familyId));
+          const familySnapshot = await transaction.get(familyRef);
+          existingFamily = familySnapshot.exists;
+          const storedFamily = existingFamily
+            ? parseFamilyRecord(familySnapshot.data())
+            : undefined;
+          if (existingFamily && !storedFamily?.ok)
+            throw new CanonicalMemberDirectoryError("conflict", "Office family already exists");
+          const parsedFamily = parseFamilyRecord({
+            familyId,
+            academyId,
+            primaryContactUserId: null,
+            billingContactUserId: null,
+            ...(storedFamily?.ok && storedFamily.value.guardianContact !== undefined
+              ? { guardianContact: storedFamily.value.guardianContact }
+              : {}),
+            active: true,
+            status: "active",
+            schemaVersion: "1",
+            createdAt: storedFamily?.ok ? storedFamily.value.createdAt : now,
+            createdBy: storedFamily?.ok ? storedFamily.value.createdBy : actorId,
+            updatedAt: now,
+            updatedBy: actorId,
+          });
+          if (!parsedFamily.ok)
+            throw new CanonicalMemberDirectoryError("invalid", "Invalid office billing account");
+          family = parsedFamily.value;
+          nextStudent = { ...student.value, familyId, updatedAt: now, updatedBy: actorId };
         } else if (input.kind === "confirm-training-centre") {
           const base = { ...student.value };
           delete base.trainingCenterStatus;
