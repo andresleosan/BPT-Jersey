@@ -164,7 +164,8 @@ export type ProgramRecord = Readonly<{
   active: boolean;
   schemaVersion: "1";
 }> &
-  Partial<ProgramV2Fields>;
+  Partial<ProgramV2Fields> &
+  Readonly<{ deletedAt?: string; deletedBy?: string }>;
 
 export type ClassRecurrenceRule = Readonly<{
   dayOfWeek: DayOfWeek;

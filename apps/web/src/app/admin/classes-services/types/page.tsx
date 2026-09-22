@@ -1,36 +1,36 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import type { ProgramRecord } from "@bpt-jersey/domain/schedule";
 import {
   dropInPolicies,
+  parseCreateProgramInputV2,
+  parseUpdateProgramInput,
   programDefaultsV2,
   programKinds,
   programMessageMaxLength,
   type DropInPolicy,
   type ProgramKind,
+  type ProgramV2Fields,
 } from "@bpt-jersey/domain/schedule/classes-services";
-
 import {
+  deleteProgram,
   getScheduleCatalog,
-  listSessions,
   saveProgramV2,
   updateProgram,
 } from "../../../../lib/schedule-client";
 import { useAdminOrStaffSession } from "../../admin-gate";
-
 import "./types.css";
 
 const kindLabels: Record<ProgramKind, string> = {
-  "class-frequency": "Class: Registrations = weekly/monthly frequency",
-  "class-unlimited": "Class: Unlimited registrations",
-  "room-frequency": "EXERCISE ROOM - Registrations = weekly/monthly frequency",
-  "room-unlimited": "EXERCISE ROOM - Unlimited registrations",
-  service: "SERVICE",
+  "class-frequency": "Class: weekly/monthly allowance",
+  "class-unlimited": "Class: unlimited registrations",
+  "room-frequency": "Exercise room: weekly/monthly allowance",
+  "room-unlimited": "Exercise room: unlimited registrations",
+  service: "Service",
 };
-
 const dropInLabels: Record<DropInPolicy, string> = {
-  no: "No",
+  no: "Not allowed",
   unlimited: "Unlimited",
   automatic: "Automatic",
   "1": "1 drop-in/trial",
@@ -39,122 +39,41 @@ const dropInLabels: Record<DropInPolicy, string> = {
   "4": "4 drop-ins/trials",
   "5": "5 drop-ins/trials",
 };
-
-// Lucide paths inlined: the web app ships no icon dependency.
-const iconPaths = {
-  video: (
-    <>
-      <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" />
-      <rect x="2" y="6" width="14" height="12" rx="2" />
-    </>
-  ),
-  help: (
-    <>
-      <circle cx="12" cy="12" r="10" />
-      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01" />
-    </>
-  ),
-  pencil: (
-    <>
-      <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
-      <path d="m15 5 4 4" />
-    </>
-  ),
-  check: <path d="M20 6 9 17l-5-5" />,
-  trash: (
-    <path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6" />
-  ),
-  lock: (
-    <>
-      <rect width="18" height="11" x="3" y="11" rx="2" />
-      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-    </>
-  ),
-  save: (
-    <>
-      <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
-      <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7M7 3v4a1 1 0 0 0 1 1h7" />
-    </>
-  ),
-  sort: <path d="m7 15 5 5 5-5M7 9l5-5 5 5" />,
-} satisfies Record<string, ReactNode>;
-
-function Icon({ name, size = 14 }: { name: keyof typeof iconPaths; size?: number }) {
-  return (
-    <svg
-      aria-hidden="true"
-      className={`types-icon types-icon-${name}`}
-      fill="none"
-      height={size}
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      viewBox="0 0 24 24"
-      width={size}
-    >
-      {iconPaths[name]}
-    </svg>
-  );
-}
-
-// ponytail: native `title` tooltip on the "?" marks; a real popover when copy outgrows one line.
-function Help({ hint }: { hint: string }) {
-  return (
-    <span className="types-help" title={hint}>
-      <Icon name="help" size={12} />
-    </span>
-  );
-}
-
-const columns = [
-  ["Colour", "Colour used for this type in the timetable"],
-  ["Status", "Inactive types cannot be scheduled"],
-  ["Type", "How registrations for this type are counted"],
-  ["Drop-ins/trials", "Drop-ins or trials a non-member may book"],
-  ["E-mail", "E-mail members when they book this type"],
-  ["List", "Show this type in the public class list"],
-  ["Message to be displayed", "Shown to members when they book"],
-] as const;
-
 type Notice = Readonly<{ kind: "success" | "error"; message: string }>;
-type LoadStatus = "loading" | "ready" | "error";
-type Edit = Readonly<{ programId: string; name: string; abbreviation: string }>;
+type Edit = ProgramV2Fields & { programId: string; name: string; active: boolean };
 
 export function TypesPage() {
   const session = useAdminOrStaffSession();
-  const canEdit = session.role !== "coach";
+  const canEdit = ["owner", "administrator", "headCoach"].includes(session.role);
+  const canDelete = session.role === "owner" || session.role === "administrator";
   const [programs, setPrograms] = useState<readonly ProgramRecord[]>([]);
-  const [inUse, setInUse] = useState<ReadonlySet<string>>(new Set());
-  const [status, setStatus] = useState<LoadStatus>("loading");
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [reload, setReload] = useState(0);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [search, setSearch] = useState("");
   const [sortDesc, setSortDesc] = useState(false);
   const [draft, setDraft] = useState({ name: "", abbreviation: "" });
-  const [messages, setMessages] = useState<Record<string, string>>({});
-  const [colours, setColours] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<Edit | null>(null);
+  const [pending, setPending] = useState<string | null>(null);
+  const busy = useRef(false);
+  const createName = useRef<HTMLInputElement>(null);
+  const listHeading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     let alive = true;
-    (async () => {
-      try {
-        const catalog = await getScheduleCatalog();
-        const from = new Date().toISOString();
-        const to = new Date(Date.now() + 90 * 86_400_000).toISOString();
-        const sessions = await listSessions({ from, to });
+    getScheduleCatalog()
+      .then((catalog) => {
         if (!alive) return;
         setPrograms(catalog.programs);
-        setInUse(new Set(sessions.filter((s) => s.status !== "cancelled").map((s) => s.programId)));
         setStatus("ready");
-      } catch {
+      })
+      .catch(() => {
         if (alive) setStatus("error");
-      }
-    })();
+      });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [reload]);
 
   const replace = (record: ProgramRecord) =>
     setPrograms((current) =>
@@ -163,155 +82,149 @@ export function TypesPage() {
         : [...current, record],
     );
 
+  async function mutate(key: string, action: () => Promise<void>): Promise<void> {
+    if (busy.current) return;
+    busy.current = true;
+    setPending(key);
+    setNotice(null);
+    try {
+      await action();
+    } catch (error) {
+      setNotice({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Unable to save changes. Try again.",
+      });
+    } finally {
+      busy.current = false;
+      setPending(null);
+    }
+  }
+
   async function onCreate(event: FormEvent): Promise<void> {
     event.preventDefault();
-    // A notice belongs to the action that raised it: the next one starts from a clean slate.
-    setNotice(null);
-    try {
-      replace(await saveProgramV2(draft));
-      setDraft({ name: "", abbreviation: "" });
-      setNotice({ kind: "success", message: "Type saved." });
-    } catch (error) {
-      setNotice({ kind: "error", message: (error as Error).message });
-    }
-  }
-
-  async function patch(
-    programId: string,
-    change: {
-      name?: string;
-      abbreviation?: string;
-      active?: boolean;
-      colour?: string;
-      kind?: ProgramKind;
-      dropInPolicy?: DropInPolicy;
-      notifyByEmail?: boolean;
-      showInList?: boolean;
-      message?: string;
-    },
-  ): Promise<boolean> {
-    setNotice(null);
-    try {
-      replace(await updateProgram({ programId, ...change }));
-      setNotice({ kind: "success", message: "Type updated." });
-      return true;
-    } catch (error) {
-      setNotice({ kind: "error", message: (error as Error).message });
-      return false;
-    }
-  }
-
-  async function saveMessage(program: ProgramRecord): Promise<void> {
-    await patch(program.programId, {
-      message: messages[program.programId] ?? program.message ?? programDefaultsV2.message,
-    });
-    setMessages((current) =>
-      Object.fromEntries(Object.entries(current).filter(([id]) => id !== program.programId)),
-    );
-  }
-
-  async function saveColour(program: ProgramRecord): Promise<void> {
-    // The colour input hands back `#rrggbb`; the domain stores `#RRGGBB`. Compare in one case or
-    // reopening the picker and closing it unchanged saves the same colour again.
-    const draftColour = colours[program.programId]?.toUpperCase();
-    const savedColour = (program.colour ?? programDefaultsV2.colour).toUpperCase();
-    if (draftColour === undefined || draftColour === savedColour) return;
-    await patch(program.programId, { colour: draftColour });
-    setColours((current) =>
-      Object.fromEntries(Object.entries(current).filter(([id]) => id !== program.programId)),
-    );
-  }
-
-  async function onEdit(program: ProgramRecord): Promise<void> {
-    if (editing?.programId !== program.programId) {
-      setEditing({
-        programId: program.programId,
-        name: program.name,
-        abbreviation: program.abbreviation ?? "",
-      });
+    if (!canEdit) return;
+    const parsed = parseCreateProgramInputV2(draft);
+    if (!parsed.ok) {
+      setNotice({ kind: "error", message: parsed.error });
       return;
     }
-    const { name, abbreviation } = editing;
-    // Keep the row open on failure so the typed values are not lost.
-    if (await patch(program.programId, { name, abbreviation })) setEditing(null);
+    await mutate("create", async () => {
+      replace(await saveProgramV2(parsed.value));
+      setDraft({ name: "", abbreviation: "" });
+      setNotice({ kind: "success", message: "Class type created." });
+    });
   }
 
-  if (status === "loading") {
-    return (
-      <p className="admin-report-state" role="status">
-        Loading types...
-      </p>
-    );
+  async function onSave(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    if (!editing || !canEdit) return;
+    const { abbreviation, ...fields } = editing;
+    // Legacy catalogue entries have no abbreviation. Do not submit an invalid empty value.
+    const parsed = parseUpdateProgramInput({
+      ...fields,
+      ...(abbreviation.trim() ? { abbreviation } : {}),
+    });
+    if (!parsed.ok) {
+      setNotice({ kind: "error", message: parsed.error });
+      return;
+    }
+    await mutate(editing.programId, async () => {
+      replace(await updateProgram(parsed.value));
+      setEditing(null);
+      listHeading.current?.focus();
+      setNotice({ kind: "success", message: "Class type updated." });
+    });
   }
 
-  if (status === "error") {
-    return (
-      <p className="cs-notice" data-kind="error" role="alert">
-        Unable to load types. Refresh and try again.
-      </p>
-    );
+  async function onDelete(program: ProgramRecord): Promise<void> {
+    if (!canDelete || busy.current) return;
+    if (
+      !window.confirm(
+        `Delete “${program.name}” from the type catalogue? New bookings for this type will stop. Existing sessions, bookings and attendance will be kept. Manage or cancel existing sessions in the calendar.`,
+      )
+    )
+      return;
+    await mutate(program.programId, async () => {
+      replace(await deleteProgram({ programId: program.programId }));
+      if (editing?.programId === program.programId) setEditing(null);
+      setNotice({
+        kind: "success",
+        message: `“${program.name}” deleted from the catalogue. Existing sessions and history have been kept.`,
+      });
+      listHeading.current?.focus();
+    });
   }
 
-  const query = search.trim().toLowerCase();
-  const visible = programs
-    .filter((program) => {
-      if (!query) return true;
-      return (
-        program.name.toLowerCase().includes(query) ||
-        (program.abbreviation ?? "").toLowerCase().includes(query)
-      );
-    })
+  function startEdit(program: ProgramRecord) {
+    if (editing && !window.confirm("Discard the open editor and edit this type?")) return;
+    setNotice(null);
+    setEditing({
+      programId: program.programId,
+      name: program.name,
+      active: program.active,
+      abbreviation: program.abbreviation ?? programDefaultsV2.abbreviation,
+      colour: program.colour ?? programDefaultsV2.colour,
+      kind: program.kind ?? programDefaultsV2.kind,
+      dropInPolicy: program.dropInPolicy ?? programDefaultsV2.dropInPolicy,
+      notifyByEmail: program.notifyByEmail ?? programDefaultsV2.notifyByEmail,
+      showInList: program.showInList ?? programDefaultsV2.showInList,
+      message: program.message ?? programDefaultsV2.message,
+    });
+  }
+
+  const available = programs.filter((program) => !program.deletedAt);
+  const query = search.trim().toLocaleLowerCase();
+  const visible = available
+    .filter((program) =>
+      `${program.name} ${program.abbreviation ?? ""}`.toLocaleLowerCase().includes(query),
+    )
     .sort((a, b) => a.name.localeCompare(b.name) * (sortDesc ? -1 : 1));
 
   return (
     <div className="types-page">
+      <header className="types-heading">
+        <h2>Class / service types</h2>
+        <p>Manage the names, booking options and messages used across your timetable.</p>
+      </header>
       {canEdit ? (
-        <section className="types-card">
-          <h2 className="types-card-title">
-            <Icon name="video" size={18} />
-            Create a new class/service type/exercise room
-          </h2>
-          <form className="types-create" onSubmit={(event) => void onCreate(event)}>
-            <label className="types-field">
-              <span className="types-label">
-                <Help hint="Full name members see when booking" />
+        <section className="types-create-section" aria-labelledby="types-create-title">
+          <h3 id="types-create-title">Create a class type</h3>
+          <form onSubmit={(event) => void onCreate(event)}>
+            <fieldset className="types-create" disabled={pending !== null}>
+              <legend className="visually-hidden">New class type</legend>
+              <label className="types-field">
                 Name
-              </span>
-              <input
-                className="types-input"
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, name: event.target.value }))
-                }
-                required
-                value={draft.name}
-              />
-            </label>
-            <label className="types-field">
-              <span className="types-label">
-                <Help hint="Short code shown on the timetable" />
+                <input
+                  ref={createName}
+                  value={draft.name}
+                  required
+                  minLength={2}
+                  maxLength={100}
+                  onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                />
+              </label>
+              <label className="types-field">
                 Abbreviation
-              </span>
-              <input
-                className="types-input"
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, abbreviation: event.target.value }))
-                }
-                required
-                value={draft.abbreviation}
-              />
-            </label>
-            {draft.abbreviation || draft.name ? (
-              <span aria-hidden="true" className="types-avatar types-avatar-preview">
-                {initials(draft.abbreviation || draft.name)}
-              </span>
-            ) : null}
-            <button className="types-primary" type="submit">
-              Create
-            </button>
+                <input
+                  value={draft.abbreviation}
+                  required
+                  minLength={2}
+                  maxLength={12}
+                  pattern="[A-Za-z0-9_\-]{2,12}"
+                  aria-describedby="types-abbreviation-hint"
+                  onChange={(event) => setDraft({ ...draft, abbreviation: event.target.value })}
+                />
+              </label>
+              <button className="types-primary" type="submit">
+                {pending === "create" ? "Creating…" : "Create type"}
+              </button>
+            </fieldset>
+            <p className="types-hint" id="types-abbreviation-hint">
+              Abbreviation: 2-12 letters, numbers, hyphens or underscores.
+            </p>
           </form>
         </section>
       ) : null}
-
       {notice ? (
         <p
           className="cs-notice"
@@ -321,279 +234,301 @@ export function TypesPage() {
           {notice.message}
         </p>
       ) : null}
-
-      <section className="types-card">
-        <label className="types-search">
-          <span aria-hidden="true">Search:</span>
-          <input
-            aria-label="Search types"
-            onChange={(event) => setSearch(event.target.value)}
-            type="search"
-            value={search}
-          />
-        </label>
-        {visible.length === 0 ? (
-          <p className="types-empty">No types match.</p>
-        ) : (
-          <div className="types-scroll">
-            <table className="types-table">
-              <thead>
-                <tr>
-                  <th aria-sort={sortDesc ? "descending" : "ascending"}>
-                    <button
-                      className="types-sort"
-                      onClick={() => setSortDesc((current) => !current)}
-                      type="button"
-                    >
-                      Name
-                      <Icon name="sort" size={12} />
-                    </button>
-                  </th>
-                  {columns.map(([label, hint]) => (
-                    <th key={label}>
-                      <Help hint={hint} />
-                      {label}
-                    </th>
-                  ))}
-                  <th>
-                    <span className="visually-hidden">Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((program) => {
-                  const colour =
-                    colours[program.programId] ?? program.colour ?? programDefaultsV2.colour;
-                  const edit = editing?.programId === program.programId ? editing : null;
-                  const locked = inUse.has(program.programId);
-                  return (
-                    <tr
-                      key={program.programId}
-                      style={
-                        { "--type-colour": colour, "--type-ink": inkOn(colour) } as CSSProperties
-                      }
-                    >
-                      <td>
-                        <div className="types-name">
-                          <span aria-hidden="true" className="types-avatar">
-                            {initials(program.abbreviation || program.name)}
-                          </span>
-                          {edit ? (
-                            <span className="types-name-edit">
-                              <input
-                                aria-label={`New name of ${program.name}`}
-                                className="types-inline"
-                                onChange={(event) =>
-                                  setEditing({ ...edit, name: event.target.value })
-                                }
-                                value={edit.name}
-                              />
-                              <input
-                                aria-label={`New abbreviation of ${program.name}`}
-                                className="types-inline"
-                                onChange={(event) =>
-                                  setEditing({ ...edit, abbreviation: event.target.value })
-                                }
-                                value={edit.abbreviation}
-                              />
-                            </span>
-                          ) : (
-                            <span className="types-name-text">
-                              <span className="types-name-title">{program.name}</span>
-                              <span className="types-name-abbr">{program.abbreviation || "—"}</span>
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        <label className="types-colour">
-                          <input
-                            aria-label={`Colour of ${program.name}`}
-                            disabled={!canEdit}
-                            onBlur={() => void saveColour(program)}
-                            onChange={(event) =>
-                              setColours((current) => ({
-                                ...current,
-                                [program.programId]: event.target.value,
-                              }))
-                            }
-                            type="color"
-                            value={colour}
-                          />
-                          {colour.toLowerCase()}
-                        </label>
-                      </td>
-                      <td>
-                        <input
-                          aria-label={`Status of ${program.name}`}
-                          checked={program.active}
-                          className="types-switch"
-                          disabled={!canEdit}
-                          onChange={(event) =>
-                            void patch(program.programId, { active: event.target.checked })
-                          }
-                          role="switch"
-                          type="checkbox"
-                        />
-                      </td>
-                      <td>
-                        <select
-                          aria-label={`Kind of ${program.name}`}
-                          className="types-select types-select-kind"
-                          disabled={!canEdit}
-                          onChange={(event) =>
-                            void patch(program.programId, {
-                              kind: event.target.value as ProgramKind,
-                            })
-                          }
-                          value={program.kind ?? programDefaultsV2.kind}
-                        >
-                          {programKinds.map((kind) => (
-                            <option key={kind} value={kind}>
-                              {kindLabels[kind]}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <select
-                          aria-label={`Drop-ins of ${program.name}`}
-                          className="types-select types-select-dropins"
-                          disabled={!canEdit}
-                          onChange={(event) =>
-                            void patch(program.programId, {
-                              dropInPolicy: event.target.value as DropInPolicy,
-                            })
-                          }
-                          value={program.dropInPolicy ?? programDefaultsV2.dropInPolicy}
-                        >
-                          {dropInPolicies.map((policy) => (
-                            <option key={policy} value={policy}>
-                              {dropInLabels[policy]}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <input
-                          aria-label={`E-mail for ${program.name}`}
-                          checked={program.notifyByEmail ?? programDefaultsV2.notifyByEmail}
-                          className="types-switch"
-                          disabled={!canEdit}
-                          onChange={(event) =>
-                            void patch(program.programId, { notifyByEmail: event.target.checked })
-                          }
-                          role="switch"
-                          type="checkbox"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          aria-label={`List ${program.name}`}
-                          checked={program.showInList ?? programDefaultsV2.showInList}
-                          className="types-switch"
-                          disabled={!canEdit}
-                          onChange={(event) =>
-                            void patch(program.programId, { showInList: event.target.checked })
-                          }
-                          role="switch"
-                          type="checkbox"
-                        />
-                      </td>
-                      <td>
-                        <div className="types-message">
-                          <input
-                            aria-label={`Message of ${program.name}`}
-                            disabled={!canEdit}
-                            maxLength={programMessageMaxLength}
-                            onChange={(event) =>
-                              setMessages((current) => ({
-                                ...current,
-                                [program.programId]: event.target.value,
-                              }))
-                            }
-                            value={
-                              messages[program.programId] ??
-                              program.message ??
-                              programDefaultsV2.message
-                            }
-                          />
-                          <button
-                            data-dirty={program.programId in messages}
-                            disabled={!canEdit}
-                            onClick={() => void saveMessage(program)}
-                            title="Save message"
-                            type="button"
-                          >
-                            <Icon name="save" />
-                            <span className="visually-hidden">{`Save message of ${program.name}`}</span>
-                          </button>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="types-actions">
-                          <button
-                            className="types-action types-action-edit"
-                            disabled={!canEdit}
-                            onClick={() => void onEdit(program)}
-                            title={edit ? "Save changes" : "Edit name and abbreviation"}
-                            type="button"
-                          >
-                            <Icon name={edit ? "check" : "pencil"} />
-                            <span className="visually-hidden">
-                              {`${edit ? "Save" : "Edit"} ${program.name}`}
-                            </span>
-                          </button>
-                          {locked ? (
-                            <button
-                              className="types-action types-action-locked"
-                              disabled
-                              title="In use by upcoming sessions"
-                              type="button"
-                            >
-                              <Icon name="lock" />
-                              <span className="visually-hidden">{`In use: ${program.name}`}</span>
-                            </button>
-                          ) : (
-                            // ponytail: no deleteProgram callable yet; enable once the backend has one.
-                            <button
-                              className="types-action types-action-delete"
-                              disabled
-                              title="Deleting types is not available yet"
-                              type="button"
-                            >
-                              <Icon name="trash" />
-                              <span className="visually-hidden">{`Delete ${program.name}`}</span>
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      <section
+        className="types-catalogue"
+        aria-labelledby="types-catalogue-title"
+        aria-busy={status === "loading"}
+      >
+        <div className="types-toolbar">
+          <div>
+            <h3 id="types-catalogue-title" ref={listHeading} tabIndex={-1}>
+              Type catalogue
+            </h3>
+            {status === "ready" ? (
+              <p className="types-hint" role="status">
+                {visible.length} of {available.length} types
+              </p>
+            ) : null}
           </div>
+          <label className="types-field types-search">
+            Search types
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+          <button
+            className="types-secondary types-sort"
+            type="button"
+            onClick={() => setSortDesc(!sortDesc)}
+            aria-label={`Sort names ${sortDesc ? "A to Z" : "Z to A"}`}
+          >
+            Name: {sortDesc ? "Z to A" : "A to Z"}
+          </button>
+        </div>
+        {status === "loading" ? (
+          <div className="types-loading" role="status">
+            <span className="visually-hidden">Loading types…</span>
+            <div />
+            <div />
+            <div />
+          </div>
+        ) : status === "error" ? (
+          <div className="types-empty" role="alert">
+            <p>Unable to load class types.</p>
+            <button
+              className="types-secondary"
+              onClick={() => {
+                setStatus("loading");
+                setReload((value) => value + 1);
+              }}
+              type="button"
+            >
+              Try again
+            </button>
+          </div>
+        ) : visible.length === 0 ? (
+          <div className="types-empty">
+            <h4>{query ? "No matching types" : "No class types yet"}</h4>
+            <p>
+              {query
+                ? "Try another name or abbreviation."
+                : "Create a type to organise your timetable."}
+            </p>
+            {query ? (
+              <button className="types-secondary" type="button" onClick={() => setSearch("")}>
+                Clear search
+              </button>
+            ) : canEdit ? (
+              <button
+                className="types-secondary"
+                type="button"
+                onClick={() => createName.current?.focus()}
+              >
+                Create type
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <ul className="types-list">
+            {visible.map((program) => {
+              const edit = editing?.programId === program.programId ? editing : null;
+              const colour = edit?.colour ?? program.colour ?? programDefaultsV2.colour;
+              return (
+                <li className="types-item" key={program.programId}>
+                  <div className="types-row">
+                    <div className="types-identity">
+                      <span
+                        className="types-swatch"
+                        aria-hidden="true"
+                        style={
+                          { "--type-colour": colour, "--type-ink": inkOn(colour) } as CSSProperties
+                        }
+                      >
+                        {(program.abbreviation || program.name).slice(0, 2).toUpperCase()}
+                      </span>
+                      <div>
+                        <h4>{program.name}</h4>
+                        <p>{program.abbreviation || "No abbreviation"}</p>
+                      </div>
+                    </div>
+                    <div className="types-summary">
+                      <span>{kindLabels[program.kind ?? programDefaultsV2.kind]}</span>
+                      <span className="types-state" data-active={program.active}>
+                        {program.active ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+                    <div className="types-actions">
+                      {canEdit ? (
+                        <button
+                          className="types-secondary"
+                          type="button"
+                          disabled={pending !== null}
+                          aria-label={`${edit ? "Close editor for" : "Edit"} ${program.name}`}
+                          aria-expanded={Boolean(edit)}
+                          aria-controls={`type-editor-${program.programId}`}
+                          onClick={() => (edit ? setEditing(null) : startEdit(program))}
+                        >
+                          {edit ? "Close editor" : "Edit type"}
+                        </button>
+                      ) : null}
+                      {canDelete ? (
+                        <button
+                          className="types-delete"
+                          type="button"
+                          disabled={pending !== null}
+                          aria-label={`Delete ${program.name}`}
+                          onClick={() => void onDelete(program)}
+                        >
+                          Delete type
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                  {edit ? (
+                    <form
+                      id={`type-editor-${program.programId}`}
+                      className="types-editor"
+                      onSubmit={(event) => void onSave(event)}
+                    >
+                      <fieldset disabled={pending !== null}>
+                        <legend>Edit {program.name}</legend>
+                        <div className="types-fields">
+                          <label className="types-field">
+                            Name
+                            <input
+                              autoFocus
+                              required
+                              minLength={2}
+                              maxLength={100}
+                              value={edit.name}
+                              onChange={(event) =>
+                                setEditing({ ...edit, name: event.target.value })
+                              }
+                            />
+                          </label>
+                          <label className="types-field">
+                            Abbreviation
+                            <input
+                              required={Boolean(program.abbreviation)}
+                              minLength={2}
+                              maxLength={12}
+                              pattern="[A-Za-z0-9_\-]{2,12}"
+                              value={edit.abbreviation}
+                              aria-describedby={`abbr-hint-${program.programId}`}
+                              onChange={(event) =>
+                                setEditing({ ...edit, abbreviation: event.target.value })
+                              }
+                            />
+                            <span className="types-hint" id={`abbr-hint-${program.programId}`}>
+                              2-12 letters, numbers, hyphens or underscores.
+                            </span>
+                          </label>
+                          <label className="types-field">
+                            Registration type
+                            <select
+                              value={edit.kind}
+                              onChange={(event) =>
+                                setEditing({ ...edit, kind: event.target.value as ProgramKind })
+                              }
+                            >
+                              {programKinds.map((kind) => (
+                                <option key={kind} value={kind}>
+                                  {kindLabels[kind]}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="types-field">
+                            Drop-ins / trials
+                            <select
+                              value={edit.dropInPolicy}
+                              onChange={(event) =>
+                                setEditing({
+                                  ...edit,
+                                  dropInPolicy: event.target.value as DropInPolicy,
+                                })
+                              }
+                            >
+                              {dropInPolicies.map((policy) => (
+                                <option key={policy} value={policy}>
+                                  {dropInLabels[policy]}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="types-field">
+                            Timetable colour
+                            <span className="types-colour">
+                              <input
+                                type="color"
+                                value={edit.colour}
+                                onChange={(event) =>
+                                  setEditing({ ...edit, colour: event.target.value })
+                                }
+                              />
+                              <span>{edit.colour.toUpperCase()}</span>
+                            </span>
+                          </label>
+                          <div className="types-checks">
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={edit.active}
+                                onChange={(event) =>
+                                  setEditing({ ...edit, active: event.target.checked })
+                                }
+                              />
+                              Active type
+                            </label>
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={edit.notifyByEmail}
+                                onChange={(event) =>
+                                  setEditing({ ...edit, notifyByEmail: event.target.checked })
+                                }
+                              />
+                              E-mail members when booking
+                            </label>
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={edit.showInList}
+                                onChange={(event) =>
+                                  setEditing({ ...edit, showInList: event.target.checked })
+                                }
+                              />
+                              Show in the public class list
+                            </label>
+                          </div>
+                          <label className="types-field types-message">
+                            Message shown when booking
+                            <textarea
+                              rows={3}
+                              maxLength={programMessageMaxLength}
+                              value={edit.message}
+                              onChange={(event) =>
+                                setEditing({ ...edit, message: event.target.value })
+                              }
+                            />
+                            <span className="types-hint">
+                              {edit.message.length}/{programMessageMaxLength} characters
+                            </span>
+                          </label>
+                        </div>
+                        <div className="types-editor-actions">
+                          <button className="types-primary" type="submit">
+                            {pending === program.programId ? "Saving…" : "Save changes"}
+                          </button>
+                          <button
+                            className="types-secondary"
+                            type="button"
+                            onClick={() => setEditing(null)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </fieldset>
+                    </form>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
         )}
       </section>
     </div>
   );
 }
 
-// Dark ink on light swatches, white on dark ones (WCAG relative luminance, 0.179 crossover).
 export function inkOn(hex: string): string {
   const [r, g, b] = [1, 3, 5].map((i) => {
     const c = parseInt(hex.slice(i, i + 2), 16) / 255;
     return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
   });
-  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b! > 0.179 ? "#1e293b" : "#ffffff";
-}
-
-function initials(text: string): string {
-  return text
-    .replace(/[^\p{L}\p{N}]/gu, "")
-    .slice(0, 2)
-    .toUpperCase();
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b! > 0.179 ? "#1A1A18" : "#ffffff";
 }
 
 export default TypesPage;

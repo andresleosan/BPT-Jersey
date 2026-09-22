@@ -31,6 +31,7 @@ import {
   parseCreateLocationInput,
   parseCreateProgramInputV2,
   parseDeleteWeekInput,
+  parseDeleteProgramInput,
   parseUpdateLocationInput,
   parseUpdateProgramInput,
   weekRangeFor,
@@ -363,6 +364,28 @@ export function createUpdateProgramHandler(options: { store: ScheduleStore }) {
     if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
     try {
       return { program: await options.store.updateProgramV2(actor.academyId, parsed.value) };
+    } catch (error) {
+      mapScheduleMutationError(error, "Program");
+    }
+  };
+}
+
+export function createDeleteProgramHandler(options: { store: ScheduleStore }) {
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    if (!adminRoles.includes(actor.role as (typeof adminRoles)[number])) {
+      throw new HttpsError("permission-denied", "Office access required to delete class types");
+    }
+    const parsed = parseDeleteProgramInput(request.data);
+    if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
+    try {
+      return {
+        program: await options.store.deleteProgram(
+          actor.academyId,
+          parsed.value.programId,
+          actor.userId,
+        ),
+      };
     } catch (error) {
       mapScheduleMutationError(error, "Program");
     }
@@ -1523,4 +1546,8 @@ export const copyWeek = onCall(scheduleCallableOptions, async (request) =>
 
 export const deleteWeek = onCall(scheduleCallableOptions, async (request) =>
   createDeleteWeekHandler({ store: getStore() })(request),
+);
+
+export const deleteProgram = onCall(scheduleCallableOptions, async (request) =>
+  createDeleteProgramHandler({ store: getStore() })(request),
 );

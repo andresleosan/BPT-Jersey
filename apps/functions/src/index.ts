@@ -153,6 +153,7 @@ export {
   updateClass,
   updateLocation,
   updateProgram,
+  deleteProgram,
   updateSession,
 } from "./schedule/schedule-callables.js";
 export {
