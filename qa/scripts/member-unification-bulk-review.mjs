@@ -7,12 +7,13 @@
 //      · full name differs only in case, accents or spacing → the archive spelling;
 //      · gender "unknown" on one side → the side that knows;
 //      · identity fields really differ (name, birth date, gender, numbers) → left for the office.
-// 3. Guardians: a minor still `guardianStatus: "pending"` gets an office guardian contact parsed
-//    from the archive's emergency contact when it reads as "<name> <phone>" (needed before a paid
-//    period can be linked: a minor's membership belongs to a billing family). Otherwise Data review.
 // 2. Centres: every linked member still `trainingCenterStatus: "unconfirmed"` gets Town or West
 //    inferred from its archive: plan label first ("strive"/"west" → West, "town" → Town), then
-//    the majority of attended class names. No hint → left for Data review.
+//    the majority of attended class names, then the legacy census's own Town/West column.
+//    No hint anywhere → left for Data review.
+// 3. Billing accounts: a minor still `guardianStatus: "pending"` and with no family gets the same
+//    contactless office billing account a non-review legacy member is born with. Without it no
+//    subscription (and so no paid period) can be recorded. The guardian stays pending in Data review.
 //
 // Build first: node apps/functions/scripts/build-deploy-artifact.mjs
 // usage (dry-run):
@@ -20,12 +21,13 @@
 //   S1_ACTOR_ID=<provisioned owner uid> node qa/scripts/member-unification-bulk-review.mjs
 // apply: add BULK_REVIEW_APPLY=yes MEMBER_UNIFICATION_CONFIRMATION=member-unification-review-v1 and
 //   MEMBER_DIRECTORY_IDENTITY_KEY_SECRET + MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET in the env.
-// optional: BULK_REVIEW_SKIP_QUEUE=yes / BULK_REVIEW_SKIP_CENTRES=yes / BULK_REVIEW_SKIP_GUARDIANS=yes
+// optional: BULK_REVIEW_SKIP_QUEUE=yes / BULK_REVIEW_SKIP_CENTRES=yes / BULK_REVIEW_SKIP_BILLING=yes
 
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { reportScriptError, resolveTarget, SafeScriptError } from "./member-unification-s1-report.mjs";
+import { legacyCentre } from "./member-unification-bulk-migrate.mjs";
 
 const confirmationPhrase = "member-unification-review-v1";
 const contactFields = new Set(["email", "mobileNumber"]);
@@ -78,16 +80,6 @@ export function inferCentre(record) {
   }
   if (votes.Town === votes.West) return undefined;
   return { centre: votes.Town > votes.West ? "Town" : "West", by: "attendance" };
-}
-
-/** "Jane Doe 07797 123456" / "Jane Doe, +44 7797 123456" → contact, else undefined. Pure. */
-export function parseEmergencyContact(text) {
-  const match = String(text ?? "").trim().match(/^(.{2,120}?)[\s,:;\-–]+(\+?\d[\d\s().-]{6,30})$/u);
-  if (!match) return undefined;
-  const fullName = match[1].replace(/[\s,:;\-–]+$/u, "").trim();
-  const phoneNumber = match[2].trim();
-  if (fullName.length < 2 || /\d/u.test(fullName)) return undefined;
-  return { fullName, phoneNumber };
 }
 
 export function planQueueDecisions({ queue, valuesFor }) {
@@ -161,7 +153,7 @@ async function main() {
   }
   const skipQueue = env.BULK_REVIEW_SKIP_QUEUE === "yes";
   const skipCentres = env.BULK_REVIEW_SKIP_CENTRES === "yes";
-  const skipGuardians = env.BULK_REVIEW_SKIP_GUARDIANS === "yes";
+  const skipBilling = env.BULK_REVIEW_SKIP_BILLING === "yes";
 
   const { migrationService, migrationStore, directoryService, directoryFirestore, contracts } = await loadArtifact();
   const requireFromArtifact = createRequire(new URL("../../.firebase-functions/package.json", import.meta.url));
@@ -226,29 +218,36 @@ async function main() {
       ["memberMigrationDecisions", "students", "regyfitMemberRecords"].map((name) => firestore.collection(`${root}/${name}`).get()),
     );
     const recordByStudent = new Map();
+    const legacyByStudent = new Map();
     for (const document of decisions.docs) {
       const data = document.data();
-      if (data.kind === "link" && data.studentId && data.recordId) recordByStudent.set(data.studentId, data.recordId);
+      if (!data.studentId) continue;
+      if (data.kind === "link" && data.recordId) recordByStudent.set(data.studentId, data.recordId);
+      if (data.legacyMemberId) legacyByStudent.set(data.studentId, data.legacyMemberId);
     }
     const recordsById = new Map(records.docs.map((document) => [document.id, document.data()]));
+    const censusById = new Map((await store.load(academyId)).members.map((member) => [member.memberId, member]));
     const planned = [];
-    const counts = { unconfirmed: 0, byPlan: 0, byAttendance: 0, noArchive: 0, noHint: 0 };
+    const counts = { unconfirmed: 0, byPlan: 0, byAttendance: 0, byCensus: 0, noArchive: 0, noHint: 0 };
     for (const document of students.docs) {
       if (document.get("trainingCenterStatus") !== "unconfirmed") continue;
       counts.unconfirmed += 1;
       const recordId = recordByStudent.get(document.id);
       const record = recordId ? recordsById.get(recordId) : undefined;
-      if (!record) {
-        counts.noArchive += 1;
+      const inferred = record ? inferCentre(record) : undefined;
+      if (inferred) {
+        counts[inferred.by === "plan" ? "byPlan" : "byAttendance"] += 1;
+        planned.push({ studentId: document.id, trainingCenter: inferred.centre });
         continue;
       }
-      const inferred = inferCentre(record);
-      if (!inferred) {
-        counts.noHint += 1;
+      // The archive says nothing: the legacy census still carries its own Town/West column.
+      const fromCensus = legacyCentre(censusById.get(legacyByStudent.get(document.id))?.trainingCenter);
+      if (fromCensus) {
+        counts.byCensus += 1;
+        planned.push({ studentId: document.id, trainingCenter: fromCensus });
         continue;
       }
-      counts[inferred.by === "plan" ? "byPlan" : "byAttendance"] += 1;
-      planned.push({ studentId: document.id, trainingCenter: inferred.centre });
+      counts[record ? "noHint" : "noArchive"] += 1;
     }
     for (const [key, value] of Object.entries(counts)) console.log(`centres_${key}: ${value}`);
     console.log(`centresPlanned: ${planned.length}`);
@@ -270,64 +269,37 @@ async function main() {
     }
   }
 
-  // ---- 3. Guardians ----
-  if (!skipGuardians) {
-    const root = `academies/${academyId}`;
-    const [decisions, students, records] = await Promise.all(
-      ["memberMigrationDecisions", "students", "regyfitMemberRecords"].map((name) => firestore.collection(`${root}/${name}`).get()),
-    );
-    const recordByStudent = new Map();
-    for (const document of decisions.docs) {
-      const data = document.data();
-      if (data.kind === "link" && data.studentId && data.recordId) recordByStudent.set(data.studentId, data.recordId);
-    }
-    const recordsById = new Map(records.docs.map((document) => [document.id, document.data()]));
+  // ---- 3. Billing accounts ----
+  if (!skipBilling) {
+    const students = await firestore.collection(`academies/${academyId}/students`).get();
     const planned = [];
-    const counts = { pending: 0, parsed: 0, noArchive: 0, unparsable: 0, empty: 0 };
-    const shapes = {};
-    // Letters→a, digits→9, runs collapsed: shows the format without exposing anyone's contact.
-    const shapeOf = (text) => String(text ?? "").replace(/\p{L}+/gu, "a").replace(/\d+/gu, "9").replace(/\s+/gu, " ").slice(0, 40);
+    const counts = { pendingGuardian: 0, alreadyHasAccount: 0 };
     for (const document of students.docs) {
       if (document.get("guardianStatus") !== "pending") continue;
-      counts.pending += 1;
-      const recordId = recordByStudent.get(document.id);
-      const record = recordId ? recordsById.get(recordId) : undefined;
-      if (!record) {
-        counts.noArchive += 1;
+      counts.pendingGuardian += 1;
+      if (document.get("familyId") !== undefined) {
+        counts.alreadyHasAccount += 1;
         continue;
       }
-      if (!record.emergencyContact) {
-        counts.empty += 1;
-        continue;
-      }
-      const contact = parseEmergencyContact(record.emergencyContact);
-      if (!contact) {
-        counts.unparsable += 1;
-        const shape = shapeOf(record.emergencyContact);
-        shapes[shape] = (shapes[shape] ?? 0) + 1;
-        continue;
-      }
-      counts.parsed += 1;
-      planned.push({ studentId: document.id, contact });
+      planned.push(document.id);
     }
-    for (const [key, value] of Object.entries(counts)) console.log(`guardians_${key}: ${value}`);
-    for (const [shape, count] of Object.entries(shapes).sort(([, a], [, b]) => b - a).slice(0, 8)) console.log(`guardians_shape x${count}: "${shape}"`);
-    console.log(`guardiansPlanned: ${planned.length}`);
+    for (const [key, value] of Object.entries(counts)) console.log(`billing_${key}: ${value}`);
+    console.log(`billingPlanned: ${planned.length}`);
     if (apply) {
       let applied = 0;
       let failed = 0;
-      for (const item of planned) {
+      for (const studentId of planned) {
         try {
-          await writer.reviewMember({ actor, value: { kind: "assign-guardian", studentId: item.studentId, requestId: randomUUID(), guardianContact: item.contact }, now: now() });
+          await writer.reviewMember({ actor, value: { kind: "open-billing-account", studentId, requestId: randomUUID() }, now: now() });
           applied += 1;
-          if (applied % 20 === 0) console.log(`progress: guardians applied ${applied}`);
+          if (applied % 20 === 0) console.log(`progress: billing applied ${applied}`);
         } catch (error) {
           failed += 1;
-          if (env.BPT_OPERATOR_DEBUG === "1") console.error(`guardianFailed: ${error?.constructor?.name ?? "Error"}: ${String(error?.message ?? "").slice(0, 200)}`);
+          if (env.BPT_OPERATOR_DEBUG === "1") console.error(`billingFailed: ${error?.constructor?.name ?? "Error"}: ${String(error?.message ?? "").slice(0, 200)}`);
         }
       }
-      console.log(`guardiansApplied: ${applied}`);
-      console.log(`guardiansFailed: ${failed}`);
+      console.log(`billingApplied: ${applied}`);
+      console.log(`billingFailed: ${failed}`);
     }
   }
 }
