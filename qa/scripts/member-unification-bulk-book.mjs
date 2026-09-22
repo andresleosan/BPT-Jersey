@@ -15,7 +15,8 @@
 
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { participantTypeOn } from "../../packages/domain/lib/schedule/member-calendar-contracts.js";
+import { evaluatePlanAccess } from "../../packages/domain/lib/memberships/plan-contracts.js";
+import { dateKeyInJersey, participantTypeOn } from "../../packages/domain/lib/schedule/member-calendar-contracts.js";
 import { sessionAccessMode } from "../../packages/domain/lib/schedule/schedule-contracts.js";
 import { reportScriptError, resolveTarget, SafeScriptError } from "./member-unification-s1-report.mjs";
 
@@ -116,10 +117,16 @@ async function main() {
   const now = new Date();
   const from = now.toISOString();
   const to = new Date(now.getTime() + days * 86_400_000).toISOString();
-  const [membershipDocs, studentDocs] = await Promise.all([
+  const [membershipDocs, studentDocs, planDocs, programDocs, groupDocs] = await Promise.all([
     firestore.collection(`academies/${academyId}/memberships`).get(),
     firestore.collection(`academies/${academyId}/students`).get(),
+    firestore.collection(`academies/${academyId}/plans`).get(),
+    firestore.collection(`academies/${academyId}/programs`).get(),
+    firestore.collection(`academies/${academyId}/studentGroupAccess`).get(),
   ]);
+  const plansById = new Map(planDocs.docs.map((document) => [document.id, document.data()]));
+  const programsById = new Map(programDocs.docs.map((document) => [document.id, document.data()]));
+  const extraProgramsByStudent = new Map(groupDocs.docs.map((document) => [document.id, new Set(document.get("programIds") ?? [])]));
   const live = liveMembershipByStudent(membershipDocs.docs.map((document) => document.data()), from);
   const studentsById = new Map(studentDocs.docs.map((document) => [document.id, document.data()]));
   const eligible = autoBookedStudents(live, studentsById, from.slice(0, 10));
@@ -134,7 +141,7 @@ async function main() {
   console.log(`bookableSessionsInWindow: ${sessions.length}`);
   if (!apply) return;
 
-  const totals = { booked: 0, alreadyBooked: 0, skipped: 0, skippedWeekFull: 0, membersFailed: 0 };
+  const totals = { booked: 0, alreadyBooked: 0, skipped: 0, skippedByPlan: 0, skippedWeekFull: 0, membersFailed: 0 };
   const skippedByCode = {};
   let done = 0;
   const bookMember = async (index, studentId, membership) => {
@@ -147,12 +154,34 @@ async function main() {
     }
     const confirmed = new Set(existing.filter((booking) => booking.status === "confirmed").map((booking) => booking.sessionId));
     const fullWeeks = new Set();
+    const plan = plansById.get(membership.planId);
+    const dateOfBirth = studentsById.get(studentId)?.dateOfBirth;
+    const extraPrograms = extraProgramsByStudent.get(studentId) ?? new Set();
+    // Same pure evaluator the booking transaction runs, minus the weekly count: a session the plan
+    // can never cover (other site, other age band) is dropped here instead of costing a 2 s "no".
+    // Programs granted as an extra group are always attempted; the service decides those.
+    const coveredByPlan = (session) => {
+      const program = programsById.get(session.programId);
+      if (!plan || !program || !dateOfBirth || extraPrograms.has(session.programId)) return true;
+      const participantType = participantTypeOn(dateOfBirth, dateKeyInJersey(new Date(session.startAt)));
+      if (program.ageBand !== "all" && program.ageBand !== participantType) return false;
+      return evaluatePlanAccess(plan, {
+        participantType,
+        site: session.locationId === "town" ? "Town" : "West",
+        sessionType: program.discipline === "open-mat" ? "openMat" : "class",
+        weeklyClassesUsed: 0,
+      }).allowed;
+    };
     // Members start at different points of the list so two workers rarely contend on one session.
     const shift = (index * 7) % Math.max(sessions.length, 1);
     const ordered = [...sessions.slice(shift), ...sessions.slice(0, shift)];
     for (const session of ordered) {
       if (confirmed.has(session.sessionId)) {
         totals.alreadyBooked += 1;
+        continue;
+      }
+      if (!coveredByPlan(session)) {
+        totals.skippedByPlan += 1;
         continue;
       }
       const week = weekStart(session.startAt);
@@ -176,7 +205,7 @@ async function main() {
           skippedByCode[error.code] = (skippedByCode[error.code] ?? 0) + 1;
           if (error.code === "weekly-limit") fullWeeks.add(week);
           // Codes only, never member data: enough to see where a long run spends its time.
-          if (env.BPT_OPERATOR_DEBUG === "1") console.log(`attempt ${error.code} ${Date.now() - startedAt}ms`);
+          if (env.BPT_OPERATOR_DEBUG === "1") console.log(`attempt ${error.code} ${Date.now() - startedAt}ms · ${error.message}`);
           continue;
         }
         totals.membersFailed += 1;
