@@ -18,9 +18,11 @@ type LevelState =
 export function RegistrationCompletion({
   studentId,
   onRestart,
+  role,
 }: {
   studentId: string;
   onRestart: () => void;
+  role?: string | null | undefined;
 }) {
   const [level, setLevel] = useState<LevelState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -108,7 +110,7 @@ export function RegistrationCompletion({
           Check saved level
         </button>
       </section>
-      <MemberSubscriptionEditor studentId={studentId} onStatusChange={setSubscriptionSaved} />
+      <MemberSubscriptionEditor studentId={studentId} onStatusChange={setSubscriptionSaved} role={role} />
     </div>
   );
 }
