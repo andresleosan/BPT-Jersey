@@ -581,6 +581,45 @@ describe("Schedule Domain Contracts", () => {
       expect(parseRequestBookingInput({ sessionId: "", studentId: "stud-1" }).ok).toBe(false);
     });
 
+    it("accepts a PAYG payment choice on a membership booking", () => {
+      const atVenue = parseRequestBookingInput({
+        kind: "membership",
+        sessionId: "s1",
+        studentId: "st1",
+        membershipId: "m1",
+        paygPayment: { method: "at_venue" },
+      });
+      expect(
+        atVenue.ok && atVenue.value.kind === "membership" && atVenue.value.paygPayment?.method,
+      ).toBe("at_venue");
+
+      const transfer = parseRequestBookingInput({
+        sessionId: "s1",
+        studentId: "st1",
+        membershipId: "m1",
+        paygPayment: { method: "bank_transfer", proofId: "a".repeat(64), reference: "BPT-123" },
+      });
+      expect(transfer.ok).toBe(true);
+
+      expect(
+        parseRequestBookingInput({
+          sessionId: "s1",
+          studentId: "st1",
+          membershipId: "m1",
+          paygPayment: { method: "bank_transfer" },
+        }).ok,
+      ).toBe(false);
+
+      expect(
+        parseRequestBookingInput({
+          kind: "intro",
+          sessionId: "s1",
+          studentId: "st1",
+          paygPayment: { method: "at_venue" },
+        }).ok,
+      ).toBe(false);
+    });
+
     it("accepts valid cancel booking input", () => {
       const input = {
         sessionId: "sess-1",

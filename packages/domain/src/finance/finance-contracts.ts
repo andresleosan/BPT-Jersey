@@ -376,9 +376,11 @@ export function calculateAccountBalance(
 export function calculatePaygDebt(
   invoices: readonly InvoiceRecord[],
   payments: readonly ManualPaymentRecord[],
+  asOf?: string,
 ): number {
   return invoices
     .filter((invoice) => invoice.chargeKind === "payg_session")
+    .filter((invoice) => asOf === undefined || Date.parse(invoice.dueAt) <= Date.parse(asOf))
     .reduce((total, invoice) => total + calculateInvoiceBalance(invoice, payments), 0);
 }
 

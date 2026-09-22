@@ -164,4 +164,12 @@ describe("finance contracts", () => {
     expect(isRecentPaymentRow({ ...row, extra: 1 })).toBe(false);
     expect(recentPaymentsLimit).toBe(20);
   });
+
+  it("counts only PAYG invoices already due when asOf is given", () => {
+    const paygInvoice = invoice({ chargeKind: "payg_session", sourceRef: "sessions/session-1" });
+    const due = { ...paygInvoice, invoiceId: "i1", dueAt: "2026-09-20T18:00:00.000Z" };
+    const future = { ...paygInvoice, invoiceId: "i2", dueAt: "2026-09-25T18:00:00.000Z" };
+    expect(calculatePaygDebt([due, future], [], "2026-09-22T10:00:00.000Z")).toBe(due.totalMinor);
+    expect(calculatePaygDebt([due, future], [])).toBe(due.totalMinor + future.totalMinor);
+  });
 });
