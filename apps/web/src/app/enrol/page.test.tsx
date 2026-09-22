@@ -160,7 +160,7 @@ describe("enrolment request page", () => {
     });
   });
 
-  it("shows plans only after valid details and requires an adult choice before sending", async () => {
+  it("shows plans only after valid details and keeps the trial until a plan is chosen", async () => {
     const user = userEvent.setup();
     render(<EnrolPage />);
     await screen.findByLabelText("Full name");
@@ -181,12 +181,10 @@ describe("enrolment request page", () => {
     expect(screen.queryByText("£85 per month")).not.toBeInTheDocument();
     expect(screen.queryByRole("radio", { name: /Kids|Teens/ })).not.toBeInTheDocument();
     expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: /continue to review/i }));
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Choose an available plan for every student",
-    );
-    expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
+    // An adult who chooses nothing sends the free beginner trial; a paid plan replaces it.
+    expect(screen.getByRole("radio", { name: /I am a beginner/ })).toBeChecked();
     await user.click(screen.getByRole("radio", { name: /West Adult/ }));
+    expect(screen.getByRole("radio", { name: /I am a beginner/ })).not.toBeChecked();
     await completePayment(user);
     await user.click(screen.getByRole("button", { name: /send request/i }));
     await waitFor(() => expect(enrolmentApi.submitEnrolmentRequest).toHaveBeenCalledOnce());
@@ -519,13 +517,14 @@ describe("enrolment steps", () => {
     await user.selectOptions(screen.getByLabelText("Training centre"), "West");
     await user.click(screen.getByRole("button", { name: /continue to plans/i }));
     expect(screen.queryByRole("radio", { name: /Town Adult/ })).not.toBeInTheDocument();
-    expect(
-      screen.getAllByRole("radio").every((radio) => !(radio as HTMLInputElement).checked),
-    ).toBe(true);
+    // Changing the centre drops the plan that belonged to the old one and falls back to the free
+    // beginner trial, which is where this form starts every student.
+    expect(screen.getByRole("radio", { name: /I am a beginner/ })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /West Adult/ })).not.toBeChecked();
     expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
   });
 
-  it("offers each child plans for their own centre and age and waits for all choices", async () => {
+  it("offers each child the trial and the plans for their own centre and age", async () => {
     const user = userEvent.setup();
     render(<EnrolPage />);
     await screen.findByLabelText("Full name");
@@ -548,11 +547,14 @@ describe("enrolment steps", () => {
     await user.click(screen.getByRole("button", { name: /continue to plans/i }));
     const town = within(screen.getByRole("group", { name: "Town Child · Town" }));
     const west = within(screen.getByRole("group", { name: "West Teen · West" }));
-    expect(town.getAllByRole("radio")).toHaveLength(2);
-    expect(west.getAllByRole("radio")).toHaveLength(2);
+    // The free beginner trial plus the two plans each child's age and centre allow.
+    expect(town.getAllByRole("radio")).toHaveLength(3);
+    expect(west.getAllByRole("radio")).toHaveLength(3);
     expect(west.queryByRole("radio", { name: /West Kids/ })).not.toBeInTheDocument();
+    expect(town.getByRole("radio", { name: /I am a beginner/ })).toBeChecked();
+    expect(west.getByRole("radio", { name: /I am a beginner/ })).toBeChecked();
     await user.click(town.getByRole("radio", { name: /Town Kids & Teens 1x/ }));
-    await user.click(screen.getByRole("button", { name: /continue to payment/i }));
+    expect(west.getByRole("radio", { name: /I am a beginner/ })).toBeChecked();
     expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
     await user.click(west.getByRole("radio", { name: /West Teens single class/ }));
     await completePayment(user);
@@ -612,5 +614,79 @@ describe("enrolment steps", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("applicants must be 18 or over");
     expect(screen.queryByRole("heading", { name: "Choose your plans" })).not.toBeInTheDocument();
     expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("beginner trial", () => {
+  it("submits a beginner trial without payment", async () => {
+    const user = userEvent.setup();
+    render(<EnrolPage />);
+
+    await screen.findByLabelText("Full name");
+    await user.type(screen.getByLabelText("Date of birth"), "1994-04-02");
+    await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
+    await user.click(screen.getByLabelText("Evening"));
+    await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
+    await user.click(screen.getByRole("button", { name: /continue to plans/i }));
+
+    // The beginner card comes first and is already chosen: joining is free until the office says
+    // otherwise, and nothing about a paid plan has to be touched to send the request.
+    const trial = screen.getByRole("radio", { name: /I am a beginner/ });
+    expect(screen.getAllByRole("radio")[0]).toBe(trial);
+    expect(trial).toBeChecked();
+    expect(screen.getByText("Trial: 2 free Introduction Classes")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /continue to review/i }));
+    expect(
+      screen.getByText(
+        "No payment is required for a trial. Send your request and the academy will confirm your first free classes.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByLabelText(/Payment screenshot/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
+
+    await waitFor(() => expect(enrolmentApi.submitEnrolmentRequest).toHaveBeenCalledOnce());
+    const submission = enrolmentApi.submitEnrolmentRequest.mock.calls[0]?.[0];
+    expect(submission).toMatchObject({
+      planSelections: { applicant: "trial", minors: [] },
+      levelDeclarations: {
+        applicant: { experience: "beginner", declaredLevelKey: null },
+        minors: [],
+      },
+    });
+    expect(submission).not.toHaveProperty("payment");
+    expect(parseEnrolmentRequestSubmission(submission, "2026-09-22").ok).toBe(true);
+  });
+
+  it("sends the declared belt of an applicant who is not a beginner", async () => {
+    const user = userEvent.setup();
+    render(<EnrolPage />);
+
+    await screen.findByLabelText("Full name");
+    await user.type(screen.getByLabelText("Date of birth"), "1994-04-02");
+    await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
+    await user.click(screen.getByLabelText("Evening"));
+    await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
+    await user.click(screen.getByRole("button", { name: /continue to plans/i }));
+
+    await user.click(screen.getByRole("button", { name: "I'm not a Beginner" }));
+    // A student who has trained before gets one free class, not two.
+    expect(screen.getByText("Trial: 1 free Introduction Class")).toBeVisible();
+    await user.selectOptions(screen.getByLabelText("Belt"), "blue-belt");
+    await user.selectOptions(screen.getByLabelText("Stripes"), "2");
+
+    await user.click(screen.getByRole("button", { name: /continue to review/i }));
+    await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
+
+    await waitFor(() => expect(enrolmentApi.submitEnrolmentRequest).toHaveBeenCalledOnce());
+    const submission = enrolmentApi.submitEnrolmentRequest.mock.calls[0]?.[0];
+    expect(submission).toMatchObject({
+      planSelections: { applicant: "trial", minors: [] },
+      levelDeclarations: {
+        applicant: { experience: "experienced", declaredLevelKey: "blue-2nd-stripe" },
+      },
+    });
+    expect(parseEnrolmentRequestSubmission(submission, "2026-09-22").ok).toBe(true);
   });
 });

@@ -25,8 +25,13 @@ import {
   enrolmentPaymentTotal,
   parseEnrolmentRequestSubmission,
   maximumEnrolmentRequestMinors,
+  trialPlanChoice,
+  type EnrolmentLevelDeclaration,
+  type EnrolmentPlanChoice,
 } from "@bpt-jersey/domain/members/enrolment-requests";
-import type { PlanId } from "@bpt-jersey/domain/memberships";
+import { ageOnDate } from "@bpt-jersey/domain/schedule/member-calendar";
+import type { LevelDefinitionRecord } from "@bpt-jersey/domain/levels";
+import { getLevelCatalog } from "../../lib/levels-client";
 import { EnrolmentBankDetails, useEnrolmentBankDetails } from "./payment-instructions";
 import { EnrolmentPlanChoices } from "./plan-choices";
 import "./enrolment-steps.css";
@@ -48,8 +53,15 @@ type Preference = (typeof preferenceOptions)[number]["value"];
 type Center = (typeof centerOptions)[number];
 type Gender = (typeof genderOptions)[number]["value"];
 
+/** Nobody has to declare a belt: every student starts on the free beginner trial. */
+const beginnerDeclaration: EnrolmentLevelDeclaration = {
+  experience: "beginner",
+  declaredLevelKey: null,
+};
+
 type MinorForm = {
-  selectedPlan: PlanId | "";
+  selectedPlan: EnrolmentPlanChoice | "";
+  declaration: EnrolmentLevelDeclaration;
   fullName: string;
   dateOfBirth: string;
   gender: Gender;
@@ -58,7 +70,8 @@ type MinorForm = {
 };
 
 type ApplicantForm = {
-  selectedPlan: PlanId | "";
+  selectedPlan: EnrolmentPlanChoice | "";
+  declaration: EnrolmentLevelDeclaration;
   applicantIsStudent: boolean;
   fullName: string;
   dateOfBirth: string;
@@ -75,7 +88,8 @@ type ApplicantForm = {
 };
 
 const emptyMinor: MinorForm = {
-  selectedPlan: "",
+  selectedPlan: trialPlanChoice,
+  declaration: beginnerDeclaration,
   fullName: "",
   dateOfBirth: "",
   gender: "unknown",
@@ -84,7 +98,8 @@ const emptyMinor: MinorForm = {
 };
 
 const emptyForm: ApplicantForm = {
-  selectedPlan: "",
+  selectedPlan: trialPlanChoice,
+  declaration: beginnerDeclaration,
   applicantIsStudent: true,
   fullName: "",
   dateOfBirth: "",
@@ -327,7 +342,7 @@ function MinorFields({
         <input
           id={`${prefix}-dob`}
           onChange={(event) =>
-            onChange({ ...minor, dateOfBirth: event.target.value, selectedPlan: "" })
+            onChange({ ...minor, dateOfBirth: event.target.value, selectedPlan: trialPlanChoice })
           }
           type="date"
           value={minor.dateOfBirth}
@@ -338,7 +353,11 @@ function MinorFields({
         <select
           id={`${prefix}-center`}
           onChange={(event) =>
-            onChange({ ...minor, trainingCenter: event.target.value as Center, selectedPlan: "" })
+            onChange({
+              ...minor,
+              trainingCenter: event.target.value as Center,
+              selectedPlan: trialPlanChoice,
+            })
           }
           value={minor.trainingCenter}
         >
@@ -392,9 +411,20 @@ function EnrolContent() {
       ? []
       : form.minors
           .filter((minor) => minor.selectedPlan)
-          .map((minor) => minor.selectedPlan as PlanId),
+          .map((minor) => minor.selectedPlan as EnrolmentPlanChoice),
+  };
+  // One declaration per student the plan selections name, in the same order: the contract reads
+  // them side by side and a trial without its declaration is refused.
+  const levelDeclarations = {
+    ...(form.applicantIsStudent && form.selectedPlan ? { applicant: form.declaration } : {}),
+    minors: form.applicantIsStudent
+      ? []
+      : form.minors.filter((minor) => minor.selectedPlan).map((minor) => minor.declaration),
   };
   const paymentTotal = enrolmentPaymentTotal(selections);
+  const isTrial = [selections.applicant, ...selections.minors].some(
+    (plan) => plan === trialPlanChoice,
+  );
   const [requestId, setRequestId] = useState(createEnrolmentRequestId);
   const stepHeading = useRef<HTMLHeadingElement>(null);
   const submitting = useRef(false);
@@ -403,6 +433,9 @@ function EnrolContent() {
     stepHeading.current?.focus();
   }, [step]);
   const [requests, setRequests] = useState<readonly EnrolmentRequestClientView[]>();
+  // The belt catalogue is read once and never blocks the form: an applicant who cannot be offered
+  // belts is still a beginner, which is the choice this page already has selected for them.
+  const [definitions, setDefinitions] = useState<readonly LevelDefinitionRecord[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
@@ -411,6 +444,18 @@ function EnrolContent() {
     signedIn && session ? `${session.uid}:${session.role ?? ""}` : undefined,
   );
   const alreadyStudent = session?.role === "guardian" || session?.role === "adultStudent";
+
+  useEffect(() => {
+    let active = true;
+    void getLevelCatalog()
+      .then((catalog) => {
+        if (active) setDefinitions(catalog.definitions);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!signedIn) return;
@@ -486,6 +531,17 @@ function EnrolContent() {
       setMessage("Choose an available plan for every student.");
       return;
     }
+    // A trial student who says they are not a beginner has to name the belt they train at. This is
+    // where a catalogue that never loaded lands: the belt cannot be picked, so beginner it is.
+    if (
+      [levelDeclarations.applicant, ...levelDeclarations.minors].some(
+        (declaration) =>
+          declaration?.experience === "experienced" && declaration.declaredLevelKey === null,
+      )
+    ) {
+      setMessage('Choose a belt for every student, or choose "I am a beginner".');
+      return;
+    }
     if (step === "plans") {
       setProofId(undefined);
       setStep("payment");
@@ -510,6 +566,7 @@ function EnrolContent() {
         {
           ...toDetails(form, requestId),
           planSelections: selections,
+          levelDeclarations,
           ...(uploaded
             ? {
                 payment: {
@@ -690,7 +747,11 @@ function EnrolContent() {
                     autoComplete="bday"
                     id="enrol-dob"
                     onChange={(event) =>
-                      setForm({ ...form, dateOfBirth: event.target.value, selectedPlan: "" })
+                      setForm({
+                        ...form,
+                        dateOfBirth: event.target.value,
+                        selectedPlan: trialPlanChoice,
+                      })
                     }
                     type="date"
                     value={form.dateOfBirth}
@@ -742,7 +803,7 @@ function EnrolContent() {
                           setForm({
                             ...form,
                             trainingCenter: event.target.value as Center,
-                            selectedPlan: "",
+                            selectedPlan: trialPlanChoice,
                           })
                         }
                         value={form.trainingCenter}
@@ -881,6 +942,10 @@ function EnrolContent() {
                   trainingCenter={form.trainingCenter}
                   effectiveDate={effectiveDate}
                   selectedPlan={form.selectedPlan}
+                  declaration={form.declaration}
+                  onDeclarationChange={(declaration) => setForm({ ...form, declaration })}
+                  age={form.dateOfBirth ? ageOnDate(form.dateOfBirth, effectiveDate) : 0}
+                  definitions={definitions}
                   disabled={busy}
                   onChange={(selectedPlan) => setForm({ ...form, selectedPlan })}
                 />
@@ -894,6 +959,17 @@ function EnrolContent() {
                     trainingCenter={minor.trainingCenter}
                     effectiveDate={effectiveDate}
                     selectedPlan={minor.selectedPlan}
+                    declaration={minor.declaration}
+                    onDeclarationChange={(declaration) =>
+                      setForm({
+                        ...form,
+                        minors: form.minors.map((item, position) =>
+                          position === index ? { ...item, declaration } : item,
+                        ),
+                      })
+                    }
+                    age={minor.dateOfBirth ? ageOnDate(minor.dateOfBirth, effectiveDate) : 0}
+                    definitions={definitions}
                     disabled={busy}
                     onChange={(selectedPlan) =>
                       setForm({
@@ -978,8 +1054,9 @@ function EnrolContent() {
                 </fieldset>
               ) : (
                 <p>
-                  No payment or screenshot is required to register for Pay as you go. You can send
-                  your request now and pay for each class when you attend.
+                  {isTrial
+                    ? "No payment is required for a trial. Send your request and the academy will confirm your first free classes."
+                    : "No payment or screenshot is required to register for Pay as you go. You can send your request now and pay for each class when you attend."}
                 </p>
               )}
               <div className="hero-actions">
