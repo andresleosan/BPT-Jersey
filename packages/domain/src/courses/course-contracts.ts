@@ -8,6 +8,13 @@ export const courseIdSchema = z.uuid();
 export const courseRecordIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u);
 export const courseLabel = (max: number) => z.string().trim().min(1).max(max).regex(/^[^\u0000-\u001f\u007f]+$/u);
 const positive = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
+const courseTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/u);
+export const courseWeeklySlotSchema = z.strictObject({
+  weekday: z.number().int().min(0).max(6), // Sunday = 0, matching the civil calendar.
+  startTime: courseTime,
+  endTime: courseTime,
+});
+export type CourseWeeklySlot = z.infer<typeof courseWeeklySlotSchema>;
 export const courseDraftSchema = z.strictObject({
   kind: z.enum(["course", "seminar"]), title: courseLabel(160),
   description: z.string().trim().min(1).max(6000),
@@ -21,9 +28,21 @@ export const courseDraftSchema = z.strictObject({
   cancellationTerms: z.string().trim().min(1).max(6000),
   startsOn: z.iso.date(), startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/u),
   endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/u), sessionCount: positive,
+  weeklySchedule: z.strictObject({weeks: positive, slots: z.array(courseWeeklySlotSchema).min(1).max(28)}).optional(),
 }).superRefine((v, ctx) => {
   if (v.endTime <= v.startTime) ctx.addIssue({code: "custom", path: ["endTime"], message: "Finish after the start on the same day."});
   if (v.maxAge !== null && v.maxAge < v.minAge) ctx.addIssue({code: "custom", path: ["maxAge"], message: "Maximum age must not be below minimum age."});
+  if (v.weeklySchedule) {
+    const {weeks, slots} = v.weeklySchedule;
+    if (!Number.isSafeInteger(weeks * slots.length) || v.sessionCount !== weeks * slots.length)
+      ctx.addIssue({code: "custom", path: ["sessionCount"], message: "Total sessions must equal weeks multiplied by sessions per week."});
+    slots.forEach((slot, index) => {
+      if (slot.endTime <= slot.startTime)
+        ctx.addIssue({code: "custom", path: ["weeklySchedule", "slots", index, "endTime"], message: `Weekly session ${index + 1}: finish after the start on the same day.`});
+      if (slots.slice(0, index).some(other => other.weekday === slot.weekday && other.startTime < slot.endTime && slot.startTime < other.endTime))
+        ctx.addIssue({code: "custom", path: ["weeklySchedule", "slots", index], message: "Weekly sessions must not overlap. Change the day or time."});
+    });
+  }
 });
 export type CourseDraft = z.infer<typeof courseDraftSchema>;
 export type Instructor = CourseDraft["instructor"];

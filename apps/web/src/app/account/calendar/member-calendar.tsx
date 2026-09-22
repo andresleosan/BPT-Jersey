@@ -138,7 +138,7 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
     }>
   >({ studentId: "", names: [] });
 
-  const days = useMemo(() => visibleDays({ now, viewport, offset }), [now, viewport, offset]);
+  const days = useMemo(() => visibleDays({ now, viewport, offset, includeSunday: true }), [now, viewport, offset]);
   const firstDay = days[0];
   const lastDay = days[days.length - 1];
   const loadFrom = firstDay

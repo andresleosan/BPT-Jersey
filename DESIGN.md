@@ -106,7 +106,7 @@ Lime**); the calendar body sits on **Canvas** so the traffic light stays legible
 **1rem** (999px on pills/actions) — the only place the system rounds. Status is the **whole card
 background**: open `#FFE66D`, booked `#D7F0E2` + `#176B49` left rule, attended `#E7F6EE`
 muted, missed `#FFE1E6` + `#8D1C2F` left rule, closed/full/locked `#E8E7E3` muted. One action per
-card. Phone (< 58rem) stacks two days; desktop shows six columns Mon–Sat with today at `1.6fr`.
+card. Phone (< 58rem) stacks two days; desktop shows seven columns Mon–Sun with today at `1.6fr`, including course sessions on Sundays.
 Skeleton shimmer while loading; native `<dialog>` for the only confirmation (cancel).
 
 ## 10. Belt colours are data (Levels)

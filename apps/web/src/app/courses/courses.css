@@ -1238,3 +1238,36 @@
     flex-basis: 100%;
   }
 }
+
+/* The weekly schedule stays a compact, labelled list within the course editor. */
+.course-weekly-slots {
+  list-style: none;
+  padding: 0;
+  margin: 1.25rem 0;
+}
+.course-weekly-slots > li {
+  padding: 1rem 0;
+  border-top: 1px solid var(--course-line, #8a8880);
+}
+.course-weekly-slot-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) repeat(2, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+.course-weekly-slot-fields label {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  font-weight: 600;
+}
+.course-schedule-total {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  margin: 1rem 0 1.5rem;
+}
+@media (max-width: 50rem) {
+  .course-weekly-slot-fields { grid-template-columns: minmax(0, 1fr); }
+  .course-weekly-slot-fields .course-link { justify-self: start; }
+}

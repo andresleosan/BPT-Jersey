@@ -413,6 +413,14 @@ export function SessionPanel({
             Close
           </button>
         </div>
+        {session?.courseId && canReadMemberships && (
+          <p className="cs-notice">
+            This session belongs to a finite course.{' '}
+            <a href={`/admin/courses?course=${encodeURIComponent(session.courseId)}`}>
+              Manage course and session dates
+            </a>
+          </p>
+        )}
         {editing ? (
           <div className="cs-session-switcher" aria-label="Session view">
             <button

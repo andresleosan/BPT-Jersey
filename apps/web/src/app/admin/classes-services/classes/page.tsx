@@ -536,6 +536,9 @@ function ClassesContent(): ReactElement {
             </button>
           ))}
         </div>
+        {(session.role === "owner" || session.role === "administrator") && (
+          <a className="cs-button" href="/admin/courses?create=1">Create course / seminar</a>
+        )}
         {canCreate && (!compact || range === "month" || view === "list") ? (
           <button
             type="button"
@@ -684,7 +687,7 @@ function ClassesContent(): ReactElement {
           staff={trainers}
           timezone={timezone}
           defaults={panel.mode === "create" ? panel.defaults : undefined}
-          canEdit={canEdit}
+          canEdit={canEdit && !edited?.courseId}
           canReadMemberships={canReadMemberships}
           onSaved={afterChange}
           onCancelled={afterChange}
