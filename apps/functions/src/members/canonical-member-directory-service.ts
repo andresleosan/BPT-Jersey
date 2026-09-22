@@ -1215,12 +1215,26 @@ export function createCanonicalMemberDirectoryService(
       const keySnapshots = await Promise.all(
         keyReferences.map((reference) => transaction.get(reference)),
       );
-      if (keySnapshots.some((snapshot) => snapshot.exists)) {
+      // The membership-number reconciliation (2026-09-21) reserved each legacy number to its legacy
+      // memberId. Migrating that same member takes the reservation over instead of colliding.
+      const transferable = new Set<number>();
+      keySnapshots.forEach((snapshot, index) => {
+        if (!snapshot.exists) return;
+        const existing = studentIdentityKeySchema.safeParse(snapshot.data());
+        if (
+          legacy !== undefined &&
+          existing.success &&
+          existing.data.ownerStudentId === legacy.legacyMemberId &&
+          existing.data.kind === keys[index]?.kind
+        ) {
+          transferable.add(index);
+          return;
+        }
         throw new CanonicalMemberDirectoryError(
           "conflict",
           "Administrative identifier is already reserved",
         );
-      }
+      });
 
       // This method only ever creates a fresh linked member. If the academy already holds a
       // family or a client document for that account, somebody built part of this person
@@ -1382,7 +1396,8 @@ export function createCanonicalMemberDirectoryService(
         if (reference === undefined) {
           throw new CanonicalMemberDirectoryError("invalid", "Identity key plan mismatch");
         }
-        transaction.create(reference, key);
+        if (transferable.has(index)) transaction.set(reference, key);
+        else transaction.create(reference, key);
       });
       if (linkedRefs !== undefined && linkedRecords !== undefined) {
         if (!reuseCourseFamily) transaction.create(linkedRefs.family, linkedRecords.family);
