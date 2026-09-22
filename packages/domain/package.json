@@ -324,6 +324,11 @@
       "types": "./src/members/member-inventory-contracts.ts",
       "import": "./src/members/member-inventory-contracts.ts",
       "default": "./lib/members/member-inventory-contracts.js"
+    },
+    "./schedule/groups": {
+      "types": "./src/schedule/groups.ts",
+      "import": "./src/schedule/groups.ts",
+      "default": "./lib/schedule/groups.js"
     }
   },
   "scripts": {

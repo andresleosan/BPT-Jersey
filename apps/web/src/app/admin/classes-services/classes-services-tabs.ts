@@ -1,7 +1,7 @@
 /**
- * The nine Regyfit "Classes / Services" subsections, in the order the operator reads them there.
+ * The Classes / Services subsections, including office-managed member groups.
  * `staffVisible` is the ADR-010 amendment of 2026-09-14: the mat only gets the three tabs it works
- * from, and the office keeps the other six.
+ * from, and the office keeps the remaining tabs.
  */
 export type ClassesServicesTab = Readonly<{ label: string; href: string; staffVisible: boolean }>;
 
@@ -14,6 +14,7 @@ export const classesServicesTabs: readonly ClassesServicesTab[] = Object.freeze(
     href: "/admin/classes-services/memberships",
     staffVisible: false,
   },
+  { label: "Groups", href: "/admin/classes-services/groups", staffVisible: false },
   { label: "Bulk Operations", href: "/admin/classes-services/bulk", staffVisible: false },
   { label: "Listings & Reports", href: "/admin/classes-services/reports", staffVisible: false },
   { label: "Drop-ins", href: "/admin/classes-services/drop-ins", staffVisible: false },

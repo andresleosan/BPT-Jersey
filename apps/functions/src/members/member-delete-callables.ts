@@ -1,3 +1,4 @@
+import { removeMemberFromGroups } from "../schedule/group-service.js";
 import {
   deleteMemberAccountInputSchema,
   deleteMemberAccountResultSchema,
@@ -86,6 +87,7 @@ export async function deleteMemberAccountHandler(
   const auditRef = firestore.collection(`${root}/auditEvents`).doc();
   await firestore.runTransaction(async (transaction) => {
     if (!(await transaction.get(studentRef)).exists) throw new HttpsError("not-found", "This member no longer exists.");
+    await removeMemberFromGroups(firestore, transaction, actor.academyId, studentId);
     for (const snapshot of [memberships, keys, relationships, ...links]) for (const document of snapshot.docs) transaction.delete(document.ref);
     for (const reference of singles) transaction.delete(reference);
     if (familyRef) transaction.delete(familyRef);
