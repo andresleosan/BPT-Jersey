@@ -55,6 +55,9 @@ function harness() {
             exists: documents.has(`${name}/${id}`),
             get: (key: string) => documents.get(`${name}/${id}`)?.[key],
           }),
+          set: async (data: Record<string, unknown>) => {
+            documents.set(`${name}/${id}`, data);
+          },
         }),
       }),
     }),
@@ -146,5 +149,120 @@ describe("registration completion", () => {
     await service.complete(baseRecord, ["student-1"], { ...actor, actorId: "admin-2" });
     expect(api.openStudentLevel).toHaveBeenCalledOnce();
     expect(api.saveManualSubscription).toHaveBeenCalledOnce();
+  });
+  it("approves a trial student with a level and a trial record, and no subscription", async () => {
+    const { service, documents } = harness();
+    const record = {
+      ...baseRecord,
+      payment: undefined,
+      planSelections: { applicant: "trial", minors: [] },
+      levelDeclarations: {
+        applicant: { experience: "beginner", declaredLevelKey: null },
+        minors: [],
+      },
+      applicant: { ...(baseRecord as unknown as { applicant?: object }).applicant, trainingCenter: "Town" },
+      approvalSetup: {
+        students: [{ planId: "trial", definitionKey: "yellow-2", startsOn: "2026-09-20", endsOn: null }],
+        detailsVerified: true,
+        paymentVerified: true,
+      },
+    } as unknown as EnrolmentRequestRecord;
+    await service.validate(record);
+    await service.complete(record, ["student-1"], actor);
+    expect(api.openStudentLevel).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ definitionKey: "yellow-2" }) }),
+    );
+    expect(api.saveManualSubscription).not.toHaveBeenCalled();
+    const trial = documents.get("trialAccess/student-1");
+    expect(trial).toMatchObject({
+      status: "active",
+      allowance: 2,
+      site: "Town",
+      experience: "beginner",
+      countedAttendanceIds: [],
+      enrolmentRequestId: "enrolment-1",
+    });
+    expect(trial?.expiresAt).toBe("2026-10-20T12:00:00.000Z");
+  });
+  it("gives an experienced trial student one class", async () => {
+    const { service, documents } = harness();
+    const record = {
+      ...baseRecord,
+      payment: undefined,
+      planSelections: { applicant: "trial", minors: [] },
+      levelDeclarations: {
+        applicant: { experience: "experienced", declaredLevelKey: "blue-belt" },
+        minors: [],
+      },
+      applicant: { ...(baseRecord as unknown as { applicant?: object }).applicant, trainingCenter: "Town" },
+      approvalSetup: {
+        students: [{ planId: "trial", definitionKey: "yellow-2", startsOn: "2026-09-20", endsOn: null }],
+        detailsVerified: true,
+        paymentVerified: true,
+      },
+    } as unknown as EnrolmentRequestRecord;
+    await service.validate(record);
+    await service.complete(record, ["student-1"], actor);
+    const trial = documents.get("trialAccess/student-1");
+    expect(trial).toMatchObject({ allowance: 1, experience: "experienced" });
+  });
+  it("is idempotent when the trial record already exists for this enrolment", async () => {
+    const { service, documents } = harness();
+    documents.set("trialAccess/student-1", {
+      status: "active",
+      enrolmentRequestId: "enrolment-1",
+    });
+    const record = {
+      ...baseRecord,
+      payment: undefined,
+      planSelections: { applicant: "trial", minors: [] },
+      levelDeclarations: {
+        applicant: { experience: "beginner", declaredLevelKey: null },
+        minors: [],
+      },
+      applicant: { ...(baseRecord as unknown as { applicant?: object }).applicant, trainingCenter: "Town" },
+      approvalSetup: {
+        students: [{ planId: "trial", definitionKey: "yellow-2", startsOn: "2026-09-20", endsOn: null }],
+        detailsVerified: true,
+        paymentVerified: true,
+      },
+    } as unknown as EnrolmentRequestRecord;
+    api.openStudentLevel.mockImplementation(async () => {
+      documents.set("studentLevelProgress/student-1", {
+        openedDefinitionKey: "yellow-2",
+        openingNotes: "Enrolment enrolment-1",
+      });
+    });
+    await service.complete(record, ["student-1"], actor);
+    expect(api.saveManualSubscription).not.toHaveBeenCalled();
+    expect(documents.get("trialAccess/student-1")).toMatchObject({
+      status: "active",
+      enrolmentRequestId: "enrolment-1",
+    });
+  });
+  it("refuses a trial record that belongs to another enrolment", async () => {
+    const { service, documents } = harness();
+    documents.set("trialAccess/student-1", {
+      status: "active",
+      enrolmentRequestId: "other",
+    });
+    const record = {
+      ...baseRecord,
+      payment: undefined,
+      planSelections: { applicant: "trial", minors: [] },
+      levelDeclarations: {
+        applicant: { experience: "beginner", declaredLevelKey: null },
+        minors: [],
+      },
+      applicant: { ...(baseRecord as unknown as { applicant?: object }).applicant, trainingCenter: "Town" },
+      approvalSetup: {
+        students: [{ planId: "trial", definitionKey: "yellow-2", startsOn: "2026-09-20", endsOn: null }],
+        detailsVerified: true,
+        paymentVerified: true,
+      },
+    } as unknown as EnrolmentRequestRecord;
+    await expect(service.complete(record, ["student-1"], actor)).rejects.toMatchObject({
+      failureCode: "registration_incomplete",
+    });
   });
 });
