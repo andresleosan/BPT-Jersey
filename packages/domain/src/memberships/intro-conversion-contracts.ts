@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { planIds, siteValues } from "./plan-contracts";
+import { billingPeriods, planIds, siteValues } from "./plan-contracts";
 
 const identifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u);
 const instantSchema = z.iso.datetime();
@@ -54,8 +54,8 @@ export const membershipApplicationSubmitSchema = z.strictObject({
   studentId: identifierSchema,
   site: z.enum(siteValues),
   planId: z.enum(planIds),
-  proofId: proofIdSchema,
-  bankReference: z.string().trim().min(2).max(120),
+  proofId: proofIdSchema.nullable(),
+  bankReference: z.string().trim().min(2).max(120).nullable(),
 });
 export type MembershipApplicationSubmit = z.infer<typeof membershipApplicationSubmitSchema>;
 
@@ -71,10 +71,10 @@ export const membershipApplicationSchema = z.strictObject({
   planName: z.string().trim().min(1).max(160),
   priceMinor: z.number().int().positive().max(100_000_000),
   currency: z.literal("GBP"),
-  billingPeriod: z.enum(["monthly", "term"]),
+  billingPeriod: z.enum(billingPeriods),
   planUpdatedAt: instantSchema,
-  proofId: proofIdSchema,
-  bankReference: z.string().trim().min(2).max(120),
+  proofId: proofIdSchema.nullable(),
+  bankReference: z.string().trim().min(2).max(120).nullable(),
   status: z.enum(membershipApplicationStatuses),
   revision: z.number().int().nonnegative(),
   decisionReason: reasonSchema.nullable(),

@@ -102,6 +102,75 @@ function seed() {
     },
   };
 }
+const trialPath = `academies/${academyId}/trialAccess/student-1`;
+const paygPlanPath = `academies/${academyId}/plans/payg`;
+function seedPayg() {
+  const plan = PLAN_CATALOG.find((item) => item.planId === "payg")!;
+  return {
+    [applicationPath]: {
+      applicationId: "application-1",
+      requestId: "00000000-0000-4000-8000-000000000001",
+      academyId,
+      applicantUid: "user-1",
+      studentId: "student-1",
+      conversionId: "intro-student-1",
+      site: "West",
+      planId: plan.planId,
+      planName: plan.displayName,
+      priceMinor: plan.priceMinor,
+      currency: "GBP",
+      billingPeriod: plan.billingPeriod,
+      planUpdatedAt: now,
+      proofId: null,
+      bankReference: null,
+      status: "pending_review",
+      revision: 0,
+      decisionReason: null,
+      approvedMembershipId: null,
+      createdAt: now,
+      updatedAt: now,
+      schemaVersion: "1",
+    },
+    [conversionPath]: {
+      conversionId: "intro-student-1",
+      academyId,
+      studentId: "student-1",
+      attendanceId: "attendance-1",
+      sessionId: "session-1",
+      recipientUid: "user-1",
+      status: "application_pending",
+      createdAt: now,
+      updatedAt: now,
+      schemaVersion: "1",
+    },
+    [paygPlanPath]: {
+      ...plan,
+      academyId,
+      active: true,
+      schemaVersion: "1",
+      createdAt: now,
+      createdBy: "admin-1",
+      updatedAt: now,
+      updatedBy: "admin-1",
+    },
+    [trialPath]: {
+      trialId: "trial-student-1",
+      academyId,
+      studentId: "student-1",
+      site: "West",
+      experience: "beginner",
+      allowance: 2,
+      countedAttendanceIds: ["attendance-1"],
+      status: "exhausted",
+      startsAt: "2026-08-01T00:00:00.000Z",
+      expiresAt: "2026-08-31T00:00:00.000Z",
+      enrolmentRequestId: "enrol-1",
+      createdAt: now,
+      updatedAt: now,
+      schemaVersion: "1",
+    },
+  };
+}
 const decision = {
   applicationId: "application-1",
   expectedRevision: 0,
@@ -136,6 +205,30 @@ describe("reviewIntroApplication", () => {
     });
     expect(store.records.get(conversionPath)).toMatchObject({ status: "converted" });
     expect(store.records.has(membershipPath)).toBe(true);
+  });
+  it("creates a pay-as-you-go membership and converts a seeded trial", async () => {
+    const store = fakeFirestore(seedPayg());
+    manual.save.mockImplementation(async (_db, transaction) => {
+      transaction.set({ path: membershipPath }, { membershipId: "manual-request-1" });
+      return {
+        membershipId: "manual-request-1",
+        studentId: "student-1",
+        planId: "payg",
+        status: "active",
+        startsAt: decision.occurredAt,
+        endsAt: null,
+        updatedAt: now,
+      };
+    });
+    await expect(reviewIntroApplication(store.db, actor, decision)).resolves.toMatchObject({
+      status: "approved",
+      membershipId: "manual-request-1",
+    });
+    expect(manual.save.mock.calls[0]?.[3]).toMatchObject({
+      settlement: { kind: "pay-as-you-go" },
+      endsAt: null,
+    });
+    expect(store.records.get(trialPath)).toMatchObject({ status: "converted" });
   });
   it("lets the member apply again after a rejection", async () => {
     const store = fakeFirestore(seed());

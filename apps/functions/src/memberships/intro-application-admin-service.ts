@@ -14,6 +14,7 @@ import type { UserActorContext } from "@bpt-jersey/domain";
 import type { R2Client } from "../storage/r2-client.js";
 import { introProofKey } from "./intro-payment-proof.js";
 import { saveManualSubscriptionInTransaction } from "./manual-subscription-service.js";
+import { readTrialAccess } from "./trial-access-service.js";
 
 function office(actor: UserActorContext) {
   if (!["owner", "administrator"].includes(actor.role))
@@ -48,6 +49,8 @@ export async function getIntroProofUrl(
   );
   if (!parsed.success || parsed.data.academyId !== actor.academyId)
     throw new HttpsError("not-found", "Application is unavailable");
+  if (parsed.data.proofId === null)
+    throw new HttpsError("failed-precondition", "Payment evidence is unavailable");
   const objectKey = introProofKey(
     actor.academyId,
     parsed.data.applicantUid,
@@ -160,12 +163,30 @@ export async function reviewIntroApplication(
       );
     }
 
+    // Read before any write in this transaction (Firestore forbids reads after writes).
+    const trialRef = db.doc(`academies/${actor.academyId}/trialAccess/${current.data.studentId}`);
+    const trial = await readTrialAccess(
+      { get: (path) => tx.get(db.doc(path)) },
+      actor.academyId,
+      current.data.studentId,
+    );
+
     const startsAt = input.occurredAt;
     const endsAt = current.data.billingPeriod === "monthly" ? addSubscriptionMonth(startsAt) : null;
-    const reference = current.data.bankReference
-      .trim()
-      .replace(/[^A-Za-z0-9._:-]+/gu, "-")
-      .slice(0, 120);
+    const settlement =
+      current.data.billingPeriod === "per-session"
+        ? ({ kind: "pay-as-you-go" } as const)
+        : {
+            kind: "paid" as const,
+            amountMinor: current.data.priceMinor,
+            method: "bank_transfer" as const,
+            // Non-per-session applications require a bank reference at submission.
+            reference: current.data.bankReference!
+              .trim()
+              .replace(/[^A-Za-z0-9._:-]+/gu, "-")
+              .slice(0, 120),
+            occurredAt: input.occurredAt,
+          };
     const subscription = await saveManualSubscriptionInTransaction(db, tx, actor, {
       studentId: current.data.studentId,
       membershipId: null,
@@ -175,13 +196,7 @@ export async function reviewIntroApplication(
       planId: current.data.planId,
       startsAt,
       endsAt,
-      settlement: {
-        kind: "paid",
-        amountMinor: current.data.priceMinor,
-        method: "bank_transfer",
-        reference,
-        occurredAt: input.occurredAt,
-      },
+      settlement,
     });
 
     tx.update(ref, {
@@ -192,6 +207,7 @@ export async function reviewIntroApplication(
       updatedAt: now,
     });
     tx.update(conversionRef, { status: "converted", updatedAt: now });
+    if (trial) tx.update(trialRef, { status: "converted", updatedAt: now });
     return { status: "approved" as const, membershipId: subscription.membershipId };
   });
 }
