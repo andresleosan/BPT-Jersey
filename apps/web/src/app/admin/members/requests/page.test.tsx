@@ -10,11 +10,68 @@ const enrolmentApi = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../../lib/enrolment-client", () => enrolmentApi);
+// The Membership requests section embeds IntroApplicationsPanel, which reads through this client;
+// mocked the same way its own test does, so opening the office queue never reaches Firebase.
+vi.mock("../../../../lib/intro-conversion-client", () => ({
+  listIntroMembershipApplications: vi.fn().mockResolvedValue([]),
+  getIntroMembershipProofUrl: vi.fn(),
+  reviewIntroMembershipApplication: vi.fn(),
+}));
+// A minimal slice of the real catalogue: the belts and stripes these tests need, with the same
+// definition keys, names, sequences and age criteria production uses (verified against the
+// bundled catalogue), so `defaultWhiteBelt` and the declared-level label resolve exactly as they
+// would for a real applicant.
 vi.mock("../../../../lib/levels-client", () => ({
   getLevelCatalog: vi.fn().mockResolvedValue({
-    definitions: [{ definitionKey: "yellow-2", name: "Yellow Belt 2 Stripes", sequence: 2 }],
+    definitions: [
+      {
+        definitionKey: "yellow-2",
+        name: "Yellow Belt 2 Stripes",
+        sequence: 2,
+        kind: "belt",
+        parentDefinitionKey: null,
+        criteria: { minAge: 0, maxAge: 200 },
+      },
+      {
+        definitionKey: "white-belt",
+        name: "WHITE BELT",
+        sequence: 148,
+        kind: "belt",
+        parentDefinitionKey: null,
+        criteria: { minAge: 16, maxAge: null },
+      },
+      {
+        definitionKey: "white-belt-kids-7-8-and-8-10-yo",
+        name: "WHITE BELT KIDS 7-8 and 8-10 YO",
+        sequence: 49,
+        kind: "belt",
+        parentDefinitionKey: null,
+        criteria: { minAge: 7, maxAge: 10 },
+      },
+      {
+        definitionKey: "blue-belt",
+        name: "BLUE BELT",
+        sequence: 150,
+        kind: "belt",
+        parentDefinitionKey: null,
+        criteria: { minAge: 16, maxAge: null },
+      },
+      {
+        definitionKey: "blue-2nd-stripe",
+        name: "Blue - 2nd Stripe",
+        sequence: 151,
+        kind: "stripe",
+        parentDefinitionKey: "blue-belt",
+        criteria: { minAge: 16, maxAge: null },
+      },
+    ],
   }),
 }));
+
+/** A date of birth that is exactly `age` years old on any day this suite runs. */
+function dateOfBirthForAge(age: number): string {
+  return `${new Date().getUTCFullYear() - age}-01-01`;
+}
 
 const gate = vi.hoisted(() => ({
   role: "owner" as "owner" | "administrator" | "headCoach" | "coach",
@@ -140,7 +197,7 @@ describe("enrolment request queue", () => {
         "Add a phone number.",
       ),
     );
-    expect(await screen.findByRole("status")).toHaveTextContent("Sent back to Alex Adult.");
+    expect(await screen.findByText("Sent back to Alex Adult.")).toBeVisible();
   });
 
   it("drops the action once a request is resolved", async () => {
@@ -193,12 +250,11 @@ describe("enrolment request queue", () => {
     render(<EnrolmentRequestQueuePage />);
     await screen.findByText("Alex Adult");
 
-    const approve = firstButton(/approve and enrol/i);
-    expect(approve).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /^approve$/i })).not.toBeInTheDocument();
 
-    await userEvent.click(firstButton(/read the full request/i));
+    await userEvent.click(firstButton(/review and enrol/i));
 
-    await waitFor(() => expect(firstButton(/approve and enrol/i)).toBeEnabled());
+    await waitFor(() => expect(firstButton(/^approve$/i)).toBeEnabled());
     expect(enrolmentApi.getEnrolmentRequestDetail).toHaveBeenCalledWith("enrolment-1");
   });
 
@@ -206,7 +262,7 @@ describe("enrolment request queue", () => {
     render(<EnrolmentRequestQueuePage />);
     await screen.findByText("Alex Adult");
 
-    await userEvent.click(firstButton(/read the full request/i));
+    await userEvent.click(firstButton(/review and enrol/i));
 
     expect(await screen.findByText(/1991-03-04/)).toBeVisible();
     expect(screen.getByText(/Sam Contact/)).toBeVisible();
@@ -220,7 +276,7 @@ describe("enrolment request queue", () => {
     // toggling a panel twice must not cost twice.
     render(<EnrolmentRequestQueuePage />);
     await screen.findByText("Alex Adult");
-    const toggle = () => firstButton(/read the full request|hide detail/i);
+    const toggle = () => firstButton(/review and enrol|close review/i);
 
     await userEvent.click(toggle());
     await screen.findByText(/1991-03-04/);
@@ -234,13 +290,11 @@ describe("enrolment request queue", () => {
   it("enrols the applicant and says what happened", async () => {
     render(<EnrolmentRequestQueuePage />);
     await screen.findByText("Alex Adult");
-    await userEvent.click(firstButton(/read the full request/i));
-    await waitFor(() => expect(firstButton(/approve and enrol/i)).toBeEnabled());
+    await userEvent.click(firstButton(/review and enrol/i));
+    await waitFor(() => expect(firstButton(/^approve$/i)).toBeEnabled());
 
     await userEvent.selectOptions(screen.getByLabelText("Initial level"), "yellow-2");
-    await userEvent.click(screen.getByLabelText(/I have verified/));
-    await userEvent.click(screen.getByLabelText(/I have checked/));
-    await userEvent.click(firstButton(/approve and enrol/i));
+    await userEvent.click(firstButton(/^approve$/i));
 
     expect(await screen.findByText(/Alex Adult is enrolled and can now sign in/i)).toBeVisible();
     expect(enrolmentApi.approveEnrolmentRequest).toHaveBeenCalledWith(
@@ -262,38 +316,27 @@ describe("enrolment request queue", () => {
     );
     render(<EnrolmentRequestQueuePage />);
     await screen.findByText("Alex Adult");
-    await userEvent.click(firstButton(/read the full request/i));
-    await waitFor(() => expect(firstButton(/approve and enrol/i)).toBeEnabled());
+    await userEvent.click(firstButton(/review and enrol/i));
+    await waitFor(() => expect(firstButton(/^approve$/i)).toBeEnabled());
 
     await userEvent.selectOptions(screen.getByLabelText("Initial level"), "yellow-2");
-    await userEvent.click(screen.getByLabelText(/I have verified/));
-    await userEvent.click(screen.getByLabelText(/I have checked/));
-    await userEvent.click(firstButton(/approve and enrol/i));
+    await userEvent.click(firstButton(/^approve$/i));
 
     expect(await screen.findByText(/applicant_account_incomplete/)).toBeVisible();
-  });
-
-  it("explains what each button does before anybody presses it", async () => {
-    render(<EnrolmentRequestQueuePage />);
-    const help = await screen.findByRole("region", { name: "What the buttons do" });
-    expect(help).toHaveTextContent("Read the full request");
-    expect(help).toHaveTextContent("Send back to applicant");
-    expect(help).toHaveTextContent("Approve and enrol");
-    expect(help).toHaveTextContent("payment screenshot");
   });
 
   it("lets a coach see the queue and send a request back, but not open or approve it", async () => {
     gate.role = "coach";
     render(<EnrolmentRequestQueuePage />);
     await screen.findByText("Alex Adult");
-    expect(screen.queryByRole("button", { name: /Read the full request/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Approve and enrol/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Review and enrol/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Approve$/ })).not.toBeInTheDocument();
     expect(
       screen.getAllByRole("button", { name: /Send back to applicant/ }).length,
     ).toBeGreaterThan(0);
-    expect(screen.getByRole("region", { name: "What the buttons do" })).toHaveTextContent(
-      "Opening the full request and enrolling somebody is office work.",
-    );
+    expect(
+      screen.getByText(/Full details and enrolment are available to the office/i),
+    ).toBeVisible();
   });
 });
 
@@ -304,11 +347,9 @@ describe("requested enrolment plans", () => {
     enrolmentApi.getEnrolmentRequestDetail.mockResolvedValueOnce(legacyDetail);
     const user = userEvent.setup();
     render(<EnrolmentRequestQueuePage />);
-    await user.click(
-      (await screen.findAllByRole("button", { name: /read the full request/i }))[0]!,
-    );
+    await user.click((await screen.findAllByRole("button", { name: /review and enrol/i }))[0]!);
     expect(await screen.findByText("Not recorded on this request")).toBeVisible();
-    expect(firstButton(/approve and enrol/i)).toBeEnabled();
+    expect(firstButton(/^approve$/i)).toBeEnabled();
   });
 
   it("shows the adult preference before approval", async () => {
@@ -318,9 +359,7 @@ describe("requested enrolment plans", () => {
     });
     const user = userEvent.setup();
     render(<EnrolmentRequestQueuePage />);
-    await user.click(
-      (await screen.findAllByRole("button", { name: /read the full request/i }))[0]!,
-    );
+    await user.click((await screen.findAllByRole("button", { name: /review and enrol/i }))[0]!);
     expect(await screen.findByText(/Town Adult · £85 per month/)).toBeVisible();
     expect(enrolmentApi.approveEnrolmentRequest).not.toHaveBeenCalled();
   });
@@ -347,14 +386,134 @@ describe("requested enrolment plans", () => {
     });
     const user = userEvent.setup();
     render(<EnrolmentRequestQueuePage />);
-    await user.click(
-      (await screen.findAllByRole("button", { name: /read the full request/i }))[0]!,
-    );
+    await user.click((await screen.findAllByRole("button", { name: /review and enrol/i }))[0]!);
     expect((await screen.findByText(/Town Child · born/)).closest("li")).toHaveTextContent(
       "Town Kids & Teens 1x · £95 per term",
     );
     expect(screen.getByText(/West Teen · born/).closest("li")).toHaveTextContent(
       "West Teens · £45 per month",
     );
+  });
+});
+
+describe("trial declarations and preselected level", () => {
+  it("shows the trial plan and preselects the declared belt and stripes", async () => {
+    enrolmentApi.getEnrolmentRequestDetail.mockResolvedValueOnce({
+      ...detail,
+      applicant: { ...detail.applicant, dateOfBirth: dateOfBirthForAge(30) },
+      planSelections: { applicant: "trial" as const, minors: [] },
+      levelDeclarations: {
+        applicant: { experience: "experienced" as const, declaredLevelKey: "blue-2nd-stripe" },
+        minors: [],
+      },
+    });
+    const user = userEvent.setup();
+    render(<EnrolmentRequestQueuePage />);
+    await user.click((await screen.findAllByRole("button", { name: /review and enrol/i }))[0]!);
+
+    expect(await screen.findByText("Trial (1 free Introduction Class)")).toBeVisible();
+    expect(screen.getByText("Level: Blue belt · 2 stripes (declared)")).toBeVisible();
+    expect(screen.getByLabelText("Initial level")).toHaveValue("blue-2nd-stripe");
+    expect(screen.getByText(/Trial — no plan, dates or payment\. Confirm the initial level\./)).toBeVisible();
+    expect(screen.queryByLabelText("Subscription start")).not.toBeInTheDocument();
+  });
+
+  it("preselects the adult white belt for a beginner trial applicant", async () => {
+    enrolmentApi.getEnrolmentRequestDetail.mockResolvedValueOnce({
+      ...detail,
+      applicant: { ...detail.applicant, dateOfBirth: dateOfBirthForAge(30) },
+      planSelections: { applicant: "trial" as const, minors: [] },
+      levelDeclarations: {
+        applicant: { experience: "beginner" as const, declaredLevelKey: null },
+        minors: [],
+      },
+    });
+    const user = userEvent.setup();
+    render(<EnrolmentRequestQueuePage />);
+    await user.click((await screen.findAllByRole("button", { name: /review and enrol/i }))[0]!);
+
+    expect(await screen.findByText("Trial (2 free Introduction Classes)")).toBeVisible();
+    expect(screen.getByText("Level: Beginner")).toBeVisible();
+    expect(screen.getByLabelText("Initial level")).toHaveValue("white-belt");
+  });
+
+  it("preselects the kids white belt for a 9-year-old beginner trial applicant", async () => {
+    enrolmentApi.getEnrolmentRequestDetail.mockResolvedValueOnce({
+      ...detail,
+      applicantIsStudent: false,
+      applicant: { ...detail.applicant, trainingTimePreferences: [] },
+      minors: [
+        {
+          fullName: "Nine YearOld",
+          dateOfBirth: dateOfBirthForAge(9),
+          trainingCenter: "Town" as const,
+          trainingTimePreferences: ["afternoon"] as const,
+        },
+      ],
+      planSelections: { minors: ["trial" as const] },
+      levelDeclarations: {
+        minors: [{ experience: "beginner" as const, declaredLevelKey: null }],
+      },
+    });
+    const user = userEvent.setup();
+    render(<EnrolmentRequestQueuePage />);
+    await user.click((await screen.findAllByRole("button", { name: /review and enrol/i }))[0]!);
+
+    await screen.findByText(/Nine YearOld · born/);
+    expect(screen.getByLabelText("Initial level")).toHaveValue("white-belt-kids-7-8-and-8-10-yo");
+  });
+
+  it("approves a trial student with no plan, dates or payment", async () => {
+    enrolmentApi.getEnrolmentRequestDetail.mockResolvedValueOnce({
+      ...detail,
+      applicant: { ...detail.applicant, dateOfBirth: dateOfBirthForAge(30) },
+      planSelections: { applicant: "trial" as const, minors: [] },
+      levelDeclarations: {
+        applicant: { experience: "beginner" as const, declaredLevelKey: null },
+        minors: [],
+      },
+    });
+    render(<EnrolmentRequestQueuePage />);
+    await screen.findByText("Alex Adult");
+    await userEvent.click(firstButton(/review and enrol/i));
+    await waitFor(() => expect(firstButton(/^approve$/i)).toBeEnabled());
+
+    await userEvent.click(firstButton(/^approve$/i));
+
+    await waitFor(() =>
+      expect(enrolmentApi.approveEnrolmentRequest).toHaveBeenCalledWith(
+        "enrolment-1",
+        expect.objectContaining({
+          students: [
+            expect.objectContaining({
+              planId: "trial",
+              definitionKey: "white-belt",
+              endsOn: null,
+            }),
+          ],
+        }),
+      ),
+    );
+  });
+});
+
+describe("membership requests", () => {
+  it("renders the Membership requests section for an administrator", async () => {
+    gate.role = "administrator";
+    render(<EnrolmentRequestQueuePage />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Membership requests", level: 3 }),
+    ).toBeVisible();
+  });
+
+  it("hides the Membership requests section from a coach", async () => {
+    gate.role = "coach";
+    render(<EnrolmentRequestQueuePage />);
+    await screen.findByText("Alex Adult");
+
+    expect(
+      screen.queryByRole("heading", { name: "Membership requests" }),
+    ).not.toBeInTheDocument();
   });
 });
