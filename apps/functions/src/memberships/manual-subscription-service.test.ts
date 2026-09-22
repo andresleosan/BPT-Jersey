@@ -592,4 +592,19 @@ describe("Transit Free subscription", () => {
       await expect(saveManualSubscription(h.db, actor, invalid)).rejects.toThrow();
     }
   });
+  it("refuses an administrator assigning Transit Free", async () => {
+    const h = harness();
+    const transit = PLAN_CATALOG.find((plan) => plan.planId === "transit-free")!;
+    h.records.set(base + "plans/transit-free", { ...transit, ...envelope });
+    delete h.records.get(base + "plans/transit-free")!.status;
+    h.records.get(base + "users/owner-1")!.adminRole = "administrator";
+    const command = {
+      ...input({ kind: "complimentary", reason: "Transit Free indefinite access" }),
+      planId: "transit-free" as const,
+      endsAt: null,
+    };
+    await expect(
+      saveManualSubscription(h.db, { ...actor, role: "administrator" }, command),
+    ).rejects.toThrow("Only an owner can assign Transit Free.");
+  });
 });
