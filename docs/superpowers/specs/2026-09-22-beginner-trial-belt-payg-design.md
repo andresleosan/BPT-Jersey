@@ -1,6 +1,6 @@
 # Trial de principiantes, cinturón declarado, conversión a membresía y PAYG con pago al llegar
 
-Fecha: 2026-09-22 · Rama: `main` · Estado: diseño aprobado por Luis (pendiente de plan de implementación)
+Fecha: 2026-09-22 · Rama: `main` · Estado: implementado; publicado 2026-09-22 (web 794192b, functions europe-west9)
 
 ## 1. Contexto y objetivo
 
