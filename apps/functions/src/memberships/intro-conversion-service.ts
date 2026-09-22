@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
 
 import { FieldPath, type Firestore } from "firebase-admin/firestore";
-import { introConversionStateSchema, memberNotificationSchema } from "@bpt-jersey/domain/memberships/intro-conversion";
+import {
+  introConversionStateSchema,
+  memberNotificationSchema,
+} from "@bpt-jersey/domain/memberships/intro-conversion";
 import {
   isIntroBooking,
-  sessionAccessMode,
   type AttendanceRecord,
   type BookingRecord,
 } from "@bpt-jersey/domain/schedule";
@@ -12,14 +14,38 @@ import { parseEffectiveStudentProfileAt } from "@bpt-jersey/domain/profiles";
 import { parseFamilyRelationship, type FamilyRelationship } from "@bpt-jersey/domain/families";
 import { memberAgeOn } from "@bpt-jersey/domain/members/access";
 import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
+import {
+  trialAccessSchema,
+  type TrialAccessRecord,
+  type TrialAccessStatus,
+} from "@bpt-jersey/domain/memberships/trial-access";
+import { parseMembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle";
+
+import { readTrialAccess } from "./trial-access-service.js";
 
 const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const MAX_RELATIONSHIPS = 101;
+/** `trialAccessSchema` caps the list; an allowance of 1 or 2 can never reach it legitimately. */
+const MAX_COUNTED_ATTENDANCE = 10;
+const PAYG_MINIMUM_AGE = 12;
+const ADULT_AGE = 18;
 
 export type IntroProjectionResult = "created" | "ignored" | "existing" | "unresolved";
 
 function validId(value: string): boolean {
   return identifierPattern.test(value);
+}
+
+function digest(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+/** Idempotent per attendance id: a retried trigger never counts the same class twice. */
+function countAttendance(trial: TrialAccessRecord, attendanceId: string): readonly string[] {
+  return trial.countedAttendanceIds.includes(attendanceId) ||
+    trial.countedAttendanceIds.length >= MAX_COUNTED_ATTENDANCE
+    ? trial.countedAttendanceIds
+    : [...trial.countedAttendanceIds, attendanceId];
 }
 
 function currentGuardian(value: FamilyRelationship, now: string): boolean {
@@ -71,11 +97,12 @@ export async function projectIntroAttendance(
       ),
     ]);
     const session = sessionSnap.data();
+    // The confirmed intro booking below is the only gate: age-band classes carry no intro
+    // access mode, and a trial class booked against one still counts.
     if (
       !sessionSnap.exists ||
       session?.academyId !== input.academyId ||
-      session?.sessionId !== sessionId ||
-      sessionAccessMode(session) !== "intro"
+      session?.sessionId !== sessionId
     )
       return "ignored";
     const introBookings = bookingsSnap.docs.filter((doc) => {
@@ -106,31 +133,35 @@ export async function projectIntroAttendance(
     const conversionId = `intro-${studentId}`;
     const conversionRef = db.doc(`${base}/introConversions/${conversionId}`);
     const existing = await transaction.get(conversionRef);
-    if (existing.exists) return "existing";
     const issueRef = db.doc(`${base}/introConversionIssues/${conversionId}`);
-    const unresolved = (
-      reason: "guardian_ambiguous" | "recipient_missing" | "recipient_inactive",
-    ) => {
-      transaction.set(issueRef, {
-        issueId: conversionId,
-        academyId: input.academyId,
-        studentId,
-        attendanceId: input.attendanceId,
-        sessionId,
-        status: "unresolved",
-        reason,
-        updatedAt: now,
-        schemaVersion: "1",
-      });
-      return "unresolved" as const;
-    };
+
+    const trialRef = db.doc(`${base}/trialAccess/${studentId}`);
+    const trial = await readTrialAccess(
+      { get: (path) => transaction.get(db.doc(path)) },
+      input.academyId,
+      studentId,
+    );
+    const countedAttendanceIds =
+      trial === undefined ? [] : countAttendance(trial, input.attendanceId);
+    const countsThisClass =
+      trial !== undefined && countedAttendanceIds.length > trial.countedAttendanceIds.length;
+    const allowanceUsed = trial !== undefined && countedAttendanceIds.length >= trial.allowance;
 
     const age = memberAgeOn(studentParsed.value.dateOfBirth, dateKeyInJersey(new Date(now)));
+    let unresolvedReason: "guardian_ambiguous" | "recipient_missing" | "recipient_inactive" | null =
+      null;
     let recipientUid: string | null =
-      age !== null && age >= 18 && studentParsed.value.userId && validId(studentParsed.value.userId)
+      age !== null &&
+      age >= ADULT_AGE &&
+      studentParsed.value.userId &&
+      validId(studentParsed.value.userId)
         ? studentParsed.value.userId
         : null;
-    if (age !== null && age < 18) {
+    if (existing.exists) {
+      // The conversion already resolved the recipient once; reuse it instead of resolving again.
+      const state = introConversionStateSchema.safeParse(existing.data());
+      recipientUid = state.success ? state.data.recipientUid : null;
+    } else if (age !== null && age < ADULT_AGE) {
       const relationships = await transaction.get(
         db
           .collection(`${base}/relationships`)
@@ -138,35 +169,141 @@ export async function projectIntroAttendance(
           .orderBy(FieldPath.documentId())
           .limit(MAX_RELATIONSHIPS),
       );
-      if (relationships.size >= MAX_RELATIONSHIPS) return unresolved("guardian_ambiguous");
-      const guardians = relationships.docs.flatMap((doc) => {
-        const parsed = parseFamilyRelationship(doc.data());
-        return parsed.ok &&
-          parsed.value.relationshipId === doc.id &&
-          parsed.value.academyId === input.academyId &&
-          parsed.value.studentId === studentId &&
-          currentGuardian(parsed.value, now) &&
-          parsed.value.familyId === studentParsed.value.familyId &&
-          parsed.value.permissions.includes("readProfile")
-          ? [parsed.value.adultUserId]
-          : [];
-      });
+      const guardians =
+        relationships.size >= MAX_RELATIONSHIPS
+          ? []
+          : relationships.docs.flatMap((doc) => {
+              const parsed = parseFamilyRelationship(doc.data());
+              return parsed.ok &&
+                parsed.value.relationshipId === doc.id &&
+                parsed.value.academyId === input.academyId &&
+                parsed.value.studentId === studentId &&
+                currentGuardian(parsed.value, now) &&
+                parsed.value.familyId === studentParsed.value.familyId &&
+                parsed.value.permissions.includes("readProfile")
+                ? [parsed.value.adultUserId]
+                : [];
+            });
       recipientUid = guardians.length === 1 && validId(guardians[0] ?? "") ? guardians[0]! : null;
     }
-    if (!recipientUid)
-      return unresolved(age !== null && age < 18 ? "guardian_ambiguous" : "recipient_missing");
-    const userSnap = await transaction.get(db.doc(`${base}/users/${recipientUid}`));
-    const user = userSnap.data();
-    if (
-      !userSnap.exists ||
-      user?.academyId !== input.academyId ||
-      user?.userId !== recipientUid ||
-      user?.active !== true ||
-      user?.status !== "active"
-    )
-      return unresolved("recipient_inactive");
+    if (!existing.exists) {
+      if (!recipientUid) {
+        unresolvedReason =
+          age !== null && age < ADULT_AGE ? "guardian_ambiguous" : "recipient_missing";
+      } else {
+        const userSnap = await transaction.get(db.doc(`${base}/users/${recipientUid}`));
+        const user = userSnap.data();
+        if (
+          !userSnap.exists ||
+          user?.academyId !== input.academyId ||
+          user?.userId !== recipientUid ||
+          user?.active !== true ||
+          user?.status !== "active"
+        ) {
+          unresolvedReason = "recipient_inactive";
+          recipientUid = null;
+        }
+      }
+    }
 
-    const notificationId = `intro-${createHash("sha256").update(`${conversionId}:${recipientUid}`).digest("hex")}`;
+    // A West trial turns into Pay as you go the moment its allowance is used. Both writes are
+    // guarded by a read, so a retried attendance cannot fail the transaction on an existing doc.
+    const paygRecipientUid =
+      unresolvedReason === null &&
+      recipientUid !== null &&
+      trial !== undefined &&
+      allowanceUsed &&
+      trial.site === "West" &&
+      age !== null &&
+      age >= PAYG_MINIMUM_AGE
+        ? recipientUid
+        : null;
+    const membershipRef = db.doc(`${base}/memberships/payg-trial-${studentId}`);
+    const paygNoticeRef =
+      paygRecipientUid === null
+        ? null
+        : db.doc(
+            `${base}/memberNotifications/payg-${digest(`${conversionId}:${paygRecipientUid}`)}`,
+          );
+    const paygMembershipExists =
+      paygRecipientUid === null ? false : (await transaction.get(membershipRef)).exists;
+    const paygNoticeExists =
+      paygNoticeRef === null ? false : (await transaction.get(paygNoticeRef)).exists;
+
+    // ---- reads are done; writes start here ----
+    let trialStatus: TrialAccessStatus | undefined =
+      trial !== undefined && allowanceUsed && trial.status !== "converted"
+        ? "exhausted"
+        : trial?.status;
+    if (paygNoticeRef !== null && paygRecipientUid !== null) {
+      const membership = paygMembershipExists
+        ? undefined
+        : parseMembershipRecord({
+            membershipId: `payg-trial-${studentId}`,
+            academyId: input.academyId,
+            familyId: studentParsed.value.familyId,
+            studentId,
+            planId: age !== null && age >= ADULT_AGE ? "payg" : "west-teens-payg",
+            status: "active",
+            startsAt: now,
+            endsAt: null,
+            nextBillingAt: null,
+            createdAt: now,
+            createdBy: "system",
+            updatedAt: now,
+            updatedBy: "system",
+            schemaVersion: "1",
+          });
+      if (membership?.ok === true) transaction.create(membershipRef, membership.value);
+      if (paygMembershipExists || membership?.ok === true) {
+        trialStatus = "converted";
+        if (!paygNoticeExists) {
+          transaction.create(
+            paygNoticeRef,
+            memberNotificationSchema.parse({
+              notificationId: paygNoticeRef.id,
+              academyId: input.academyId,
+              recipientUid: paygRecipientUid,
+              kind: "intro_membership_ready",
+              title: "You're now on Pay as you go",
+              body: "Book classes at West and pay online or at the academy.",
+              href: "/account/membership",
+              readAt: null,
+              createdAt: now,
+              schemaVersion: "1",
+            }),
+          );
+        }
+      }
+    }
+    if (trial !== undefined && (countsThisClass || trialStatus !== trial.status)) {
+      transaction.set(
+        trialRef,
+        trialAccessSchema.parse({
+          ...trial,
+          countedAttendanceIds,
+          status: trialStatus,
+          updatedAt: now,
+        }),
+      );
+    }
+    if (unresolvedReason !== null) {
+      transaction.set(issueRef, {
+        issueId: conversionId,
+        academyId: input.academyId,
+        studentId,
+        attendanceId: input.attendanceId,
+        sessionId,
+        status: "unresolved",
+        reason: unresolvedReason,
+        updatedAt: now,
+        schemaVersion: "1",
+      });
+      return "unresolved";
+    }
+    if (existing.exists) return "existing";
+
+    const notificationId = `intro-${digest(`${conversionId}:${recipientUid}`)}`;
     const notificationRef = db.doc(`${base}/memberNotifications/${notificationId}`);
     const conversion = introConversionStateSchema.parse({
       conversionId,
@@ -185,8 +322,8 @@ export async function projectIntroAttendance(
       academyId: input.academyId,
       recipientUid,
       kind: "intro_membership_ready",
-      title: "Choose your membership",
-      body: "Your Intro Class is complete. Choose a plan and upload your payment receipt for review.",
+      title: "Did you enjoy training with us?",
+      body: "Tap here to get a membership and keep training with us.",
       href: "/account/membership?from=intro",
       readAt: null,
       createdAt: now,
