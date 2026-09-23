@@ -112,8 +112,10 @@ export type EnrolmentApprovalService = Readonly<{
 
 const clientRolesEligibleForEnrolment = new Set(["shopper", "guardian", "adultStudent"]);
 
+// A guardian who also trains ends as `guardian`: the role that lets them hold a family. Their own
+// student record keeps the `self` link, because the adult writer stores their userId on it.
 function targetRoleFor(record: EnrolmentRequestRecord): "adultStudent" | "guardian" {
-  return record.applicantIsStudent ? "adultStudent" : "guardian";
+  return record.minors.length > 0 ? "guardian" : "adultStudent";
 }
 
 function currentClaims(user: EnrolmentApprovalAuthUser): Record<string, unknown> {
@@ -370,10 +372,17 @@ export function createEnrolmentApprovalService(
         if ((await dependencies.auth.getUser(account.userId)).emailVerified !== true)
           await dependencies.auth.updateUser(account.userId, { emailVerified: true });
         stage = role === "adultStudent" ? "member" : "family";
+        // The adult record first: `approveGuardian` then upserts the same users document. The order
+        // matches `enrolmentStudents`, which the office setup and the subscriptions follow.
         studentIds =
           role === "adultStudent"
             ? await approveAdult(input, record, approvalRequestId, account)
-            : await approveGuardian(input, record, approvalRequestId, account);
+            : Object.freeze([
+                ...(record.applicantIsStudent
+                  ? await approveAdult(input, record, approvalRequestId, account)
+                  : []),
+                ...(await approveGuardian(input, record, approvalRequestId, account)),
+              ]);
         stage = "level_or_subscription";
         await dependencies.registration.complete(record, studentIds, input.actor);
         stage = "account_role";

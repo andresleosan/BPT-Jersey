@@ -177,7 +177,7 @@ export const enrolmentLevelDeclarationsSchema = z
   .readonly();
 export type EnrolmentLevelDeclarations = Readonly<z.infer<typeof enrolmentLevelDeclarationsSchema>>;
 
-// Choices are indexed in the same order as the minors; the guardian has no plan of their own.
+// Choices are indexed in the same order as the minors; `applicant` is set only when the applicant trains.
 export const enrolmentPlanSelectionsSchema = z
   .strictObject({
     applicant: enrolmentPlanChoiceSchema.optional(),
@@ -232,6 +232,47 @@ export function enrolmentPaymentTotal(selections: EnrolmentPlanSelections): numb
         : 0),
     0,
   );
+}
+
+/** One person a request enrols, with the plan and level they chose. */
+export type EnrolmentStudentEntry = Readonly<{
+  path: readonly ["applicant"] | readonly ["minors", number];
+  person: Readonly<{ fullName: string; dateOfBirth: string; trainingCenter: Site }>;
+  plan: EnrolmentPlanChoice | undefined;
+  declaration: EnrolmentLevelDeclaration | undefined;
+}>;
+
+/**
+ * Everyone a request enrols, in approval order: the applicant first when they train, then each
+ * minor. The office setup, the approved student ids and the subscriptions all follow this order.
+ */
+export function enrolmentStudents(
+  request: Readonly<{
+    applicantIsStudent: boolean;
+    applicant: EnrolmentApplicant;
+    minors: readonly EnrolmentMinor[];
+    planSelections?: EnrolmentPlanSelections | undefined;
+    levelDeclarations?: EnrolmentLevelDeclarations | undefined;
+  }>,
+): readonly EnrolmentStudentEntry[] {
+  return Object.freeze([
+    ...(request.applicantIsStudent
+      ? [
+          {
+            path: ["applicant"] as const,
+            person: request.applicant,
+            plan: request.planSelections?.applicant,
+            declaration: request.levelDeclarations?.applicant,
+          },
+        ]
+      : []),
+    ...request.minors.map((minor, index) => ({
+      path: ["minors", index] as const,
+      person: minor,
+      plan: request.planSelections?.minors[index],
+      declaration: request.levelDeclarations?.minors[index],
+    })),
+  ]);
 }
 
 export const enrolmentRequestSubmissionSchema = z
@@ -449,13 +490,8 @@ export function parseEnrolmentRequestDetails(
   if (!applicantIsStudent && minors.length === 0) {
     return err(issue(["minors"], "request_enrols_nobody"));
   }
-  // A role claim holds one value, and the vocabulary has no "guardian and adult student" - so an
-  // adult who trains AND brings children cannot be represented by anything the write path can
-  // produce. Rejecting it here is honest; accepting it would build a request nobody can approve.
-  if (applicantIsStudent && minors.length > 0) {
-    return err(issue(["minors"], "adult_and_minors_not_supported"));
-  }
-
+  // A guardian may also train: the request then enrols the applicant as an adult student AND the
+  // minors in their care. Approval ends on the guardian role, which still keeps the "self" link.
   if (applicantIsStudent && applicant.trainingTimePreferences.length === 0) {
     return err(issue(["applicant", "trainingTimePreferences"], "training_time_required"));
   }
@@ -539,19 +575,13 @@ export function parseEnrolmentRequestSubmission(
       return err(issue(["planSelections", "minors", index], "plan_not_available"));
     }
   }
-  const trialChoices = applicantIsStudent
-    ? [
-        {
-          path: ["applicant"] as const,
-          plan: planSelections.applicant,
-          declaration: levelDeclarations?.applicant,
-        },
-      ]
-    : minors.map((_, index) => ({
-        path: ["minors", index] as const,
-        plan: planSelections.minors[index],
-        declaration: levelDeclarations?.minors[index],
-      }));
+  const trialChoices = enrolmentStudents({
+    applicantIsStudent,
+    applicant,
+    minors,
+    planSelections,
+    levelDeclarations,
+  });
   for (const { path, plan, declaration } of trialChoices) {
     if (plan !== trialPlanChoice) continue;
     if (!declaration) return err(issue(["levelDeclarations", ...path], "level_declaration_required"));

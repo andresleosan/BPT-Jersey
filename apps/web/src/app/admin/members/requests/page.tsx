@@ -16,6 +16,7 @@ import {
   type EnrolmentLevelDeclaration,
   type EnrolmentPlanChoice,
   enrolmentNeedsPayment,
+  enrolmentStudents,
   enrolmentTrialAllowance,
   trialPlanChoice,
   type EnrolmentRequestRow,
@@ -408,16 +409,8 @@ function EnrolmentRequestQueueContent() {
         ...current,
         [request.enrolmentRequestId]:
           detail.approvalSetup?.students ??
-          (detail.applicantIsStudent
-            ? [detail.planSelections?.applicant]
-            : detail.minors.map((_, index) => detail.planSelections?.minors[index])
-          ).map((planId, index) => {
-            const declaration = detail.applicantIsStudent
-              ? detail.levelDeclarations?.applicant
-              : detail.levelDeclarations?.minors[index];
-            const dateOfBirth = detail.applicantIsStudent
-              ? detail.applicant.dateOfBirth
-              : detail.minors[index]?.dateOfBirth;
+          enrolmentStudents(detail).map(({ plan: planId, declaration, person }) => {
+            const dateOfBirth = person.dateOfBirth;
             const age = dateOfBirth ? ageOnDate(dateOfBirth, today) : 0;
             // Preselect only for a trial plan. The public enrolment form sends a `beginner`
             // declaration by default for every student, trial or paid, so gating on the
@@ -807,18 +800,18 @@ function EnrolmentRequestQueueContent() {
                               disabled={fixed}
                             >
                               <legend>
-                                {details[request.enrolmentRequestId]?.applicantIsStudent
-                                  ? request.applicantName
-                                  : details[request.enrolmentRequestId]?.minors[index]?.fullName}
+                                {(() => {
+                                  const detail = details[request.enrolmentRequestId];
+                                  return detail
+                                    ? enrolmentStudents(detail)[index]?.person.fullName
+                                    : undefined;
+                                })()}
                               </legend>
                               {(() => {
                                 const detail = details[request.enrolmentRequestId];
-                                const chosen = detail?.applicantIsStudent
-                                  ? detail.planSelections?.applicant
-                                  : detail?.planSelections?.minors[index];
-                                const dateOfBirth = detail?.applicantIsStudent
-                                  ? detail.applicant.dateOfBirth
-                                  : detail?.minors[index]?.dateOfBirth;
+                                const entry = detail ? enrolmentStudents(detail)[index] : undefined;
+                                const chosen = entry?.plan;
+                                const dateOfBirth = entry?.person.dateOfBirth;
                                 const age = dateOfBirth
                                   ? ageOnDate(dateOfBirth, new Date().toISOString().slice(0, 10))
                                   : 16;
