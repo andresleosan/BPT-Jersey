@@ -447,6 +447,7 @@ function officeCallableServices(): EnrolmentOfficeCallableServices {
           const user = await auth.getUser(uid);
           return {
             uid: user.uid,
+            emailVerified: user.emailVerified,
             ...(user.disabled !== undefined ? { disabled: user.disabled } : {}),
             ...(user.email === undefined ? {} : { email: user.email }),
             ...(user.displayName === undefined ? {} : { displayName: user.displayName }),

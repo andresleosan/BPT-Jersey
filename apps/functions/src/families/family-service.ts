@@ -911,7 +911,15 @@ async function resolveFamilyWriteReplay(
   ) {
     throw new FamilyStoreError("conflict", "Family write audit replay is invalid");
   }
-  return staffProjection(family, students, relationships);
+  // The creation receipt keeps IDs in the same order as the submitted children. Approval
+  // applies each child's level and plan by position, so a replay must preserve that order too.
+  const projectedStudents =
+    receipt.data.operation === "family.create"
+      ? receipt.data.createdStudentIds.map((studentId) =>
+          students.find((student) => student.studentId === studentId)!,
+        )
+      : students;
+  return staffProjection(family, projectedStudents, relationships);
 }
 
 function guardianTransaction(transaction: FamilyTransaction, firestore: FamilyFirestore) {
@@ -1224,9 +1232,8 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
         transaction.create(receiptReference, receipt);
         return staffProjection(
           parsedFamily.value,
-          records
-            .map((record) => record.student)
-            .sort((left, right) => left.studentId.localeCompare(right.studentId)),
+          // Keep the input order: enrolment approval matches each plan to this position.
+          records.map((record) => record.student),
           records
             .map((record) => record.relationship)
             .sort((left, right) => left.relationshipId.localeCompare(right.relationshipId)),
