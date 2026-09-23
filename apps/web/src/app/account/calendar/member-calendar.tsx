@@ -610,6 +610,8 @@ export function MemberCalendar({
       : undefined;
   const candidateScope = candidate && participant ? loadedWeekScope : undefined;
 
+  // A teen account neither sees nor manages the plan (B3): the bands keep their text, not the link.
+  const planLink = session.role === "teenStudent" ? null : <a href="/account/membership">Choose a plan</a>;
   return (
     <main className="member-app">
       {!failed && weekState === "ready" && candidate && participant ? (
@@ -637,7 +639,7 @@ export function MemberCalendar({
         onSignOut={onSignOut}
         participants={member?.participants ?? []}
         selectedStudentId={selectedStudentId}
-        showPlanLink={session.role !== "teenStudent"}
+        showPlanLink={planLink !== null}
       />
       {!failed && weekState === "ready" && hasPendingPenalty(penalties) ? <PenaltyBanner /> : null}
       {!failed && participant?.trial ? (
@@ -648,7 +650,7 @@ export function MemberCalendar({
                 ? `Great first class! ${trialClassesLeft(participant.trial)} free class left.`
                 : "Your last free class is booked."}{" "}
               Choose a plan now to keep training without a break.{" "}
-              <a href="/account/membership">Choose a plan</a>
+              {planLink}
             </>
           ) : participant.trial.status === "active" &&
             (trialClassesLeft(participant.trial) > 0 || participant.trial.futureBookings > 0) ? (
@@ -656,7 +658,7 @@ export function MemberCalendar({
           ) : (
             <>
               {trialEndedNotice}{" "}
-              <a href="/account/membership">Choose a plan</a>
+              {planLink}
             </>
           )}
         </p>
@@ -665,7 +667,7 @@ export function MemberCalendar({
       participant.hasActiveMembership === false ? (
         <p className="calendar-trial-band" role="status">
           {participant.firstName} has no active plan, so only free Intro Classes can be booked.{" "}
-          <a href="/account/membership">Choose a plan</a>
+          {planLink}
         </p>
       ) : null}
       <div className="member-body">

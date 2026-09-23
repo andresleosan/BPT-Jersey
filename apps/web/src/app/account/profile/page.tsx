@@ -309,9 +309,11 @@ function ProfileContent() {
 
           <div className="profile-form-actions profile-field-wide">
             <p>We only use these details to support your academy experience.</p>
-            <a className="button button-secondary" href="/account/membership">
-              Manage membership
-            </a>
+            {session.role === "teenStudent" ? null : (
+              <a className="button button-secondary" href="/account/membership">
+                Manage membership
+              </a>
+            )}
             <button
               className="button button-primary profile-submit"
               disabled={saving}

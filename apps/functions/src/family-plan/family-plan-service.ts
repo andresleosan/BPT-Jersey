@@ -32,11 +32,18 @@ export type MemberPlanRequestDoc = Readonly<{
     trainingCenter: string;
     trainingTimePreferences: string[];
   }>;
-  status: "pending" | "approved" | "rejected";
+  /**
+   * `approving` is the lock, as on enrolment requests: approving is several writes across Firestore
+   * and Auth, so one office user takes the request before the first write and nobody else can
+   * decide it while that lease is live. The holder may re-enter (its retry replays the receipts).
+   */
+  status: "pending" | "approving" | "approved" | "rejected";
   createdAt: string;
   decidedAt: string | null;
   decidedBy: string | null;
   studentId: string | null;
+  approvingBy?: string | null;
+  approvingAt?: string | null;
 }>;
 
 export type FamilyPlanAuth = Readonly<{
@@ -58,7 +65,10 @@ export type FamilyPlanDependencies = Readonly<{
 type MemberActor = Readonly<{ userId: string; academyId: string; role: string }>;
 
 const MAX_PENDING_PER_ACCOUNT = 5;
+const APPROVAL_LEASE_MS = 10 * 60 * 1000;
+const openStatuses = ["pending", "approving"] as const;
 const requestIdSchema = z.uuid();
+/** `pending` lists every open request: waiting, and being approved (`approving`). */
 export const listMemberPlanRequestsInputSchema = z.strictObject({ status: z.literal("pending").optional() });
 export const decideMemberPlanRequestInputSchema = z.strictObject({
   requestId: requestIdSchema,
@@ -132,7 +142,7 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
       const collection = db.collection(requestsPath(actor.academyId));
       await db.runTransaction(async (transaction) => {
         const pending = await transaction.get(
-          collection.where("requestedBy", "==", actor.userId).where("status", "==", "pending")
+          collection.where("requestedBy", "==", actor.userId).where("status", "in", [...openStatuses])
             .limit(MAX_PENDING_PER_ACCOUNT),
         );
         if (pending.size >= MAX_PENDING_PER_ACCOUNT) {
@@ -145,6 +155,7 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
             trainingTimePreferences: [...value.trainingTimePreferences],
           },
           status: "pending", createdAt: now(), decidedAt: null, decidedBy: null, studentId: null,
+          approvingBy: null, approvingAt: null,
         };
         transaction.create(collection.doc(requestId), doc);
       });
@@ -155,7 +166,7 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
       const parsed = listMemberPlanRequestsInputSchema.safeParse(input ?? {});
       if (!parsed.success) throw new HttpsError("invalid-argument", "Invalid plan request query");
       let query = db.collection(requestsPath(actor.academyId)).limit(100);
-      if (parsed.data.status) query = query.where("status", "==", parsed.data.status);
+      if (parsed.data.status) query = query.where("status", "in", [...openStatuses]);
       const snapshot = await query.get();
       const requests = snapshot.docs.map((document) => storedRequest(document.data()))
         .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
@@ -166,21 +177,37 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
       const parsed = decideMemberPlanRequestInputSchema.safeParse(input);
       if (!parsed.success) throw new HttpsError("invalid-argument", "Invalid plan request decision");
       const reference = db.doc(`${requestsPath(actor.academyId)}/${parsed.data.requestId}`);
-      const current = await reference.get();
-      if (!current.exists) throw new HttpsError("not-found", "Plan request not found");
-      const request = storedRequest(current.data());
-      if (request.academyId !== actor.academyId) throw new HttpsError("not-found", "Plan request not found");
-      if (request.status === "approved") return { studentId: request.studentId };
-      if (request.status === "rejected") throw new HttpsError("failed-precondition", "This request was already rejected");
-
-      if (parsed.data.decision === "reject") {
-        await db.runTransaction(async (transaction) => {
-          const live = storedRequest((await transaction.get(reference)).data());
-          if (live.status !== "pending") throw new HttpsError("failed-precondition", "This request was already decided");
-          transaction.update(reference, { status: "rejected", decidedAt: now(), decidedBy: actor.actorId });
-        });
-        return { studentId: null };
-      }
+      const heldByOther = (live: MemberPlanRequestDoc, at: string) =>
+        live.status === "approving" && live.approvingBy !== actor.actorId &&
+        Date.parse(at) - Date.parse(live.approvingAt ?? "") < APPROVAL_LEASE_MS;
+      // Read, check and claim in one transaction: the request itself is the lock.
+      const claimed = await db.runTransaction(async (transaction) => {
+        const snapshot = await transaction.get(reference);
+        if (!snapshot.exists) throw new HttpsError("not-found", "Plan request not found");
+        const live = storedRequest(snapshot.data());
+        if (live.academyId !== actor.academyId) throw new HttpsError("not-found", "Plan request not found");
+        if (live.status === "approved") return { done: true as const, request: live };
+        if (live.status === "rejected") throw new HttpsError("failed-precondition", "This request was already rejected");
+        const at = now();
+        if (heldByOther(live, at)) {
+          throw new HttpsError("failed-precondition", "Another office user is approving this request");
+        }
+        if (parsed.data.decision === "reject") {
+          // An approval that started may already have written the student: finish it, never reject.
+          if (live.status === "approving") {
+            throw new HttpsError("failed-precondition", "This request is being approved. Approve it again to finish.");
+          }
+          transaction.update(reference, {
+            status: "rejected", decidedAt: at, decidedBy: actor.actorId, approvingBy: null, approvingAt: null,
+          });
+        } else {
+          transaction.update(reference, { status: "approving", approvingBy: actor.actorId, approvingAt: at });
+        }
+        return { done: false as const, request: live };
+      });
+      const request = claimed.request;
+      if (claimed.done) return { studentId: request.studentId };
+      if (parsed.data.decision === "reject") return { studentId: null };
 
       const { directory, families, auth } = dependencies;
       if (!directory || !families || !auth) throw new HttpsError("internal", "Plan approval is not configured");
@@ -190,7 +217,9 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
           (role !== "guardian" && role !== "adultStudent")) {
         throw new HttpsError("failed-precondition", "The member's account is not available");
       }
-      const person = memberPlanRequestInputSchema.parse({ kind: request.kind, ...request.person });
+      const stored = memberPlanRequestInputSchema.safeParse({ kind: request.kind, ...request.person });
+      if (!stored.success) throw new HttpsError("failed-precondition", "This request is unavailable");
+      const person = stored.data;
       const draft = {
         fullName: person.fullName, dateOfBirth: person.dateOfBirth,
         trainingCenter: person.trainingCenter, trainingTimePreferences: person.trainingTimePreferences,
@@ -202,6 +231,9 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
         if (request.kind === "self") {
           const created = await directory.createAdminAdultForAccount({
             actor,
+            // Receipts scoped to the plan request, not the approving user: a retry by any office
+            // user replays instead of writing again. Plan ids never collide with `enrolment-*`.
+            enrolmentRequestId: `plan-${request.requestId}`,
             value: { ...draft, requestId: request.requestId, phoneNumber: tutor.phoneNumber },
             account: { userId: tutor.userId, displayName: tutor.displayName, email: tutor.email },
             existingClientAccount: true,
@@ -226,7 +258,7 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
                 operation: { kind: "addStudent", requestId: request.requestId, student: draft },
               })
               : await families.createFamily({
-                ...common, requestId: request.requestId, tutorUserId: request.requestedBy, students: [draft],
+                ...common, enrolmentRequestId: `plan-${request.requestId}`, requestId: request.requestId, tutorUserId: request.requestedBy, students: [draft],
               });
             const matches = written.students.filter((student) =>
               normalizedName(student.fullName) === normalizedName(draft.fullName) && student.dateOfBirth === draft.dateOfBirth);
@@ -245,7 +277,17 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
         }
         throw new HttpsError("unavailable", "The request could not be approved. Try again.");
       }
-      await reference.update({ status: "approved", decidedAt, decidedBy: actor.actorId, studentId });
+      // Only the holder of the lock may close it; a takeover after an expired lease wins instead.
+      await db.runTransaction(async (transaction) => {
+        const live = storedRequest((await transaction.get(reference)).data());
+        if (live.status === "approved" && live.studentId === studentId) return;
+        if (live.status !== "approving" || live.approvingBy !== actor.actorId) {
+          throw new HttpsError("failed-precondition", "Another office user took over this request. Reload it.");
+        }
+        transaction.update(reference, {
+          status: "approved", decidedAt, decidedBy: actor.actorId, studentId, approvingBy: null, approvingAt: null,
+        });
+      });
       return { studentId };
     },
   });
