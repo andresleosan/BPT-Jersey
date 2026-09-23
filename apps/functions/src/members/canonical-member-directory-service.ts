@@ -70,6 +70,12 @@ export type MemberDirectoryTransaction = Readonly<{
     reference: MemberDirectoryDocumentReference,
     data: MemberDirectoryDocumentData,
   ) => MemberDirectoryTransaction;
+  /** Ids of the students linked to an account. Only the existing-client-account path needs it. */
+  findStudentIdsByUserId?: (
+    academyId: string,
+    userId: string,
+    limit: number,
+  ) => Promise<readonly string[]>;
 }>;
 export type MemberDirectoryFirestore = Readonly<{
   doc: (path: string) => MemberDirectoryDocumentReference;
@@ -146,6 +152,11 @@ export type CreateAdminAdultForAccountCommand = Readonly<{
   /** Internal enrolment scope; never accepted from the public member-write payload. */
   enrolmentRequestId?: string;
   courseEnrolmentId?: string;
+  /**
+   * The account already holds its client document (a guardian asking to train from My plan). That
+   * document is kept and touched, not created. The account must still have no student of its own.
+   */
+  existingClientAccount?: true;
   now: string;
 }>;
 
@@ -895,6 +906,7 @@ export function createCanonicalMemberDirectoryService(
     }>,
     enrolmentRequestId?: string,
     courseEnrolmentId?: string,
+    existingClientAccount?: true,
   ): Promise<CreateAdminAdultResult> {
     requireAuthorizedActor(command.actor);
     const now = requiredTimestamp(command.now);
@@ -1247,12 +1259,28 @@ export function createCanonicalMemberDirectoryService(
               user: dependencies.firestore.doc(courseEnrolmentId === undefined ? userPath(academyId, accountLink.userId) : `academies/${academyId}/courseParticipantAccounts/${accountLink.userId}`),
             };
       let linkedRecords: Readonly<{ family: FamilyRecord; user: UserProfile }> | undefined;
+      let existingUser: UserProfile | undefined;
       if (accountLink !== undefined && linkedRefs !== undefined) {
         const [familySnapshot, userSnapshot] = await Promise.all([
           transaction.get(linkedRefs.family),
           transaction.get(linkedRefs.user),
         ]);
-        if ((familySnapshot.exists && !reuseCourseFamily) || (reuseCourseFamily && (!familySnapshot.exists || familySnapshot.data()?.primaryContactUserId !== accountLink.userId || familySnapshot.data()?.active !== true || familySnapshot.data()?.status !== "active")) || (userSnapshot.exists && courseEnrolmentId === undefined)) {
+        if (existingClientAccount && courseEnrolmentId === undefined && userSnapshot.exists) {
+          // The client document may stay; a student of the account's own may not.
+          const stored = parseUserProfile(userSnapshot.data());
+          if (!stored.ok || stored.value.academyId !== academyId || stored.value.userId !== accountLink.userId ||
+              stored.value.active !== true || stored.value.status !== "active") {
+            throw new CanonicalMemberDirectoryError("conflict", "This account already holds a member record");
+          }
+          if (transaction.findStudentIdsByUserId === undefined) {
+            throw new CanonicalMemberDirectoryError("unavailable", "Account student lookup is unavailable");
+          }
+          if ((await transaction.findStudentIdsByUserId(academyId, accountLink.userId, 1)).length > 0) {
+            throw new CanonicalMemberDirectoryError("conflict", "This account already holds a member record");
+          }
+          existingUser = stored.value;
+        }
+        if ((familySnapshot.exists && !reuseCourseFamily) || (reuseCourseFamily && (!familySnapshot.exists || familySnapshot.data()?.primaryContactUserId !== accountLink.userId || familySnapshot.data()?.active !== true || familySnapshot.data()?.status !== "active")) || (userSnapshot.exists && courseEnrolmentId === undefined && existingUser === undefined)) {
           throw new CanonicalMemberDirectoryError(
             "conflict",
             "This account already holds a member record",
@@ -1271,7 +1299,7 @@ export function createCanonicalMemberDirectoryService(
           updatedAt: now,
           updatedBy: actorId,
         });
-        const user = parseUserProfile({
+        const user = parseUserProfile(existingUser ? { ...existingUser, updatedAt: now, updatedBy: actorId } : {
           userId: accountLink.userId,
           academyId,
           accountType: "client",
@@ -1401,7 +1429,7 @@ export function createCanonicalMemberDirectoryService(
       });
       if (linkedRefs !== undefined && linkedRecords !== undefined) {
         if (!reuseCourseFamily) transaction.create(linkedRefs.family, linkedRecords.family);
-        if (courseEnrolmentId === undefined) transaction.create(linkedRefs.user, linkedRecords.user);
+        if (courseEnrolmentId === undefined && existingUser === undefined) transaction.create(linkedRefs.user, linkedRecords.user);
         else transaction.set(linkedRefs.user, linkedRecords.user);
       }
       transaction.set(stateRef, nextState);
@@ -1785,6 +1813,7 @@ export function createCanonicalMemberDirectoryService(
         undefined,
         command.enrolmentRequestId,
         command.courseEnrolmentId,
+        command.existingClientAccount,
       );
     },
     async updateAdminMember(command) {

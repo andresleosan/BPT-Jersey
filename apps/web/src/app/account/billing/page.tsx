@@ -213,7 +213,7 @@ function BillingContent() {
 export default function ClientBillingPage() {
   return (
     <ClientAuthProvider>
-      <ClientAuthGate returnPath="/account/billing">
+      <ClientAuthGate allow={["guardian", "adultStudent"]} returnPath="/account/billing">
         <BillingContent />
       </ClientAuthGate>
     </ClientAuthProvider>

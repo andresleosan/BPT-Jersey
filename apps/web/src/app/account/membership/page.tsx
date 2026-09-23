@@ -6,6 +6,7 @@ import type { MembershipApplication } from "@bpt-jersey/domain/memberships/intro
 
 import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../../lib/client-auth";
 import { getFamily } from "../../../lib/family-client";
+import { listMyProfiles } from "../../../lib/family-plan-client";
 import {
   listAvailableMembershipPlans,
   listClientMemberships,
@@ -24,6 +25,7 @@ import type { TrialAccessView } from "@bpt-jersey/domain/memberships/trial-acces
 import { describePlanAccess, formatPlanPrice } from "../../../lib/plan-copy";
 import { getClientProfile } from "../../../lib/profile-client";
 import { EnrolmentBankDetails } from "../../enrol/payment-instructions";
+import { PlanPersonRequests } from "./plan-person-request";
 
 import "./membership.css";
 
@@ -38,6 +40,8 @@ type Workspace = Readonly<{
   plans: readonly AvailableMembershipPlan[];
   memberships: readonly ClientMembership[];
   subjects: readonly Subject[];
+  /** The account has its own student link, so "Train yourself" is not offered. */
+  hasSelf: boolean;
   context: IntroMembershipContext;
 }>;
 
@@ -76,46 +80,58 @@ function MembershipContent() {
     setState("loading");
     setNotice(undefined);
     try {
-      const subjectsPromise: Promise<readonly Subject[]> =
-        session.role === "guardian"
-          ? getFamily().then((family) =>
-              family === undefined
-                ? []
-                : family.students
-                    .filter(
-                      (student) =>
-                        student.active &&
-                        student.status === "active" &&
-                        student.dateOfBirth !== undefined,
-                    )
-                    .map((student) => ({
-                      studentId: student.studentId,
-                      displayName: student.fullName,
-                      trainingCenter: student.trainingCenter,
-                      participantType: participantBand(student.dateOfBirth!),
-                    })),
-            )
-          : getClientProfile().then((profile) =>
-              profile === undefined
-                ? []
-                : [
-                    {
-                      studentId: profile.student.studentId,
-                      displayName: profile.student.fullName,
-                      trainingCenter: profile.student.trainingCenter,
-                      participantType: profile.student.dateOfBirth
-                        ? participantBand(profile.student.dateOfBirth)
-                        : ("adult" as const),
-                    },
-                  ],
-            );
-      const [plans, memberships, subjects, context] = await Promise.all([
+      // "For whom" is the account's own profile list (A3): "You" when the account trains, then
+      // the children. Each source is only asked for when a profile of its kind exists.
+      const subjectsPromise = listMyProfiles().then(async (profiles) => {
+        const hasSelf = profiles.some((profile) => profile.via === "self");
+        const hasChildren = profiles.some((profile) => profile.via === "guardian");
+        const [own, family] = await Promise.all([
+          hasSelf ? getClientProfile() : undefined,
+          hasChildren ? getFamily() : undefined,
+        ]);
+        const subjects = profiles.flatMap((profile): Subject[] => {
+          if (profile.via === "self") {
+            const student = own?.student.studentId === profile.studentId ? own.student : undefined;
+            return student
+              ? [
+                  {
+                    studentId: profile.studentId,
+                    displayName: "You",
+                    trainingCenter: student.trainingCenter,
+                    participantType: student.dateOfBirth
+                      ? participantBand(student.dateOfBirth)
+                      : ("adult" as const),
+                  },
+                ]
+              : [];
+          }
+          const child = family?.students.find(
+            (student) =>
+              student.studentId === profile.studentId &&
+              student.active &&
+              student.status === "active" &&
+              student.dateOfBirth !== undefined,
+          );
+          return child
+            ? [
+                {
+                  studentId: child.studentId,
+                  displayName: child.fullName,
+                  trainingCenter: child.trainingCenter,
+                  participantType: participantBand(child.dateOfBirth!),
+                },
+              ]
+            : [];
+        });
+        return { subjects, hasSelf };
+      });
+      const [plans, memberships, { subjects, hasSelf }, context] = await Promise.all([
         listAvailableMembershipPlans(),
         listClientMemberships(),
         subjectsPromise,
         getIntroMembershipContext(),
       ]);
-      const next = Object.freeze({ plans, memberships, subjects, context });
+      const next = Object.freeze({ plans, memberships, subjects, hasSelf, context });
       setWorkspace(next);
       setSelectedStudentId((current) =>
         next.subjects.some((subject) => subject.studentId === current)
@@ -277,29 +293,28 @@ function MembershipContent() {
         workspace.subjects.length === 0 ? (
           <section className="client-membership-state">
             <h2>No member on this account</h2>
-            <p>Ask the academy to link your account to a member first.</p>
+            <p>Add a child or train yourself below, or ask the academy to link your account.</p>
           </section>
         ) : (
           <>
-            {workspace.subjects.length > 1 ? (
-              <label className="client-membership-subject" htmlFor="membership-student">
-                Member
-                <select
-                  id="membership-student"
-                  onChange={(event) => {
-                    setSelectedStudentId(event.target.value);
-                    setNotice(undefined);
-                  }}
-                  value={selectedStudentId}
-                >
-                  {workspace.subjects.map((item) => (
-                    <option key={item.studentId} value={item.studentId}>
-                      {item.displayName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
+            <fieldset className="client-membership-people">
+              <legend>Plan for</legend>
+              {workspace.subjects.map((item) => (
+                <label className="client-membership-person" key={item.studentId}>
+                  <input
+                    checked={selectedStudentId === item.studentId}
+                    name="membership-student"
+                    onChange={() => {
+                      setSelectedStudentId(item.studentId);
+                      setNotice(undefined);
+                    }}
+                    type="radio"
+                    value={item.studentId}
+                  />
+                  {item.displayName}
+                </label>
+              ))}
+            </fieldset>
 
             <section className="client-current-membership" aria-labelledby="current-plan-title">
               <h2 id="current-plan-title">
@@ -451,6 +466,11 @@ function MembershipContent() {
           </>
         )
       ) : null}
+      {state === "ready" && workspace ? (
+        <PlanPersonRequests
+          canTrainYourself={!workspace.hasSelf}
+        />
+      ) : null}
       {notice ? (
         <p
           className={`client-membership-notice client-membership-notice-${notice.kind}`}
@@ -466,7 +486,7 @@ function MembershipContent() {
 export default function ClientMembershipPage() {
   return (
     <ClientAuthProvider>
-      <ClientAuthGate returnPath="/account/membership">
+      <ClientAuthGate allow={["guardian", "adultStudent"]} returnPath="/account/membership">
         <MembershipContent />
       </ClientAuthGate>
     </ClientAuthProvider>

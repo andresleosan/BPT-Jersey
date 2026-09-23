@@ -637,6 +637,7 @@ export function MemberCalendar({
         onSignOut={onSignOut}
         participants={member?.participants ?? []}
         selectedStudentId={selectedStudentId}
+        showPlanLink={session.role !== "teenStudent"}
       />
       {!failed && weekState === "ready" && hasPendingPenalty(penalties) ? <PenaltyBanner /> : null}
       {!failed && participant?.trial ? (
