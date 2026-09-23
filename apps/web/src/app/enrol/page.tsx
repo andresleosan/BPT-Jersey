@@ -529,8 +529,9 @@ function EnrolContent() {
       const verified = await refreshClientEmailVerification(session.uid);
       setEmailVerified(verified);
       setVerificationMessage(
-        verified ? "Email verified. The academy can now approve a family enrolment." :
-          "Your email is still unverified. Open the link in the verification email first.",
+        verified
+          ? "Email verified. The academy can now approve a family enrolment."
+          : "Your email is still unverified. Open the link in the verification email first.",
       );
     } catch {
       setVerificationMessage("Could not check your email yet. Please try again.");
