@@ -456,6 +456,8 @@ git commit -m "Add the shared domain contracts for member gamification and socia
 - `packages/domain/src/schedule/member-calendar-contracts.ts:333` — `participantTypeOn` (corte hoy a 18) pasa a `return bandForAge(ageOnDate(dateOfBirth, dateKey));`. Es la copia de dominio que usan `member-overview-contracts.ts`, `intro-booking-service.ts` y `group-access-editor.tsx`, así que los arregla a la vez.
 - `apps/web/src/lib/participant-band.ts`
 - `apps/functions/src/memberships/intro-application-service.ts:194` (corte `<13` → usa la función)
+- `apps/functions/src/memberships/intro-conversion-service.ts:249` — `planId: age >= ADULT_AGE ? "payg" : "west-teens-payg"` pasa a `participantBandAt({ dateOfBirth, onIso: now }) === "adult" ? "payg" : "west-teens-payg"`. **No** tocar `ADULT_AGE` en las líneas 155/166/194: allí decide tutor legal (18).
+- `packages/domain/src/members/enrolment-request-contracts.test.ts:500-509` — las expectativas de planes elegibles por edad pasan a D6: 17 → `["bpt-jersey-adult", "town-adult"]`; 16 en West → `["payg", "bpt-jersey-adult", "west-adult"]` (antes 17 → town-kids/teens). Ajusta al valor real que produzca el código con la franja nueva y compruébalo leyendo la función.
 - `apps/functions/src/memberships/plan-callables.ts`, `apps/functions/src/memberships/membership-service.ts`, `apps/functions/src/schedule/member-calendar-week-callables.ts`, `apps/functions/src/schedule/booking-transaction-service.ts`, `apps/web/src/lib/calendar/firebase-calendar-repository.ts` — solo donde se calcula la franja de un alumno a partir de su edad.
 
 **Consume:** `participantBandAt` (0.1).
@@ -517,7 +519,7 @@ if (covering && ageBand && eligible && !eligible.includes(ageBand)) flags.push("
 Run: `corepack pnpm --filter @bpt-jersey/domain typecheck && corepack pnpm --filter @bpt-jersey/functions typecheck && corepack pnpm --filter @bpt-jersey/web typecheck`
 
 ```bash
-git add packages/domain/src/schedule/member-calendar-contracts.ts packages/domain/src/members/member-overview-contracts.ts packages/domain/src/members/member-overview-contracts.test.ts apps/web/src/lib/participant-band.ts apps/web/src/app/admin/members/member-overview-labels.ts apps/functions/src/memberships apps/functions/src/schedule apps/functions/src/members apps/web/src/lib/calendar/firebase-calendar-repository.ts
+git add packages/domain/src/schedule/member-calendar-contracts.ts packages/domain/src/members/enrolment-request-contracts.test.ts packages/domain/src/members/member-overview-contracts.ts packages/domain/src/members/member-overview-contracts.test.ts apps/web/src/lib/participant-band.ts apps/web/src/app/admin/members/member-overview-labels.ts apps/functions/src/memberships apps/functions/src/schedule apps/functions/src/members apps/web/src/lib/calendar/firebase-calendar-repository.ts
 git commit -m "Apply one age band to plans, bookings and the member directory"
 ```
 
@@ -548,7 +550,7 @@ studentIds = role === "adultStudent"
     ];
 ```
 
-Revisa que `approveGuardian` no escriba un perfil de tutor que choque con el cliente que acaba de escribir `createAdminAdultForAccount` (ambos escriben el documento de cliente). Si chocan, en la rama tutor-alumno omitir `saveGuardianProfile` (el documento de cliente ya existe).
+El orden importa: `approveAdult` **primero** (crea `users/{uid}`) y luego `approveGuardian`, cuyo `saveGuardianProfile` hace upsert de ese mismo documento (`guardian-profile-service.ts` ~349-386). No se omite.
 
 - [ ] **Paso 3: web.** En `/enrol`, con «I am a parent or guardian enrolling a child» elegido, mostrar la casilla «I also want to train (my own membership)». Marcada: se muestra el mismo bloque de datos de alumno que usa la rama adulta (reutiliza el componente o JSX existente; no copiarlo) y se envía `applicantIsStudent: true` junto con `minors`.
 
@@ -574,7 +576,7 @@ Revisa que `approveGuardian` no escriba un perfil de tutor que choque con el cli
   - Máximo 5 solicitudes `pending` por cuenta.
   - Documento `memberPlanRequests/{uuid}` con `status: "pending"`.
 - [ ] **Paso 2: aprobación** (plantilla existente: `apps/functions/src/courses/course-participants.ts:135-160`, que ya hace «adulto para una cuenta» y «añadir alumno a familia»):
-  - `self` → `createAdminAdultForAccount({ actor, value: { requestId, fullName, dateOfBirth, phoneNumber, trainingCenter, trainingTimePreferences }, account: { userId, displayName, email }, now })`.
+  - `self` → `createAdminAdultForAccount({ actor, value: { requestId, fullName, dateOfBirth, phoneNumber, trainingCenter, trainingTimePreferences }, account: { userId, displayName, email }, existingClientAccount: true, now })`. `phoneNumber` es obligatorio (~929-933): se toma del `users/{uid}` del tutor. **Cambio necesario en `apps/functions/src/members/canonical-member-directory-service.ts`:** hoy, si `users/{uid}` existe y no hay `courseEnrolmentId`, lanza conflict «This account already holds a member record» (~1255) y además hace `transaction.create` del documento de usuario (~1404). Añadir al comando `existingClientAccount?: true`: con ella, un `users/{uid}` existente de tipo cliente no es conflicto y el documento se actualiza (no `create`). Sigue siendo conflicto si la cuenta ya tiene un alumno propio (`students where userId == uid`).
   - `child` → si `getGuardianFamily(academyId, uid)` existe: `updateFamily({ operation: { kind: "addStudent", requestId, student } })`; si no: `createFamily({ tutorUserId: uid, students: [student], ... })` y, si el rol era `adultStudent`, promover el claim a `guardian` (mismo patrón que `promoteClaim` de `enrolment-approval-service.ts`).
   - Guarda `status`, `decidedAt`, `decidedBy`, `studentId`. Idempotente: si ya está `approved`, devuelve el `studentId` guardado.
 
@@ -611,7 +613,8 @@ export const requestMemberPlanPerson = (input: z.input<typeof memberPlanRequestI
     "We couldn't send your request. Check the details and try again.");
 ```
 
-- [ ] **Paso 2: My plan.** La lista «para quién» sale de `listMyProfiles()` (A3). Cada perfil es una fila seleccionable; el de `via: "self"` se etiqueta «You». Debajo, dos tarjetas-botón: «Add a child» (siempre para `guardian`/`adultStudent`) y «Train yourself» (solo si ningún perfil tiene `via: "self"`). Ambas abren el mismo formulario (etiquetas encima: Full name — oculto en «Train yourself» —, Date of birth `<input type="date">`, Centre, Training times) y muestran al enviar: «Request sent. The office will confirm it shortly.» Un `teenStudent` no ve My plan (B3; ya es así, no tocar).
+- [ ] **Paso 2: My plan.** La lista «para quién» sale de `listMyProfiles()` (A3). Cada perfil es una fila seleccionable; el de `via: "self"` se etiqueta «You». Debajo, dos tarjetas-botón: «Add a child» (siempre para `guardian`/`adultStudent`) y «Train yourself» (solo si ningún perfil tiene `via: "self"`). Ambas abren el mismo formulario (etiquetas encima: Full name — oculto en «Train yourself» —, Date of birth `<input type="date">`, Centre, Training times) y muestran al enviar: «Request sent. The office will confirm it shortly.»
+- [ ] **Paso 2b: el teen no ve My plan ni pagos (B3).** Hoy **sí** los ve: `ClientAuthGate` permite `teenStudent` por defecto. Pasar `allow={["guardian", "adultStudent"]}` al `ClientAuthGate` de `apps/web/src/app/account/membership/page.tsx` (~469) y de `apps/web/src/app/account/billing/page.tsx` (~216), y ocultar el enlace «My plan» (y el de pagos, si está) para `teenStudent` en `apps/web/src/app/account/calendar/calendar-header.tsx`.
 - [ ] **Paso 3: admin.** En `/admin/members/requests`, sección «Plan requests» con las pendientes (`listMemberPlanRequests`), botón «Approve» / «Reject» (`decideMemberPlanRequest`). Oculta si el callable da `not-found`.
 
 - [ ] **Paso 4 (fase): verificar y commit**
@@ -619,7 +622,7 @@ export const requestMemberPlanPerson = (input: z.input<typeof memberPlanRequestI
 Run: typecheck de domain, functions y web.
 
 ```bash
-git add packages/domain/src/members/enrolment-request-contracts.ts apps/functions/src/members/enrolment-approval-service.ts apps/web/src/app/enrol/page.tsx apps/functions/src/family-plan apps/functions/src/index.ts apps/web/src/lib/family-plan-client.ts apps/web/src/app/account/membership apps/web/src/app/admin/members/requests/page.tsx
+git add packages/domain/src/members/enrolment-request-contracts.ts apps/functions/src/members/enrolment-approval-service.ts apps/web/src/app/enrol/page.tsx apps/functions/src/family-plan apps/functions/src/index.ts apps/web/src/lib/family-plan-client.ts apps/web/src/app/account/membership apps/web/src/app/account/billing/page.tsx apps/web/src/app/account/calendar/calendar-header.tsx apps/functions/src/members/canonical-member-directory-service.ts apps/web/src/app/admin/members/requests/page.tsx
 git commit -m "Let guardians train and add children or themselves from My plan"
 ```
 
@@ -648,7 +651,10 @@ it("gives own access from 12 and guardian access until 18", () => {
 ### Tarea 3.2: foto de perfil (R2 + `sharp`)
 
 **Ficheros:**
-- Modificar: `apps/functions/src/storage/r2-client.ts` — `createPrivateImageUrl` acepta `contentType: "image/jpeg" | "image/png" | "image/webp"` (tipo en línea 38 y en cada implementación: real, emulador y desactivada).
+- Modificar: `apps/functions/src/storage/r2-client.ts`, en el cliente real (~233-245) **y** en el del emulador (~383-405), porque hoy R2 rechazaría los avatares por tres lados:
+  a) `assertObjectKey` exige el prefijo `academies/`: la clave es `academies/{academyId}/avatars/{studentId}/{uuid}.webp`.
+  b) `putObject` solo admite png/jpeg bajo `/enrolment-proofs/`, `/course-proofs/`, `/membership-application-proofs/`: añadir `/avatars/` con `image/webp` y ≤ 2 MB.
+  c) `createPrivateImageUrl` solo firma bajo `/course-proofs/` o `/membership-application-proofs/`, exige `expiresInSeconds === 60` y el cliente real firma con `{ expiresIn: 60 }` fijo: permitir `/avatars/` con `image/webp` y 900 s, y pasar `input.expiresInSeconds` al firmante (manteniendo 60 s obligatorio para los justificantes). El tipo de `contentType` (línea 38) pasa a `"image/jpeg" | "image/png" | "image/webp"`.
 - Crear: `apps/functions/src/account-settings/profile-photo.ts`
 - Crear: `apps/functions/src/account-settings/account-settings-service.ts`
 - Modificar: `apps/functions/src/account-settings/account-settings-callables.ts`
@@ -698,7 +704,7 @@ export async function signPhotoUrl(r2: R2Client, objectKey: string | null, conse
   - `via: "guardian"` → gestiona foto, visibilidad y acceso teen del hijo.
   - `via: "self"` y edad ≥ 18 → gestiona lo suyo.
   - `via: "self"` y edad < 18 (teen) → solo `uploadProfilePhoto`, que guarda en `pendingPhotoObjectKey` (B4); lo demás `permission-denied`.
-  - Subida: `putObject("avatars/<studentId>/<randomUUID()>.webp", webp, "image/webp")`, luego transacción que escribe `photoObjectKey`, `photoConsentAt = now`, `photoConsentBy = uid`; después `deleteObject` de la clave anterior (si falla, se registra y se sigue: huérfano inofensivo en bucket privado).
+  - Subida: `putObject(\`academies/${academyId}/avatars/${studentId}/${randomUUID()}.webp\`, webp, "image/webp")`, luego transacción que escribe `photoObjectKey`, `photoConsentAt = now`, `photoConsentBy = uid`; después `deleteObject` de la clave anterior (si falla, se registra y se sigue: huérfano inofensivo en bucket privado).
   - `removeProfilePhoto` pone todo a null y borra el objeto (Q2).
   - `PhotoRejected` → `invalid-argument` «Choose a single JPEG, PNG or WebP image under 2 MB.»
 - [ ] **Paso 3: callables** con `secrets: enrolmentStorageSecrets` y `createPrivateStorageR2Client()` (patrón `course-callables.ts:53`). Exportarlos desde `account-settings-callables.ts` (ya re-exportado en `index.ts`).
@@ -712,8 +718,8 @@ export async function signPhotoUrl(r2: R2Client, objectKey: string | null, conse
 - [ ] **Paso 1: `createTeenAccess`** (solo `via: "guardian"`; edad 12–17 con `memberAgeOn`; si no, `failed-precondition` «Own access is available from 12 to 17.»):
   1. `getAuth().createUser({ email, password, emailVerified: true, disabled: false })` (foco de revisión 1).
   2. `setCustomUserClaims(uid, { academyId, role: "teenStudent" })`.
-  3. Escribir `users/{uid}` con el mismo esquema que valida `parseUserProfile` (mira el que escribe `apps/functions/src/staff/direct-staff-creation.ts` para la forma), `active: true`, `status: "active"`.
-  4. `students/{studentId}.userId = uid` con el escritor canónico del directorio (`updateAdminMember`), no con un `set` directo, porque el documento lleva MAC de integridad.
+  3. Escribir `users/{uid}` que valide `parseUserProfile` (`profile-contracts.ts` ~258-270): `accountType: "client"`, `active: true`, `status: "active"` y `phoneNumber` **no vacío** — el del alumno o, si no tiene, el del `users/{uid}` del tutor. No copiar la forma de `direct-staff-creation.ts` (escribe `phoneNumber: ""` y `accountType` de staff: el documento no validaría y `member-access-service` rechazaría al teen).
+  4. `students/{studentId}.userId = uid` con el escritor canónico del directorio, no con un `set` directo, porque el documento lleva MAC de integridad. **Antes de escribir código**, comprueba en `canonical-member-directory-service.ts` si `updateAdminMember` permite fijar **y** quitar `userId`. Si no lo permite, añade un comando mínimo `setStudentAccountLink({ actor, studentId, userId: string | null, now })` en ese servicio que recalcule el MAC con el mismo código que usa `updateAdminMember`, y úsalo aquí y en el revocado.
   5. `teenAccess/{studentId}` con `createdBy`, `adultClaimedAt: null`, `revokedAt: null`.
   Si un paso falla tras crear el usuario, `deleteUser(uid)` y `unavailable`.
 - [ ] **Paso 2: `revokeTeenAccess`** (solo tutor, solo si `adultClaimedAt === null`): `updateUser(uid, { disabled: true })`, `revokeRefreshTokens(uid)`, `users/{uid}.active = false`, quitar `userId` del alumno (mismo escritor canónico), `revokedAt = now`.
@@ -753,7 +759,7 @@ export async function cropToSquareWebp(file: File): Promise<{ base64: string; mi
 - [ ] **Paso 4 (fase): verificar y commit**
 
 ```bash
-git add packages/domain/src/members/member-access-contracts.ts packages/domain/src/members/member-access-contracts.test.ts docs/adr/ADR-019-teen-access-from-12.md docs/operations/t011-dpia-draft.md apps/functions/src/storage/r2-client.ts apps/functions/src/account-settings apps/web/src/lib/account-settings-client.ts apps/web/src/app/account/settings apps/web/src/app/account/adult-claim.tsx apps/web/src/app/account/page.tsx
+git add packages/domain/src/members/member-access-contracts.ts packages/domain/src/members/member-access-contracts.test.ts docs/adr/ADR-019-teen-access-from-12.md docs/operations/t011-dpia-draft.md apps/functions/src/storage/r2-client.ts apps/functions/src/members/canonical-member-directory-service.ts apps/functions/src/account-settings apps/web/src/lib/account-settings-client.ts apps/web/src/app/account/settings apps/web/src/app/account/adult-claim.tsx apps/web/src/app/account/page.tsx
 git commit -m "Add member photos, visibility and teen own access to account settings"
 ```
 
@@ -867,6 +873,7 @@ git commit -m "Show the member streak, weekly targets and next promotion on the 
 - `toPublicCard(row: LeaderboardRow, r2: R2Client): Promise<MemberPublicCard>` (firma la foto solo si `photoObjectKey`; el consentimiento se comprueba al construir la fila).
 
 - [ ] **Paso 1:** alumnos `active && status === "active"` con plan vivo (E6: consulta a las membresías activas como hace el directorio) y `leaderboardEligible(dateOfBirth)`.
+- [ ] **Paso 1b: coste.** No llamar a `getStudentProgressSummary` alumno por alumno tal cual: cada llamada vuelve a leer el catálogo publicado y las sesiones asistidas (~150 alumnos ≈ 10–15k lecturas/noche). Cargar el catálogo **una vez** y reutilizarlo: si el store de `level-service.ts` no lo permite, añadirle un parámetro opcional con el catálogo ya leído. Objetivo: ≤ ~2 lecturas por alumno + las consultas globales.
 - [ ] **Paso 2:** por alumno: asistencia de la temporada con **una** consulta global `attendance where occurredAt >= seasonStart` agrupada en memoria por `studentId` (mismas reglas de `countedAttendance`); `sessionStreak`; `getStudentProgressSummary` (belt = `{ name: currentDefinition.name, color: currentDefinition.visual.colors[0] ?? "#ffffff" }`, `stripes = currentDefinition.stripeNumber ?? 0`, `promotionPercent`, `beltScore(currentDefinition.sequence, progressPercent)`); `skillKeys` = `skillChecklist.filter(i => i.isCompleted).map(i => i.skillKey)`; ajustes de `memberPublicSettings` (`photoObjectKey` solo si `photoConsentAt`, `hidden = !showToMembers`).
 - [ ] **Paso 3:** `publicDisplayNames` **por cohorte** (Q8).
 
