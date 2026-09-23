@@ -180,6 +180,36 @@
 .enrolment-admin-page .admin-request-minors li {
   margin-block: 1rem;
 }
+.enrolment-email-warning,
+.enrolment-email-confirmed {
+  border-left: 0.35rem solid #c98b00;
+  background: #fff8e6;
+  color: #765400;
+  margin: 1.25rem 0;
+  padding: 1rem 1.25rem;
+}
+.enrolment-email-confirmed {
+  border-left-color: #176b49;
+  background: #e7f6ee;
+  color: #176b49;
+}
+.enrolment-email-warning h4,
+.enrolment-email-warning p,
+.enrolment-email-confirmed p {
+  margin-block: 0 0.75rem;
+}
+.enrolment-email-warning .shop-admin-field {
+  display: block;
+  margin-top: 1rem;
+  max-width: 30rem;
+}
+.enrolment-email-warning .enrol-review-check {
+  max-width: 45rem;
+}
+.enrolment-email-warning strong {
+  overflow-wrap: anywhere;
+}
+
 .enrolment-setup {
   border: 0;
   padding: 0;

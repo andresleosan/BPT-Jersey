@@ -8,6 +8,7 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
+import { z } from "zod";
 
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import {
@@ -15,6 +16,7 @@ import {
   parseEnrolmentRequestDetailRequest,
   parseEnrolmentRequestReview,
   parseEnrolmentRequestSubmission,
+  isReturnableEnrolmentRequest,
   toEnrolmentRequestClientView,
   toEnrolmentRequestRow,
   type EnrolmentRequestClientView,
@@ -64,6 +66,16 @@ export type EnrolmentRequestQueue = Readonly<{
   truncated: boolean;
 }>;
 
+type ApplicantAccountState = Readonly<{
+  email: string;
+  emailVerified: boolean;
+  disabled: boolean;
+}>;
+type EnrolmentOfficeDetail = EnrolmentRequestDetail &
+  Readonly<{
+    applicantAccount?: ApplicantAccountState;
+  }>;
+
 export type EnrolmentRequestCallableServices = Readonly<{
   store: EnrolmentRequestStore;
   storage?: R2Client;
@@ -89,8 +101,36 @@ export type EnrolmentOfficeCallableServices = Readonly<{
    * be the reason an enrolment fails.
    */
   reviewerDisplayName?: (academyId: string, actorId: string) => Promise<string | undefined>;
+  applicantAuth?: {
+    getUser: (
+      uid: string,
+    ) => Promise<{ uid: string; email?: string; emailVerified: boolean; disabled: boolean }>;
+  };
   now?: () => string;
 }>;
+
+export type EnrolmentEmailVerificationServices = Readonly<{
+  store: EnrolmentRequestStore;
+  isActorActive: MemberDirectoryActorActivityCheck;
+  auth: {
+    getUser: (uid: string) => Promise<{
+      uid: string;
+      email?: string;
+      emailVerified: boolean;
+      disabled: boolean;
+      customClaims?: Readonly<Record<string, unknown>>;
+    }>;
+    updateUser: (uid: string, data: { emailVerified: true }) => Promise<void>;
+  };
+  now?: () => string;
+}>;
+
+const emailVerificationInput = z.strictObject({
+  enrolmentRequestId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u),
+  expectedEmail: z.email().max(254),
+  confirmed: z.literal(true),
+  purpose: z.literal("enrolment-account-email-verification"),
+});
 
 const clientRoles = new Set(["shopper", "guardian", "adultStudent"]);
 // The queue and the send-back are office work the mat shares (operator decision 2026-09-12,
@@ -297,7 +337,7 @@ function mapOfficeError(error: unknown, operation: "read" | "write"): never {
 export async function getEnrolmentRequestDetailHandler(
   request: CallableRequest<unknown>,
   services: EnrolmentOfficeCallableServices,
-): Promise<EnrolmentRequestDetail> {
+): Promise<EnrolmentOfficeDetail> {
   const actor = await requireCanonicalMemberDirectoryActor(request, services.isActorActive);
   const parsed = parseEnrolmentRequestDetailRequest(request.data);
   if (!parsed.ok) throw new HttpsError("invalid-argument", "Enrolment payload is invalid");
@@ -307,7 +347,20 @@ export async function getEnrolmentRequestDetailHandler(
       value: parsed.value,
       now: officeNow(services),
     });
-    if (!detail.payment) return detail;
+    let applicantAccount: ApplicantAccountState | undefined;
+    try {
+      const account = await services.applicantAuth?.getUser(detail.submittedBy);
+      if (account?.uid === detail.submittedBy && account.email) {
+        applicantAccount = {
+          email: account.email,
+          emailVerified: account.emailVerified,
+          disabled: account.disabled,
+        };
+      }
+    } catch {
+      // The detail remains reviewable. The verification action itself must re-check Auth.
+    }
+    if (!detail.payment) return { ...detail, ...(applicantAccount ? { applicantAccount } : {}) };
     const requestId = detail.enrolmentRequestId.replace(/^enrolment-/u, "");
     const paymentProofUrl = await services.storage?.createPdfDownloadUrl({
       objectKey: enrolmentProofKey(
@@ -323,9 +376,78 @@ export async function getEnrolmentRequestDetailHandler(
         "unavailable",
         "Payment screenshot is temporarily unavailable. Retry the full request.",
       );
-    return { ...detail, paymentProofUrl };
+    return { ...detail, ...(applicantAccount ? { applicantAccount } : {}), paymentProofUrl };
   } catch (error) {
     return mapOfficeError(error, "read");
+  }
+}
+
+export async function verifyEnrolmentApplicantEmailHandler(
+  request: CallableRequest<unknown>,
+  services: EnrolmentEmailVerificationServices,
+): Promise<Readonly<{ emailVerified: true; alreadyVerified: boolean }>> {
+  const actor = await requireCanonicalMemberDirectoryActor(request, services.isActorActive);
+  const parsed = emailVerificationInput.safeParse(request.data);
+  if (!parsed.success)
+    throw new HttpsError("invalid-argument", "Email verification request is invalid");
+  const { enrolmentRequestId, expectedEmail } = parsed.data;
+  const accountEmail = expectedEmail.toLowerCase();
+  try {
+    const record = await services.store.getForApproval(actor.academyId, enrolmentRequestId);
+    if (!isReturnableEnrolmentRequest(record.status))
+      throw new HttpsError("failed-precondition", "This request cannot be approved now");
+    const checkAccount = async () => {
+      const user = await services.auth.getUser(record.submittedBy);
+      const claims = user.customClaims;
+      if (
+        user.uid !== record.submittedBy ||
+        user.disabled ||
+        (claims?.academyId !== undefined && claims.academyId !== actor.academyId) ||
+        (claims?.role !== undefined && !clientRoles.has(String(claims.role)))
+      )
+        throw new HttpsError("failed-precondition", "Applicant account is not eligible");
+      if (
+        !user.email ||
+        user.email.trim().toLowerCase() !== accountEmail ||
+        (record.applicant.email && record.applicant.email.trim().toLowerCase() !== accountEmail)
+      )
+        throw new HttpsError(
+          "failed-precondition",
+          "Account email does not match this application. Reload the request.",
+        );
+      return user;
+    };
+    const user = await checkAccount();
+    if (user.emailVerified) return { emailVerified: true, alreadyVerified: true };
+    await services.store.authoriseEmailVerification({
+      academyId: actor.academyId,
+      actorId: actor.actorId,
+      now: services.now?.() ?? new Date().toISOString(),
+      enrolmentRequestId,
+      accountEmail,
+    });
+    const latest = await checkAccount();
+    if (latest.emailVerified) return { emailVerified: true, alreadyVerified: true };
+    if (actor.role !== "owner" && actor.role !== "administrator")
+      throw new HttpsError("permission-denied", "Administrator access is required");
+    if (
+      !(await services.isActorActive({
+        uid: actor.actorId,
+        academyId: actor.academyId,
+        role: actor.role,
+      }))
+    )
+      throw new HttpsError("permission-denied", "Active administrator access is required");
+    await services.auth.updateUser(record.submittedBy, { emailVerified: true });
+    const confirmed = await checkAccount();
+    if (!confirmed.emailVerified)
+      throw new HttpsError(
+        "unavailable",
+        "Email verification could not be confirmed. Reload the request.",
+      );
+    return { emailVerified: true, alreadyVerified: false };
+  } catch (error) {
+    return mapOfficeError(error, "write");
   }
 }
 
@@ -393,6 +515,7 @@ function officeCallableServices(): EnrolmentOfficeCallableServices {
   });
   return {
     storage: createPrivateStorageR2Client(),
+    applicantAuth: { getUser: (uid) => auth.getUser(uid) },
     reader: createCanonicalMemberDirectoryReadService({
       store: adapters.reader,
       identitySecretMaterial: identityKeySecret.value(),
@@ -508,6 +631,33 @@ export const returnEnrolmentRequest = onCall(enrolmentRequestCallableOptions, (r
 );
 export const getEnrolmentRequestDetail = onCall(enrolmentOfficeCallableOptions, (request) =>
   getEnrolmentRequestDetailHandler(request, officeCallableServices()),
+);
+function emailVerificationServices(): EnrolmentEmailVerificationServices {
+  const firestore = getFirestore();
+  const auth = getAuth();
+  return {
+    store: createEnrolmentRequestStore({
+      firestore: firestore as unknown as Parameters<
+        typeof createEnrolmentRequestStore
+      >[0]["firestore"],
+      appendAudit: (transaction, reference, draft) =>
+        appendAuditEventInTransaction(transaction, reference, draft as AuditEventDraft),
+    }),
+    isActorActive: createMemberDirectoryActorActivityCheck({
+      getAuthUser: (uid) => auth.getUser(uid),
+      getDocument: (path) => firestore.doc(path).get(),
+    }),
+    auth: {
+      getUser: (uid) => auth.getUser(uid),
+      updateUser: async (uid, data) => {
+        await auth.updateUser(uid, data);
+      },
+    },
+  };
+}
+
+export const verifyEnrolmentApplicantEmail = onCall(browserAdminCallableOptions, (request) =>
+  verifyEnrolmentApplicantEmailHandler(request, emailVerificationServices()),
 );
 export const approveEnrolmentRequest = onCall(enrolmentOfficeCallableOptions, (request) =>
   approveEnrolmentRequestHandler(request, officeCallableServices()),

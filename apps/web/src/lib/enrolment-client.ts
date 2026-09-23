@@ -182,8 +182,13 @@ export async function returnEnrolmentRequest(
   }
 }
 
+export type EnrolmentRequestOfficeDetail = EnrolmentRequestDetail & Readonly<{
+  applicantAccount?: Readonly<{ email: string; emailVerified: boolean; disabled: boolean }>;
+}>;
+
 const detailError = "Unable to open this request.";
 const approvalError = "Unable to approve this request.";
+const verificationError = "Unable to verify the account email. Reload this request and try again.";
 
 /**
  * Why the office door refused, when the reason is one a reviewer can act on.
@@ -218,7 +223,7 @@ function officeFailure(error: unknown, fallback: string): Error {
  */
 export async function getEnrolmentRequestDetail(
   enrolmentRequestId: string,
-): Promise<EnrolmentRequestDetail> {
+): Promise<EnrolmentRequestOfficeDetail> {
   try {
     const callable = httpsCallable<
       { enrolmentRequestId: string; purpose: "enrolment-request-review" },
@@ -233,13 +238,39 @@ export async function getEnrolmentRequestDetail(
       typeof data.status !== "string" ||
       !(enrolmentRequestStatuses as readonly string[]).includes(data.status) ||
       !isRecord(data.applicant) ||
-      !Array.isArray(data.minors)
+      !Array.isArray(data.minors) ||
+      (data.applicantAccount !== undefined &&
+        (!isRecord(data.applicantAccount) ||
+          typeof data.applicantAccount.email !== "string" ||
+          typeof data.applicantAccount.emailVerified !== "boolean" ||
+          typeof data.applicantAccount.disabled !== "boolean"))
     ) {
       throw new Error(detailError);
     }
-    return data as unknown as EnrolmentRequestDetail;
+    return data as unknown as EnrolmentRequestOfficeDetail;
   } catch (error) {
     throw officeFailure(error, detailError);
+  }
+}
+
+export async function verifyEnrolmentApplicantEmail(
+  enrolmentRequestId: string,
+  expectedEmail: string,
+): Promise<void> {
+  try {
+    const callable = httpsCallable<
+      { enrolmentRequestId: string; expectedEmail: string; confirmed: true; purpose: "enrolment-account-email-verification" },
+      unknown
+    >(getFirebaseFunctions(), "verifyEnrolmentApplicantEmail");
+    const result = (await callable({
+      enrolmentRequestId, expectedEmail, confirmed: true, purpose: "enrolment-account-email-verification",
+    })).data;
+    if (!isRecord(result) || result.emailVerified !== true) throw new Error(verificationError);
+  } catch (error) {
+    const code = isRecord(error) && typeof error.code === "string" ? error.code : "";
+    if (code.endsWith("failed-precondition") && isRecord(error) && typeof error.message === "string")
+      throw new Error(error.message);
+    throw officeFailure(error, verificationError);
   }
 }
 

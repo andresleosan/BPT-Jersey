@@ -18,7 +18,6 @@ import {
   enrolmentNeedsPayment,
   enrolmentTrialAllowance,
   trialPlanChoice,
-  type EnrolmentRequestDetail,
   type EnrolmentRequestRow,
 } from "@bpt-jersey/domain/members/enrolment-requests";
 import {
@@ -26,6 +25,8 @@ import {
   getEnrolmentRequestDetail,
   listEnrolmentRequests,
   returnEnrolmentRequest,
+  verifyEnrolmentApplicantEmail,
+  type EnrolmentRequestOfficeDetail,
 } from "../../../../lib/enrolment-client";
 import { useAdminOrStaffSession } from "../../admin-gate";
 import { AdminSectionHeader, AdminStatusBadge } from "../../admin-ui";
@@ -130,7 +131,10 @@ function levelDeclarationLabel(
 function DetailPanel({
   detail,
   definitions,
-}: Readonly<{ detail: EnrolmentRequestDetail; definitions: readonly LevelDefinitionRecord[] }>) {
+}: Readonly<{
+  detail: EnrolmentRequestOfficeDetail;
+  definitions: readonly LevelDefinitionRecord[];
+}>) {
   const { applicant } = detail;
   const applicantLevel = levelDeclarationLabel(detail.levelDeclarations?.applicant, definitions);
   return (
@@ -269,6 +273,99 @@ function DetailPanel({
   );
 }
 
+function EmailVerificationPanel({
+  detail,
+  typedEmail,
+  confirmed,
+  busy,
+  onEmailChange,
+  onConfirmationChange,
+  onVerify,
+}: Readonly<{
+  detail: EnrolmentRequestOfficeDetail;
+  typedEmail: string;
+  confirmed: boolean;
+  busy: boolean;
+  onEmailChange: (value: string) => void;
+  onConfirmationChange: (value: boolean) => void;
+  onVerify: () => void;
+}>) {
+  const account = detail.applicantAccount;
+  if (!account)
+    return (
+      <p className="enrolment-email-warning" role="status">
+        Account email status is unavailable. Reload this request before approving.
+      </p>
+    );
+  const sameEmail =
+    !detail.applicant.email ||
+    detail.applicant.email.trim().toLowerCase() === account.email.trim().toLowerCase();
+  if (account.disabled)
+    return (
+      <p className="enrolment-email-warning" role="alert">
+        The applicant account is disabled. Restore it before approving.
+      </p>
+    );
+  if (!sameEmail)
+    return (
+      <p className="enrolment-email-warning" role="alert">
+        The account email {account.email} differs from the application. Return the request for
+        correction before approving.
+      </p>
+    );
+  if (account.emailVerified)
+    return (
+      <p className="enrolment-email-confirmed" role="status">
+        Account email verified: {account.email}
+      </p>
+    );
+  return (
+    <section className="enrolment-email-warning" aria-label="Email verification required">
+      <h4>Email verification required</h4>
+      <p>
+        The applicant account address <strong>{account.email}</strong> is not verified. Approval is
+        paused until it is verified.
+      </p>
+      <p>
+        The applicant can use the verification link themselves. To verify it here, first confirm
+        independently that this person controls this exact address. This action changes their
+        Firebase account and is recorded against the request.
+      </p>
+      <label className="shop-admin-field">
+        Type the account email to confirm
+        <input
+          type="email"
+          autoComplete="off"
+          value={typedEmail}
+          onChange={(event) => onEmailChange(event.target.value)}
+          disabled={busy}
+        />
+      </label>
+      <label className="enrol-review-check">
+        <input
+          type="checkbox"
+          checked={confirmed}
+          onChange={(event) => onConfirmationChange(event.target.checked)}
+          disabled={busy}
+        />
+        I independently confirmed the applicant controls this email address.
+      </label>
+      <button
+        className="staff-secondary-button"
+        type="button"
+        disabled={
+          busy ||
+          !confirmed ||
+          typedEmail.trim().toLowerCase() !== account.email.trim().toLowerCase()
+        }
+        onClick={onVerify}
+      >
+        {busy ? "Verifying..." : "Mark account email verified"}
+      </button>
+    </section>
+  );
+}
+
 export default function EnrolmentRequestQueuePage() {
   const session = useAdminOrStaffSession();
   return (
@@ -329,11 +426,19 @@ function EnrolmentRequestQueueContent() {
     );
   }
   const [notes, setNotes] = useState<Readonly<Record<string, string>>>({});
+  const [verificationEmails, setVerificationEmails] = useState<Readonly<Record<string, string>>>(
+    {},
+  );
+  const [verificationConfirmed, setVerificationConfirmed] = useState<
+    Readonly<Record<string, boolean>>
+  >({});
   const [busyId, setBusyId] = useState<string>();
   const [notice, setNotice] = useState<Notice>();
   // Read details are cached per request, because every fetch is audited and spends from the same
   // per-actor budget as reading a member record. Reopening a panel must not cost a second read.
-  const [details, setDetails] = useState<Readonly<Record<string, EnrolmentRequestDetail>>>({});
+  const [details, setDetails] = useState<Readonly<Record<string, EnrolmentRequestOfficeDetail>>>(
+    {},
+  );
   const [openDetailId, setOpenDetailId] = useState<string>();
   const [catalog, setCatalog] = useState<LevelCatalogProjection>();
   const [setups, setSetups] = useState<Record<string, EnrolmentApprovalSetup["students"]>>({});
@@ -443,6 +548,47 @@ function EnrolmentRequestQueueContent() {
         text: error instanceof Error ? error.message : "Unable to open this request.",
       });
     } finally {
+      setBusyId(undefined);
+    }
+  }
+
+  async function verifyEmail(request: EnrolmentRequestRow): Promise<void> {
+    if (inFlight.current) return;
+    const detail = details[request.enrolmentRequestId];
+    const account = detail?.applicantAccount;
+    const expectedEmail = verificationEmails[request.enrolmentRequestId]?.trim() ?? "";
+    if (
+      !account ||
+      !verificationConfirmed[request.enrolmentRequestId] ||
+      expectedEmail.toLowerCase() !== account.email.trim().toLowerCase()
+    )
+      return;
+    inFlight.current = true;
+    setBusyId(request.enrolmentRequestId);
+    setNotice(undefined);
+    try {
+      await verifyEnrolmentApplicantEmail(request.enrolmentRequestId, expectedEmail);
+      if (!mounted.current) return;
+      setDetails((current) => ({
+        ...current,
+        [request.enrolmentRequestId]: {
+          ...current[request.enrolmentRequestId]!,
+          applicantAccount: { ...account, emailVerified: true },
+        },
+      }));
+      setVerificationEmails((current) => ({ ...current, [request.enrolmentRequestId]: "" }));
+      setVerificationConfirmed((current) => ({ ...current, [request.enrolmentRequestId]: false }));
+      setNotice({
+        tone: "success",
+        text: "Account email verified. Review the enrolment details, then approve the request.",
+      });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Unable to verify the account email.",
+      });
+    } finally {
+      inFlight.current = false;
       setBusyId(undefined);
     }
   }
@@ -797,8 +943,27 @@ function EnrolmentRequestQueueContent() {
                         Review and confirm enrolment
                       </h3>
                       <DetailPanel
-                        detail={details[request.enrolmentRequestId] as EnrolmentRequestDetail}
+                        detail={details[request.enrolmentRequestId] as EnrolmentRequestOfficeDetail}
                         definitions={catalog?.definitions ?? []}
+                      />
+                      <EmailVerificationPanel
+                        detail={details[request.enrolmentRequestId] as EnrolmentRequestOfficeDetail}
+                        typedEmail={verificationEmails[request.enrolmentRequestId] ?? ""}
+                        confirmed={verificationConfirmed[request.enrolmentRequestId] ?? false}
+                        busy={busyId !== undefined}
+                        onEmailChange={(value) =>
+                          setVerificationEmails((current) => ({
+                            ...current,
+                            [request.enrolmentRequestId]: value,
+                          }))
+                        }
+                        onConfirmationChange={(value) =>
+                          setVerificationConfirmed((current) => ({
+                            ...current,
+                            [request.enrolmentRequestId]: value,
+                          }))
+                        }
+                        onVerify={() => void verifyEmail(request)}
                       />
                       <button
                         className="staff-secondary-button"
@@ -927,7 +1092,20 @@ function EnrolmentRequestQueueContent() {
                           <button
                             className="staff-primary-button"
                             type="button"
-                            disabled={busyId !== undefined}
+                            disabled={
+                              busyId !== undefined ||
+                              details[request.enrolmentRequestId]?.applicantAccount
+                                ?.emailVerified !== true ||
+                              details[request.enrolmentRequestId]?.applicantAccount?.disabled ===
+                                true ||
+                              (details[request.enrolmentRequestId]?.applicant.email !== undefined &&
+                                details[request.enrolmentRequestId]?.applicant.email
+                                  ?.trim()
+                                  .toLowerCase() !==
+                                  details[request.enrolmentRequestId]?.applicantAccount?.email
+                                    .trim()
+                                    .toLowerCase())
+                            }
                             onClick={() => void approve(request)}
                           >
                             {busyId === request.enrolmentRequestId ? "Enrolling..." : "Approve"}

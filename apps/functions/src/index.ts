@@ -30,6 +30,7 @@ export {
   returnEnrolmentRequest,
   submitEnrolmentRequest,
   withdrawEnrolmentRequest,
+  verifyEnrolmentApplicantEmail,
 } from "./members/enrolment-request-callables.js";
 export {
   cleanupExpiredCanonicalMemberImportSessionsSchedule,
@@ -169,7 +170,10 @@ export {
   withdrawDisclaimer,
   withdrawDisclaimerAcceptance,
 } from "./consents/disclaimer-callables.js";
-export { acceptEnrolmentWaiver, getEnrolmentWaiverStatus } from "./consents/enrolment-waiver-callables.js";
+export {
+  acceptEnrolmentWaiver,
+  getEnrolmentWaiverStatus,
+} from "./consents/enrolment-waiver-callables.js";
 export {
   grantStaffPermission,
   listStaffPermissionGrants,
@@ -399,8 +403,22 @@ export { changeChildGuardian } from "./families/family-callables.js";
 
 export { listMyMemberProfiles } from "./members/member-access-callables.js";
 
-export { listMemberGroups, saveMemberGroup, deleteMemberGroup, registerMemberGroup, removeGroupSessionMember, listSessionGroups } from "./schedule/group-callables.js";
-export { groupSessionWritten, groupAssignmentWritten, memberGroupWritten, groupMembershipWritten, groupStudentWritten, reconcileGroupRegistrations } from "./schedule/group-triggers.js";
+export {
+  listMemberGroups,
+  saveMemberGroup,
+  deleteMemberGroup,
+  registerMemberGroup,
+  removeGroupSessionMember,
+  listSessionGroups,
+} from "./schedule/group-callables.js";
+export {
+  groupSessionWritten,
+  groupAssignmentWritten,
+  memberGroupWritten,
+  groupMembershipWritten,
+  groupStudentWritten,
+  reconcileGroupRegistrations,
+} from "./schedule/group-triggers.js";
 export {
   confirmPaygClassPayment,
   getPaygClassProofUrl,

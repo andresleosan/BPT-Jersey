@@ -180,13 +180,13 @@ export function createEnrolmentApprovalService(
         "The applicant account is not usable",
       );
     }
-    // The family writer requires verified email ownership. Check before changing a guardian's
-    // profile or role, so an unverified applicant cannot leave a partial approval behind.
-    if (!record.applicantIsStudent && user.emailVerified !== true) {
+    // Both adult and family accounts need a verified address for usable member access. Check
+    // before changing a profile or role, so an unverified account cannot be half-enrolled.
+    if (user.emailVerified !== true) {
       throw new EnrolmentApprovalError(
         "precondition",
         "applicant_email_unverified",
-        "The applicant must verify their email before you can enrol the family. Ask them to open the verification link, then retry approval.",
+        "The applicant email must be verified before enrolment. Ask them to open the verification link, or verify their account email in the request, then retry approval.",
       );
     }
     const claims = currentClaims(user);
@@ -208,6 +208,17 @@ export function createEnrolmentApprovalService(
     }
     const displayName = record.applicant.fullName.trim() || user.displayName?.trim() || "";
     const email = user.email?.trim() || record.applicant.email?.trim() || "";
+    if (
+      user.email &&
+      record.applicant.email &&
+      user.email.trim().toLowerCase() !== record.applicant.email.trim().toLowerCase()
+    ) {
+      throw new EnrolmentApprovalError(
+        "precondition",
+        "applicant_email_mismatch",
+        "The account email differs from this application. Return the request for correction before approval.",
+      );
+    }
     if (displayName.length === 0 || email.length === 0) {
       throw new EnrolmentApprovalError(
         "precondition",
@@ -320,8 +331,7 @@ export function createEnrolmentApprovalService(
         input.enrolmentRequestId,
       );
       if (preview.status !== "approved") {
-        if (!preview.applicantIsStudent)
-          await readApplicantAccount(preview, input.actor.academyId);
+        if (!preview.applicantIsStudent) await readApplicantAccount(preview, input.actor.academyId);
         await dependencies.registration.validate({
           ...preview,
           approvalSetup: preview.approvalSetup ?? input.setup,
