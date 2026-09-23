@@ -17,6 +17,8 @@ type CalendarHeaderProps = Readonly<{
   onPrev: () => void;
   onNext: () => void;
   onSignOut: () => void;
+  /** A teen account neither sees nor manages the plan (B3). */
+  showPlanLink?: boolean;
 }>;
 
 export function CalendarHeader(props: CalendarHeaderProps) {
@@ -26,9 +28,11 @@ export function CalendarHeader(props: CalendarHeaderProps) {
       <div className="member-header-top">
         <p className="member-eyebrow">BPT Jersey / Member</p>
         <div className="member-header-actions">
-          <Link className="member-plan-link" href="/account/membership">
-            My plan
-          </Link>
+          {props.showPlanLink === false ? null : (
+            <Link className="member-plan-link" href="/account/membership">
+              My plan
+            </Link>
+          )}
           <button className="member-signout" onClick={props.onSignOut} type="button">
             Sign out
           </button>

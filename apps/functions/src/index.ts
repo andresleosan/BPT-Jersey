@@ -402,6 +402,7 @@ export { courseScheduler, courseProofCleanup } from "./courses/course-scheduler.
 export { changeChildGuardian } from "./families/family-callables.js";
 
 export { listMyMemberProfiles } from "./members/member-access-callables.js";
+export * from "./family-plan/family-plan-callables.js";
 
 export {
   listMemberGroups,

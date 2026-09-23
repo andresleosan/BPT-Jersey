@@ -374,3 +374,39 @@
     grid-template-columns: 1fr;
   }
 }
+/* Plan requests from My plan (plan task 2.3). */
+.plan-requests-list {
+  display: grid;
+  gap: 0.75rem;
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+}
+.plan-requests-list li {
+  align-items: center;
+  border-top: 1px solid var(--request-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  justify-content: space-between;
+  padding-top: 0.75rem;
+}
+.plan-requests-list li > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.plan-requests-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.plan-requests-skeleton {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+.plan-requests-skeleton div {
+  background: var(--request-border);
+  height: 3rem;
+  opacity: 0.5;
+}

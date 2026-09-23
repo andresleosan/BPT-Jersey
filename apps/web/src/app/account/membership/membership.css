@@ -10,7 +10,6 @@
 }
 
 .client-membership-state,
-.client-membership-subject,
 .client-current-membership,
 .client-trial-form {
   background: var(--gi-white);
@@ -19,14 +18,12 @@
   padding: 1.25rem;
 }
 
-.client-membership-subject,
 .client-trial-form {
   display: grid;
   font-weight: 800;
   gap: 0.7rem;
 }
 
-.client-membership-subject select,
 .client-trial-form select {
   background: var(--gi-white);
   border: 1px solid var(--line);
@@ -357,4 +354,134 @@
   .client-plan-transfer .enrol-bank-details dd {
     margin-bottom: 0.5rem;
   }
+}
+
+/* "Plan for" rows and the Add a child / Train yourself requests (plan task 2.3). */
+.client-membership-people {
+  border: 0;
+  display: grid;
+  gap: 0.6rem;
+  margin: 2rem 0 0;
+  padding: 0;
+}
+
+.client-membership-people legend {
+  font-weight: 800;
+  margin-bottom: 0.6rem;
+}
+
+.client-membership-person {
+  align-items: center;
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  display: flex;
+  font-weight: 800;
+  gap: 0.75rem;
+  min-height: 3.15rem;
+  padding: 0.6rem 1rem;
+}
+
+.client-membership-person:has(input:checked) {
+  border-color: var(--bpt-purple);
+  box-shadow: inset 0 0 0 1px var(--bpt-purple);
+}
+
+.client-plan-people {
+  margin-top: 3.5rem;
+}
+
+.client-plan-people h2 {
+  font-family: var(--font-display), Impact, sans-serif;
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+
+.client-plan-people-actions {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+}
+
+.client-plan-people-card {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  color: var(--mat-ink);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 0.35rem;
+  min-height: 3.15rem;
+  padding: 1rem;
+  text-align: left;
+}
+
+.client-plan-people-card:hover,
+.client-plan-people-card:focus-visible {
+  border-color: var(--bpt-purple);
+}
+
+.client-plan-people-card span {
+  color: var(--muted);
+}
+
+.client-plan-people-dialog {
+  border: 0;
+  border-radius: 1rem;
+  max-width: min(32rem, calc(100vw - 2rem));
+  padding: 0;
+  width: 100%;
+}
+
+.client-plan-people-form {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1.25rem;
+}
+
+.client-plan-people-form label {
+  font-weight: 800;
+}
+
+.client-plan-people-form input:not([type="checkbox"]),
+.client-plan-people-form select {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  color: var(--mat-ink);
+  min-height: 3.15rem;
+  padding: 0.6rem 0.8rem;
+}
+
+.client-plan-people-times {
+  border: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.client-plan-people-times legend {
+  font-weight: 800;
+  margin-bottom: 0.4rem;
+}
+
+.client-plan-people-times label {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.45rem;
+}
+
+.client-plan-people-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.client-plan-people-buttons .button {
+  border-radius: 1rem;
+  min-height: 3.15rem;
 }

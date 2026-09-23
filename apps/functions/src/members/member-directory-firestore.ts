@@ -72,6 +72,12 @@ function writerTransaction(
       transaction.set(firestore.doc(reference.path), mutableData(data));
       return adapter;
     },
+    async findStudentIdsByUserId(academyId, userId, limit) {
+      const result = await transaction.get(
+        firestore.collection(`academies/${academyId}/students`).where("userId", "==", userId).limit(limit),
+      );
+      return result.docs.map((document) => document.id);
+    },
   });
   return adapter;
 }
