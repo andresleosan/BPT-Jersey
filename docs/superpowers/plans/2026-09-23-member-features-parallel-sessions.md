@@ -24,8 +24,9 @@ Spec de fase 0: `docs/superpowers/specs/2026-09-16-member-engagement-phase-0-des
 | **E · Competidores** | Dos tablas (asistencia y cinturón) × tres cohortes (kids, teens, adults) | 0 (fotos de B opcionales) | tras 0 |
 | **F · Detalle de sesión** | Tocar una sesión reservada: currículum + lista de reservados; tocar a alguien: su ficha | 0 | tras 0 |
 | **G · Disclaimer** | Aviso al miembro si no consta aceptado + vista admin de quién aceptó y quién no | nada | **ya** |
+| **H · Edad por centro** | Aplica la regla de franjas por centro (D6) a precios, planes elegibles y reservas en el servidor | 0 | tras 0 |
 
-Después de la sesión 0, las sesiones A–G pueden correr a la vez. G ni siquiera necesita la 0.
+Después de la sesión 0, las sesiones A–H pueden correr a la vez. G ni siquiera necesita la 0.
 
 ---
 
@@ -67,14 +68,15 @@ Después de la sesión 0, las sesiones A–G pueden correr a la vez. G ni siquie
 
 ## 2. Sesión 0 · Huecos compartidos (corta, va primero)
 
-**Objetivo:** que A–G no se pisen. No construye ninguna función, solo contratos y huecos vacíos.
+**Objetivo:** que A–H no se pisen. No construye ninguna función, solo contratos y huecos vacíos.
 Es la misma idea que la fase 0 del 16-sep.
 
 **Escribe:**
 
 | Pieza | Fichero | Qué deja |
 | --- | --- | --- |
-| Tres cohortes | `packages/domain/src/members/member-engagement-contracts.ts` | `LeaderboardCohort = "kids" \| "teens" \| "adults"`; `leaderboardCohort(dateOfBirth, nowIso)` con los cortes de `participantBand`: <12 kids, 12–17 teens, 18+ adults, en Europe/Jersey. Sin fecha de nacimiento → `adults` (misma regla del 23-sep: «sin fecha = adulto»). Actualiza su test. |
+| Franja por centro (regla única, D6) | `packages/domain/src/memberships/participant-band.ts` (nuevo, exportado desde `@bpt-jersey/domain/memberships`) | `participantBandAt({dateOfBirth, trainingCenter, onIso}) → "kids" \| "teens" \| "adult"`. Edad en Europe/Jersey. **West:** <12 kids, 12–17 teens, 18+ adult. **Town:** <12 kids, 12–15 teens, 16+ adult. Sin fecha de nacimiento → `adult` (regla del 23-sep). Sin centro → regla West (D8). Comprobar a mano los cortes 11/12, 15/16 y 17/18 en ambos centros. |
+| Tres cohortes | `packages/domain/src/members/member-engagement-contracts.ts` | `LeaderboardCohort = "kids" \| "teens" \| "adults"`; `leaderboardCohort(dateOfBirth, trainingCenter, nowIso)` **delega en `participantBandAt`**: la tabla de cada miembro es la misma franja por la que paga. Ajusta el test existente a la firma nueva (sin correrlo, §1.6). |
 | Ficha pública ampliada | mismo fichero | `MemberPublicCard` gana `attendancesSinceSeasonStart: number` y `promotionPercent: number \| null` (lo leen E y F; no rompe nada porque aún nadie la usa). |
 | Hueco de la barra de promoción | `apps/web/src/app/account/streak/streak-panel.tsx` | `StreakPanel` renderiza `<PromotionBar />` como primer hijo (arriba del todo de la tarjeta, D1) y luego su contenido. |
 | Componente vacío de promoción | `apps/web/src/app/account/promotion/promotion-bar.tsx` | `export function PromotionBar() { return null; }` (propiedad de D). |
@@ -92,7 +94,7 @@ functions que desplegar.
 
 ---
 
-## 3. Sesiones A–G
+## 3. Sesiones A–H
 
 Formato de cada sesión: objetivo → decisiones → ficheros → interfaces → pasos → verificación →
 prompt de arranque.
@@ -128,6 +130,9 @@ que haya añadido, e incluso añadir hijos desde membresías de mayores de 18.
   una cuenta `adultStudent` se convierte en tutor: el hijo queda con vínculo `guardian` y la cuenta
   conserva su vínculo `self`.
 - A5. Esto solo existe en My plan. `/enrol` para nuevos no cambia salvo A1.
+- A6. En `/enrol` y My plan, la franja de cada persona (y por tanto los planes que se le ofrecen) sale
+  de `participantBandAt` con su centro: un chico de 16 en Town ve planes de adulto; en West, de teen.
+  Al cambiar el centro en el formulario, la lista de planes se recalcula.
 
 **Escribe:** `apps/web/src/app/enrol/page.tsx`, `packages/domain/src/members/enrolment-request-contracts*.ts`,
 el servicio de aprobación de solicitudes de alta (búscalo desde
@@ -181,7 +186,8 @@ máx. 512) ya existe. Existe el rol `teenStudent`, pero `teenAccountMinimumAge =
 Los ficheros se guardan en R2 (`apps/functions/src/storage/r2-client.ts`).
 
 **Decisiones:**
-- B1. `teenAccountMinimumAge` pasa de 16 a **12** (pedido explícito de Luis). Es un cambio de
+- B1. `teenAccountMinimumAge` pasa de 16 a **12** en **ambos** centros (pedido explícito de Luis;
+  la regla de Town solo cambia precio y tabla, no la edad de acceso). Es un cambio de
   tratamiento de datos de menores: anotarlo en la DPIA (T011) y en un ADR corto.
 - B2. El tutor crea el acceso del hijo desde Settings: email + contraseña (mín. 10 caracteres). El
   servidor crea el usuario de Firebase Auth con rol `teenStudent` y el vínculo `self` aprobado. Sin
@@ -191,23 +197,24 @@ Los ficheros se guardan en R2 (`apps/functions/src/storage/r2-client.ts`).
 - B4. Fotos: el adulto sube la suya y la de sus hijos; el adolescente puede **proponer** la suya y
   el tutor la aprueba (fase 0, T044V2). Subida por callable → R2 → `photoUrl` https. Solo imagen
   (jpeg/png/webp), ≤ 2 MB, redimensionada a 512 px en el servidor.
-- B5. Subir la foto de un menor lleva una casilla del tutor: «Show this photo to other members in
-  the leaderboard and class lists». Sin esa casilla la foto solo la ve la familia y la academia.
-  Se guarda como `photoVisibleToMembers: boolean` en el perfil.
+- B5. **Toda** foto (adulto o menor) se sube con una casilla obligatoria que dice que se publicará
+  en la tabla interna de la academia (D7), texto: «I agree that this photo will be shown to other
+  BPT Jersey members in the academy's internal leaderboard and class lists». Sin marcarla no se
+  puede subir. Para un menor la marca el tutor (o el adolescente al proponerla, y el tutor la
+  confirma al aprobar). Se guarda `photoConsentAt` (fecha) y quién la dio; quitar la foto la retira.
 
 **Escribe:** `apps/web/src/app/account/settings/*`, `apps/functions/src/account-settings/*`,
 `apps/web/src/lib/account-settings-client*.ts`, `apps/functions/src/profiles/profile-service.ts`
 (foto), `apps/functions/src/families/` (acceso del hijo), `packages/domain/src/members/member-access-contracts.ts`
 (solo la constante y lo que dependa de ella), `packages/domain/src/profiles/profile-contracts.ts`
-(`photoVisibleToMembers`), `firestore.rules` si hace falta para el campo nuevo, `docs/adr/` (ADR
+(`photoConsentAt`, `photoConsentBy`), `firestore.rules` si hace falta para el campo nuevo, `docs/adr/` (ADR
 nuevo). **No toca:** `membership/`, `enrol/`, `calendar/`, `competitors/`.
 
-**Interfaces producidas (las leen E y F):** `photoUrl` y `photoVisibleToMembers` en el perfil del
-alumno. Regla para E y F: **mostrar `photoUrl` solo si el alumno es adulto o si
-`photoVisibleToMembers === true`**; si no, iniciales.
+**Interfaces producidas (las leen E y F):** `photoUrl` y `photoConsentAt` en el perfil del alumno.
+Regla para E y F: **mostrar `photoUrl` solo si hay `photoConsentAt`**; si no, iniciales.
 
 **Verificación:** en vista previa, (a) un tutor crea acceso para un hijo de 13 y ese usuario entra y
-ve su calendario; (b) el tutor revoca y el hijo ya no entra; (c) una foto subida aparece en Settings
+ve su calendario; (b) el tutor revoca y el hijo ya no entra; (c) sin marcar la casilla no se puede subir; marcada, la foto aparece en Settings
 y su URL es https de R2; (d) un hijo de 11 **no** puede recibir acceso propio.
 
 **Prompt de arranque:**
@@ -315,14 +322,16 @@ dos más cercanos por encima, colores de cinturón y grados, racha de asistencia
 otro tiene y él no, y al revés. **Una tabla para kids, otra para teens y otra para adults.**
 
 **Decisiones:**
-- E1. Cohortes (D6): el miembro solo ve su cohorte (kids <12, teens 12–17, adults 18+), vía
-  `leaderboardCohort` de la sesión 0. Nadie elige la cohorte: la calcula el servidor.
+- E1. Cohortes (D6): el miembro solo ve su cohorte, vía `leaderboardCohort` de la sesión 0, que usa
+  la franja por la que paga: kids <12; teens 12–17 en West y 12–15 en Town; adults 18+ en West y 16+
+  en Town. Las tablas son de toda la academia (un teen de West de 16 comparte tabla con los teens de
+  Town de 12–15; un chico de Town de 16 está en adults). Nadie elige la cohorte: la calcula el servidor.
 - E2. Tabla de asistencia ordenada por `attendancesSinceSeasonStart` (empate → `streakCount`).
   Tabla de cinturón ordenada por posición en la escalera (`ladderIndexes`) y, dentro, por grados y
   `promotionPercent`.
 - E3. Cada fila es un `MemberPublicCard`. Tocar una fila abre la comparación de técnicas
   (`compareTechniques`).
-- E4. Foto con la regla de B (adulto o `photoVisibleToMembers`); si no, iniciales.
+- E4. Foto con la regla de B (solo con `photoConsentAt`); si no, iniciales.
 - E5. Tutor: ve la tabla de la cohorte del hijo seleccionado, **como** ese hijo.
 - E6. Miembros sin plan activo no aparecen.
 
@@ -335,8 +344,8 @@ belt: Neighbours}` con `Neighbours = {above: MemberPublicCard[], current, below:
 Produce también la función de servidor `buildPublicCard(studentId)`, que **F reutiliza importándola**
 (no la copia).
 
-**Verificación:** vista previa con 7 adultos, 3 teens y 3 kids: un adulto ve solo adultos (2 arriba,
-2 abajo); el primero de la tabla ve 0 arriba; un teen no ve adultos ni kids; las técnicas «they
+**Verificación:** vista previa con 7 adultos, 3 teens y 3 kids, más un chico de 16 en Town y otro de 16 en West:
+el de Town sale en adults y el de West en teens; un adulto ve solo adultos (2 arriba, 2 abajo); el primero de la tabla ve 0 arriba; un teen no ve adultos ni kids; las técnicas «they
 have / you have» coinciden con `compareTechniques`.
 
 **Prompt de arranque:**
@@ -436,6 +445,49 @@ Hay otras sesiones trabajando a la vez en el mismo checkout: nunca git add -A.
 
 ---
 
+### Sesión H · Edad por centro en precios, planes y reservas
+
+**Objetivo (palabras de Luis, 23-sep):** en West, los teens son de 12–17 años, y la suscripción de
+teens en West va de 12 a 17. En Town funciona distinto: de 12 a 15 pagan y pertenecen al grupo de
+teens; de 16 a 17 pagan suscripción de adulto y van a las leaderboards de adultos.
+
+**Lo que hay hoy:** la franja se calcula en varios sitios, ninguno mira el centro, y **no coinciden**:
+- web: `apps/web/src/lib/participant-band.ts` (<12 kids, 12–17 teens);
+- servidor: `apps/functions/src/memberships/intro-application-service.ts:194` (**<13** kids, 13–17 teens);
+- los que filtran por `eligibleParticipantTypes`: `schedule/booking-transaction-service.ts`,
+  `schedule/member-calendar-week-callables.ts`, `memberships/plan-callables.ts`,
+  `memberships/membership-service.ts`, `packages/domain/src/members/enrolment-request-contracts.ts`.
+
+**Decisiones:**
+- H1. Todos esos sitios pasan a llamar a `participantBandAt` (sesión 0) con el centro del alumno.
+  El `participantBand` de la web queda como envoltorio de una línea o se elimina, sin copia propia.
+- H2. El corte 12/13 del servidor se corrige a 12 (lo mismo que la web y lo que dijo Luis).
+- H3. **No se cambia ninguna suscripción viva** (D9). Un chico de Town de 16–17 que ya paga teens
+  sigue igual hasta su próxima renovación o cambio de plan; entonces solo se le ofrecen planes de adulto.
+  En `/admin/members` se añade el filtro «Plan band differs from age band» para que la oficina los vea.
+- H4. Las reservas siguen filtrando por el tipo de clase (`programAdmits`, edad + centro), que no
+  cambia. H solo toca qué **plan** corresponde a cada edad.
+
+**Escribe:** `apps/web/src/lib/participant-band.ts`, `apps/web/src/lib/calendar/firebase-calendar-repository.ts`,
+`apps/functions/src/memberships/{intro-application-service,plan-callables,membership-service}.ts`,
+`apps/functions/src/schedule/{booking-transaction-service,member-calendar-week-callables}.ts`, el
+filtro de `/admin/members`. **No toca:** `enrolment-request-contracts.ts`, `enrol/` ni `membership/`
+(son de A, que usa la misma función), ni `programAdmits`.
+
+**Verificación:** con datos sintéticos, un alumno de 16 en Town ve y puede pedir solo planes de
+adulto; uno de 16 en West, solo de teen; uno de 12 en ambos centros, teen (antes el servidor decía
+kids); una suscripción teen viva de un chico de Town de 16 sigue activa y aparece en el filtro nuevo.
+
+**Prompt de arranque:**
+```
+Proyecto /root/BPT-Jersey. Eres la Sesión H del plan
+docs/superpowers/plans/2026-09-23-member-features-parallel-sessions.md.
+Lee §1 y §3 Sesión H. Construye solo eso, solo en tus ficheros.
+Hay otras sesiones trabajando a la vez en el mismo checkout: nunca git add -A.
+```
+
+---
+
 ## 4. Decisiones que tomé por defecto (Luis, confírmalas o cámbialas)
 
 | # | Decisión | Por defecto | Alternativa |
@@ -444,14 +496,16 @@ Hay otras sesiones trabajando a la vez en el mismo checkout: nunca git add -A.
 | D2 | Tutor que se apunta a entrenar / adulto que añade un hijo | La **oficina aprueba** (igual que el registro y los planes) | Inmediato |
 | D3 | Avisos de promoción | Solo **dentro de la app** | App + correo |
 | D4 | Lista de reservados de una clase | Nombres y fotos **solo de la misma cohorte**; el resto como contador | Todos visibles para todos |
-| D5 | Acceso propio de hijos | Desde **12 años** (antes 16), con ADR + nota DPIA | Mantener 16 |
-| D6 | Cohortes de las tablas | **kids <12, teens 12–17, adults 18+**. Sustituye la decisión 5 de la fase 0 (under16/adult) | Mantener el corte de 16 |
-| D7 | Foto de menores visible a otros | Solo con la casilla del tutor (`photoVisibleToMembers`) | Visible siempre que exista |
+| D5 | Acceso propio de hijos | Desde **12 años** en ambos centros (antes 16), con ADR + nota DPIA | Mantener 16 |
+| D6 | Franjas (precio y tablas) | **Confirmada por Luis 23-sep.** West: kids <12, teens 12–17, adults 18+. Town: kids <12, teens 12–15, adults 16+ (pagan adulto y van a la tabla de adultos). Sustituye la decisión 5 de la fase 0 | — |
+| D7 | Fotos | **Confirmada por Luis 23-sep.** Casilla obligatoria al subir cualquier foto que avisa de que se publica en la tabla interna de la academia | — |
+| D8 | Alumno sin centro | Se aplica la regla West (12–17 teens) | Regla Town |
+| D9 | Chicos de Town de 16–17 que hoy pagan teens | No se toca su suscripción; al renovar pasan a adulto; filtro en admin | Cambiarlos ya |
 
 ## 5. Orden de subida y cierre
 
 1. Sesión 0 → push (nada que desplegar en functions).
-2. A–G en paralelo. Cada una: `git pull --rebase origin main` → commit de sus rutas → push → OK de
+2. A–H en paralelo. Cada una: `git pull --rebase origin main` → commit de sus rutas → push → OK de
    Luis → deploy **solo** de sus functions (`firebase deploy --only functions:<nombre>,…`).
 3. Si E llega antes que F, F importa `buildPublicCard` al rebasar. Si F llega antes, muestra la
    ficha mínima (F4).
@@ -482,3 +536,7 @@ Hay otras sesiones trabajando a la vez en el mismo checkout: nunca git add -A.
   reservaron (nombre y foto); tocar a otro miembro muestra su progreso y su foto. Aviso en la
   interfaz de miembros si no consta la aceptación del disclaimer. En admin, ver quién aceptó el
   disclaimer y quién no.
+- **Aclaración (23-sep, tarde):** en West, teens = 12–17 y su suscripción de teens va de 12 a 17. En
+  Town, de 12 a 15 pagan y pertenecen a teens; de 16 a 17 pagan suscripción de adulto y van a las
+  leaderboards de adultos. Fotos: que la casilla indique que se publicarán en la leaderboard interna
+  de la academia.
