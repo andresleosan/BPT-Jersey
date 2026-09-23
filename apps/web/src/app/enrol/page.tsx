@@ -8,6 +8,11 @@ import type {
 } from "@bpt-jersey/domain/members/enrolment-requests";
 import { ClientAuthProvider, useClientSession } from "../../lib/client-auth";
 import {
+  clientEmailVerified,
+  refreshClientEmailVerification,
+  sendClientEmailVerification,
+} from "../../lib/auth-client";
+import {
   enrolmentWaiverTermsAcknowledgement,
   enrolmentWaiverTermsTitle,
   enrolmentWaiverTermsVersion,
@@ -424,6 +429,13 @@ function EnrolContent() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
   const signedIn = status === "signed-in";
+  const [emailVerified, setEmailVerified] = useState<boolean>();
+  const [verificationBusy, setVerificationBusy] = useState(false);
+  const [verificationMessage, setVerificationMessage] = useState<string>();
+  useEffect(() => {
+    setEmailVerified(session ? clientEmailVerified(session.uid) : undefined);
+    setVerificationMessage(undefined);
+  }, [session?.uid]);
   const bankDetails = useEnrolmentBankDetails(
     signedIn && session ? `${session.uid}:${session.role ?? ""}` : undefined,
   );
@@ -495,9 +507,45 @@ function EnrolContent() {
     [requests],
   );
 
+  async function sendVerification(): Promise<void> {
+    if (!session) return;
+    setVerificationBusy(true);
+    setVerificationMessage(undefined);
+    try {
+      await sendClientEmailVerification(session.uid);
+      setVerificationMessage("Verification email sent. Open its link, then return here to confirm.");
+    } catch {
+      setVerificationMessage("The email could not be sent. Please try again in a moment.");
+    } finally {
+      setVerificationBusy(false);
+    }
+  }
+
+  async function checkVerification(): Promise<void> {
+    if (!session) return;
+    setVerificationBusy(true);
+    setVerificationMessage(undefined);
+    try {
+      const verified = await refreshClientEmailVerification(session.uid);
+      setEmailVerified(verified);
+      setVerificationMessage(
+        verified ? "Email verified. The academy can now approve a family enrolment." :
+          "Your email is still unverified. Open the link in the verification email first.",
+      );
+    } catch {
+      setVerificationMessage("Could not check your email yet. Please try again.");
+    } finally {
+      setVerificationBusy(false);
+    }
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (submitting.current) return;
+    if (step === "payment" && !form.applicantIsStudent && emailVerified !== true) {
+      setMessage("Verify your email before sending a family enrolment request.");
+      return;
+    }
     const problem = validate(form, requestId, effectiveDate);
     if (problem) {
       setMessage(problem);
@@ -670,6 +718,35 @@ function EnrolContent() {
         <p className="enrol-message" role="status">
           We could not check whether you already have a request open. You can still send one.
         </p>
+      ) : null}
+
+      {emailVerified === false && (!form.applicantIsStudent || openRequest) ? (
+        <section className="enrol-message" aria-labelledby="enrol-verification-title">
+          <h2 id="enrol-verification-title">Verify your email for family enrolment</h2>
+          <p>
+            The academy can confirm a child&apos;s enrolment once the guardian has verified their
+            email address. This also applies if your request is already waiting for review.
+          </p>
+          <div className="hero-actions">
+            <button
+              className="button button-secondary"
+              disabled={verificationBusy}
+              onClick={() => void sendVerification()}
+              type="button"
+            >
+              Send verification email
+            </button>
+            <button
+              className="button button-secondary"
+              disabled={verificationBusy}
+              onClick={() => void checkVerification()}
+              type="button"
+            >
+              I verified my email
+            </button>
+          </div>
+          {verificationMessage ? <p role="status">{verificationMessage}</p> : null}
+        </section>
       ) : null}
 
       {openRequest ? (

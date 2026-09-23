@@ -40,6 +40,7 @@ import type { EnrolmentRequestStore } from "./enrolment-request-service.js";
 export type EnrolmentApprovalAuthUser = Readonly<{
   uid: string;
   disabled?: boolean;
+  emailVerified?: boolean;
   email?: string;
   displayName?: string;
   customClaims?: Readonly<Record<string, unknown>>;
@@ -179,6 +180,15 @@ export function createEnrolmentApprovalService(
         "The applicant account is not usable",
       );
     }
+    // The family writer requires verified email ownership. Check before changing a guardian's
+    // profile or role, so an unverified applicant cannot leave a partial approval behind.
+    if (!record.applicantIsStudent && user.emailVerified !== true) {
+      throw new EnrolmentApprovalError(
+        "precondition",
+        "applicant_email_unverified",
+        "The applicant must verify their email before you can enrol the family. Ask them to open the verification link, then retry approval.",
+      );
+    }
     const claims = currentClaims(user);
     if (typeof claims.academyId === "string" && claims.academyId !== academyId) {
       throw new EnrolmentApprovalError(
@@ -309,12 +319,15 @@ export function createEnrolmentApprovalService(
         input.actor.academyId,
         input.enrolmentRequestId,
       );
-      if (preview.status !== "approved")
+      if (preview.status !== "approved") {
+        if (!preview.applicantIsStudent)
+          await readApplicantAccount(preview, input.actor.academyId);
         await dependencies.registration.validate({
           ...preview,
           approvalSetup: preview.approvalSetup ?? input.setup,
           approvalStartedAt: preview.approvalStartedAt ?? input.now,
         });
+      }
       const begun = await dependencies.store.beginApproval({
         academyId: input.actor.academyId,
         actorId: input.actor.actorId,
@@ -343,16 +356,22 @@ export function createEnrolmentApprovalService(
 
       const role = targetRoleFor(record);
       let studentIds: readonly string[];
+      let stage = "registration_validation";
       try {
         await dependencies.registration.validate(record);
+        stage = "applicant_account";
         const account = await readApplicantAccount(record, input.actor.academyId);
+        stage = role === "adultStudent" ? "member" : "family";
         studentIds =
           role === "adultStudent"
             ? await approveAdult(input, record, approvalRequestId, account)
             : await approveGuardian(input, record, approvalRequestId, account);
+        stage = "level_or_subscription";
         await dependencies.registration.complete(record, studentIds, input.actor);
+        stage = "account_role";
         if (role === "adultStudent")
           await promoteClaim(account.userId, input.actor.academyId, role);
+        stage = "request_completion";
         await dependencies.store.completeApproval({
           academyId: input.actor.academyId,
           actorId: input.actor.actorId,
@@ -363,7 +382,7 @@ export function createEnrolmentApprovalService(
         });
       } catch (error) {
         const failureCode =
-          error instanceof EnrolmentApprovalError ? error.failureCode : "approval_write_failed";
+          error instanceof EnrolmentApprovalError ? error.failureCode : `${stage}_write_failed`;
         // Best effort: if the request cannot even be marked, the original failure is still the
         // one worth reporting, and the request stays locked rather than open.
         try {

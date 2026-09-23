@@ -3,6 +3,8 @@
 import {
   createUserWithEmailAndPassword,
   onIdTokenChanged,
+  reload,
+  sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   type Unsubscribe,
@@ -57,6 +59,30 @@ export async function signInWithGoogle(): Promise<UserCredential> {
 
 export async function sendPasswordReset(email: string): Promise<void> {
   return sendPasswordResetEmail(getFirebaseAuth(), requiredEmail(email));
+}
+
+/** Keep email ownership tied to the signed-in applicant, including after an account switch. */
+function applicantForVerification(expectedUid: string): User {
+  const user = getFirebaseAuth().currentUser;
+  if (!user || user.uid !== expectedUid) throw new Error("Sign in to continue.");
+  return user;
+}
+
+export function clientEmailVerified(expectedUid: string): boolean | undefined {
+  const user = getFirebaseAuth().currentUser;
+  return user?.uid === expectedUid ? user.emailVerified : undefined;
+}
+
+export async function sendClientEmailVerification(expectedUid: string): Promise<void> {
+  await sendEmailVerification(applicantForVerification(expectedUid));
+}
+
+export async function refreshClientEmailVerification(expectedUid: string): Promise<boolean> {
+  const user = applicantForVerification(expectedUid);
+  await reload(user);
+  if (getFirebaseAuth().currentUser?.uid !== expectedUid) throw new Error("Sign in to continue.");
+  await user.getIdToken(true);
+  return user.emailVerified;
 }
 
 export function subscribeToIdTokenChanges(

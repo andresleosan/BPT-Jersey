@@ -29,7 +29,6 @@ import {
 } from "../../../../lib/enrolment-client";
 import { useAdminOrStaffSession } from "../../admin-gate";
 import { AdminSectionHeader, AdminStatusBadge } from "../../admin-ui";
-import { IntroApplicationsPanel } from "../../billing/intro-applications-panel";
 
 import "../../admin.css";
 import "./requests.css";
@@ -43,6 +42,11 @@ const MemberRecoveryQueue = dynamic(
       </div>
     ),
   },
+);
+
+const IntroApplicationsPanel = dynamic(
+  () => import("../../billing/intro-applications-panel").then((module) => module.IntroApplicationsPanel),
+  { loading: () => <p role="status">Loading membership requests...</p> },
 );
 
 type QueueState =
@@ -276,6 +280,8 @@ function EnrolmentRequestQueueContent() {
   const [refreshing, setRefreshing] = useState(false);
   const [view, setView] = useState<"new" | "recovery">("new");
   const [recoveryLoaded, setRecoveryLoaded] = useState(false);
+  const [membershipRequestsLoaded, setMembershipRequestsLoaded] = useState(false);
+  const membershipRequestsRef = useRef<HTMLElement>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
 
@@ -289,6 +295,26 @@ function EnrolmentRequestQueueContent() {
     window.addEventListener("hashchange", syncHash);
     return () => window.removeEventListener("hashchange", syncHash);
   }, [office]);
+
+  useEffect(() => {
+    if (!office || membershipRequestsLoaded) return;
+    const element = membershipRequestsRef.current;
+    if (!element || typeof IntersectionObserver === "undefined") {
+      setMembershipRequestsLoaded(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setMembershipRequestsLoaded(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "300px" },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [office, membershipRequestsLoaded]);
 
   function changeView(next: "new" | "recovery") {
     setView(next);
@@ -462,6 +488,9 @@ function EnrolmentRequestQueueContent() {
       // the only way to show what actually happened rather than what was asked for.
       setReloadToken((token) => token + 1);
     } catch (error) {
+      // A server-side attempt may have committed part of the work and changed the request to
+      // approval-failed. Refresh its badge while keeping the review setup available for retry.
+      setReloadToken((token) => token + 1);
       setNotice({
         tone: "error",
         text: error instanceof Error ? error.message : "Unable to approve this request.",
@@ -911,13 +940,27 @@ function EnrolmentRequestQueueContent() {
         ) : null}
       </section>
       {office ? (
-        <section aria-labelledby="membership-requests-title" className="admin-panel-card">
+        <section
+          aria-labelledby="membership-requests-title"
+          className="admin-panel-card"
+          ref={membershipRequestsRef}
+        >
           <div className="admin-panel-card-heading">
             <div>
               <h3 id="membership-requests-title">Membership requests</h3>
             </div>
           </div>
-          <IntroApplicationsPanel />
+          {membershipRequestsLoaded ? (
+            <IntroApplicationsPanel />
+          ) : (
+            <button
+              className="staff-secondary-button"
+              type="button"
+              onClick={() => setMembershipRequestsLoaded(true)}
+            >
+              Load membership requests
+            </button>
+          )}
         </section>
       ) : null}
     </section>

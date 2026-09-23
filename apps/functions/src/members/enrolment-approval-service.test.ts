@@ -161,6 +161,7 @@ function harness(
       getUser: async (uid) => ({
         uid,
         disabled: false,
+        emailVerified: true,
         email: "Alex@Example.com",
         displayName: "Alex Adult",
         customClaims: { ...claims },
