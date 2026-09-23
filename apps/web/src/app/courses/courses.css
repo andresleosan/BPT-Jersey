@@ -597,7 +597,7 @@
 .course-promo-group a,
 .course-promo-group span {
   display: flex;
-  max-width: 38rem;
+  flex-shrink: 0;
   padding: 1rem 1.75rem;
   align-items: center;
   border-right: 1px solid var(--mat-ink);
@@ -843,11 +843,6 @@
 
   .course-slot-status {
     justify-self: start;
-  }
-
-  .course-promo-group a,
-  .course-promo-group span {
-    max-width: 28rem;
   }
 }
 
