@@ -137,6 +137,12 @@ export const dropInPolicies = Object.freeze([
 ] as const);
 export type DropInPolicy = (typeof dropInPolicies)[number];
 
+/** Who a type is for: a whole-year age range (null = all ages). Same shape as a class age range. */
+export type ProgramAgeRange = Readonly<{ minAge: number; maxAge: number | null }>;
+export const programSites = Object.freeze(["Town", "West"] as const);
+export type ProgramSite = (typeof programSites)[number];
+export const programAgeLimits = Object.freeze({ min: 3, max: 99 });
+
 export type ProgramV2Fields = Readonly<{
   abbreviation: string;
   colour: string;
@@ -145,6 +151,9 @@ export type ProgramV2Fields = Readonly<{
   notifyByEmail: boolean;
   showInList: boolean;
   message: string;
+  ageRange: ProgramAgeRange | null;
+  /** Training centres offering this type; empty means both (nothing is hidden until chosen). */
+  sites: readonly ProgramSite[];
 }>;
 
 export const programDefaultsV2: ProgramV2Fields = Object.freeze({
@@ -155,9 +164,51 @@ export const programDefaultsV2: ProgramV2Fields = Object.freeze({
   notifyByEmail: false,
   showInList: true,
   message: "",
+  ageRange: null,
+  sites: Object.freeze([]),
 });
 
-export type CreateProgramInputV2 = Readonly<{ name: string; abbreviation: string }>;
+/**
+ * The type's own audience, checked by the member calendar and inside the booking transaction.
+ * `age` null means the date of birth is unknown: the age is not checked until the office adds it.
+ */
+export function programAdmits(
+  program: Readonly<{ ageRange?: ProgramAgeRange | null; sites?: readonly ProgramSite[] }>,
+  age: number | null,
+  site: ProgramSite,
+): boolean {
+  const range = program.ageRange ?? null;
+  if (range && age !== null && (age < range.minAge || (range.maxAge !== null && age > range.maxAge)))
+    return false;
+  return !program.sites?.length || program.sites.includes(site);
+}
+
+function parseProgramAgeRange(input: unknown): Result<ProgramAgeRange | null, string> {
+  if (input === null) return ok(null);
+  const isAge = (value: unknown): value is number =>
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= programAgeLimits.min &&
+    value <= programAgeLimits.max;
+  if (!isRecord(input) || !onlyKeys(input, ["minAge", "maxAge"]) || !isAge(input.minAge))
+    return err(`ageRange.minAge must be a whole age from ${programAgeLimits.min} to ${programAgeLimits.max}`);
+  if (input.maxAge !== null && (!isAge(input.maxAge) || input.maxAge < input.minAge))
+    return err("ageRange.maxAge must be null or a whole age not below minAge");
+  return ok(Object.freeze({ minAge: input.minAge, maxAge: input.maxAge as number | null }));
+}
+
+function parseProgramSites(input: unknown): Result<readonly ProgramSite[], string> {
+  if (!Array.isArray(input) || !input.every((site) => programSites.includes(site as ProgramSite)))
+    return err("sites must list Town and/or West");
+  return ok(Object.freeze(programSites.filter((site) => input.includes(site))));
+}
+
+export type CreateProgramInputV2 = Readonly<{
+  name: string;
+  abbreviation: string;
+  ageRange?: ProgramAgeRange | null;
+  sites?: readonly ProgramSite[];
+}>;
 export type UpdateProgramInput = Readonly<{ programId: string }> &
   Partial<ProgramV2Fields & Readonly<{ name: string; active: boolean }>>;
 
@@ -179,14 +230,25 @@ const colourPattern = /^#[0-9a-fA-F]{6}$/u;
 export const programMessageMaxLength = 200;
 
 export function parseCreateProgramInputV2(input: unknown): Result<CreateProgramInputV2, string> {
-  if (!isRecord(input) || !onlyKeys(input, ["name", "abbreviation"])) {
-    return err("Program input accepts exactly name and abbreviation");
+  if (!isRecord(input) || !onlyKeys(input, ["name", "abbreviation", "ageRange", "sites"])) {
+    return err("Program input accepts name, abbreviation, ageRange and sites");
   }
   const name = parseName(input.name, 2, 100, "name");
   if (!name.ok) return name;
   const abbreviation = parseAbbreviation(input.abbreviation);
   if (!abbreviation.ok) return abbreviation;
-  return ok(Object.freeze({ name: name.value, abbreviation: abbreviation.value }));
+  const ageRange = input.ageRange === undefined ? ok(null) : parseProgramAgeRange(input.ageRange);
+  if (!ageRange.ok) return ageRange;
+  const sites = input.sites === undefined ? ok([] as const) : parseProgramSites(input.sites);
+  if (!sites.ok) return sites;
+  return ok(
+    Object.freeze({
+      name: name.value,
+      abbreviation: abbreviation.value,
+      ageRange: ageRange.value,
+      sites: sites.value,
+    }),
+  );
 }
 
 export function parseUpdateProgramInput(input: unknown): Result<UpdateProgramInput, string> {
@@ -201,6 +263,8 @@ export function parseUpdateProgramInput(input: unknown): Result<UpdateProgramInp
     "notifyByEmail",
     "showInList",
     "message",
+    "ageRange",
+    "sites",
   ];
   if (!isRecord(input) || !onlyKeys(input, allowed)) return err("Program update has unknown keys");
   if (
@@ -249,6 +313,16 @@ export function parseUpdateProgramInput(input: unknown): Result<UpdateProgramInp
       return err(`message must be at most ${programMessageMaxLength} characters`);
     }
     result.message = input.message.trim();
+  }
+  if (input.ageRange !== undefined) {
+    const ageRange = parseProgramAgeRange(input.ageRange);
+    if (!ageRange.ok) return ageRange;
+    result.ageRange = ageRange.value;
+  }
+  if (input.sites !== undefined) {
+    const sites = parseProgramSites(input.sites);
+    if (!sites.ok) return sites;
+    result.sites = sites.value;
   }
   if (Object.keys(result).length === 1) return err("Nothing to update");
   return ok(Object.freeze(result) as UpdateProgramInput);

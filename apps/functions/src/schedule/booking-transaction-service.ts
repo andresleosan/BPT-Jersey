@@ -1,6 +1,7 @@
 import { groupKey } from "./group-keys.js";
 import { canonicalMemberIdentityIds } from "../members/member-identity-resolution.js";
-import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
+import { ageOnDate, dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
+import { programAdmits } from "@bpt-jersey/domain/schedule/classes-services";
 import { createMemberAccessService } from "../members/member-access-service.js";
 import {
   effectiveGroupProgramIds,
@@ -886,6 +887,20 @@ async function executeBookingInTransaction(
   ) {
     return invalid("financial", "Financial access is not eligible");
   }
+  // The type's own age range and training centres (Classes / Services → Types).
+  const sessionSite = storedSession.locationId === "town" ? "Town" : "West";
+  if (
+    !additionalAccess &&
+    !programAdmits(
+      storedProgram,
+      !storedStudent.dateOfBirth
+        ? null
+        : ageOnDate(storedStudent.dateOfBirth, localDate(storedSession.startAt)),
+      sessionSite,
+    )
+  ) {
+    return invalid("ineligible", "This class type is not open to this member's age or centre");
+  }
   // Additional groups waive age, site and plan quotas only. Transit Free alone waives financial standing;
   // membership status, active programs, booking cutoff and capacity are still required.
   const access =
@@ -893,7 +908,7 @@ async function executeBookingInTransaction(
       ? { allowed: true as const }
       : evaluatePlanAccess(storedPlan, {
           participantType: audience(storedStudent, storedProgram, storedSession.startAt),
-          site: storedSession.locationId === "town" ? "Town" : "West",
+          site: sessionSite,
           sessionType: storedProgram.discipline === "open-mat" ? "openMat" : "class",
           weeklyClassesUsed: used,
         });

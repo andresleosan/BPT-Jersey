@@ -578,6 +578,8 @@ function buildProgramV2(
     level: "all-levels",
     ...programDefaultsV2,
     abbreviation: input.abbreviation,
+    ageRange: input.ageRange ?? null,
+    sites: input.sites ?? [],
     active: true,
     schemaVersion: "1",
   });
@@ -600,6 +602,8 @@ function mergeProgramV2(current: ProgramRecord, input: UpdateProgramInput): Prog
     ...(input.notifyByEmail !== undefined ? { notifyByEmail: input.notifyByEmail } : {}),
     ...(input.showInList !== undefined ? { showInList: input.showInList } : {}),
     ...(input.message !== undefined ? { message: input.message } : {}),
+    ...(input.ageRange !== undefined ? { ageRange: input.ageRange } : {}),
+    ...(input.sites !== undefined ? { sites: input.sites } : {}),
   });
 }
 
