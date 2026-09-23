@@ -24,7 +24,7 @@ Spec de fase 0: `docs/superpowers/specs/2026-09-16-member-engagement-phase-0-des
 | **E · Competidores** | Dos tablas (asistencia y cinturón) × tres cohortes (kids, teens, adults) | 0 (fotos de B opcionales) | tras 0 |
 | **F · Detalle de sesión** | Tocar una sesión reservada: currículum + lista de reservados; tocar a alguien: su ficha | 0 | tras 0 |
 | **G · Disclaimer** | Aviso al miembro si no consta aceptado + vista admin de quién aceptó y quién no | nada | **ya** |
-| **H · Edad por centro** | Aplica la regla de franjas por centro (D6) a precios, planes elegibles y reservas en el servidor | 0 | tras 0 |
+| **H · Franja de edad** | Aplica la regla única de franjas (D6: teens 12–15, 16+ adulto en ambos centros) a precios, planes elegibles y reservas en el servidor | 0 | tras 0 |
 
 Después de la sesión 0, las sesiones A–H pueden correr a la vez. G ni siquiera necesita la 0.
 
@@ -75,8 +75,8 @@ Es la misma idea que la fase 0 del 16-sep.
 
 | Pieza | Fichero | Qué deja |
 | --- | --- | --- |
-| Franja por centro (regla única, D6) | `packages/domain/src/memberships/participant-band.ts` (nuevo, exportado desde `@bpt-jersey/domain/memberships`) | `participantBandAt({dateOfBirth, trainingCenter, onIso}) → "kids" \| "teens" \| "adult"`. Edad en Europe/Jersey. **West:** <12 kids, 12–17 teens, 18+ adult. **Town:** <12 kids, 12–15 teens, 16+ adult. Sin fecha de nacimiento → `adult` (regla del 23-sep). Sin centro → regla West (D8). Comprobar a mano los cortes 11/12, 15/16 y 17/18 en ambos centros. |
-| Tres cohortes | `packages/domain/src/members/member-engagement-contracts.ts` | `LeaderboardCohort = "kids" \| "teens" \| "adults"`; `leaderboardCohort(dateOfBirth, trainingCenter, nowIso)` **delega en `participantBandAt`**: la tabla de cada miembro es la misma franja por la que paga. Ajusta el test existente a la firma nueva (sin correrlo, §1.6). |
+| Franja de edad (regla única, D6) | `packages/domain/src/memberships/participant-band.ts` (nuevo, exportado desde `@bpt-jersey/domain/memberships`) | `participantBandAt({dateOfBirth, onIso}) → "kids" \| "teens" \| "adult"`. Edad en Europe/Jersey. **Igual en Town y West:** <12 kids, 12–15 teens, 16+ adult. Sin fecha de nacimiento → `adult` (regla del 23-sep). No recibe el centro. La franja `adult` de 16–17 es **solo** de precio, tabla y reservas: legalmente siguen siendo menores (`deriveParticipantType` → `minor`) y necesitan el consentimiento del tutor (D10). Comprobar a mano los cortes 11/12 y 15/16. |
+| Tres cohortes | `packages/domain/src/members/member-engagement-contracts.ts` | `LeaderboardCohort = "kids" \| "teens" \| "adults"`; `leaderboardCohort(dateOfBirth, nowIso)` **delega en `participantBandAt`**: la tabla de cada miembro es la misma franja por la que paga. Ajusta el test existente a la firma nueva (sin correrlo, §1.6). |
 | Ficha pública ampliada | mismo fichero | `MemberPublicCard` gana `attendancesSinceSeasonStart: number` y `promotionPercent: number \| null` (lo leen E y F; no rompe nada porque aún nadie la usa). |
 | Hueco de la barra de promoción | `apps/web/src/app/account/streak/streak-panel.tsx` | `StreakPanel` renderiza `<PromotionBar />` como primer hijo (arriba del todo de la tarjeta, D1) y luego su contenido. |
 | Componente vacío de promoción | `apps/web/src/app/account/promotion/promotion-bar.tsx` | `export function PromotionBar() { return null; }` (propiedad de D). |
@@ -131,8 +131,8 @@ que haya añadido, e incluso añadir hijos desde membresías de mayores de 18.
   conserva su vínculo `self`.
 - A5. Esto solo existe en My plan. `/enrol` para nuevos no cambia salvo A1.
 - A6. En `/enrol` y My plan, la franja de cada persona (y por tanto los planes que se le ofrecen) sale
-  de `participantBandAt` con su centro: un chico de 16 en Town ve planes de adulto; en West, de teen.
-  Al cambiar el centro en el formulario, la lista de planes se recalcula.
+  de `participantBandAt`: un chico de 16 ve planes de adulto en ambos centros; uno de 15, de teen.
+  Aun así, un menor de 18 solo se da de alta con el tutor en la solicitud y su consentimiento (D10).
 
 **Escribe:** `apps/web/src/app/enrol/page.tsx`, `packages/domain/src/members/enrolment-request-contracts*.ts`,
 el servicio de aprobación de solicitudes de alta (búscalo desde
@@ -187,7 +187,7 @@ Los ficheros se guardan en R2 (`apps/functions/src/storage/r2-client.ts`).
 
 **Decisiones:**
 - B1. `teenAccountMinimumAge` pasa de 16 a **12** en **ambos** centros (pedido explícito de Luis;
-  la regla de Town solo cambia precio y tabla, no la edad de acceso). Es un cambio de
+  la franja de 16–17 solo cambia precio, tabla y reservas, no la edad de acceso ni el consentimiento). Es un cambio de
   tratamiento de datos de menores: anotarlo en la DPIA (T011) y en un ADR corto.
 - B2. El tutor crea el acceso del hijo desde Settings: email + contraseña (mín. 10 caracteres). El
   servidor crea el usuario de Firebase Auth con rol `teenStudent` y el vínculo `self` aprobado. Sin
@@ -323,9 +323,8 @@ otro tiene y él no, y al revés. **Una tabla para kids, otra para teens y otra 
 
 **Decisiones:**
 - E1. Cohortes (D6): el miembro solo ve su cohorte, vía `leaderboardCohort` de la sesión 0, que usa
-  la franja por la que paga: kids <12; teens 12–17 en West y 12–15 en Town; adults 18+ en West y 16+
-  en Town. Las tablas son de toda la academia (un teen de West de 16 comparte tabla con los teens de
-  Town de 12–15; un chico de Town de 16 está en adults). Nadie elige la cohorte: la calcula el servidor.
+  la franja por la que paga, igual en los dos centros: kids <12; teens 12–15; adults 16+. Las tablas
+  son de toda la academia (un chico de 16 está en adults). Nadie elige la cohorte: la calcula el servidor.
 - E2. Tabla de asistencia ordenada por `attendancesSinceSeasonStart` (empate → `streakCount`).
   Tabla de cinturón ordenada por posición en la escalera (`ladderIndexes`) y, dentro, por grados y
   `promotionPercent`.
@@ -344,8 +343,8 @@ belt: Neighbours}` con `Neighbours = {above: MemberPublicCard[], current, below:
 Produce también la función de servidor `buildPublicCard(studentId)`, que **F reutiliza importándola**
 (no la copia).
 
-**Verificación:** vista previa con 7 adultos, 3 teens y 3 kids, más un chico de 16 en Town y otro de 16 en West:
-el de Town sale en adults y el de West en teens; un adulto ve solo adultos (2 arriba, 2 abajo); el primero de la tabla ve 0 arriba; un teen no ve adultos ni kids; las técnicas «they
+**Verificación:** vista previa con 7 adultos, 3 teens y 3 kids, más un chico de 16 y otro de 15:
+el de 16 sale en adults y el de 15 en teens; un adulto ve solo adultos (2 arriba, 2 abajo); el primero de la tabla ve 0 arriba; un teen no ve adultos ni kids; las técnicas «they
 have / you have» coinciden con `compareTechniques`.
 
 **Prompt de arranque:**
@@ -445,13 +444,13 @@ Hay otras sesiones trabajando a la vez en el mismo checkout: nunca git add -A.
 
 ---
 
-### Sesión H · Edad por centro en precios, planes y reservas
+### Sesión H · Franja de edad en precios, planes y reservas
 
-**Objetivo (palabras de Luis, 23-sep):** en West, los teens son de 12–17 años, y la suscripción de
-teens en West va de 12 a 17. En Town funciona distinto: de 12 a 15 pagan y pertenecen al grupo de
-teens; de 16 a 17 pagan suscripción de adulto y van a las leaderboards de adultos.
+**Objetivo (palabras de Luis, 23-sep, corregido la misma noche):** los teens de West tienen las
+mismas reglas que los de Town. Teens: 12–15 años. De 16 a 17 pagan como adultos y reservan sesiones
+de adultos, pero siguen necesitando el consentimiento del tutor.
 
-**Lo que hay hoy:** la franja se calcula en varios sitios, ninguno mira el centro, y **no coinciden**:
+**Lo que hay hoy:** la franja se calcula en varios sitios y **no coinciden**:
 - web: `apps/web/src/lib/participant-band.ts` (<12 kids, 12–17 teens);
 - servidor: `apps/functions/src/memberships/intro-application-service.ts:194` (**<13** kids, 13–17 teens);
 - los que filtran por `eligibleParticipantTypes`: `schedule/booking-transaction-service.ts`,
@@ -459,14 +458,18 @@ teens; de 16 a 17 pagan suscripción de adulto y van a las leaderboards de adult
   `memberships/membership-service.ts`, `packages/domain/src/members/enrolment-request-contracts.ts`.
 
 **Decisiones:**
-- H1. Todos esos sitios pasan a llamar a `participantBandAt` (sesión 0) con el centro del alumno.
+- H1. Todos esos sitios pasan a llamar a `participantBandAt` (sesión 0).
   El `participantBand` de la web queda como envoltorio de una línea o se elimina, sin copia propia.
 - H2. El corte 12/13 del servidor se corrige a 12 (lo mismo que la web y lo que dijo Luis).
-- H3. **No se cambia ninguna suscripción viva** (D9). Un chico de Town de 16–17 que ya paga teens
+- H3. **No se cambia ninguna suscripción viva** (D9). Un chico de 16–17 (de cualquier centro) que ya paga teens
   sigue igual hasta su próxima renovación o cambio de plan; entonces solo se le ofrecen planes de adulto.
   En `/admin/members` se añade el filtro «Plan band differs from age band» para que la oficina los vea.
-- H4. Las reservas siguen filtrando por el tipo de clase (`programAdmits`, edad + centro), que no
-  cambia. H solo toca qué **plan** corresponde a cada edad.
+- H4. Las reservas siguen filtrando por el tipo de clase (`programAdmits`, edad + centro). Los tipos
+  de adultos ya son 16+ (23-sep), así que un chico de 16–17 reserva sesiones de adultos sin más
+  cambios; comprobarlo, no reescribirlo. H toca qué **plan** corresponde a cada edad.
+- H5. Franja `adult` ≠ mayor de edad. Para 16–17 se mantiene todo lo que exige el tutor: la cuenta
+  del tutor, su aceptación del waiver y de los disclaimers, y el consentimiento de fotos (D10).
+  Ningún sitio debe usar `participantBandAt` para decidir consentimiento: eso sigue en `deriveParticipantType`.
 
 **Escribe:** `apps/web/src/lib/participant-band.ts`, `apps/web/src/lib/calendar/firebase-calendar-repository.ts`,
 `apps/functions/src/memberships/{intro-application-service,plan-callables,membership-service}.ts`,
@@ -474,9 +477,10 @@ teens; de 16 a 17 pagan suscripción de adulto y van a las leaderboards de adult
 filtro de `/admin/members`. **No toca:** `enrolment-request-contracts.ts`, `enrol/` ni `membership/`
 (son de A, que usa la misma función), ni `programAdmits`.
 
-**Verificación:** con datos sintéticos, un alumno de 16 en Town ve y puede pedir solo planes de
-adulto; uno de 16 en West, solo de teen; uno de 12 en ambos centros, teen (antes el servidor decía
-kids); una suscripción teen viva de un chico de Town de 16 sigue activa y aparece en el filtro nuevo.
+**Verificación:** con datos sintéticos, un alumno de 16 ve y puede pedir solo planes de adulto en
+Town y en West, y reserva una sesión de adultos; uno de 15, solo de teen; uno de 12, teen (antes el
+servidor decía kids); el alta de uno de 16 sigue pidiendo tutor y su waiver; una suscripción teen viva
+de un chico de 16 sigue activa y aparece en el filtro nuevo.
 
 **Prompt de arranque:**
 ```
@@ -497,10 +501,12 @@ Hay otras sesiones trabajando a la vez en el mismo checkout: nunca git add -A.
 | D3 | Avisos de promoción | Solo **dentro de la app** | App + correo |
 | D4 | Lista de reservados de una clase | Nombres y fotos **solo de la misma cohorte**; el resto como contador | Todos visibles para todos |
 | D5 | Acceso propio de hijos | Desde **12 años** en ambos centros (antes 16), con ADR + nota DPIA | Mantener 16 |
-| D6 | Franjas (precio y tablas) | **Confirmada por Luis 23-sep.** West: kids <12, teens 12–17, adults 18+. Town: kids <12, teens 12–15, adults 16+ (pagan adulto y van a la tabla de adultos). Sustituye la decisión 5 de la fase 0 | — |
+| D6 | Franjas (precio, tablas y reservas) | **Confirmada por Luis 23-sep (corregida por la noche).** Igual en Town y West: kids <12, teens 12–15, adults 16+ (16–17 pagan adulto, reservan sesiones de adultos y van a la tabla de adultos). Sustituye la decisión 5 de la fase 0 | — |
 | D7 | Fotos | **Confirmada por Luis 23-sep.** Casilla obligatoria al subir cualquier foto que avisa de que se publica en la tabla interna de la academia | — |
-| D8 | Alumno sin centro | Se aplica la regla West (12–17 teens) | Regla Town |
-| D9 | Chicos de Town de 16–17 que hoy pagan teens | No se toca su suscripción; al renovar pasan a adulto; filtro en admin | Cambiarlos ya |
+| D8 | Alumno sin centro | **Ya no aplica:** la franja no depende del centro (D6) | — |
+| D9 | Chicos de 16–17 que hoy pagan teens (cualquier centro) | No se toca su suscripción; al renovar pasan a adulto; filtro en admin | Cambiarlos ya |
+| D10 | Consentimiento de 16–17 | **Confirmada por Luis 23-sep.** Aunque paguen y reserven como adultos, siguen siendo menores: alta con tutor, waiver/disclaimers y fotos los consiente el tutor | — |
+| D11 | Registro nuevo cuyos datos coinciden con Regyfit | **Confirmada por Luis 23-sep.** Se deja duplicar: `/enrol` y la aprobación **no** comparan nombre, fecha de nacimiento ni email con Regyfit ni con el directorio; el owner migra los datos a mano. Ninguna sesión añade ese bloqueo. (Revisado el 23-sep: hoy no existe; la aprobación solo choca por nº de socio, DNI, IVA o ID de Regyfit, que el registro no rellena.) | Bloquear o avisar |
 
 ## 5. Orden de subida y cierre
 
@@ -540,3 +546,7 @@ Hay otras sesiones trabajando a la vez en el mismo checkout: nunca git add -A.
   Town, de 12 a 15 pagan y pertenecen a teens; de 16 a 17 pagan suscripción de adulto y van a las
   leaderboards de adultos. Fotos: que la casilla indique que se publicarán en la leaderboard interna
   de la academia.
+- **Corrección (23-sep, noche):** los teens de West tienen las mismas reglas que los de Town. Teens:
+  12–15 años; de 16 a 17 pagan como adultos y reservan sesiones de adultos, pero siguen necesitando
+  el consentimiento del tutor. Los miembros nuevos cuyos datos coinciden con Regyfit: dejar que se
+  dupliquen; el owner migra los datos manualmente.
