@@ -170,7 +170,8 @@ export const programDefaultsV2: ProgramV2Fields = Object.freeze({
 
 /**
  * The type's own audience, checked by the member calendar and inside the booking transaction.
- * `age` null means the date of birth is unknown: the age is not checked until the office adds it.
+ * `age` null means the date of birth is unknown: the member counts as an adult (open-ended ranges
+ * such as 16+ admit them, closed kids ranges do not) until the office adds it.
  */
 export function programAdmits(
   program: Readonly<{ ageRange?: ProgramAgeRange | null; sites?: readonly ProgramSite[] }>,
@@ -178,7 +179,7 @@ export function programAdmits(
   site: ProgramSite,
 ): boolean {
   const range = program.ageRange ?? null;
-  if (range && age !== null && (age < range.minAge || (range.maxAge !== null && age > range.maxAge)))
+  if (range && (age === null ? range.maxAge !== null : age < range.minAge || (range.maxAge !== null && age > range.maxAge)))
     return false;
   return !program.sites?.length || program.sites.includes(site);
 }

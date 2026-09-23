@@ -19,12 +19,8 @@ export const studentGroupAccessSchema = z.strictObject({
   dateOfBirth: dateKey.nullable(),
   ...grantContext,
 });
-export const saveStudentGroupAccessSchema = studentGroupAccessSchema
-  .omit({ dateOfBirth: true })
-  .refine((input) => input.programIds.length === 0 || (input.reason?.length ?? 0) >= 2, {
-    path: ["reason"],
-    message: "A reason is required to grant additional group access",
-  });
+// The reason is optional since 2026-09-23 (office request).
+export const saveStudentGroupAccessSchema = studentGroupAccessSchema.omit({ dateOfBirth: true });
 
 /** A grant past its expiry date (Jersey calendar day, inclusive) authorises nothing. */
 export function effectiveGroupProgramIds(

@@ -332,11 +332,7 @@ export function MemberCalendar({
       const rowProgram = programs.get(row.programId);
       if (row.courseId || row.status === "cancelled" || !bookings.has(row.sessionId) || !rowProgram)
         continue;
-      if (
-        rowProgram.discipline === "open-mat" ||
-        memberContext.additionalProgramIds?.includes(row.programId)
-      )
-        continue;
+      if (rowProgram.discipline === "open-mat") continue;
       const key = jerseyWeekKey(row.startAt);
       classesBookedByWeek.set(key, (classesBookedByWeek.get(key) ?? 0) + 1);
     }

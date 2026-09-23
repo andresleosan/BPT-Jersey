@@ -11,7 +11,7 @@ import { assignMemberGuardian, setMemberDateOfBirth } from "../../../lib/member-
 export function MemberReviewBadge({ guardianStatus, reviewReason }: StudentReview) {
   const label =
     reviewReason === "date-of-birth-missing"
-      ? "Check age"
+      ? "Date of birth needed"
       : guardianStatus === "pending"
         ? "Guardian required"
         : undefined;
