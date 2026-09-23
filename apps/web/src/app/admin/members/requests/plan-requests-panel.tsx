@@ -126,7 +126,7 @@ export function PlanRequestsPanel() {
                 </button>
                 <button
                   className="staff-secondary-button"
-                  disabled={busyId !== undefined || request.status === "approving"}
+                  disabled={busyId !== undefined}
                   onClick={() => void decide(request, "reject")}
                   type="button"
                 >
