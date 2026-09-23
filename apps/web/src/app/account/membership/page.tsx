@@ -314,10 +314,13 @@ function MembershipContent() {
                 </p>
               ) : trial ? (
                 <p className="client-current-line">
-                  {trial.status === "active" &&
-                  trial.allowance - trial.attendedCount - trial.futureBookings > 0
-                    ? `Free trial · ${trial.allowance - trial.attendedCount - trial.futureBookings} of ${trial.allowance} classes left · ends ${dateLabel(trial.expiresAt)}`
-                    : "Your free trial has ended. Choose a plan to keep training."}
+                  {trial.status !== "active"
+                    ? "Your free trial has ended. Choose a plan to keep training."
+                    : trial.attendedCount > 0
+                      ? `You've had your first class. Choose a plan below to keep training after your trial (${Math.max(0, trial.allowance - trial.attendedCount - trial.futureBookings)} free class left · ends ${dateLabel(trial.expiresAt)}).`
+                      : trial.allowance - trial.attendedCount - trial.futureBookings > 0
+                        ? `Free trial · ${trial.allowance - trial.attendedCount - trial.futureBookings} of ${trial.allowance} classes left · ends ${dateLabel(trial.expiresAt)}`
+                        : "Your free classes are booked. Choose a plan to keep training after them."}
                 </p>
               ) : (
                 <p className="client-current-line">

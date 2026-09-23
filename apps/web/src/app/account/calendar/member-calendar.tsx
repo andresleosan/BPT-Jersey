@@ -641,7 +641,16 @@ export function MemberCalendar({
       {!failed && weekState === "ready" && hasPendingPenalty(penalties) ? <PenaltyBanner /> : null}
       {!failed && participant?.trial ? (
         <p className="calendar-trial-band" role="status">
-          {participant.trial.status === "active" && trialClassesLeft(participant.trial) > 0 ? (
+          {participant.trial.status === "active" && participant.trial.attendedCount > 0 ? (
+            <>
+              {trialClassesLeft(participant.trial) > 0
+                ? `Great first class! ${trialClassesLeft(participant.trial)} free class left.`
+                : "Your last free class is booked."}{" "}
+              Choose a plan now to keep training without a break.{" "}
+              <a href="/account/membership">Choose a plan</a>
+            </>
+          ) : participant.trial.status === "active" &&
+            (trialClassesLeft(participant.trial) > 0 || participant.trial.futureBookings > 0) ? (
             `Trial · ${trialClassesLeft(participant.trial)} of ${participant.trial.allowance} classes left · ends ${new Date(participant.trial.expiresAt).toLocaleDateString("en-GB")}`
           ) : (
             <>
