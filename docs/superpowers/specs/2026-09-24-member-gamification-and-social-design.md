@@ -39,6 +39,9 @@ los términos vigentes. Todo sin exponer datos de un miembro más allá de su fi
 | Q8 | Nombre público | Nombre de pila + inicial del apellido («Mia R.»); si colisiona dentro de la cohorte, se añaden letras del apellido hasta distinguir («Mia Ro.»). Lo genera el servidor. |
 | Q9 | Visibilidad | Interruptor «Show me to other members» en Settings, **activo por defecto**; para menores lo controla el tutor. Apagado: no sale en ningún leaderboard ajeno y en el roster cuenta como anónimo; sigue viendo su propia posición. |
 | Q10 | Ranking | **Snapshot nocturno** (23:30 Europe/Jersey) en `leaderboards/{cohort}`; `getCompetitors` = 1 lectura. La racha propia sigue en vivo. Luis aprobó el job programado nuevo (~0,10 $/mes). |
+| Q11 | «Mayores de 18» en My plan | Se mantiene A4: **quien añade** es un adulto 18+ (`adultStudent` o `guardian`); el hijo añadido es menor. No se asocian dependientes ≥ 18 (no hay relación «pagador ≠ tutor»). |
+| Q12 | Tutor existente que quiere entrenar | En My plan, si la cuenta no tiene vínculo `self`, tarjeta **«Train yourself»** junto a «Add a child». Mismo callable con `kind: "self" \| "child"` (prerrellena con el perfil del tutor); la oficina aprueba (D2) y se crea el alumno `self`. |
+| Q13 | Orden de fases | 0 dominio → 1 H franjas → 2 A familia/My plan → 3 B settings/fotos/teen → 4 C racha → 5 E competidores → 6 F detalle de sesión → 7 G disclaimer → 8 pulido visual (`/impeccable`, `/taste-skill`, `/redesign-skill`) → 9 verificación (unitarios, rules, E2E, revisión) y OK de Luis para push + deploy. |
 
 ## Arquitectura
 
@@ -66,7 +69,7 @@ importa Firebase.
 
 | Carpeta | Callables | Notas |
 |---|---|---|
-| `family-plan/` | `requestAddChild`, `approveAddChildRequest` | Aprobación solo owner/administrator. |
+| `family-plan/` | `requestAddChild`, `approveAddChildRequest` | `kind: "self" \| "child"` (Q12). Aprobación solo owner/administrator. |
 | `members/` (alta) | — | La aprobación del alta crea también el alumno del tutor con vínculo `self` cuando `applicantIsStudent` (A1–A2). |
 | `account-settings/` | `uploadProfilePhoto`, `removeProfilePhoto`, `setMemberVisibility`, `createTeenAccess`, `revokeTeenAccess`, `claimAdultAccount` | Scope por `authorise()`; foto/visibilidad de un menor solo por el tutor; el teen puede **proponer** foto (B4). |
 | `streak/` | `getMemberStreak` | En vivo. |
@@ -79,7 +82,8 @@ importa Firebase.
 ### Web (`apps/web/src`)
 
 - `/enrol`: casilla «I also want to train (my own membership)».
-- `/account/membership`: selector «You + hijos» desde `listProfiles()`, «Add a child».
+- `/account/membership`: selector «You + hijos» desde `listProfiles()`, «Add a child» y, sin vínculo
+  `self`, «Train yourself» (Q12).
 - `/account/settings`: foto (recorte), interruptor de visibilidad, acceso de hijos (crear/revocar).
 - `/account`: `StreakPanel` (con `PromotionBar` arriba), `DisclaimerGate` por participante, bloqueo
   «You're 18».
