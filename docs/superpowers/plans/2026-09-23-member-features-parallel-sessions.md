@@ -1,5 +1,7 @@
 # Funciones de miembros en sesiones paralelas: plan de reparto
 
+> **SUSTITUIDO (2026-09-24):** este reparto no se ejecutó. Manda `docs/superpowers/specs/2026-09-24-member-gamification-and-social-design.md` y su plan `docs/superpowers/plans/2026-09-24-member-gamification-and-social.md`. Las decisiones D1–D11 de aquí siguen vigentes.
+
 > **Para agentes:** este documento no es el plan detallado de ninguna función. Cada sesión lee su
 > sección (§3), escribe su propio plan corto en `docs/superpowers/plans/2026-09-2X-<tema>.md` si lo
 > necesita y construye **solo** dentro de sus ficheros. Lee primero §1 (reglas comunes) y §2 (sesión 0).
