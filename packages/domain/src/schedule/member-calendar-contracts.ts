@@ -5,6 +5,7 @@
  * Every day, label and deadline is computed in Europe/Jersey. Nothing here touches Firebase.
  */
 import { isWithinBookingCutoff, sessionAccessMode } from "./schedule-contracts";
+import { programAdmits } from "./classes-services-contracts";
 import type {
   AttendanceRecord,
   BookingRecord,
@@ -279,6 +280,8 @@ function lockedReasonFor(
   }
   if (member.membershipId === null) return "paid_period";
   if (member.additionalProgramIds?.includes(program.programId)) return undefined;
+  const typeReason = programTypeReason(session, program, member);
+  if (typeReason) return typeReason;
   if (member.dateOfBirth === null) return "age_band";
   const band =
     member.dateOfBirth === undefined
@@ -292,6 +295,26 @@ function lockedReasonFor(
     return member.planOpenMatSites.includes(site) ? undefined : "open_mat";
   }
   return member.planClassSites.includes(site) ? undefined : "site";
+}
+
+/**
+ * The type's own age range and training centres (Classes / Services → Types), the same rule the
+ * booking transaction applies. An unknown date of birth (a client that was not sent it) leaves the
+ * age to the server, which always has it.
+ */
+function programTypeReason(
+  session: SessionRecord,
+  program: ProgramRecord,
+  member: CalendarMemberContext,
+): LockedReason | undefined {
+  const site = sessionSite(session);
+  if (!programAdmits({ sites: program.sites ?? [] }, null, site)) return "site";
+  if (!program.ageRange || !member.dateOfBirth) return undefined;
+  const age =
+    member.dateOfBirth === null
+      ? null
+      : ageOnDate(member.dateOfBirth, dateKeyInJersey(new Date(session.startAt)));
+  return programAdmits({ ageRange: program.ageRange }, age, site) ? undefined : "age_band";
 }
 
 /** Age in whole years on the given Jersey date key. */
@@ -320,6 +343,8 @@ function trialLockedReason(
   const dateKey = dateKeyInJersey(new Date(session.startAt));
   const age = typeof member.dateOfBirth === "string" ? ageOnDate(member.dateOfBirth, dateKey) : 16;
   if (sessionAccessMode(session) === "intro") return undefined;
+  const typeReason = programTypeReason(session, program, member);
+  if (typeReason) return typeReason;
   if (age >= 16) return "trial_intro_only";
   return program.ageBand === participantTypeOn(member.dateOfBirth as string, dateKey)
     ? undefined

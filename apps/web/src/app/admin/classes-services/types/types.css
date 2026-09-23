@@ -48,7 +48,7 @@
 }
 .types-create-section .types-create {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   align-items: end;
   gap: 1rem;
   margin-top: 1rem;
@@ -359,4 +359,51 @@
   .types-page button:active:not(:disabled) {
     transform: none;
   }
+}
+
+/* Who can book a type: age range and training centres. */
+.types-audience {
+  display: grid;
+  gap: 1rem;
+  grid-column: 1 / -1;
+  padding-top: 1rem;
+  border-top: 1px solid #d9d6ff;
+}
+.types-audience > legend,
+.types-sites > legend {
+  font-weight: 700;
+  padding: 0;
+}
+.types-audience > legend {
+  float: left;
+  width: 100%;
+  margin-bottom: 0.75rem;
+}
+.types-age {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 12rem));
+  gap: 1rem;
+}
+.types-sites {
+  display: grid;
+  gap: 0.25rem;
+}
+.types-checks-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.5rem;
+}
+.types-page select:disabled {
+  background: #f2f1ed;
+  color: var(--types-muted);
+  cursor: not-allowed;
+}
+@media (max-width: 32rem) {
+  .types-age {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.types-create .types-primary {
+  grid-column: 1 / -1;
+  justify-self: start;
 }

@@ -10,7 +10,9 @@ import {
   programKinds,
   programMessageMaxLength,
   type DropInPolicy,
+  type ProgramAgeRange,
   type ProgramKind,
+  type ProgramSite,
   type ProgramV2Fields,
 } from "@bpt-jersey/domain/schedule/classes-services";
 import {
@@ -20,6 +22,7 @@ import {
   updateProgram,
 } from "../../../../lib/schedule-client";
 import { useAdminOrStaffSession } from "../../admin-gate";
+import { AudienceFields, audienceSummary } from "./audience-fields";
 import "./types.css";
 
 const kindLabels: Record<ProgramKind, string> = {
@@ -52,7 +55,13 @@ export function TypesPage() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [search, setSearch] = useState("");
   const [sortDesc, setSortDesc] = useState(false);
-  const [draft, setDraft] = useState({ name: "", abbreviation: "" });
+  const emptyDraft = {
+    name: "",
+    abbreviation: "",
+    ageRange: null as ProgramAgeRange | null,
+    sites: [] as readonly ProgramSite[],
+  };
+  const [draft, setDraft] = useState(emptyDraft);
   const [editing, setEditing] = useState<Edit | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const busy = useRef(false);
@@ -110,7 +119,7 @@ export function TypesPage() {
     }
     await mutate("create", async () => {
       replace(await saveProgramV2(parsed.value));
-      setDraft({ name: "", abbreviation: "" });
+      setDraft(emptyDraft);
       setNotice({ kind: "success", message: "Class type created." });
     });
   }
@@ -169,6 +178,8 @@ export function TypesPage() {
       notifyByEmail: program.notifyByEmail ?? programDefaultsV2.notifyByEmail,
       showInList: program.showInList ?? programDefaultsV2.showInList,
       message: program.message ?? programDefaultsV2.message,
+      ageRange: program.ageRange ?? programDefaultsV2.ageRange,
+      sites: program.sites ?? programDefaultsV2.sites,
     });
   }
 
@@ -215,6 +226,11 @@ export function TypesPage() {
                   onChange={(event) => setDraft({ ...draft, abbreviation: event.target.value })}
                 />
               </label>
+              <AudienceFields
+                id="types-create-audience"
+                value={draft}
+                onChange={(audience) => setDraft({ ...draft, ...audience })}
+              />
               <button className="types-primary" type="submit">
                 {pending === "create" ? "Creating…" : "Create type"}
               </button>
@@ -335,6 +351,7 @@ export function TypesPage() {
                     </div>
                     <div className="types-summary">
                       <span>{kindLabels[program.kind ?? programDefaultsV2.kind]}</span>
+                      <span>{audienceSummary(program)}</span>
                       <span className="types-state" data-active={program.active}>
                         {program.active ? "Active" : "Inactive"}
                       </span>
@@ -483,6 +500,11 @@ export function TypesPage() {
                               Show in the public class list
                             </label>
                           </div>
+                          <AudienceFields
+                            id={`type-audience-${program.programId}`}
+                            value={edit}
+                            onChange={(audience) => setEditing({ ...edit, ...audience })}
+                          />
                           <label className="types-field types-message">
                             Message shown when booking
                             <textarea
