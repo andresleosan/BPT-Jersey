@@ -90,6 +90,13 @@ export type ReviewEnrolmentRequestInput = Readonly<{
   enrolmentRequestId: string;
   note: string;
 }>;
+export type AuthoriseEnrolmentEmailVerificationInput = Readonly<{
+  academyId: string;
+  actorId: string;
+  now: string;
+  enrolmentRequestId: string;
+  accountEmail: string;
+}>;
 export type WithdrawEnrolmentRequestInput = Readonly<{
   academyId: string;
   actorId: string;
@@ -142,6 +149,7 @@ export type EnrolmentRequestStore = Readonly<{
     academyId: string,
     enrolmentRequestId: string,
   ) => Promise<EnrolmentRequestRecord>;
+  authoriseEmailVerification: (input: AuthoriseEnrolmentEmailVerificationInput) => Promise<void>;
   submit: (input: SubmitEnrolmentRequestInput) => Promise<EnrolmentRequestRecord>;
   listForAcademy: (academyId: string) => Promise<EnrolmentRequestPage>;
   listForSubmitter: (
@@ -423,6 +431,48 @@ export function createEnrolmentRequestStore(
         if (!snapshot.exists)
           throw new EnrolmentRequestStoreError("not-found", "Enrolment request not found");
         return stored(snapshot, academyId);
+      });
+    },
+    async authoriseEmailVerification(input) {
+      const academyId = id(input.academyId, "academy");
+      const actorId = id(input.actorId, "actor");
+      const authorisedAt = timestamp(input.now);
+      const reference = firestore.doc(
+        `${collectionPath(academyId, "enrolmentRequests")}/${id(input.enrolmentRequestId, "enrolment request")}`,
+      );
+      await firestore.runTransaction(async (transaction) => {
+        const snapshot = asDocument(await transaction.get(reference));
+        if (!snapshot.exists)
+          throw new EnrolmentRequestStoreError("not-found", "Enrolment request not found");
+        const existing = stored(snapshot, academyId);
+        if (!isReturnableEnrolmentRequest(existing.status))
+          throw new EnrolmentRequestStoreError(
+            "precondition",
+            "This request cannot be approved now",
+          );
+        if (
+          existing.applicant.email &&
+          existing.applicant.email.trim().toLowerCase() !== input.accountEmail
+        )
+          throw new EnrolmentRequestStoreError(
+            "precondition",
+            "The account email does not match the application",
+          );
+        // The audit decision is separate from the strict request document so older queue and
+        // return callables can still read the request while this callable is deployed first.
+        const decision = firestore
+          .collection(collectionPath(academyId, "enrolmentEmailVerificationAuthorisations"))
+          .doc();
+        transaction.create(decision, {
+          schemaVersion: "1",
+          academyId,
+          enrolmentRequestId: existing.enrolmentRequestId,
+          accountUserId: existing.submittedBy,
+          accountEmail: input.accountEmail,
+          actorId,
+          authorisedAt,
+          purpose: "administrator-attested-email-control",
+        });
       });
     },
     async submit(input) {
