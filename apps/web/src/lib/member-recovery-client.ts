@@ -1,17 +1,6 @@
 import { httpsCallable } from "./callable";
 import { z } from "zod";
-import {
-  memberRecoveryHistorySchema,
-  beginMemberRecoveryInputSchema,
-  beginMemberRecoveryResultSchema,
-  completeMemberRecoveryInputSchema,
-  completeMemberRecoveryResultSchema,
-  listMemberRecoveryRequestsResultSchema,
-  getMemberRecoveryDetailInputSchema,
-  getMemberRecoveryDetailResultSchema,
-  reviewMemberRecoveryInputSchema,
-  reviewMemberRecoveryResultSchema,
-} from "@bpt-jersey/domain/members/recovery";
+import { memberRecoveryHistorySchema } from "@bpt-jersey/domain/members/recovery";
 import { getFirebaseFunctions } from "./firebase-client";
 
 async function call<T>(name: string, input: unknown, schema: z.ZodType<T>): Promise<T> {
@@ -20,29 +9,3 @@ async function call<T>(name: string, input: unknown, schema: z.ZodType<T>): Prom
   return schema.parse(result.data);
 }
 export const getMemberRecoveryHistory = (studentId?: string, cursor?: string) => call("getMemberRecoveryHistory", studentId ? { studentId, ...(cursor ? { cursor } : {}) } : null, memberRecoveryHistorySchema);
-export const beginMemberRecovery = (input: z.input<typeof beginMemberRecoveryInputSchema>) =>
-  call(
-    "beginMemberRecovery",
-    beginMemberRecoveryInputSchema.parse(input),
-    beginMemberRecoveryResultSchema,
-  );
-export const completeMemberRecovery = (input: z.input<typeof completeMemberRecoveryInputSchema>) =>
-  call(
-    "completeMemberRecovery",
-    completeMemberRecoveryInputSchema.parse(input),
-    completeMemberRecoveryResultSchema,
-  );
-export const listMemberRecoveryRequests = () =>
-  call("listMemberRecoveryRequests", null, listMemberRecoveryRequestsResultSchema);
-export const getMemberRecoveryDetail = (requestId: string, search?: string) =>
-  call(
-    "getMemberRecoveryDetail",
-    getMemberRecoveryDetailInputSchema.parse({ requestId, ...(search ? { search } : {}) }),
-    getMemberRecoveryDetailResultSchema,
-  );
-export const reviewMemberRecovery = (input: z.input<typeof reviewMemberRecoveryInputSchema>) =>
-  call(
-    "reviewMemberRecovery",
-    reviewMemberRecoveryInputSchema.parse(input),
-    reviewMemberRecoveryResultSchema,
-  );

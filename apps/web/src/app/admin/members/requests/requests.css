@@ -5,32 +5,6 @@
 .enrolment-admin-page [hidden] {
   display: none !important;
 }
-.enrolment-views {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 0.75rem;
-  margin-block: 1.25rem 1.5rem;
-}
-.enrolment-views button {
-  background: var(--gi-white);
-  border: 1px solid var(--line);
-  color: var(--mat-ink);
-  cursor: pointer;
-  font: inherit;
-  font-weight: 700;
-  min-height: 3rem;
-  padding: 0.65rem 1rem;
-}
-.enrolment-views button[aria-pressed="true"] {
-  background: var(--bpt-purple);
-  border-color: var(--bpt-purple);
-  color: var(--gi-white);
-}
-.enrolment-views button:hover {
-  border-color: var(--bpt-purple);
-}
 .enrolment-queue-heading {
   display: flex;
   align-items: center;
