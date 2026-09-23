@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  beltScore,
   buildMemberStreakSummary,
   compareTechniques,
   defaultGoal,
   defaultReward,
   leaderboardCohort,
+  leaderboardEligible,
+  nextProgressTarget,
   progressBar,
+  promotionMilestone,
+  publicDisplayNames,
   rankNeighbours,
   seasonStartFor,
   sessionStreak,
@@ -104,7 +109,8 @@ describe("buildMemberStreakSummary", () => {
       reward: { label: "Patch", target: 1 },
     });
     expect(summary.goal.almost).toBe(true);
-    expect(summary.reward.complete).toBe(true);
+    // A reached target rolls to the next multiple: 1 of 1 becomes 1 of 2.
+    expect(summary.reward).toMatchObject({ target: 2, progress: 1, remaining: 1, almost: true, complete: false });
   });
 });
 
@@ -152,15 +158,64 @@ describe("rankNeighbours", () => {
 });
 
 describe("leaderboardCohort", () => {
-  it("splits at the sixteenth birthday on the Jersey calendar", () => {
-    expect(leaderboardCohort("2010-09-16", "2026-09-16T10:00:00.000Z")).toBe("adult");
-    expect(leaderboardCohort("2010-09-17", "2026-09-16T10:00:00.000Z")).toBe("under16");
-    // 16 Sept 23:30Z is already 17 Sept in Jersey, so the birthday has arrived.
-    expect(leaderboardCohort("2010-09-17", "2026-09-16T23:30:00.000Z")).toBe("adult");
-    expect(leaderboardCohort("1990-01-01", "2026-09-16T10:00:00.000Z")).toBe("adult");
+  it("follows the payment band in three cohorts", () => {
+    const on = "2026-09-24T10:00:00.000Z";
+    expect(leaderboardCohort("2014-09-25", on)).toBe("kids");
+    expect(leaderboardCohort("2014-09-24", on)).toBe("teens");
+    expect(leaderboardCohort("2010-09-24", on)).toBe("adults");
   });
-
-  it("puts an unreadable date of birth in the narrower cohort", () => {
-    expect(leaderboardCohort("not-a-date", "2026-09-16T10:00:00.000Z")).toBe("under16");
+});
+describe("leaderboardEligible", () => {
+  it("excludes students without a readable date of birth", () => {
+    expect(leaderboardEligible("2010-01-01")).toBe(true);
+    expect(leaderboardEligible(null)).toBe(false);
+    expect(leaderboardEligible("nope")).toBe(false);
+  });
+});
+describe("nextProgressTarget", () => {
+  it("moves to the next multiple once a target is reached", () => {
+    expect(nextProgressTarget(9, 10)).toBe(10);
+    expect(nextProgressTarget(10, 10)).toBe(20);
+    expect(nextProgressTarget(24, 25)).toBe(25);
+    expect(nextProgressTarget(0, 10)).toBe(10);
+  });
+});
+describe("buildMemberStreakSummary targets", () => {
+  const at = (day: string) => ({ occurredAt: `2026-09-${day}T18:00:00.000Z`, durationMinutes: 60 });
+  const now = "2026-09-30T20:00:00.000Z";
+  it("flags x1 missing on the goal at 9 and rolls to 20 at 10", () => {
+    const nine = buildMemberStreakSummary({ attendances: ["02","03","04","05","08","09","10","11","12"].map(at), now });
+    expect(nine.goal).toMatchObject({ target: 10, remaining: 1, almost: true });
+    const ten = buildMemberStreakSummary({ attendances: ["02","03","04","05","08","09","10","11","12","15"].map(at), now });
+    expect(ten.goal).toMatchObject({ target: 20, remaining: 10, almost: false });
+  });
+});
+describe("publicDisplayNames", () => {
+  it("uses first name and surname initial, lengthening only on collision", () => {
+    const names = publicDisplayNames([
+      { studentId: "a", fullName: "Mia Roberts" },
+      { studentId: "b", fullName: "Mia Rodriguez" },
+      { studentId: "c", fullName: "Leo Smith" },
+      { studentId: "d", fullName: "Cher" },
+    ]);
+    expect(names.get("a")).toBe("Mia Rob.");
+    expect(names.get("b")).toBe("Mia Rod.");
+    expect(names.get("c")).toBe("Leo S.");
+    expect(names.get("d")).toBe("Cher");
+  });
+});
+describe("promotionMilestone", () => {
+  it("prefers one class left, then 90, then 75", () => {
+    expect(promotionMilestone({ percent: 60, classesToGo: 1 })).toBe("oneLeft");
+    expect(promotionMilestone({ percent: 92, classesToGo: 5 })).toBe("90");
+    expect(promotionMilestone({ percent: 75, classesToGo: null })).toBe("75");
+    expect(promotionMilestone({ percent: 74, classesToGo: 3 })).toBeNull();
+    expect(promotionMilestone({ percent: null, classesToGo: null })).toBeNull();
+  });
+});
+describe("beltScore", () => {
+  it("orders by ladder position first, then promotion percent", () => {
+    expect(beltScore(5, 90)).toBeLessThan(beltScore(6, 0));
+    expect(beltScore(5, 10)).toBeLessThan(beltScore(5, 20));
   });
 });

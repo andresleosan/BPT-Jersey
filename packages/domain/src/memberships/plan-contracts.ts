@@ -568,3 +568,4 @@ export function evaluatePlanAccess(plan: PlanRecord, input: PlanAccessInput): Pl
     return denied("INVALID_INPUT");
   }
 }
+export { bandForAge, participantBandAt } from "./participant-band";
