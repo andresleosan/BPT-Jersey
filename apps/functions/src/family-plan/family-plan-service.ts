@@ -177,9 +177,10 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
       const parsed = decideMemberPlanRequestInputSchema.safeParse(input);
       if (!parsed.success) throw new HttpsError("invalid-argument", "Invalid plan request decision");
       const reference = db.doc(`${requestsPath(actor.academyId)}/${parsed.data.requestId}`);
+      const leaseLive = (live: MemberPlanRequestDoc, at: string) =>
+        live.status === "approving" && Date.parse(at) - Date.parse(live.approvingAt ?? "") < APPROVAL_LEASE_MS;
       const heldByOther = (live: MemberPlanRequestDoc, at: string) =>
-        live.status === "approving" && live.approvingBy !== actor.actorId &&
-        Date.parse(at) - Date.parse(live.approvingAt ?? "") < APPROVAL_LEASE_MS;
+        leaseLive(live, at) && live.approvingBy !== actor.actorId;
       // Read, check and claim in one transaction: the request itself is the lock.
       const claimed = await db.runTransaction(async (transaction) => {
         const snapshot = await transaction.get(reference);
@@ -193,9 +194,10 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
           throw new HttpsError("failed-precondition", "Another office user is approving this request");
         }
         if (parsed.data.decision === "reject") {
-          // An approval that started may already have written the student: finish it, never reject.
-          if (live.status === "approving") {
-            throw new HttpsError("failed-precondition", "This request is being approved. Approve it again to finish.");
+          // A live approval may be writing the student right now. Once its lease has expired the
+          // office may reject; a student it did write stays visible in the directory.
+          if (leaseLive(live, at)) {
+            throw new HttpsError("failed-precondition", "This request is being approved. Try again in a few minutes.");
           }
           transaction.update(reference, {
             status: "rejected", decidedAt: at, decidedBy: actor.actorId, approvingBy: null, approvingAt: null,
@@ -210,26 +212,40 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
       if (parsed.data.decision === "reject") return { studentId: null };
 
       const { directory, families, auth } = dependencies;
-      if (!directory || !families || !auth) throw new HttpsError("internal", "Plan approval is not configured");
-      const account = await auth.getUser(request.requestedBy);
-      const role = account.customClaims?.role;
-      if (account.disabled === true || account.customClaims?.academyId !== actor.academyId ||
-          (role !== "guardian" && role !== "adultStudent")) {
-        throw new HttpsError("failed-precondition", "The member's account is not available");
+      // Nothing has been written yet: a failure here hands the request back to the queue.
+      const releaseLock = () => db.runTransaction(async (transaction) => {
+        const live = storedRequest((await transaction.get(reference)).data());
+        if (live.status !== "approving" || live.approvingBy !== actor.actorId) return;
+        transaction.update(reference, { status: "pending", approvingBy: null, approvingAt: null });
+      });
+      let checked;
+      try {
+        if (!directory || !families || !auth) throw new HttpsError("internal", "Plan approval is not configured");
+        const account = await auth.getUser(request.requestedBy);
+        const role = account.customClaims?.role;
+        if (account.disabled === true || account.customClaims?.academyId !== actor.academyId ||
+            (role !== "guardian" && role !== "adultStudent")) {
+          throw new HttpsError("failed-precondition", "The member's account is not available");
+        }
+        const stored = memberPlanRequestInputSchema.safeParse({ kind: request.kind, ...request.person });
+        if (!stored.success) throw new HttpsError("failed-precondition", "This request is unavailable");
+        const tutor = await accountProfile(actor.academyId, request.requestedBy);
+        checked = { directory, families, auth, role, person: stored.data, tutor };
+      } catch (error) {
+        await releaseLock().catch(() => undefined);
+        if (error instanceof HttpsError) throw error;
+        throw new HttpsError("unavailable", "The request could not be approved. Try again.");
       }
-      const stored = memberPlanRequestInputSchema.safeParse({ kind: request.kind, ...request.person });
-      if (!stored.success) throw new HttpsError("failed-precondition", "This request is unavailable");
-      const person = stored.data;
+      const { role, person, tutor } = checked;
       const draft = {
         fullName: person.fullName, dateOfBirth: person.dateOfBirth,
         trainingCenter: person.trainingCenter, trainingTimePreferences: person.trainingTimePreferences,
       };
       const decidedAt = now();
-      const tutor = await accountProfile(actor.academyId, request.requestedBy);
       let studentId: string;
       try {
         if (request.kind === "self") {
-          const created = await directory.createAdminAdultForAccount({
+          const created = await checked.directory.createAdminAdultForAccount({
             actor,
             // Receipts scoped to the plan request, not the approving user: a retry by any office
             // user replays instead of writing again. Plan ids never collide with `enrolment-*`.
@@ -241,8 +257,8 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
           });
           studentId = created.studentId;
         } else {
-          if (role === "adultStudent") await promoteToGuardian(auth, request.requestedBy, actor.academyId);
-          const existing = await families.getGuardianFamily(actor.academyId, request.requestedBy);
+          if (role === "adultStudent") await promoteToGuardian(checked.auth, request.requestedBy, actor.academyId);
+          const existing = await checked.families.getGuardianFamily(actor.academyId, request.requestedBy);
           // A retry by another office user must not create the same child twice.
           const same = existing?.students.find((student) =>
             normalizedName(student.fullName) === normalizedName(draft.fullName) && student.dateOfBirth === draft.dateOfBirth);
@@ -253,11 +269,11 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
               actorRole: actor.role === "owner" ? "owner" as const : "administrator" as const, now: decidedAt,
             };
             const written = existing
-              ? await families.updateFamily({
+              ? await checked.families.updateFamily({
                 ...common, familyId: existing.family.familyId,
                 operation: { kind: "addStudent", requestId: request.requestId, student: draft },
               })
-              : await families.createFamily({
+              : await checked.families.createFamily({
                 ...common, enrolmentRequestId: `plan-${request.requestId}`, requestId: request.requestId, tutorUserId: request.requestedBy, students: [draft],
               });
             const matches = written.students.filter((student) =>
