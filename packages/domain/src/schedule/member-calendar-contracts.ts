@@ -14,6 +14,7 @@ import type {
 } from "./schedule-contracts";
 import type { ParticipantType, Site, WeeklyClassLimit } from "../memberships/plan-contracts";
 import type { TrialAccessView } from "../memberships/trial-access-contracts";
+import { bandForAge } from "../memberships/participant-band";
 
 export const calendarTimeZone = "Europe/Jersey";
 export const calendarMaxOffsetDays = 14;
@@ -331,8 +332,7 @@ export function ageOnDate(dateOfBirth: string, dateKey: string): number {
 
 /** Use the session date so birthdays change group access on the correct day. */
 export function participantTypeOn(dateOfBirth: string, dateKey: string): ParticipantType {
-  const age = ageOnDate(dateOfBirth, dateKey);
-  return age >= 18 ? "adult" : age >= 12 ? "teens" : "kids";
+  return bandForAge(ageOnDate(dateOfBirth, dateKey));
 }
 
 function trialLockedReason(

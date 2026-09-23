@@ -16,6 +16,7 @@ import { evaluateFinancialAccess } from "@bpt-jersey/domain/finance/access";
 import {
   evaluatePlanAccess,
   parsePlanRecord,
+  participantBandAt,
   type ParticipantType,
   type PlanRecord,
 } from "@bpt-jersey/domain/memberships";
@@ -25,7 +26,6 @@ import {
 } from "@bpt-jersey/domain/memberships/lifecycle";
 import { hasAcceptedEnrolmentWaiver } from "../consents/enrolment-waiver-acceptance.js";
 import {
-  deriveParticipantType,
   parseEffectiveStudentProfileAt,
   type StudentProfile,
 } from "@bpt-jersey/domain/profiles";
@@ -382,18 +382,7 @@ function audience(
 ): ParticipantType {
   // No date of birth on file: treated as an adult until the office adds it.
   if (profile.dateOfBirth === undefined) return "adult";
-  const sessionDate = localDate(sessionStartAt);
-  const lifecycleType = deriveParticipantType(profile.dateOfBirth, sessionDate);
-  let actual: ParticipantType = "adult";
-  if (lifecycleType === "minor") {
-    const birth = profile.dateOfBirth.split("-").map(Number);
-    const current = sessionDate.split("-").map(Number);
-    let age = current[0]! - birth[0]!;
-    if (current[1]! < birth[1]! || (current[1] === birth[1] && current[2]! < birth[2]!)) {
-      age -= 1;
-    }
-    actual = age >= 12 ? "teens" : "kids";
-  }
+  const actual = participantBandAt({ dateOfBirth: profile.dateOfBirth, onIso: sessionStartAt });
   if (value.ageBand !== "all" && value.ageBand !== actual) {
     return invalid("ineligible", "Student age band is not eligible for this session");
   }

@@ -4,6 +4,7 @@ import {
   type OverviewMembershipSource,
   type OverviewStudentSource,
 } from "@bpt-jersey/domain/members/overview";
+import type { ParticipantType } from "@bpt-jersey/domain/memberships";
 import { parseEffectiveStudentProfileAt } from "@bpt-jersey/domain/profiles";
 import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 import { getFirestore } from "firebase-admin/firestore";
@@ -71,6 +72,16 @@ export async function memberOverviewHandler(academyId: string, now: string) {
   const planNames = new Map(
     plans.docs.map((document) => [document.id, String(document.get("displayName") ?? document.id)]),
   );
+  const bands: readonly ParticipantType[] = ["kids", "teens", "adult"];
+  const planBands = new Map(
+    plans.docs.map((document) => {
+      const eligible: unknown = document.get("eligibleParticipantTypes");
+      return [
+        document.id,
+        Array.isArray(eligible) ? bands.filter((band) => eligible.includes(band)) : [],
+      ] as const;
+    }),
+  );
   const guardianUserIds = families.docs
     .map((document) => document.get("primaryContactUserId"))
     .filter((id): id is string => typeof id === "string");
@@ -95,7 +106,7 @@ export async function memberOverviewHandler(academyId: string, now: string) {
     const key = document.get("currentDefinitionKey");
     if (typeof key === "string") levelByStudent.set(document.id, key);
   }
-  return buildMemberOverview({ students: studentRows, membershipsByStudent, planNames, familiesById, levelByStudent, now });
+  return buildMemberOverview({ students: studentRows, membershipsByStudent, planNames, familiesById, levelByStudent, planBands, now });
 }
 
 export const getMemberOverview = onCall(

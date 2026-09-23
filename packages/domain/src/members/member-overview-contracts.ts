@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ParticipantType } from "../memberships/plan-contracts";
 import { participantTypeOn } from "../schedule/member-calendar-contracts";
 
 /**
@@ -10,6 +11,7 @@ export const memberReviewFlags = Object.freeze([
   "centre-unconfirmed",
   "date-of-birth-missing",
   "guardian-required",
+  "plan-band-differs",
 ] as const);
 export type MemberReviewFlag = (typeof memberReviewFlags)[number];
 
@@ -116,6 +118,8 @@ export function buildMemberOverview(input: {
   planNames: ReadonlyMap<string, string>;
   familiesById: ReadonlyMap<string, OverviewFamilySource>;
   levelByStudent: ReadonlyMap<string, string>;
+  /** Plan id → its `eligibleParticipantTypes`, to flag a live plan outside the member's age band. */
+  planBands: ReadonlyMap<string, readonly ParticipantType[]>;
   now: string;
 }): MemberOverview {
   const today = input.now.slice(0, 10);
@@ -138,6 +142,10 @@ export function buildMemberOverview(input: {
     if (student.guardianStatus === "pending") flags.push("guardian-required");
     const family = student.familyId ? input.familiesById.get(student.familyId) : undefined;
     const age = student.dateOfBirth ? ageOn(student.dateOfBirth, today) : undefined;
+    const ageBand = age === undefined ? undefined : participantTypeOn(student.dateOfBirth as string, today);
+    const eligible = membership ? input.planBands.get(membership.planId) : undefined;
+    // H3: only flagged for the office; the live subscription is never changed here.
+    if (covering && ageBand && eligible && !eligible.includes(ageBand)) flags.push("plan-band-differs");
     // Active means training on a live plan; anything else (no plan, lapsed, deactivated) is inactive.
     const training = student.active && (planState === "current" || planState === "expiring");
     counters.total += 1;
@@ -148,7 +156,7 @@ export function buildMemberOverview(input: {
     return {
       studentId: student.studentId,
       fullName: student.fullName,
-      ...(age === undefined ? {} : { age, ageBand: participantTypeOn(student.dateOfBirth as string, today) }),
+      ...(age === undefined || ageBand === undefined ? {} : { age, ageBand }),
       trainingCenter: student.trainingCenter,
       centreConfirmed: student.trainingCenterStatus !== "unconfirmed",
       active: training,

@@ -20,6 +20,7 @@ import {
   type TrialAccessStatus,
 } from "@bpt-jersey/domain/memberships/trial-access";
 import { parseMembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle";
+import { participantBandAt } from "@bpt-jersey/domain/memberships";
 
 import { readTrialAccess } from "./trial-access-service.js";
 
@@ -246,7 +247,11 @@ export async function projectIntroAttendance(
             academyId: input.academyId,
             familyId: studentParsed.value.familyId,
             studentId,
-            planId: age !== null && age >= ADULT_AGE ? "payg" : "west-teens-payg",
+            planId:
+              participantBandAt({ dateOfBirth: studentParsed.value.dateOfBirth ?? null, onIso: now }) ===
+              "adult"
+                ? "payg"
+                : "west-teens-payg",
             status: "active",
             startsAt: now,
             endsAt: null,
