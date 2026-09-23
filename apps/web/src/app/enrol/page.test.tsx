@@ -283,6 +283,8 @@ describe("enrolment request page", () => {
     await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
 
     await waitFor(() => expect(enrolmentApi.submitEnrolmentRequest).toHaveBeenCalledOnce());
+    // D8: a guardian is never asked to verify their email address.
+    expect(screen.queryByText(/verify your email/i)).not.toBeInTheDocument();
     expect(enrolmentApi.submitEnrolmentRequest.mock.calls[0]?.[0]).toMatchObject({
       applicantIsStudent: false,
       planSelections: { minors: ["town-kids-1x"] },

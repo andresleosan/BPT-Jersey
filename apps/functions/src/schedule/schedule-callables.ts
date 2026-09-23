@@ -5,6 +5,7 @@ import { requireCourseActor } from "../courses/course-authorization.js";
 import { requireCourseRosterAccess } from "../courses/course-roster.js";
 import { courseRecordIdSchema } from "@bpt-jersey/domain/courses";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { error as logError } from "firebase-functions/logger";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import {
   parseBulkBookEligibleSessionsInput,
@@ -157,6 +158,8 @@ function mapBookingError(error: unknown): never {
       reason: error.code,
     });
   }
+  // Unknown failures reach the member as a generic message; keep the cause in the server log.
+  logError("booking-operation-failed", { error: error instanceof Error ? error.message : String(error) });
   throw new HttpsError("internal", "Booking operation failed");
 }
 

@@ -8,7 +8,7 @@ import { requireClientSession } from "../../lib/login-flow";
 import { MemberCalendar } from "./calendar/member-calendar";
 import { IntroNotices } from "./intro-notices";
 import { StreakPanel } from "./streak/streak-panel";
-import { WaiverAcceptance } from "./waiver-acceptance";
+import { WaiverGate } from "./waiver-acceptance";
 import { clearCalendarCache } from "../../lib/calendar/calendar-cache";
 
 import "./account.css";
@@ -39,13 +39,15 @@ function AccountContent() {
   }
 
   return (
-    <MemberCalendar
-      cacheKey={session.uid}
-      onSignOut={() => void handleSignOut()}
-      repository={repository}
-      session={{ role, displayName }}
-      topSlot={<><WaiverAcceptance /><IntroNotices /><StreakPanel /></>}
-    />
+    <WaiverGate>
+      <MemberCalendar
+        cacheKey={session.uid}
+        onSignOut={() => void handleSignOut()}
+        repository={repository}
+        session={{ role, displayName }}
+        topSlot={<><IntroNotices /><StreakPanel /></>}
+      />
+    </WaiverGate>
   );
 }
 

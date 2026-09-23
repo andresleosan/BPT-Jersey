@@ -580,6 +580,9 @@ function officeCallableServices(): EnrolmentOfficeCallableServices {
           };
         },
         setCustomUserClaims: (uid, claims) => auth.setCustomUserClaims(uid, claims),
+        updateUser: async (uid, data) => {
+          await auth.updateUser(uid, data);
+        },
       },
     }),
     isActorActive: createMemberDirectoryActorActivityCheck({

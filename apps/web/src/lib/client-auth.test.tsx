@@ -263,6 +263,23 @@ describe("ClientAuthGate", () => {
     );
   });
 
+  it("opens the student area for a buyer the academy has just enrolled in an open session", async () => {
+    render(
+      <ClientAuthProvider>
+        <ClientAuthGate returnPath="/account">
+          <p>Protected account</p>
+        </ClientAuthGate>
+      </ClientAuthProvider>,
+    );
+
+    await act(async () => {
+      // The cached token still says buyer; the account was promoted since it was issued.
+      authBoundary.emitUser(userWithClaims("enrolled-1", { role: "shopper" }, { role: "adultStudent" }));
+    });
+
+    await waitFor(() => expect(screen.getByText("Protected account")).toBeVisible());
+  });
+
   it("tells a buyer-only account that the student area is not theirs", async () => {
     render(
       <ClientAuthProvider>

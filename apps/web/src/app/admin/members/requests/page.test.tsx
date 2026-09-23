@@ -127,6 +127,9 @@ const detail = {
   planSelections: { applicant: "town-adult" as const, minors: [] },
   submittedBy: "client-1",
   submittedAt: "2026-09-06T10:00:00.000Z",
+  // The server always reports the applicant account; approval needs it (and no longer its
+  // verification, D8).
+  applicantAccount: { email: "alex@example.test", emailVerified: false, disabled: false },
 };
 
 /** The first matching button, asserted to exist so the queries stay readable under strict index checks. */
@@ -285,6 +288,20 @@ describe("enrolment request queue", () => {
 
     await screen.findByText(/1991-03-04/);
     expect(enrolmentApi.getEnrolmentRequestDetail).toHaveBeenCalledTimes(1);
+  });
+
+  it("approves an applicant whose account email was never verified", async () => {
+    // D8 (2026-09-23): no email verification anywhere; the office approval is enough.
+    enrolmentApi.getEnrolmentRequestDetail.mockResolvedValue({
+      ...detail,
+      applicantAccount: { email: "alex@example.test", emailVerified: false, disabled: false },
+    });
+    render(<EnrolmentRequestQueuePage />);
+    await screen.findByText("Alex Adult");
+    await userEvent.click(firstButton(/review and enrol/i));
+
+    await waitFor(() => expect(firstButton(/^approve$/i)).toBeEnabled());
+    expect(screen.queryByText(/email verification required/i)).not.toBeInTheDocument();
   });
 
   it("enrols the applicant and says what happened", async () => {

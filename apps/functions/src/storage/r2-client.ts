@@ -1,3 +1,7 @@
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -336,13 +340,38 @@ export function createDisabledR2Client(): R2Client {
   });
 }
 
+type ObjectMap = Pick<Map<string, Uint8Array>, "get" | "set" | "delete">;
+
+/**
+ * The Functions Emulator runs every function in its own worker process, so an in-memory map would
+ * lose an upload before the submit that reads it. The emulator store keeps its objects in one
+ * directory instead; keys are hashed into file names so no key can escape it.
+ */
+export function createDiskObjectMap(directory: string): ObjectMap {
+  mkdirSync(directory, { recursive: true });
+  const file = (key: string) => join(directory, createHash("sha256").update(key).digest("hex"));
+  const map: ObjectMap = {
+    get: (key) => (existsSync(file(key)) ? new Uint8Array(readFileSync(file(key))) : undefined),
+    set: (key, value) => {
+      writeFileSync(file(key), value);
+      return map as Map<string, Uint8Array>;
+    },
+    delete: (key) => {
+      const found = existsSync(file(key));
+      rmSync(file(key), { force: true });
+      return found;
+    },
+  };
+  return map;
+}
+
 /**
  * Emulator-only in-process object store. It keeps the same key, content-type and size rules as the
  * R2 client so a suite cannot pass here on a payload production would reject, and its signed URLs
  * point at a reserved `.invalid` host that resolves nowhere.
  */
 export function createEmulatorR2Client(
-  objects: Map<string, Uint8Array> = new Map<string, Uint8Array>(),
+  objects: ObjectMap = new Map<string, Uint8Array>(),
 ): R2Client {
   const signedUrl = (objectKey: string, intent: string): string =>
     `https://private-storage.emulator.invalid/${encodeURIComponent(objectKey)}?intent=${intent}`;
@@ -413,6 +442,8 @@ export function createPrivateStorageR2Client(
   );
   if (configured) return createR2ClientFromEnvironment();
   if (!isEmulatorPrivateStorageAllowed(environment)) return createDisabledR2Client();
-  emulatorPrivateStorage ??= createEmulatorR2Client();
+  emulatorPrivateStorage ??= createEmulatorR2Client(
+    createDiskObjectMap(join(tmpdir(), "bpt-emulator-private-storage")),
+  );
   return emulatorPrivateStorage;
 }

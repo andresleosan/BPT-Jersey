@@ -36,6 +36,12 @@ vi.mock("./calendar/member-calendar", () => ({
   ),
 }));
 
+// D12 gate: nothing pending, so the calendar opens once the waiver check resolves.
+vi.mock("../../lib/enrolment-waiver-client", () => ({
+  getEnrolmentWaiverStatus: vi.fn(async () => ({ version: "2026-09", pending: [] })),
+  acceptEnrolmentWaiver: vi.fn(),
+}));
+
 import AccountPage from "./page";
 
 describe("account home", () => {
@@ -55,7 +61,7 @@ describe("account home", () => {
     expect(screen.queryByTestId("member-calendar")).not.toBeInTheDocument();
   });
 
-  it("mounts the member calendar for a signed-in teen", () => {
+  it("mounts the member calendar for a signed-in teen", async () => {
     authState.status = "signed-in";
     authState.session = {
       email: "teen@bpt.test",
@@ -64,7 +70,7 @@ describe("account home", () => {
       role: "teenStudent",
     };
     render(<AccountPage />);
-    expect(screen.getByTestId("member-calendar")).toHaveTextContent("teenStudent:Sam Demo");
+    expect(await screen.findByTestId("member-calendar")).toHaveTextContent("teenStudent:Sam Demo");
   });
 
   it("has no links to the legacy account pages", () => {

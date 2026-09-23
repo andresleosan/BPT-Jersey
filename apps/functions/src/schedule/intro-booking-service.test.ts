@@ -1,3 +1,4 @@
+import { enrolmentWaiverTermsVersion } from "@bpt-jersey/domain/consents/enrolment-waiver";
 import { describe, expect, it } from "vitest";
 
 import { buildBookingId } from "@bpt-jersey/domain/schedule";
@@ -10,7 +11,8 @@ const now = "2026-09-21T10:00:00.000Z";
 const startAt = "2026-09-22T18:00:00.000Z";
 const waiverVersionId = "waiver-1";
 type Document = Record<string, unknown>;
-type Filter = Readonly<{ field: string; operator: "==" | ">=" | "<"; value: unknown }>;
+type Operator = "==" | ">=" | "<" | "array-contains";
+type Filter = Readonly<{ field: string; operator: Operator; value: unknown }>;
 
 function createFirestore() {
   const records = new Map<string, Document>();
@@ -24,7 +26,7 @@ function createFirestore() {
     collectionPath,
     filters,
     maximum,
-    where(field: string, operator: "==" | ">=" | "<", value: unknown) {
+    where(field: string, operator: Operator, value: unknown) {
       return query(collectionPath, [...filters, { field, operator, value }], maximum);
     },
     limit(count: number) {
@@ -55,6 +57,8 @@ function createFirestore() {
                   (target.filters ?? []).every(({ field, operator, value: expected }) => {
                     const actual = value[field];
                     if (operator === "==") return actual === expected;
+                    if (operator === "array-contains")
+                      return Array.isArray(actual) && actual.includes(expected);
                     if (operator === ">=") return String(actual) >= String(expected);
                     return String(actual) < String(expected);
                   }),
@@ -326,6 +330,20 @@ describe("intro booking transaction", () => {
     expect(store.documents(`academies/${academyId}/bookings`)).toHaveLength(
       state === "future-intro-booking" ? 1 : 0,
     );
+  });
+
+  it("books an intro for a trial member who accepted the enrolment waiver, with no legacy consent", async () => {
+    // D12: the /enrol and /account waiver is the academy's waiver; the legacy registration is off.
+    const store = seededIntroStore("missing-waiver");
+    store.records.delete(`academies/${academyId}/waiverVersions/${waiverVersionId}`);
+    store.seed(
+      `academies/${academyId}/enrolmentWaiverAcceptances/student-1__${enrolmentWaiverTermsVersion}`,
+      { academyId, studentId: "student-1", version: enrolmentWaiverTermsVersion },
+    );
+
+    await expect(requestIntroBooking(store.db, store.command)).resolves.toMatchObject({
+      status: "confirmed",
+    });
   });
 
   it("creates an idempotent versioned intro booking and audit record", async () => {
