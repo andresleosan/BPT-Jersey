@@ -12,6 +12,7 @@ import {
 } from "@bpt-jersey/domain/memberships/lifecycle";
 import {
   parsePlanRecord,
+  participantBandAt,
   planIds,
   type ParticipantType as PlanParticipantType,
   type PlanId,
@@ -24,7 +25,6 @@ import {
   type FamilyRelationship,
 } from "@bpt-jersey/domain/families";
 import {
-  deriveParticipantType,
   parseEffectiveStudentProfileAt,
   type StudentProfile,
 } from "@bpt-jersey/domain/profiles";
@@ -438,15 +438,7 @@ function activeSource(record: FamilyRecord | StudentProfile | FamilyRelationship
 function planParticipantType(student: StudentProfile, effectiveAt: string): PlanParticipantType {
   if (student.dateOfBirth === undefined)
     throw new MembershipStoreError("conflict", "Review the student date of birth first");
-  const effectiveDate = effectiveAt.slice(0, 10);
-  if (deriveParticipantType(student.dateOfBirth, effectiveDate) === "adult") return "adult";
-  const birth = student.dateOfBirth.split("-").map(Number);
-  const current = effectiveDate.split("-").map(Number);
-  let age = current[0]! - birth[0]!;
-  if (current[1]! < birth[1]! || (current[1] === birth[1] && current[2]! < birth[2]!)) {
-    age -= 1;
-  }
-  return age >= 12 ? "teens" : "kids";
+  return participantBandAt({ dateOfBirth: student.dateOfBirth, onIso: effectiveAt });
 }
 
 function auditDraft(

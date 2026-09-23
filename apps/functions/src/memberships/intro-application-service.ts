@@ -7,7 +7,11 @@ import {
   type MembershipApplicationSubmit,
 } from "@bpt-jersey/domain/memberships/intro-conversion";
 import { parsePaymentInstructionsRecord } from "@bpt-jersey/domain/finance";
-import { administrativePlanIds, parsePlanRecord } from "@bpt-jersey/domain/memberships";
+import {
+  administrativePlanIds,
+  parsePlanRecord,
+  bandForAge,
+} from "@bpt-jersey/domain/memberships";
 import { parseEffectiveStudentProfileAt } from "@bpt-jersey/domain/profiles";
 import type { UserActorContext } from "@bpt-jersey/domain";
 import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
@@ -191,7 +195,7 @@ export async function submitIntroMembershipApplication(
     const age = student.ok
       ? memberAgeOn(student.value.dateOfBirth, dateKeyInJersey(new Date(now)))
       : null;
-    const participantBand = age === null ? null : age < 13 ? "kids" : age < 18 ? "teens" : "adult";
+    const participantBand = age === null ? null : bandForAge(age);
     const instructions = parsePaymentInstructionsRecord(instructionsDoc.data());
     if (
       !student.ok ||

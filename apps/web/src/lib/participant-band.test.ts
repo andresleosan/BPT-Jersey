@@ -7,7 +7,9 @@ describe("participantBand", () => {
   it.each([
     ["2014-09-18", "kids"],
     ["2014-09-17", "teens"],
-    ["2008-09-18", "teens"],
+    ["2010-09-18", "teens"],
+    ["2010-09-17", "adult"],
+    ["2008-09-18", "adult"],
     ["2008-09-17", "adult"],
     ["not-a-date", "adult"],
   ])("maps %s to %s", (dateOfBirth, band) => {

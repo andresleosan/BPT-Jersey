@@ -14,6 +14,8 @@ import {
   type Site,
 } from "../memberships/plan-contracts";
 import { deriveParticipantType } from "../profiles/profile-contracts";
+import { bandForAge } from "../memberships/participant-band";
+import { memberAgeOn } from "./member-access-contracts";
 import { adminCreateStudentInputShape } from "./member-directory-contracts";
 
 /**
@@ -483,26 +485,15 @@ export function parseEnrolmentRequestDetails(
   return ok(parsed.data);
 }
 
-/** Plans offered at the student's centre, using the same 12/18 age bands as memberships. */
+/** Plans offered at the student's centre, using the one age band (D6) as memberships. */
 export function getEnrolmentPlans(
   dateOfBirth: string,
   trainingCenter: Site,
   effectiveDate: string,
 ): readonly PlanDraft[] {
-  let participantType: "adult" | "kids" | "teens";
-  try {
-    if (deriveParticipantType(dateOfBirth, effectiveDate) === "adult") {
-      participantType = "adult";
-    } else {
-      const age =
-        Number(effectiveDate.slice(0, 4)) -
-        Number(dateOfBirth.slice(0, 4)) -
-        (effectiveDate.slice(5) < dateOfBirth.slice(5) ? 1 : 0);
-      participantType = age >= 12 ? "teens" : "kids";
-    }
-  } catch {
-    return [];
-  }
+  const age = memberAgeOn(dateOfBirth, effectiveDate);
+  if (age === null) return [];
+  const participantType = bandForAge(age);
   return PLAN_CATALOG.filter(
     (plan) =>
       !retiredPlanIds.includes(plan.planId) &&
