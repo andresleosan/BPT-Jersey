@@ -279,17 +279,21 @@ function lockedReasonFor(
       : "site";
   }
   if (member.membershipId === null) return "paid_period";
-  if (member.additionalProgramIds?.includes(program.programId)) return undefined;
-  const typeReason = programTypeReason(session, program, member);
+  // An office-granted extra group waives the age rules only; the plan's centres and weekly limit still apply.
+  const extra = member.additionalProgramIds?.includes(program.programId) ?? false;
+  const typeReason = programTypeReason(session, program, member, extra);
   if (typeReason) return typeReason;
-  if (member.dateOfBirth === null) return "age_band";
+  // No date of birth on file: treated as an adult until the office adds it.
   const band =
     member.dateOfBirth === undefined
       ? member.participantType
-      : participantTypeOn(member.dateOfBirth, dateKeyInJersey(new Date(session.startAt)));
-  if (program.ageBand !== "all" && program.ageBand !== band) return "age_band";
+      : member.dateOfBirth === null
+        ? "adult"
+        : participantTypeOn(member.dateOfBirth, dateKeyInJersey(new Date(session.startAt)));
+  if (!extra && program.ageBand !== "all" && program.ageBand !== band) return "age_band";
   // Same rule as the booking transaction: the plan itself must cover the member's band.
-  if (member.planParticipantTypes && !member.planParticipantTypes.includes(band)) return "age_band";
+  if (!extra && member.planParticipantTypes && !member.planParticipantTypes.includes(band))
+    return "age_band";
   const site = sessionSite(session);
   if (program.discipline === "open-mat") {
     return member.planOpenMatSites.includes(site) ? undefined : "open_mat";
@@ -299,17 +303,18 @@ function lockedReasonFor(
 
 /**
  * The type's own age range and training centres (Classes / Services → Types), the same rule the
- * booking transaction applies. An unknown date of birth (a client that was not sent it) leaves the
- * age to the server, which always has it.
+ * booking transaction applies. An undefined date of birth (a client that was not sent it) leaves the
+ * age to the server; null (none on file) counts as an adult. `skipAge` is an office-granted extra group.
  */
 function programTypeReason(
   session: SessionRecord,
   program: ProgramRecord,
   member: CalendarMemberContext,
+  skipAge = false,
 ): LockedReason | undefined {
   const site = sessionSite(session);
   if (!programAdmits({ sites: program.sites ?? [] }, null, site)) return "site";
-  if (!program.ageRange || !member.dateOfBirth) return undefined;
+  if (skipAge || !program.ageRange || member.dateOfBirth === undefined) return undefined;
   const age =
     member.dateOfBirth === null
       ? null
@@ -395,7 +400,6 @@ export function deriveSessionStatus(input: {
     isWithinBookingCutoff(input.session.startAt, input.now.toISOString(), calendarCutoffMinutes);
   if (!bookable || input.session.capacity === null) return Object.freeze({ status: "closed" });
   if (
-    !input.member.additionalProgramIds?.includes(input.program.programId) &&
     input.program.discipline !== "open-mat" &&
     input.member.weeklyClassLimit !== null &&
     (input.weeklyClassesBooked ?? 0) >= input.member.weeklyClassLimit

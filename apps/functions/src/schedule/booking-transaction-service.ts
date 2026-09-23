@@ -379,8 +379,8 @@ function audience(
   value: ProgramRecord,
   sessionStartAt: string,
 ): ParticipantType {
-  if (profile.dateOfBirth === undefined)
-    return invalid("ineligible", "Review the student date of birth first");
+  // No date of birth on file: treated as an adult until the office adds it.
+  if (profile.dateOfBirth === undefined) return "adult";
   const sessionDate = localDate(sessionStartAt);
   const lifecycleType = deriveParticipantType(profile.dateOfBirth, sessionDate);
   let actual: ParticipantType = "adult";
@@ -488,7 +488,6 @@ async function weeklyUsage(input: {
   week: string;
   identityIds: readonly string[];
   currentIds: readonly string[];
-  additionalProgramIds: readonly string[];
 }): Promise<number> {
   const weekStartUtc = Date.parse(input.week + "T00:00:00Z");
   if (Number.isNaN(weekStartUtc)) return invalid("invalid", "Booking week is invalid");
@@ -513,8 +512,7 @@ async function weeklyUsage(input: {
     const historical = historicalSession(sessionSnapshot, input.academyId, sessionSnapshot.id);
     if (
       historical.status === "cancelled" ||
-      weekStart(historical.startAt) !== input.week ||
-      input.additionalProgramIds.includes(historical.programId)
+      weekStart(historical.startAt) !== input.week
     ) {
       continue;
     }
@@ -842,18 +840,15 @@ async function executeBookingInTransaction(
 
   const transitFree = storedMembership.planId === "transit-free";
   const [used, occupied, account] = await Promise.all([
-    additionalAccess
-      ? Promise.resolve(0)
-      : weeklyUsage({
-          firestore: input.firestore,
-          transaction: input.transaction,
-          academyId,
-          studentId,
-          week,
-          identityIds,
-          currentIds: target.ids,
-          additionalProgramIds,
-        }),
+    weeklyUsage({
+      firestore: input.firestore,
+      transaction: input.transaction,
+      academyId,
+      studentId,
+      week,
+      identityIds,
+      currentIds: target.ids,
+    }),
     occupancy({
       firestore: input.firestore,
       transaction: input.transaction,
@@ -890,9 +885,8 @@ async function executeBookingInTransaction(
   // The type's own age range and training centres (Classes / Services → Types).
   const sessionSite = storedSession.locationId === "town" ? "Town" : "West";
   if (
-    !additionalAccess &&
     !programAdmits(
-      storedProgram,
+      additionalAccess ? { sites: storedProgram.sites ?? [] } : storedProgram,
       !storedStudent.dateOfBirth
         ? null
         : ageOnDate(storedStudent.dateOfBirth, localDate(storedSession.startAt)),
@@ -901,17 +895,18 @@ async function executeBookingInTransaction(
   ) {
     return invalid("ineligible", "This class type is not open to this member's age or centre");
   }
-  // Additional groups waive age, site and plan quotas only. Transit Free alone waives financial standing;
-  // membership status, active programs, booking cutoff and capacity are still required.
-  const access =
-    additionalAccess && storedPlan.active
-      ? { allowed: true as const }
-      : evaluatePlanAccess(storedPlan, {
-          participantType: audience(storedStudent, storedProgram, storedSession.startAt),
-          site: sessionSite,
-          sessionType: storedProgram.discipline === "open-mat" ? "openMat" : "class",
-          weeklyClassesUsed: used,
-        });
+  // Additional groups waive the age rules only: the plan's centres and weekly limit still apply.
+  // Transit Free alone waives financial standing; membership status, active programs, booking
+  // cutoff and capacity are always required.
+  const access = evaluatePlanAccess(storedPlan, {
+    // ponytail: an extra group borrows the plan's own participant type to skip the age match.
+    participantType: additionalAccess
+      ? (storedPlan.eligibleParticipantTypes[0] ?? "adult")
+      : audience(storedStudent, storedProgram, storedSession.startAt),
+    site: sessionSite,
+    sessionType: storedProgram.discipline === "open-mat" ? "openMat" : "class",
+    weeklyClassesUsed: used,
+  });
   if (!access.allowed) {
     return invalid(
       access.code === "WEEKLY_LIMIT_REACHED" ? "weekly-limit" : "ineligible",

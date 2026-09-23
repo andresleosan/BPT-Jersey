@@ -134,7 +134,7 @@ export function buildMemberOverview(input: {
           : "current";
     const flags: MemberReviewFlag[] = [];
     if (student.trainingCenterStatus === "unconfirmed") flags.push("centre-unconfirmed");
-    if (student.reviewReason === "date-of-birth-missing") flags.push("date-of-birth-missing");
+    if (!student.dateOfBirth || student.reviewReason === "date-of-birth-missing") flags.push("date-of-birth-missing");
     if (student.guardianStatus === "pending") flags.push("guardian-required");
     const family = student.familyId ? input.familiesById.get(student.familyId) : undefined;
     const age = student.dateOfBirth ? ageOn(student.dateOfBirth, today) : undefined;

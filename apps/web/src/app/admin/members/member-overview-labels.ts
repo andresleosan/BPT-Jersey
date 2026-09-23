@@ -2,7 +2,7 @@ import type { MemberReviewFlag } from "@bpt-jersey/domain/members/overview";
 
 export const flagLabels: Readonly<Record<MemberReviewFlag, string>> = {
   "centre-unconfirmed": "Centre to be confirmed",
-  "date-of-birth-missing": "Check age",
+  "date-of-birth-missing": "Date of birth needed (booking as adult)",
   "guardian-required": "Guardian needed",
 };
 

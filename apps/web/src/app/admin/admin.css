@@ -5019,6 +5019,25 @@ a.admin-birthday-badge:focus-visible,
   font-size: 1rem;
 }
 
+/* Nested sets: a titled band instead of a second box inside the outer fieldset. */
+.member-group-access .member-group-access-set {
+  border: 0;
+  border-top: 2px solid var(--bpt-purple);
+  padding: 0.75rem 0 0;
+  margin: 1.5rem 0 0;
+}
+
+.member-group-access .member-group-access-set > legend {
+  padding: 0 0.6rem 0 0;
+  font-size: 0.8125rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.member-group-access-option:has(input:disabled) {
+  cursor: default;
+}
+
 .member-group-access-field {
   display: grid;
   gap: 0.4rem;
