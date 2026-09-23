@@ -56,3 +56,20 @@ they are not prerequisites for committing and pushing a fix directly to `main`.
   `REGYFIT_SAVE_DISCOVERY=true` and `REGYFIT_OUTPUT_DIR` points outside the repo.
 - Do not run the live journey in CI or against production. A controlled operator
   request is required before the first authenticated session.
+
+## Recovery stack (browser E2E against Emulators)
+
+Plan `docs/superpowers/plans/2026-09-23-simple-access-recovery.md`. Needs JDK 21
+(`RECOVERY_STACK_JAVA_HOME`, default `/tmp/bpt-recovery-jdk21`). Uses its own ports
+(Auth 9109, Firestore 8180, Functions 5011, web 3100) and the demo project only.
+
+```bash
+node qa/scripts/run-recovery-stack.mjs build   # after Functions/domain changes
+node qa/scripts/run-recovery-stack.mjs start   # emulators + seed + next dev (detached)
+node qa/scripts/run-recovery-stack.mjs test tests/recovery-stack-smoke.spec.ts --project=desktop-chromium --workers=1
+node qa/scripts/run-recovery-stack.mjs reset   # wipe data and seed again
+node qa/scripts/run-recovery-stack.mjs stop
+```
+
+Specs import `./recovery-fixture`, which replays the page's callable requests from Node with an
+unsigned App Check token (the Functions Emulator does not verify it) and permissive CORS.

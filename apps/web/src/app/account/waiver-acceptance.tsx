@@ -15,83 +15,77 @@ import {
 import { EnrolmentWaiverText } from "../enrol/waiver-text";
 
 /**
- * Members who joined before online registration accept the same waiver once per student. The
- * server says who is still missing; once saved, the panel never comes back for that student.
+ * D12 (2026-09-23): nobody reaches the member calendar before the academy terms are accepted for
+ * every student on the account. The server says who is still missing and refuses a member's own
+ * booking until then; this screen is where they accept. A failed check never locks anyone out:
+ * the calendar opens and the booking check on the server still holds.
  */
-export function WaiverAcceptance() {
-  const [status, setStatus] = useState<EnrolmentWaiverStatus>();
+export function WaiverGate({ children }: Readonly<{ children: React.ReactNode }>) {
+  const [status, setStatus] = useState<EnrolmentWaiverStatus | "unavailable">();
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<Readonly<{ kind: "saved" | "error"; text: string }>>();
+  const [error, setError] = useState<string>();
 
   useEffect(() => {
     let active = true;
-    // Non-blocking: if the check fails, the calendar stays usable and the panel asks next visit.
     void getEnrolmentWaiverStatus()
       .then((value) => {
         if (active) setStatus(value);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (active) setStatus("unavailable");
+      });
     return () => {
       active = false;
     };
   }, []);
 
-  if (!status || (status.pending.length === 0 && message?.kind !== "saved")) return null;
-  if (status.pending.length === 0) {
-    return (
-      <p className="waiver-band-saved" role="status">
-        {message?.text}
-      </p>
-    );
-  }
+  if (status === undefined) return <div className="client-auth-loading" aria-busy="true" />;
+  if (status === "unavailable" || status.pending.length === 0) return <>{children}</>;
+  const current = status;
 
-  async function save(): Promise<void> {
-    if (!status || chosen.size === 0 || busy) return;
+  async function accept(): Promise<void> {
+    if (busy || chosen.size !== current.pending.length) return;
     setBusy(true);
-    setMessage(undefined);
+    setError(undefined);
     try {
       const accepted = new Set(
-        await acceptEnrolmentWaiver({ version: status.version, studentIds: [...chosen] }),
+        await acceptEnrolmentWaiver({ version: current.version, studentIds: [...chosen] }),
       );
       setStatus({
-        ...status,
-        pending: status.pending.filter((student) => !accepted.has(student.studentId)),
+        ...current,
+        pending: current.pending.filter((student) => !accepted.has(student.studentId)),
       });
       setChosen(new Set());
-      setMessage({ kind: "saved", text: "Thank you. Your acceptance is saved." });
-    } catch (error) {
-      setMessage({
-        kind: "error",
-        text: error instanceof Error ? error.message : "Your acceptance could not be saved.",
-      });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Your acceptance could not be saved.");
     } finally {
       setBusy(false);
     }
   }
 
-  const single = status.pending.length === 1;
+  const single = current.pending.length === 1;
   return (
-    <section className="waiver-band" aria-labelledby="waiver-band-title">
-      <h2 className="waiver-band-title" id="waiver-band-title">
-        Accept the academy waiver
-      </h2>
+    <main className="waiver-gate" id="main-content" aria-labelledby="waiver-gate-title">
+      <p className="account-eyebrow">BPT Jersey / Member</p>
+      <h1 className="waiver-band-title" id="waiver-gate-title">
+        Accept the academy terms
+      </h1>
       <p className="waiver-band-intro">
-        {enrolmentWaiverTermsTitle}, version {status.version}. New members accept it when they
-        register; please read it and accept it once
-        {single ? "" : " for each member on your account"}.
+        {enrolmentWaiverTermsTitle}, version {current.version}. Read it and tick the box
+        {single ? "" : " for each member on your account"} to open your classes.
       </p>
       <EnrolmentWaiverText />
       <p className="waiver-band-ack">{enrolmentWaiverTermsAcknowledgement}</p>
       <fieldset className="waiver-band-people" disabled={busy}>
         <legend>{single ? "Your acceptance" : "Accept for"}</legend>
-        {status.pending.map((student) => (
+        {current.pending.map((student) => (
           <label className="enrol-waiver-accept" key={student.studentId}>
             <input
               checked={chosen.has(student.studentId)}
               onChange={(event) =>
-                setChosen((current) => {
-                  const next = new Set(current);
+                setChosen((previous) => {
+                  const next = new Set(previous);
                   if (event.target.checked) next.add(student.studentId);
                   else next.delete(student.studentId);
                   return next;
@@ -99,26 +93,23 @@ export function WaiverAcceptance() {
               }
               type="checkbox"
             />
-            <span>I accept these terms for {student.fullName}</span>
+            <span>I have read and accept these terms for {student.fullName}</span>
           </label>
         ))}
       </fieldset>
       <button
-        className="session-action"
-        disabled={busy || chosen.size === 0}
-        onClick={() => void save()}
+        className="button button-primary"
+        disabled={busy || chosen.size !== current.pending.length}
+        onClick={() => void accept()}
         type="button"
       >
-        {busy ? "Saving..." : "Save acceptance"}
+        {busy ? "Saving..." : "Accept and continue"}
       </button>
-      {message ? (
-        <p
-          className={message.kind === "error" ? "waiver-band-error" : "waiver-band-saved"}
-          role={message.kind === "error" ? "alert" : "status"}
-        >
-          {message.text}
+      {error ? (
+        <p className="waiver-band-error" role="alert">
+          {error}
         </p>
       ) : null}
-    </section>
+    </main>
   );
 }

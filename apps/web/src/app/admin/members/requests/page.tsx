@@ -25,7 +25,6 @@ import {
   getEnrolmentRequestDetail,
   listEnrolmentRequests,
   returnEnrolmentRequest,
-  verifyEnrolmentApplicantEmail,
   type EnrolmentRequestOfficeDetail,
 } from "../../../../lib/enrolment-client";
 import { useAdminOrStaffSession } from "../../admin-gate";
@@ -33,17 +32,6 @@ import { AdminSectionHeader, AdminStatusBadge } from "../../admin-ui";
 
 import "../../admin.css";
 import "./requests.css";
-
-const MemberRecoveryQueue = dynamic(
-  () => import("../recovery/recovery-queue").then((module) => module.MemberRecoveryQueue),
-  {
-    loading: () => (
-      <div className="enrolment-loading" role="status">
-        Loading access requests...
-      </div>
-    ),
-  },
-);
 
 const IntroApplicationsPanel = dynamic(
   () =>
@@ -273,23 +261,11 @@ function DetailPanel({
   );
 }
 
-function EmailVerificationPanel({
-  detail,
-  typedEmail,
-  confirmed,
-  busy,
-  onEmailChange,
-  onConfirmationChange,
-  onVerify,
-}: Readonly<{
-  detail: EnrolmentRequestOfficeDetail;
-  typedEmail: string;
-  confirmed: boolean;
-  busy: boolean;
-  onEmailChange: (value: string) => void;
-  onConfirmationChange: (value: boolean) => void;
-  onVerify: () => void;
-}>) {
+/**
+ * What the office must know about the applicant's account before approving. Email verification is
+ * not one of them (D8, 2026-09-23): the approval itself vouches for the account.
+ */
+function AccountNotice({ detail }: Readonly<{ detail: EnrolmentRequestOfficeDetail }>) {
   const account = detail.applicantAccount;
   if (!account)
     return (
@@ -297,15 +273,15 @@ function EmailVerificationPanel({
         Account email status is unavailable. Reload this request before approving.
       </p>
     );
-  const sameEmail =
-    !detail.applicant.email ||
-    detail.applicant.email.trim().toLowerCase() === account.email.trim().toLowerCase();
   if (account.disabled)
     return (
       <p className="enrolment-email-warning" role="alert">
         The applicant account is disabled. Restore it before approving.
       </p>
     );
+  const sameEmail =
+    !detail.applicant.email ||
+    detail.applicant.email.trim().toLowerCase() === account.email.trim().toLowerCase();
   if (!sameEmail)
     return (
       <p className="enrolment-email-warning" role="alert">
@@ -313,57 +289,7 @@ function EmailVerificationPanel({
         correction before approving.
       </p>
     );
-  if (account.emailVerified)
-    return (
-      <p className="enrolment-email-confirmed" role="status">
-        Account email verified: {account.email}
-      </p>
-    );
-  return (
-    <section className="enrolment-email-warning" aria-label="Email verification required">
-      <h4>Email verification required</h4>
-      <p>
-        The applicant account address <strong>{account.email}</strong> is not verified. Approval is
-        paused until it is verified.
-      </p>
-      <p>
-        The applicant can use the verification link themselves. To verify it here, first confirm
-        independently that this person controls this exact address. This action changes their
-        Firebase account and is recorded against the request.
-      </p>
-      <label className="shop-admin-field">
-        Type the account email to confirm
-        <input
-          type="email"
-          autoComplete="off"
-          value={typedEmail}
-          onChange={(event) => onEmailChange(event.target.value)}
-          disabled={busy}
-        />
-      </label>
-      <label className="enrol-review-check">
-        <input
-          type="checkbox"
-          checked={confirmed}
-          onChange={(event) => onConfirmationChange(event.target.checked)}
-          disabled={busy}
-        />
-        I independently confirmed the applicant controls this email address.
-      </label>
-      <button
-        className="staff-secondary-button"
-        type="button"
-        disabled={
-          busy ||
-          !confirmed ||
-          typedEmail.trim().toLowerCase() !== account.email.trim().toLowerCase()
-        }
-        onClick={onVerify}
-      >
-        {busy ? "Verifying..." : "Mark account email verified"}
-      </button>
-    </section>
-  );
+  return null;
 }
 
 export default function EnrolmentRequestQueuePage() {
@@ -378,23 +304,10 @@ function EnrolmentRequestQueueContent() {
   const [state, setState] = useState<QueueState>({ status: "loading" });
   const [reloadToken, setReloadToken] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  const [view, setView] = useState<"new" | "recovery">("new");
-  const [recoveryLoaded, setRecoveryLoaded] = useState(false);
   const [membershipRequestsLoaded, setMembershipRequestsLoaded] = useState(false);
   const membershipRequestsRef = useRef<HTMLElement>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
-
-  useEffect(() => {
-    const syncHash = () => {
-      const recovery = office && window.location.hash === "#member-recovery";
-      setView(recovery ? "recovery" : "new");
-      if (recovery) setRecoveryLoaded(true);
-    };
-    syncHash();
-    window.addEventListener("hashchange", syncHash);
-    return () => window.removeEventListener("hashchange", syncHash);
-  }, [office]);
 
   useEffect(() => {
     if (!office || membershipRequestsLoaded) return;
@@ -416,24 +329,9 @@ function EnrolmentRequestQueueContent() {
     return () => observer.disconnect();
   }, [office, membershipRequestsLoaded]);
 
-  function changeView(next: "new" | "recovery") {
-    setView(next);
-    if (next === "recovery") setRecoveryLoaded(true);
-    window.history.replaceState(
-      null,
-      "",
-      next === "recovery" ? "#member-recovery" : "#new-enrolments",
-    );
-  }
   const [notes, setNotes] = useState<Readonly<Record<string, string>>>({});
   // Which trial label the office picked; both grant the same trial and the age decides the classes.
   const [trialKinds, setTrialKinds] = useState<Readonly<Record<string, "adults" | "kids">>>({});
-  const [verificationEmails, setVerificationEmails] = useState<Readonly<Record<string, string>>>(
-    {},
-  );
-  const [verificationConfirmed, setVerificationConfirmed] = useState<
-    Readonly<Record<string, boolean>>
-  >({});
   const [busyId, setBusyId] = useState<string>();
   const [notice, setNotice] = useState<Notice>();
   // Read details are cached per request, because every fetch is audited and spends from the same
@@ -554,47 +452,6 @@ function EnrolmentRequestQueueContent() {
     }
   }
 
-  async function verifyEmail(request: EnrolmentRequestRow): Promise<void> {
-    if (inFlight.current) return;
-    const detail = details[request.enrolmentRequestId];
-    const account = detail?.applicantAccount;
-    const expectedEmail = verificationEmails[request.enrolmentRequestId]?.trim() ?? "";
-    if (
-      !account ||
-      !verificationConfirmed[request.enrolmentRequestId] ||
-      expectedEmail.toLowerCase() !== account.email.trim().toLowerCase()
-    )
-      return;
-    inFlight.current = true;
-    setBusyId(request.enrolmentRequestId);
-    setNotice(undefined);
-    try {
-      await verifyEnrolmentApplicantEmail(request.enrolmentRequestId, expectedEmail);
-      if (!mounted.current) return;
-      setDetails((current) => ({
-        ...current,
-        [request.enrolmentRequestId]: {
-          ...current[request.enrolmentRequestId]!,
-          applicantAccount: { ...account, emailVerified: true },
-        },
-      }));
-      setVerificationEmails((current) => ({ ...current, [request.enrolmentRequestId]: "" }));
-      setVerificationConfirmed((current) => ({ ...current, [request.enrolmentRequestId]: false }));
-      setNotice({
-        tone: "success",
-        text: "Account email verified. Review the enrolment details, then approve the request.",
-      });
-    } catch (error) {
-      setNotice({
-        tone: "error",
-        text: error instanceof Error ? error.message : "Unable to verify the account email.",
-      });
-    } finally {
-      inFlight.current = false;
-      setBusyId(undefined);
-    }
-  }
-
   async function approve(request: EnrolmentRequestRow): Promise<void> {
     if (inFlight.current) return;
     const students = setups[request.enrolmentRequestId];
@@ -702,40 +559,11 @@ function EnrolmentRequestQueueContent() {
   return (
     <section className="admin-module-page enrolment-admin-page" aria-label="Enrolment requests">
       <AdminSectionHeader
-        description="Review applications, enrol new students and restore existing member access."
+        description="Review applications and enrol new students."
         eyebrow="People"
         title="Enrolment requests"
       />
-      {office ? (
-        <nav className="enrolment-views" aria-label="Request type">
-          <button
-            type="button"
-            aria-pressed={view === "new"}
-            aria-controls="new-enrolments"
-            onClick={() => changeView("new")}
-          >
-            New enrolments
-          </button>
-          <button
-            type="button"
-            aria-pressed={view === "recovery"}
-            aria-controls="member-recovery"
-            onClick={() => changeView("recovery")}
-          >
-            Member access recovery
-          </button>
-        </nav>
-      ) : null}
-      {office ? (
-        <section
-          id="member-recovery"
-          hidden={view !== "recovery"}
-          aria-label="Member recovery requests"
-        >
-          {recoveryLoaded ? <MemberRecoveryQueue embedded /> : null}
-        </section>
-      ) : null}
-      <section id="new-enrolments" hidden={view !== "new"} aria-label="New enrolment requests">
+      <section id="new-enrolments" aria-label="New enrolment requests">
         <div className="enrolment-queue-heading">
           <div>
             <h3>New enrolments</h3>
@@ -948,24 +776,8 @@ function EnrolmentRequestQueueContent() {
                         detail={details[request.enrolmentRequestId] as EnrolmentRequestOfficeDetail}
                         definitions={catalog?.definitions ?? []}
                       />
-                      <EmailVerificationPanel
+                      <AccountNotice
                         detail={details[request.enrolmentRequestId] as EnrolmentRequestOfficeDetail}
-                        typedEmail={verificationEmails[request.enrolmentRequestId] ?? ""}
-                        confirmed={verificationConfirmed[request.enrolmentRequestId] ?? false}
-                        busy={busyId !== undefined}
-                        onEmailChange={(value) =>
-                          setVerificationEmails((current) => ({
-                            ...current,
-                            [request.enrolmentRequestId]: value,
-                          }))
-                        }
-                        onConfirmationChange={(value) =>
-                          setVerificationConfirmed((current) => ({
-                            ...current,
-                            [request.enrolmentRequestId]: value,
-                          }))
-                        }
-                        onVerify={() => void verifyEmail(request)}
                       />
                       <button
                         className="staff-secondary-button"
@@ -1131,8 +943,7 @@ function EnrolmentRequestQueueContent() {
                             type="button"
                             disabled={
                               busyId !== undefined ||
-                              details[request.enrolmentRequestId]?.applicantAccount
-                                ?.emailVerified !== true ||
+                              !details[request.enrolmentRequestId]?.applicantAccount ||
                               details[request.enrolmentRequestId]?.applicantAccount?.disabled ===
                                 true ||
                               (details[request.enrolmentRequestId]?.applicant.email !== undefined &&

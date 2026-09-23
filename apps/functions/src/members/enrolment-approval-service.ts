@@ -49,6 +49,7 @@ export type EnrolmentApprovalAuthUser = Readonly<{
 export type EnrolmentApprovalAuth = Readonly<{
   getUser: (uid: string) => Promise<EnrolmentApprovalAuthUser>;
   setCustomUserClaims: (uid: string, claims: Record<string, unknown>) => Promise<void>;
+  updateUser: (uid: string, data: { emailVerified: true }) => Promise<void>;
 }>;
 
 export type EnrolmentApprovalDependencies = Readonly<{
@@ -178,15 +179,6 @@ export function createEnrolmentApprovalService(
         "precondition",
         "applicant_account_disabled",
         "The applicant account is not usable",
-      );
-    }
-    // Both adult and family accounts need a verified address for usable member access. Check
-    // before changing a profile or role, so an unverified account cannot be half-enrolled.
-    if (user.emailVerified !== true) {
-      throw new EnrolmentApprovalError(
-        "precondition",
-        "applicant_email_unverified",
-        "The applicant email must be verified before enrolment. Ask them to open the verification link, or verify their account email in the request, then retry approval.",
       );
     }
     const claims = currentClaims(user);
@@ -371,6 +363,12 @@ export function createEnrolmentApprovalService(
         await dependencies.registration.validate(record);
         stage = "applicant_account";
         const account = await readApplicantAccount(record, input.actor.academyId);
+        // D8 (2026-09-23): nobody verifies an email. The office approval vouches for the account
+        // before any write, because the family writer and the member-facing checks (profile,
+        // levels) refuse an unverified address.
+        stage = "account_email";
+        if ((await dependencies.auth.getUser(account.userId)).emailVerified !== true)
+          await dependencies.auth.updateUser(account.userId, { emailVerified: true });
         stage = role === "adultStudent" ? "member" : "family";
         studentIds =
           role === "adultStudent"

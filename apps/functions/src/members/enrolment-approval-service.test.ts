@@ -171,6 +171,9 @@ function harness(
         calls.push(`setCustomUserClaims:${String(next.role)}`);
         if (claimSticks || next.role === "shopper") claims = { ...next };
       },
+      updateUser: async (_uid, data) => {
+        calls.push(`updateUser:${JSON.stringify(data)}`);
+      },
     },
   };
 
@@ -230,6 +233,19 @@ describe("enrolment approval", () => {
         },
       }),
     );
+  });
+
+  it("vouches for an unverified tutor before the family writer, which refuses unverified tutors", async () => {
+    const { dependencies, calls } = harness({
+      record: record({ applicantIsStudent: false, minors: [minor] }),
+      account: { emailVerified: false },
+    });
+
+    await approve(dependencies);
+
+    const verified = calls.indexOf('updateUser:{"emailVerified":true}');
+    expect(verified).toBeGreaterThanOrEqual(0);
+    expect(verified).toBeLessThan(calls.indexOf("createFamily"));
   });
 
   it("builds a tutor in the only order the family writer accepts", async () => {
@@ -361,6 +377,16 @@ describe("enrolment approval", () => {
       failureCode: "applicant_account_incomplete",
     });
     expect(calls).not.toContain("createAdminAdultForAccount");
+  });
+
+  it("enrols an applicant who never verified their email and marks the address verified", async () => {
+    // D8 (2026-09-23): no email verification anywhere; the office approval vouches for the account.
+    const { dependencies, calls } = harness({ account: { emailVerified: false } });
+
+    const result = await approve(dependencies);
+
+    expect(result.role).toBe("adultStudent");
+    expect(calls).toContain('updateUser:{"emailVerified":true}');
   });
 
   it("refuses a disabled applicant account", async () => {

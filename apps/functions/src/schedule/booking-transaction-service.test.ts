@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { PLAN_CATALOG } from "@bpt-jersey/domain/memberships";
 import { buildBookingId } from "@bpt-jersey/domain/schedule";
+import { enrolmentWaiverTermsVersion } from "@bpt-jersey/domain/consents/enrolment-waiver";
 
 import {
   createBookingTransactionService,
@@ -36,10 +37,11 @@ function createFirestore() {
     const index = path.lastIndexOf("/");
     return { collection: path.slice(0, index), id: path.slice(index + 1) };
   };
-  type Filter = Readonly<{ field: string; operator: "==" | ">=" | "<"; value: unknown }>;
+  type Operator = "==" | ">=" | "<" | "array-contains";
+  type Filter = Readonly<{ field: string; operator: Operator; value: unknown }>;
   const query = (path: string, filters: readonly Filter[]) =>
     Object.freeze({
-      where: (field: string, operator: "==" | ">=" | "<", value: unknown) =>
+      where: (field: string, operator: Operator, value: unknown) =>
         query(path, [...filters, { field, operator, value }]),
       limit: () => query(path, filters),
       doc: (id?: string) => {
@@ -51,6 +53,8 @@ function createFirestore() {
         filters.every((filter) => {
           const field = value[filter.field];
           if (filter.operator === "==") return field === filter.value;
+          if (filter.operator === "array-contains")
+            return Array.isArray(field) && field.includes(filter.value);
           if (filter.operator === ">=") return String(field) >= String(filter.value);
           return String(field) < String(filter.value);
         }),
@@ -117,7 +121,13 @@ function createFirestore() {
 function seedAcademy(
   store: ReturnType<typeof createFirestore>,
   session: Partial<Document> = {},
+  options: Readonly<{ waiverAccepted?: boolean }> = {},
 ): void {
+  if (options.waiverAccepted !== false)
+    store.seed(
+      `academies/${academyId}/enrolmentWaiverAcceptances/s1__${enrolmentWaiverTermsVersion}`,
+      { academyId, studentId: "s1", version: enrolmentWaiverTermsVersion },
+    );
   store.seed(`academies/${academyId}/users/s1`, {
     userId: "s1",
     academyId,
@@ -218,6 +228,49 @@ const cancelRequest = { sessionId: "sess1", studentId: "s1", reason: "Cannot mak
 function createService(store: ReturnType<typeof createFirestore>) {
   return createBookingTransactionService({ firestore: store.firestore, now: () => now });
 }
+
+describe("academy terms before a member's own booking (D12)", () => {
+  it("refuses a member's own booking until the academy terms are accepted", async () => {
+    const store = createFirestore();
+    seedAcademy(store, {}, { waiverAccepted: false });
+
+    await expect(
+      createService(store).requestBooking(academyId, bookingRequest, "s1", {
+        ip: null,
+        role: "adultStudent",
+      }),
+    ).rejects.toThrow("Accept the academy terms first");
+    expect(store.documents(bookingsPath)).toHaveLength(0);
+  });
+
+  it("counts an approved enrolment that carried the current waiver as accepted", async () => {
+    const store = createFirestore();
+    seedAcademy(store, {}, { waiverAccepted: false });
+    store.seed(`academies/${academyId}/enrolmentRequests/enrolment-1`, {
+      academyId,
+      status: "approved",
+      approvedStudentIds: ["s1"],
+      waiverAcceptance: { version: enrolmentWaiverTermsVersion },
+    });
+
+    const booking = await createService(store).requestBooking(academyId, bookingRequest, "s1", {
+      ip: null,
+      role: "adultStudent",
+    });
+    expect(booking.status).toBe("confirmed");
+  });
+
+  it("lets the office book a member who has not accepted the terms yet", async () => {
+    const store = createFirestore();
+    seedAcademy(store, {}, { waiverAccepted: false });
+
+    const booking = await createService(store).requestBooking(academyId, bookingRequest, "owner-1", {
+      ip: null,
+      role: "owner",
+    });
+    expect(booking.status).toBe("confirmed");
+  });
+});
 
 describe("booking transaction audit trail", () => {
   it("writes one audit event with the booking", async () => {

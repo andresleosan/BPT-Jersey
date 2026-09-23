@@ -1,7 +1,11 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createDisabledR2Client,
+  createDiskObjectMap,
   createEmulatorR2Client,
   createPrivateStorageR2Client,
   createR2Client,
@@ -299,6 +303,19 @@ describe("private storage selection outside and inside the Functions Emulator", 
       client.putObject(proofKey, new Uint8Array(2 * 1024 * 1024 + 1), "image/jpeg"),
     ).rejects.toThrow();
     await expect(client.putObject(proofKey, screenshot, "image/svg+xml")).rejects.toThrow();
+  });
+
+  it("shares emulator objects between Functions Emulator workers through one directory", async () => {
+    // Each function runs in its own emulator process: the upload and the submit never share memory.
+    const directory = mkdtempSync(join(tmpdir(), "bpt-emulator-storage-"));
+    const uploader = createEmulatorR2Client(createDiskObjectMap(directory));
+    const submitter = createEmulatorR2Client(createDiskObjectMap(directory));
+    const proofKey = "academies/academy-1/enrolment-proofs/account/request/proof";
+    const screenshot = new Uint8Array([137, 80, 78, 71]);
+    await uploader.putObject(proofKey, screenshot, "image/png");
+    expect(await submitter.readObject(proofKey)).toEqual(screenshot);
+    await submitter.deleteObject(proofKey);
+    await expect(uploader.readObject(proofKey)).rejects.toThrowError("Private object was not found");
   });
 
   it("stores, reads back and deletes PDF objects by copy in the emulator store", async () => {

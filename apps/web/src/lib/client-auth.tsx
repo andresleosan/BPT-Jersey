@@ -59,6 +59,18 @@ async function claimedRole(
   claims: Readonly<Record<string, unknown>> | undefined,
 ): Promise<ClientAccountRole | undefined> {
   const existing = clientRole(claims?.role);
+  // A buyer's cached token outlives an enrolment approved since it was issued: ask once for a
+  // fresh one so the new member reaches the student area without signing out and in again.
+  if (existing === "shopper") {
+    try {
+      const fresh = (await tokenReader.call(user, true)) as Readonly<{
+        claims?: Readonly<Record<string, unknown>>;
+      }>;
+      return clientRole(fresh.claims?.role) ?? existing;
+    } catch {
+      return existing;
+    }
+  }
   if (existing) return existing;
   // Nothing at all in the token: this is a brand new sign-in that nobody has given a role to.
   if (claims?.role !== undefined || registrationAttempts.has(user.uid)) return undefined;

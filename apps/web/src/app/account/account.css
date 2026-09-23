@@ -881,6 +881,37 @@
   min-height: 2.75rem;
 }
 
+/* D12: the terms screen that stands in for the calendar until they are accepted. */
+.waiver-gate {
+  background: var(--gi-white);
+  border-top: 0.35rem solid var(--bpt-purple);
+  box-sizing: border-box;
+  display: grid;
+  gap: 1rem;
+  margin: clamp(1rem, 4vw, 3rem) auto;
+  max-width: 58rem;
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  width: calc(100% - 2rem);
+}
+
+.waiver-gate .button {
+  justify-self: start;
+}
+
+/* Same filled action as the /enrol steps; the global primary is for dark backgrounds. */
+.waiver-gate .button-primary {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+.waiver-gate .button-primary:disabled {
+  background: var(--line);
+  color: var(--mat-ink);
+  cursor: not-allowed;
+  opacity: 0.7;
+  transform: none;
+}
+
 .waiver-band-error,
 .waiver-band-saved {
   border-radius: var(--radius);

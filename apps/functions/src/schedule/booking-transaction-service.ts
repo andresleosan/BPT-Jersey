@@ -23,6 +23,7 @@ import {
   parseMembershipRecord,
   type MembershipRecord,
 } from "@bpt-jersey/domain/memberships/lifecycle";
+import { hasAcceptedEnrolmentWaiver } from "../consents/enrolment-waiver-acceptance.js";
 import {
   deriveParticipantType,
   parseEffectiveStudentProfileAt,
@@ -80,7 +81,7 @@ export type BookingDocumentSnapshot = Readonly<{
 }>;
 export type BookingQuerySnapshot = Readonly<{ docs: readonly BookingDocumentSnapshot[] }>;
 export type BookingQuery = Readonly<{
-  where: (field: string, operator: "==" | ">=" | "<", value: unknown) => BookingQuery;
+  where: (field: string, operator: "==" | ">=" | "<" | "array-contains", value: unknown) => BookingQuery;
   limit: (count: number) => BookingQuery;
 }>;
 /** A collection also mints document ids, which the audit log needs (one event per write). */
@@ -725,6 +726,19 @@ async function executeBookingInTransaction(
   const membershipId = segment(input.request.membershipId, "membershipId");
   if (!validDate(input.now)) return invalid("invalid", "now is invalid");
   await assertBookingMemberAccess({ ...input, studentId });
+  // D12: a member books for themselves only once the academy terms are accepted. Office bookings
+  // stay open, because the migrated juniors have no guardian online who could accept yet.
+  if (
+    ["guardian", "adultStudent", "teenStudent"].includes(input.actorRole) &&
+    !(await hasAcceptedEnrolmentWaiver(input as never, academyId, studentId))
+  ) {
+    return invalid(
+      "ineligible",
+      input.actorRole === "teenStudent"
+        ? "Your parent or guardian needs to accept the academy terms first"
+        : "Accept the academy terms first",
+    );
+  }
   let reservationWaitlistId: string | undefined;
   if (input.reservationWaitlistId !== undefined) {
     if (!waitlistDocumentIdPattern.test(input.reservationWaitlistId)) {

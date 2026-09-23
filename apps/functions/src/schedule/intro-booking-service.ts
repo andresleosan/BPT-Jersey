@@ -1,4 +1,5 @@
 import type { AuditEventDraft, ClassActorRole } from "@bpt-jersey/domain/audit";
+import { hasAcceptedEnrolmentWaiver } from "../consents/enrolment-waiver-acceptance.js";
 import {
   ageOnDate,
   dateKeyInJersey,
@@ -378,7 +379,9 @@ export async function requestIntroBooking(
       }
     }
 
-    await acceptedCurrentWaiver(firestore, transaction, academyId, ids, command.now);
+    // D12: the waiver accepted in /enrol or /account counts; the legacy consent still does too.
+    if (!(await hasAcceptedEnrolmentWaiver({ firestore, transaction } as never, academyId, ids[0]!)))
+      await acceptedCurrentWaiver(firestore, transaction, academyId, ids, command.now);
     await assertNoMembershipHistory(firestore, transaction, academyId, ids);
     const priorIntroBookings = await introBookings(firestore, transaction, academyId, ids);
     const otherIntroBookings = priorIntroBookings.filter((booking) => booking.sessionId !== sessionId);
