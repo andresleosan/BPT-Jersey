@@ -108,6 +108,7 @@ export function PlanRequestsPanel() {
             <li key={request.requestId}>
               <div>
                 <strong>{request.person.fullName}</strong> · {kindLabels[request.kind]}
+                {request.status === "approving" ? " · Being approved (approve again to finish)" : null}
                 <p className="admin-request-meta">
                   Born {new Date(request.person.dateOfBirth).toLocaleDateString("en-GB")} ·{" "}
                   {request.person.trainingCenter} · {request.person.trainingTimePreferences.join(", ")} · sent{" "}
@@ -125,7 +126,7 @@ export function PlanRequestsPanel() {
                 </button>
                 <button
                   className="staff-secondary-button"
-                  disabled={busyId !== undefined}
+                  disabled={busyId !== undefined || request.status === "approving"}
                   onClick={() => void decide(request, "reject")}
                   type="button"
                 >

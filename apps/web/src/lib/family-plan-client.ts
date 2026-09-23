@@ -24,9 +24,12 @@ async function call<T>(name: string, data: unknown, schema: z.ZodType<T>, error 
 export const listMyProfiles = () =>
   call("listMyMemberProfiles", {}, z.object({ profiles: z.array(accountMemberProfileSchema) })).then((r) => r.profiles);
 
-export const requestMemberPlanPerson = (input: z.input<typeof memberPlanRequestInputSchema>) =>
-  call("requestMemberPlanPerson", memberPlanRequestInputSchema.parse(input), z.object({ requestId: z.string() }),
-    "We couldn't send your request. Check the details and try again.");
+const requestError = "We couldn't send your request. Check the details and try again.";
+export const requestMemberPlanPerson = (input: z.input<typeof memberPlanRequestInputSchema>) => {
+  const parsed = memberPlanRequestInputSchema.safeParse(input);
+  if (!parsed.success) return Promise.reject(new Error(requestError));
+  return call("requestMemberPlanPerson", parsed.data, z.object({ requestId: z.string() }), requestError);
+};
 
 const memberPlanRequestSchema = z.object({
   requestId: z.string(),
@@ -38,7 +41,7 @@ const memberPlanRequestSchema = z.object({
     trainingCenter: z.string(),
     trainingTimePreferences: z.array(z.string()),
   }),
-  status: z.enum(["pending", "approved", "rejected"]),
+  status: z.enum(["pending", "approving", "approved", "rejected"]),
   createdAt: z.string(),
 });
 export type MemberPlanRequestRow = z.infer<typeof memberPlanRequestSchema>;
