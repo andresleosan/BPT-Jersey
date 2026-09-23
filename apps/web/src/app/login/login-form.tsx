@@ -366,11 +366,6 @@ export function LoginForm({ audience }: LoginFormProps) {
       </form>
 
       <div className="login-secondary-actions">
-        {audience === "member" ? (
-          <a className="login-context-link" href="/login/recover">
-            Already a member? Recover your access
-          </a>
-        ) : null}
         {isStaff ? (
           <a className="login-context-link" href={memberLoginPath}>
             Not a coach or office member? Member sign-in

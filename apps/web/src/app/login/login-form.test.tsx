@@ -102,6 +102,11 @@ describe("LoginForm", () => {
     expect(screen.queryByText(/staff|administrator|coach/i)).not.toBeInTheDocument();
   });
 
+  it("no longer offers access recovery to members (withdrawn 2026-09-23)", () => {
+    render(<LoginForm audience="member" />);
+    expect(screen.queryByRole("link", { name: /recover/i })).not.toBeInTheDocument();
+  });
+
   it("ignores a legacy role parameter on the member form", () => {
     window.history.replaceState({}, "", "/login?role=administrator");
     render(<LoginForm audience="member" />);
