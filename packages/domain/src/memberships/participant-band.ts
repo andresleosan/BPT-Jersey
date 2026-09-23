@@ -17,3 +17,16 @@ export function bandForAge(age: number | null): ParticipantType {
 export function participantBandAt(input: Readonly<{ dateOfBirth?: string | null; onIso: string }>): ParticipantType {
   return bandForAge(memberAgeOn(input.dateOfBirth ?? undefined, jerseyDay.format(new Date(input.onIso))));
 }
+/**
+ * D9: a live teens plan keeps working until renewal. A 16–17 year old whose current plan covers
+ * teens but not adults books and sees classes as a teen. Only for booking eligibility and calendar
+ * locking of an existing membership; plan choice and membership creation use `participantBandAt`.
+ */
+export function bookingBandAt(
+  input: Readonly<{ dateOfBirth?: string | null; onIso: string; livePlanTypes?: readonly ParticipantType[] | null }>,
+): ParticipantType {
+  const band = participantBandAt(input);
+  if (band !== "adult" || !input.livePlanTypes?.includes("teens") || input.livePlanTypes.includes("adult")) return band;
+  const age = memberAgeOn(input.dateOfBirth ?? undefined, jerseyDay.format(new Date(input.onIso)));
+  return age === 16 || age === 17 ? "teens" : band;
+}

@@ -16,7 +16,7 @@ import { evaluateFinancialAccess } from "@bpt-jersey/domain/finance/access";
 import {
   evaluatePlanAccess,
   parsePlanRecord,
-  participantBandAt,
+  bookingBandAt,
   type ParticipantType,
   type PlanRecord,
 } from "@bpt-jersey/domain/memberships";
@@ -379,10 +379,12 @@ function audience(
   profile: StudentProfile,
   value: ProgramRecord,
   sessionStartAt: string,
+  livePlanTypes: readonly ParticipantType[],
 ): ParticipantType {
   // No date of birth on file: treated as an adult until the office adds it.
   if (profile.dateOfBirth === undefined) return "adult";
-  const actual = participantBandAt({ dateOfBirth: profile.dateOfBirth, onIso: sessionStartAt });
+  // D9: a live teens plan keeps a 16–17 year old booking as a teen until renewal.
+  const actual = bookingBandAt({ dateOfBirth: profile.dateOfBirth, onIso: sessionStartAt, livePlanTypes });
   if (value.ageBand !== "all" && value.ageBand !== actual) {
     return invalid("ineligible", "Student age band is not eligible for this session");
   }
@@ -905,7 +907,7 @@ async function executeBookingInTransaction(
     // ponytail: an extra group borrows the plan's own participant type to skip the age match.
     participantType: additionalAccess
       ? (storedPlan.eligibleParticipantTypes[0] ?? "adult")
-      : audience(storedStudent, storedProgram, storedSession.startAt),
+      : audience(storedStudent, storedProgram, storedSession.startAt, storedPlan.eligibleParticipantTypes),
     site: sessionSite,
     sessionType: storedProgram.discipline === "open-mat" ? "openMat" : "class",
     weeklyClassesUsed: used,
