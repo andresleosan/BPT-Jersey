@@ -196,17 +196,31 @@ describe("enrolment request submission", () => {
     ).toBe(true);
   });
 
-  it("refuses an adult who is also enrolling children, because no role can express it", () => {
-    // A claim holds one role and the vocabulary has no guardian-and-adult-student. Accepting this
-    // would build a request the write path cannot approve.
+  it("accepts a student applicant who also enrols a child, with a plan for each", () => {
     const parsed = parseEnrolmentRequestSubmission(
-      submission({ applicantIsStudent: true, minors: [minor] }),
+      submission({
+        applicantIsStudent: true,
+        minors: [minor],
+        planSelections: { applicant: "town-adult", minors: ["town-kids-1x"] },
+      }),
       effectiveDate,
     );
 
-    expect(parsed).toEqual({
+    expect(parsed.ok).toBe(true);
+    expect(
+      parseEnrolmentRequestSubmission(
+        submission({
+          applicantIsStudent: true,
+          minors: [minor],
+          planSelections: { minors: ["town-kids-1x"] },
+        }),
+        effectiveDate,
+      ),
+    ).toEqual({
       ok: false,
-      error: [{ path: ["minors"], code: "adult_and_minors_not_supported" }],
+      error: [
+        { path: ["planSelections", "applicant"], code: "plan_selection_required_for_student_only" },
+      ],
     });
   });
 

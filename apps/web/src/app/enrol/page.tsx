@@ -72,6 +72,9 @@ type MinorForm = {
 type ApplicantForm = {
   selectedPlan: EnrolmentPlanChoice | "";
   declaration: EnrolmentLevelDeclaration;
+  /** The "Who is joining" choice: a guardian enrols children and may also train themselves. */
+  guardian: boolean;
+  /** Whether the applicant trains: always for an adult student, opt-in for a guardian. */
   applicantIsStudent: boolean;
   fullName: string;
   dateOfBirth: string;
@@ -100,6 +103,7 @@ const emptyMinor: MinorForm = {
 const emptyForm: ApplicantForm = {
   selectedPlan: trialPlanChoice,
   declaration: beginnerDeclaration,
+  guardian: false,
   applicantIsStudent: true,
   fullName: "",
   dateOfBirth: "",
@@ -161,7 +165,7 @@ function toDetails(form: ApplicantForm, requestId: string): EnrolmentRequestDeta
       ...(trimmed(form.email) === undefined ? {} : { email: form.email.trim() }),
       ...(emergencyContact === undefined ? {} : { emergencyContact }),
     },
-    minors: (form.applicantIsStudent ? [] : form.minors).map((minor) => ({
+    minors: (form.guardian ? form.minors : []).map((minor) => ({
       fullName: minor.fullName.trim(),
       dateOfBirth: minor.dateOfBirth,
       gender: minor.gender,
@@ -188,10 +192,10 @@ function validate(
   if (form.trainingTimePreferences.length === 0 && form.applicantIsStudent) {
     return "Choose at least one training time.";
   }
-  if (!form.applicantIsStudent && form.minors.length === 0) {
+  if (form.guardian && form.minors.length === 0) {
     return "Add the child you are enrolling.";
   }
-  for (const minor of form.applicantIsStudent ? [] : form.minors) {
+  for (const minor of form.guardian ? form.minors : []) {
     if (!minor.fullName.trim()) return "Enter every child's full name.";
     if (!minor.dateOfBirth) return "Enter every child's date of birth.";
     if (minor.trainingTimePreferences.length === 0) {
@@ -391,19 +395,19 @@ function EnrolContent() {
   const [reference, setReference] = useState("");
   const selections = {
     ...(form.applicantIsStudent && form.selectedPlan ? { applicant: form.selectedPlan } : {}),
-    minors: form.applicantIsStudent
-      ? []
-      : form.minors
+    minors: form.guardian
+      ? form.minors
           .filter((minor) => minor.selectedPlan)
-          .map((minor) => minor.selectedPlan as EnrolmentPlanChoice),
+          .map((minor) => minor.selectedPlan as EnrolmentPlanChoice)
+      : [],
   };
   // One declaration per student the plan selections name, in the same order: the contract reads
   // them side by side and a trial without its declaration is refused.
   const levelDeclarations = {
     ...(form.applicantIsStudent && form.selectedPlan ? { applicant: form.declaration } : {}),
-    minors: form.applicantIsStudent
-      ? []
-      : form.minors.filter((minor) => minor.selectedPlan).map((minor) => minor.declaration),
+    minors: form.guardian
+      ? form.minors.filter((minor) => minor.selectedPlan).map((minor) => minor.declaration)
+      : [],
   };
   const paymentTotal = enrolmentPaymentTotal(selections);
   const isTrial = [selections.applicant, ...selections.minors].some(
@@ -510,7 +514,7 @@ function EnrolContent() {
     }
     if (
       (form.applicantIsStudent && !form.selectedPlan) ||
-      (!form.applicantIsStudent && form.minors.some((minor) => !minor.selectedPlan))
+      (form.guardian && form.minors.some((minor) => !minor.selectedPlan))
     ) {
       setMessage("Choose an available plan for every student.");
       return;
@@ -691,20 +695,20 @@ function EnrolContent() {
                 <legend>Who is joining</legend>
                 <label htmlFor="enrol-self">
                   <input
-                    checked={form.applicantIsStudent}
+                    checked={!form.guardian}
                     id="enrol-self"
                     name="enrol-who"
-                    onChange={() => setForm({ ...form, applicantIsStudent: true })}
+                    onChange={() => setForm({ ...form, guardian: false, applicantIsStudent: true })}
                     type="radio"
                   />
                   I am joining as an adult student
                 </label>
                 <label htmlFor="enrol-guardian">
                   <input
-                    checked={!form.applicantIsStudent}
+                    checked={form.guardian}
                     id="enrol-guardian"
                     name="enrol-who"
-                    onChange={() => setForm({ ...form, applicantIsStudent: false })}
+                    onChange={() => setForm({ ...form, guardian: true, applicantIsStudent: false })}
                     type="radio"
                   />
                   I am a parent or guardian enrolling a child
@@ -712,9 +716,7 @@ function EnrolContent() {
               </fieldset>
 
               <fieldset className="enrol-applicant">
-                <legend>
-                  {form.applicantIsStudent ? "Your details" : "Your details as the guardian"}
-                </legend>
+                <legend>{form.guardian ? "Your details as the guardian" : "Your details"}</legend>
                 <label className="enrol-field" htmlFor="enrol-name">
                   Full name
                   <input
@@ -777,6 +779,19 @@ function EnrolContent() {
                     ))}
                   </select>
                 </label>
+                {form.guardian ? (
+                  <label htmlFor="enrol-guardian-trains">
+                    <input
+                      checked={form.applicantIsStudent}
+                      id="enrol-guardian-trains"
+                      onChange={(event) =>
+                        setForm({ ...form, applicantIsStudent: event.target.checked })
+                      }
+                      type="checkbox"
+                    />
+                    I also want to train (my own membership)
+                  </label>
+                ) : null}
                 {form.applicantIsStudent ? (
                   <>
                     <label className="enrol-field" htmlFor="enrol-center">
@@ -863,7 +878,7 @@ function EnrolContent() {
                 </label>
               </fieldset>
 
-              {!form.applicantIsStudent ? (
+              {form.guardian ? (
                 <section className="enrol-minors" aria-labelledby="enrol-minors-title">
                   <h2 id="enrol-minors-title">Children joining</h2>
                   {form.minors.map((minor, index) => (
@@ -933,7 +948,8 @@ function EnrolContent() {
                   disabled={busy}
                   onChange={(selectedPlan) => setForm({ ...form, selectedPlan })}
                 />
-              ) : (
+              ) : null}
+              {form.guardian &&
                 form.minors.map((minor, index) => (
                   <EnrolmentPlanChoices
                     key={index}
@@ -964,8 +980,7 @@ function EnrolContent() {
                       })
                     }
                   />
-                ))
-              )}
+                ))}
               <div className="hero-actions">
                 <button
                   className="button button-secondary"

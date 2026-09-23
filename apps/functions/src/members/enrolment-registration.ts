@@ -6,6 +6,7 @@ import { PLAN_CATALOG } from "@bpt-jersey/domain/memberships";
 import {
   enrolmentNeedsPayment,
   enrolmentPaymentTotal,
+  enrolmentStudents,
   enrolmentTrialAllowance,
   trialPlanChoice,
 } from "@bpt-jersey/domain/members/enrolment-requests";
@@ -30,8 +31,8 @@ export function createEnrolmentRegistration(
   return {
     async validate(record) {
       const setup = record.approvalSetup;
-      const count = record.applicantIsStudent ? 1 : record.minors.length;
-      if (!setup || setup.students.length !== count)
+      const students = enrolmentStudents(record);
+      if (!setup || setup.students.length !== students.length)
         fail("Choose a subscription and level for every student.");
       const catalog = await levels.listPublished(record.academyId);
       for (const [index, selection] of setup.students.entries()) {
@@ -40,9 +41,7 @@ export function createEnrolmentRegistration(
         const trial = selection.planId === trialPlanChoice;
         const plan = trial ? undefined : PLAN_CATALOG.find((item) => item.planId === selection.planId);
         if (!trial && !plan) fail("Choose a catalogue plan.");
-        const preferred = record.applicantIsStudent
-          ? record.planSelections?.applicant
-          : record.planSelections?.minors[index];
+        const preferred = students[index]!.plan;
         // The office may turn any request into a trial; otherwise the applicant's own choice stands.
         if (preferred && preferred !== selection.planId && !trial)
           fail("The subscription must match the applicant's chosen plan.");
@@ -55,9 +54,10 @@ export function createEnrolmentRegistration(
           fail("Enter the end date of the paid subscription period.");
         if (trial && selection.endsOn) fail("A trial has no paid period.");
       }
+      const planIds = setup.students.map((item) => item.planId);
       const selections = record.applicantIsStudent
-        ? { applicant: setup.students[0]!.planId, minors: [] }
-        : { minors: setup.students.map((item) => item.planId) };
+        ? { applicant: planIds[0]!, minors: planIds.slice(1) }
+        : { minors: planIds };
       const total = enrolmentPaymentTotal(selections);
       if (total > 0 && (!record.payment || record.payment.amountMinor !== total))
         fail(
@@ -65,6 +65,7 @@ export function createEnrolmentRegistration(
         );
     },
     async complete(record, studentIds, actor) {
+      const students = enrolmentStudents(record);
       for (const [index, selection] of record.approvalSetup!.students.entries()) {
         const studentId = studentIds[index];
         if (!studentId) fail("The student record could not be confirmed.");
@@ -92,11 +93,8 @@ export function createEnrolmentRegistration(
           });
         }
         if (selection.planId === trialPlanChoice) {
-          const declaration = record.applicantIsStudent
-            ? record.levelDeclarations?.applicant
-            : record.levelDeclarations?.minors[index];
+          const { declaration, person: student } = students[index]!;
           const experience = declaration?.experience ?? "beginner";
-          const student = record.applicantIsStudent ? record.applicant : record.minors[index]!;
           const trialRef = base.collection("trialAccess").doc(studentId);
           const existing = await trialRef.get();
           if (existing.exists) {

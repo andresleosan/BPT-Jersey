@@ -300,6 +300,28 @@ describe("enrolment approval", () => {
     expect(dependencies.directory.createAdminAdultForAccount).not.toHaveBeenCalled();
   });
 
+  it("enrols a guardian who also trains: their own record first, then the family, as guardian", async () => {
+    const { dependencies, calls } = harness({
+      record: record({ applicantIsStudent: true, minors: [minor] }),
+    });
+
+    const result = await approve(dependencies);
+
+    expect(result).toMatchObject({
+      role: "guardian",
+      studentIds: ["student-1", "student-minor-1"],
+      alreadyApproved: false,
+    });
+    expect(calls).toEqual([
+      "beginApproval",
+      "createAdminAdultForAccount",
+      "saveGuardianProfile",
+      "setCustomUserClaims:guardian",
+      "createFamily",
+      "completeApproval",
+    ]);
+  });
+
   it("restores the previous role and parks the request when the claim does not stick", async () => {
     const { dependencies, calls, claims } = harness({ claimSticks: false });
 
