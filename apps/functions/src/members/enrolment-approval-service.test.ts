@@ -316,7 +316,7 @@ describe("enrolment approval", () => {
     expect(calls).toEqual([
       "beginApproval",
       "createAdminAdultForAccount",
-      "failApproval:approval_write_failed",
+      "failApproval:member_write_failed",
     ]);
   });
 

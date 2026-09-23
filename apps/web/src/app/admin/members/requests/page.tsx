@@ -45,7 +45,10 @@ const MemberRecoveryQueue = dynamic(
 );
 
 const IntroApplicationsPanel = dynamic(
-  () => import("../../billing/intro-applications-panel").then((module) => module.IntroApplicationsPanel),
+  () =>
+    import("../../billing/intro-applications-panel").then(
+      (module) => module.IntroApplicationsPanel,
+    ),
   { loading: () => <p role="status">Loading membership requests...</p> },
 );
 
