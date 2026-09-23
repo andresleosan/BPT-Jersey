@@ -14,7 +14,7 @@ import type {
 } from "./schedule-contracts";
 import type { ParticipantType, Site, WeeklyClassLimit } from "../memberships/plan-contracts";
 import type { TrialAccessView } from "../memberships/trial-access-contracts";
-import { bandForAge } from "../memberships/participant-band";
+import { bandForAge, bookingBandAt } from "../memberships/participant-band";
 
 export const calendarTimeZone = "Europe/Jersey";
 export const calendarMaxOffsetDays = 14;
@@ -290,7 +290,11 @@ function lockedReasonFor(
       ? member.participantType
       : member.dateOfBirth === null
         ? "adult"
-        : participantTypeOn(member.dateOfBirth, dateKeyInJersey(new Date(session.startAt)));
+        : bookingBandAt({
+            dateOfBirth: member.dateOfBirth,
+            onIso: session.startAt,
+            livePlanTypes: member.planParticipantTypes ?? null,
+          });
   if (!extra && program.ageBand !== "all" && program.ageBand !== band) return "age_band";
   // Same rule as the booking transaction: the plan itself must cover the member's band.
   if (!extra && member.planParticipantTypes && !member.planParticipantTypes.includes(band))

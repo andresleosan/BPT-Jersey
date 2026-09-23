@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { bookingBandAt } from "@bpt-jersey/domain/memberships";
 import { selectCurrentMembership } from "@bpt-jersey/domain/memberships/lifecycle";
 import type { ProgramRecord } from "@bpt-jersey/domain/schedule";
 import { programAdmits } from "@bpt-jersey/domain/schedule/classes-services";
 import {
   ageOnDate,
   dateKeyInJersey,
-  participantTypeOn,
   type StudentGroupAccess,
 } from "@bpt-jersey/domain/schedule/member-calendar";
 import { listManagedPlans, type ManagedMembershipPlan } from "../../../../lib/membership-admin-client";
@@ -23,7 +23,12 @@ import { audienceSummary } from "../../classes-services/types/audience-fields";
 function includedByPlan(program: ProgramRecord, plan: ManagedMembershipPlan | undefined, dateOfBirth: string | null): boolean {
   if (!plan) return false;
   const today = dateKeyInJersey(new Date());
-  const band = dateOfBirth ? participantTypeOn(dateOfBirth, today) : "adult";
+  // D9: the member's live plan keeps a 16–17 year old in teens until renewal.
+  const band = bookingBandAt({
+    dateOfBirth,
+    onIso: new Date().toISOString(),
+    livePlanTypes: plan.eligibleParticipantTypes,
+  });
   if (program.ageBand !== "all" && program.ageBand !== band) return false;
   if (!plan.eligibleParticipantTypes.includes(band)) return false;
   const age = dateOfBirth ? ageOnDate(dateOfBirth, today) : null;
