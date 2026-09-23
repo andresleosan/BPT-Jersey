@@ -43,7 +43,8 @@ export function createEnrolmentRegistration(
         const preferred = record.applicantIsStudent
           ? record.planSelections?.applicant
           : record.planSelections?.minors[index];
-        if (preferred && preferred !== selection.planId)
+        // The office may turn any request into a trial; otherwise the applicant's own choice stands.
+        if (preferred && preferred !== selection.planId && !trial)
           fail("The subscription must match the applicant's chosen plan.");
         if (
           selection.startsOn > record.approvalStartedAt!.slice(0, 10) ||

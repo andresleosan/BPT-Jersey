@@ -426,6 +426,8 @@ function EnrolmentRequestQueueContent() {
     );
   }
   const [notes, setNotes] = useState<Readonly<Record<string, string>>>({});
+  // Which trial label the office picked; both grant the same trial and the age decides the classes.
+  const [trialKinds, setTrialKinds] = useState<Readonly<Record<string, "adults" | "kids">>>({});
   const [verificationEmails, setVerificationEmails] = useState<Readonly<Record<string, string>>>(
     {},
   );
@@ -997,33 +999,64 @@ function EnrolmentRequestQueueContent() {
                                   ? request.applicantName
                                   : details[request.enrolmentRequestId]?.minors[index]?.fullName}
                               </legend>
-                              {details[request.enrolmentRequestId]?.planSelections ? (
-                                student.planId === trialPlanChoice ? null : (
-                                  <p>
-                                    Plan:{" "}
-                                    {
-                                      PLAN_CATALOG.find((plan) => plan.planId === student.planId)
-                                        ?.displayName
-                                    }
-                                  </p>
-                                )
-                              ) : (
-                                <label className="shop-admin-field">
-                                  Subscription plan
-                                  <select
-                                    value={student.planId}
-                                    onChange={(event) =>
-                                      change({ planId: event.target.value as PlanId })
-                                    }
-                                  >
-                                    {PLAN_CATALOG.map((plan) => (
-                                      <option key={plan.planId} value={plan.planId}>
-                                        {plan.displayName}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </label>
-                              )}
+                              {(() => {
+                                const detail = details[request.enrolmentRequestId];
+                                const chosen = detail?.applicantIsStudent
+                                  ? detail.planSelections?.applicant
+                                  : detail?.planSelections?.minors[index];
+                                const dateOfBirth = detail?.applicantIsStudent
+                                  ? detail.applicant.dateOfBirth
+                                  : detail?.minors[index]?.dateOfBirth;
+                                const age = dateOfBirth
+                                  ? ageOnDate(dateOfBirth, new Date().toISOString().slice(0, 10))
+                                  : 16;
+                                const kindKey = `${request.enrolmentRequestId}:${index}`;
+                                const trialKind = trialKinds[kindKey] ?? (age >= 16 ? "adults" : "kids");
+                                // The applicant's own choice stays fixed; the office may still switch it to a trial.
+                                const plans =
+                                  chosen && chosen !== trialPlanChoice
+                                    ? PLAN_CATALOG.filter((plan) => plan.planId === chosen)
+                                    : chosen
+                                      ? []
+                                      : PLAN_CATALOG;
+                                return (
+                                  <label className="shop-admin-field">
+                                    Subscription plan
+                                    <select
+                                      value={student.planId === trialPlanChoice ? `trial:${trialKind}` : student.planId}
+                                      onChange={(event) => {
+                                        const value = event.target.value;
+                                        if (value.startsWith("trial:")) {
+                                          setTrialKinds((current) => ({
+                                            ...current,
+                                            [kindKey]: value.slice(6) as "adults" | "kids",
+                                          }));
+                                          change({ planId: trialPlanChoice, endsOn: null });
+                                          return;
+                                        }
+                                        const planId = value as PlanId;
+                                        change({
+                                          planId,
+                                          endsOn:
+                                            PLAN_CATALOG.find((plan) => plan.planId === planId)
+                                              ?.billingPeriod === "monthly"
+                                              ? addSubscriptionMonth(`${student.startsOn}T00:00:00.000Z`).slice(0, 10)
+                                              : null,
+                                        });
+                                      }}
+                                    >
+                                      {plans.map((plan) => (
+                                        <option key={plan.planId} value={plan.planId}>
+                                          {plan.displayName}
+                                          {chosen === plan.planId ? " (applicant's choice)" : ""}
+                                        </option>
+                                      ))}
+                                      <option value="trial:adults">Trial for adults</option>
+                                      <option value="trial:kids">Trial for kids/teens</option>
+                                    </select>
+                                  </label>
+                                );
+                              })()}
                               <label className="shop-admin-field">
                                 Initial level
                                 <select
@@ -1053,7 +1086,11 @@ function EnrolmentRequestQueueContent() {
                                 </p>
                               ) : null}
                               {student.planId === trialPlanChoice ? (
-                                <p>Trial — no plan, dates or payment. Confirm the initial level.</p>
+                                <p>
+                                  Trial — no plan, dates or payment: 2 free classes for a beginner, 1 for
+                                  a declared belt, within 30 days. Adults book Introduction Classes only.
+                                  Confirm the initial level.
+                                </p>
                               ) : (
                                 <>
                                   <label className="shop-admin-field">
