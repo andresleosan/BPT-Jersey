@@ -19,6 +19,10 @@ export function decideMemberAccess(facts: MemberAccessFacts): MemberAccessDecisi
   if (facts.guardianLinkCurrent && facts.confirmedAge < 18) return { allowed: true, via: "guardian" };
   return { allowed: false };
 }
+/** Q4: credentials never expire; the first own sign-in at 18 hands the account over once. */
+export function needsAdultClaim(input: Readonly<{ age: number | null; via: "self" | "guardian"; createdByGuardian: boolean; adultClaimedAt: string | null }>): boolean {
+  return input.via === "self" && input.createdByGuardian && input.adultClaimedAt === null && input.age !== null && input.age >= 18;
+}
 export const accountMemberProfileSchema = z.strictObject({
   studentId: reviewIdentifierSchema, fullName: z.string().min(1).max(160),
   via: z.enum(["self", "guardian"]), trainingDetailsRequired: z.boolean(),

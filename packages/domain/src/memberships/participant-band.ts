@@ -1,0 +1,19 @@
+import { memberAgeOn } from "../members/member-access-contracts";
+import type { ParticipantType } from "./plan-contracts";
+
+const jerseyDay = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Jersey", year: "numeric", month: "2-digit", day: "2-digit",
+});
+
+/**
+ * D6 (Luis, 23-sep): one band for price, tables and bookings in both centres. Under 12 kids,
+ * 12–15 teens, 16+ adult. A 16–17 year old is still a minor for consent (D10): never decide
+ * consent from this. No date of birth → adult (23-sep rule).
+ */
+export function bandForAge(age: number | null): ParticipantType {
+  if (age === null || age >= 16) return "adult";
+  return age >= 12 ? "teens" : "kids";
+}
+export function participantBandAt(input: Readonly<{ dateOfBirth?: string | null; onIso: string }>): ParticipantType {
+  return bandForAge(memberAgeOn(input.dateOfBirth ?? undefined, jerseyDay.format(new Date(input.onIso))));
+}

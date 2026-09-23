@@ -43,6 +43,11 @@ const applicantShape = withoutOfficeOwnedFields(
   officeOwnedEnrolmentFields,
 );
 
+export const enrolmentTrainingFields = Object.freeze({
+  trainingCenter: applicantShape.trainingCenter,
+  trainingTimePreferences: applicantShape.trainingTimePreferences,
+});
+
 /**
  * `approving` is not decoration: approving a request is several writes across Firestore and Auth
  * that cannot share one commit, so the request itself is the lock. A reviewer takes it before the
