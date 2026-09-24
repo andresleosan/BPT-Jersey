@@ -20,8 +20,17 @@
 .groups-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
 .groups-list > li { border-bottom: 1px solid var(--line); }
 .groups-row { padding: 1.1rem 0; }
-.groups-row h4 { margin: 0; font-size: 1.25rem; overflow-wrap: anywhere; }
-.groups-search { max-width: 30rem; margin-bottom: 1rem; }
+.groups-row h5 { margin: 0; font-size: 1.25rem; overflow-wrap: anywhere; }
+.groups-search { max-width: 30rem; }
+.groups-filters { display: grid; grid-template-columns: minmax(0, 30rem) minmax(0, 14rem); gap: 1rem; margin-bottom: 1rem; }
+.groups-site-section > h4 { font-family: var(--font-display), Impact, sans-serif; font-size: 1.5rem; letter-spacing: .035em; text-transform: uppercase; margin: 1.5rem 0 0; padding-bottom: .5rem; border-bottom: 2px solid var(--mat-ink); }
+.groups-site { min-width: 0; }
+.groups-site-options { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; }
+.groups-site-options label { display: inline-flex; align-items: center; gap: .5rem; min-height: 44px; cursor: pointer; font-size: 1rem; font-weight: 600; }
+.groups-site-options input { width: 1.25rem; height: 1.25rem; min-height: 0; padding: 0; margin: 0; accent-color: var(--bpt-purple); }
+.groups-site[data-error="true"] { background: #fff0f2; border-left: .35rem solid #8d1c2f; padding: .5rem .75rem; }
+.groups-field-error { margin: 0; color: #721626; font-weight: 600; }
+.group-session-site { display: block; font-size: .9rem; font-weight: 600; color: var(--muted); }
 .groups-empty, .groups-empty-inline { background: var(--gi-white); padding: 1.5rem; border: 1px solid var(--line); }
 .groups-empty p { max-width: 60ch; }
 .groups-confirm { padding: 1rem; margin-bottom: 1rem; background: #fff0f2; color: #721626; border: 1px solid #8d1c2f; }
@@ -41,7 +50,7 @@
 .group-session-state[data-state="blocked"] { color: #721626; }
 .group-session-state[data-state="registered"] { color: #176b49; }
 @media (max-width: 50rem) {
-  .groups-member-picker { grid-template-columns: minmax(0, 1fr); }
+  .groups-member-picker, .groups-filters { grid-template-columns: minmax(0, 1fr); }
   .groups-heading, .groups-row { align-items: stretch; flex-direction: column; }
   .groups-editor { padding: 1rem; }
   .groups-actions .cs-button { flex: 1 1 auto; }

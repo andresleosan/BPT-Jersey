@@ -34,7 +34,7 @@ export function GroupRegistrations({ sessionId, canManage, onChanged }: { sessio
       const blocked = group.members.filter((member) => member.state === "blocked").length;
       return <li key={group.groupId}>
         <button className="group-session-toggle" type="button" aria-expanded={open} aria-controls={`group-session-${group.groupId}`} onClick={() => setExpanded(open ? null : group.groupId)}>
-          <span><strong>{group.name}{group.active ? "" : " (deleted)"}</strong>{group.assigned ? `${registered} registered${blocked ? `, ${blocked} not registered` : ""}` : `${group.members.length} members`}</span><span>{open ? "Close" : "View members"}</span>
+          <span><strong>{group.name}{group.active ? "" : " (deleted)"}</strong><span className="group-session-site">{group.site ?? "Unassigned site"}</span>{group.assigned ? `${registered} registered${blocked ? `, ${blocked} not registered` : ""}` : `${group.members.length} members`}</span><span>{open ? "Close" : "View members"}</span>
         </button>
         {open ? <div className="group-session-detail" id={`group-session-${group.groupId}`}>
           <p className="groups-hint">{group.recurring ? "Registers this class and following weeks in the same series. Each date requires an active subscription." : "Registers members for this class only."}</p>

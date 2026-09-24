@@ -120,6 +120,12 @@ export type ConfirmBookingInTransactionInput = Readonly<{
   now: string;
   reservationWaitlistId?: string;
   groupRegistration?: boolean;
+  /**
+   * Set only by the office group sync (`group-service.ts` syncMember), never from a public booking
+   * request: waives the type's age and centre rules and the plan's participant, site, session type
+   * and weekly limit. Payment, membership period, terms, cutoff and capacity still apply.
+   */
+  groupOverride?: true;
 }>;
 
 const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
@@ -887,36 +893,42 @@ async function executeBookingInTransaction(
   ) {
     return invalid("financial", "Financial access is not eligible");
   }
-  // The type's own age range and training centres (Classes / Services → Types).
-  const sessionSite = storedSession.locationId === "town" ? "Town" : "West";
-  if (
-    !programAdmits(
-      additionalAccess ? { sites: storedProgram.sites ?? [] } : storedProgram,
-      !storedStudent.dateOfBirth
-        ? null
-        : ageOnDate(storedStudent.dateOfBirth, localDate(storedSession.startAt)),
-      sessionSite,
-    )
-  ) {
-    return invalid("ineligible", "This class type is not open to this member's age or centre");
+  // A group override still refuses a retired catalogue plan, like evaluatePlanAccess does.
+  if (input.groupOverride === true && !storedPlan.active) {
+    return invalid("ineligible", "Plan access is not eligible");
   }
-  // Additional groups waive the age rules only: the plan's centres and weekly limit still apply.
-  // Transit Free alone waives financial standing; membership status, active programs, booking
-  // cutoff and capacity are always required.
-  const access = evaluatePlanAccess(storedPlan, {
-    // ponytail: an extra group borrows the plan's own participant type to skip the age match.
-    participantType: additionalAccess
-      ? (storedPlan.eligibleParticipantTypes[0] ?? "adult")
-      : audience(storedStudent, storedProgram, storedSession.startAt, storedPlan.eligibleParticipantTypes),
-    site: sessionSite,
-    sessionType: storedProgram.discipline === "open-mat" ? "openMat" : "class",
-    weeklyClassesUsed: used,
-  });
-  if (!access.allowed) {
-    return invalid(
-      access.code === "WEEKLY_LIMIT_REACHED" ? "weekly-limit" : "ineligible",
-      "Plan access is not eligible",
-    );
+  // The type's own age range and training centres (Classes / Services → Types).
+  if (input.groupOverride !== true) {
+    const sessionSite = storedSession.locationId === "town" ? "Town" : "West";
+    if (
+      !programAdmits(
+        additionalAccess ? { sites: storedProgram.sites ?? [] } : storedProgram,
+        !storedStudent.dateOfBirth
+          ? null
+          : ageOnDate(storedStudent.dateOfBirth, localDate(storedSession.startAt)),
+        sessionSite,
+      )
+    ) {
+      return invalid("ineligible", "This class type is not open to this member's age or centre");
+    }
+    // Additional groups waive the age rules only: the plan's centres and weekly limit still apply.
+    // Transit Free alone waives financial standing; membership status, active programs, booking
+    // cutoff and capacity are always required.
+    const access = evaluatePlanAccess(storedPlan, {
+      // ponytail: an extra group borrows the plan's own participant type to skip the age match.
+      participantType: additionalAccess
+        ? (storedPlan.eligibleParticipantTypes[0] ?? "adult")
+        : audience(storedStudent, storedProgram, storedSession.startAt, storedPlan.eligibleParticipantTypes),
+      site: sessionSite,
+      sessionType: storedProgram.discipline === "open-mat" ? "openMat" : "class",
+      weeklyClassesUsed: used,
+    });
+    if (!access.allowed) {
+      return invalid(
+        access.code === "WEEKLY_LIMIT_REACHED" ? "weekly-limit" : "ineligible",
+        "Plan access is not eligible",
+      );
+    }
   }
   if (occupied.confirmed + occupied.reserved >= storedSession.capacity) {
     return invalid("capacity", "Session capacity reached");
