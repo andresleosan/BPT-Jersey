@@ -1,0 +1,1 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" onload="alert(1)"><script>alert(document.cookie)</script><rect width="512" height="512" fill="#2F2483"/></svg>
