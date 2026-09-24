@@ -1500,3 +1500,63 @@ describe("S1 admin review", () => {
     expect(harness.records).toEqual(before);
   });
 });
+
+describe("student account link (teen own access)", () => {
+  function teenSeed(): Record<string, MemberDirectoryDocumentData> {
+    const seeded = controlPlaneSeed();
+    seeded["academies/academy-1/students/student-teen-1"] = {
+      studentId: "student-teen-1",
+      academyId: "academy-1",
+      familyId: "family-1",
+      fullName: "Synthetic Teen",
+      dateOfBirth: "2012-05-05",
+      trainingCenter: "Town",
+      trainingTimePreferences: ["afternoon"],
+      participantType: "minor",
+      active: true,
+      status: "active",
+      schemaVersion: "1",
+      createdAt: "2026-09-03T20:00:00.000Z",
+      createdBy: "import-system",
+      updatedAt: "2026-09-03T20:00:00.000Z",
+      updatedBy: "import-system",
+    };
+    return seeded;
+  }
+  const guardian = {
+    actorId: "guardian-1",
+    academyId: "academy-1",
+    role: "guardian" as const,
+    active: true,
+    appCheckVerified: true,
+  };
+
+  it("audits link and unlink with the write-<digest> correlation the audit contract accepts", async () => {
+    const harness = fakeFirestore(teenSeed());
+    const writer = service(harness.firestore);
+    const link = { actor: guardian, studentId: "student-teen-1", now };
+    await writer.setStudentAccountLink({ ...link, userId: "teen-user-1", expectedUserId: null });
+    expect(harness.records.get("academies/academy-1/students/student-teen-1")).toEqual(
+      expect.objectContaining({ userId: "teen-user-1" }),
+    );
+    await writer.setStudentAccountLink({ ...link, userId: null, expectedUserId: "teen-user-1" });
+    expect(harness.records.get("academies/academy-1/students/student-teen-1")).not.toHaveProperty(
+      "userId",
+    );
+
+    const audits = [...harness.records.entries()]
+      .filter(([path]) => path.includes("/auditEvents/"))
+      .map(([, value]) => value);
+    expect(audits).toHaveLength(2);
+    for (const audit of audits) {
+      expect(audit).toEqual(
+        expect.objectContaining({
+          action: "member.updated",
+          targetRef: "academies/academy-1/students/student-teen-1",
+          correlationId: expect.stringMatching(/^write-[a-f0-9]{64}$/u),
+        }),
+      );
+    }
+    expect(audits[0]!.correlationId).not.toBe(audits[1]!.correlationId);
+  });
+});

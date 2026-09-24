@@ -66,6 +66,8 @@ describe("membership plan callables", () => {
       "administrator",
       "guardian",
       "adultStudent",
+      // A teen's own sign-in loads the calendar, which reads the plan's sites and limits.
+      "teenStudent",
       "headCoach",
       "coach",
     ]) {
@@ -121,6 +123,8 @@ describe("membership plan callables", () => {
       "administrator",
       "guardian",
       "adultStudent",
+      // A teen's own sign-in loads the calendar, which reads the plan's sites and limits.
+      "teenStudent",
       "headCoach",
       "coach",
     ]) {
