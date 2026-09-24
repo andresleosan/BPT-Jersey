@@ -10,6 +10,7 @@
 import { z } from "zod";
 
 import { participantBandAt } from "../memberships/participant-band";
+import { memberAgeOn } from "./member-access-contracts";
 import { enrolmentTrainingFields } from "./enrolment-request-contracts";
 
 export type AttendedSession = Readonly<{
@@ -166,9 +167,15 @@ export function leaderboardCohort(dateOfBirth: string | null, nowIso: string): L
   const band = participantBandAt({ dateOfBirth, onIso: nowIso });
   return band === "adult" ? "adults" : band;
 }
-/** Review focus 2: a child with no date of birth must not land in the adult table. */
-export function leaderboardEligible(dateOfBirth: string | null | undefined): boolean {
-  return typeof dateOfBirth === "string" && z.iso.date().safeParse(dateOfBirth).success;
+/**
+ * Review focus 2: a child with no date of birth must not land in the adult table, and neither must
+ * one whose date of birth is after today in Jersey (a mistyped year would otherwise count as adult).
+ */
+export function leaderboardEligible(
+  dateOfBirth: string | null | undefined,
+  nowIso: string,
+): boolean {
+  return memberAgeOn(dateOfBirth ?? undefined, jerseyDate.format(new Date(nowIso))) !== null;
 }
 /** Once a target is reached the bar moves to the next multiple of its base (10 → 20 → 30…). */
 export function nextProgressTarget(count: number, base: number): number {
