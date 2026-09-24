@@ -7,7 +7,11 @@ import type { AccountMemberProfile } from "@bpt-jersey/domain/members/access";
 import type { MemberPublicCard } from "@bpt-jersey/domain/members/engagement";
 
 import { ClientAuthGate, ClientAuthProvider } from "../../../lib/client-auth";
-import { competitorsUnavailable, getCompetitors, type CompetitorsResponse } from "../../../lib/competitors-client";
+import {
+  competitorsUnavailable,
+  getCompetitors,
+  type CompetitorsResponse,
+} from "../../../lib/competitors-client";
 import { listMyProfiles } from "../../../lib/family-plan-client";
 import { BeltLabel, MemberAvatar, MemberCardDialog } from "./member-card-dialog";
 
@@ -51,7 +55,8 @@ function CompetitorTable({
   neighbours: Neighbours | null;
   onOpen: (card: MemberPublicCard, opener: HTMLElement) => void;
 }>) {
-  if (!neighbours) return <p className="competitor-muted">Your place appears after tonight&apos;s update.</p>;
+  if (!neighbours)
+    return <p className="competitor-muted">Your place appears after tonight&apos;s update.</p>;
   const rows = [...neighbours.above, neighbours.current, ...neighbours.below];
   return (
     <ol className="competitor-list">
@@ -84,11 +89,19 @@ function CompetitorTable({
           </>
         );
         return (
-          <li key={card.studentId} aria-current={isYou ? "true" : undefined} className={isYou ? "is-you" : undefined}>
+          <li
+            key={card.studentId}
+            aria-current={isYou ? "true" : undefined}
+            className={isYou ? "is-you" : undefined}
+          >
             {isYou ? (
               <div className="competitor-row">{body}</div>
             ) : (
-              <button type="button" className="competitor-row" onClick={(event) => onOpen(card, event.currentTarget)}>
+              <button
+                type="button"
+                className="competitor-row"
+                onClick={(event) => onOpen(card, event.currentTarget)}
+              >
                 {body}
               </button>
             )}
@@ -103,7 +116,10 @@ function Competitors({ studentId }: Readonly<{ studentId: string }>) {
   const [state, setState] = useState<CompetitorsResponse | "loading" | "error">("loading");
   const [tab, setTab] = useState<TableKey>("attendance");
   const [open, setOpen] = useState<{ card: MemberPublicCard; opener: HTMLElement } | null>(null);
-  const tabRefs = useRef<Record<TableKey, HTMLButtonElement | null>>({ attendance: null, belt: null });
+  const tabRefs = useRef<Record<TableKey, HTMLButtonElement | null>>({
+    attendance: null,
+    belt: null,
+  });
 
   useEffect(() => {
     let active = true;
@@ -120,7 +136,8 @@ function Competitors({ studentId }: Readonly<{ studentId: string }>) {
   }, [studentId]);
 
   if (state === "loading") return <Skeleton />;
-  if (state === "error") return <p className="client-destination-intro">{competitorsUnavailable}</p>;
+  if (state === "error")
+    return <p className="client-destination-intro">{competitorsUnavailable}</p>;
 
   const onTabKey = (event: KeyboardEvent<HTMLButtonElement>) => {
     const index = tables.findIndex((item) => item.key === tab);
@@ -235,7 +252,11 @@ function CompetitorsContent() {
           {profiles.length > 1 ? (
             <div className="competitor-person">
               <label htmlFor="competitors-person">Showing</label>
-              <select id="competitors-person" value={selected} onChange={(event) => setSelected(event.target.value)}>
+              <select
+                id="competitors-person"
+                value={selected}
+                onChange={(event) => setSelected(event.target.value)}
+              >
                 {profiles.map((profile) => (
                   <option key={profile.studentId} value={profile.studentId}>
                     {profile.via === "self" ? "You" : profile.fullName}

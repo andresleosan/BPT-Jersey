@@ -12,7 +12,9 @@ describe("participantBandAt", () => {
   });
   it("uses the Jersey day, not the UTC day", () => {
     // 23 Sept 23:30Z is already 24 Sept in Jersey (BST).
-    expect(participantBandAt({ dateOfBirth: "2014-09-24", onIso: "2026-09-23T23:30:00.000Z" })).toBe("teens");
+    expect(
+      participantBandAt({ dateOfBirth: "2014-09-24", onIso: "2026-09-23T23:30:00.000Z" }),
+    ).toBe("teens");
   });
   it("treats a missing or unreadable date of birth as adult", () => {
     expect(participantBandAt({ dateOfBirth: null, onIso: on })).toBe("adult");

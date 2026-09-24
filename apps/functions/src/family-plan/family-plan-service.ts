@@ -47,7 +47,11 @@ export type MemberPlanRequestDoc = Readonly<{
 }>;
 
 export type FamilyPlanAuth = Readonly<{
-  getUser: (uid: string) => Promise<Readonly<{ uid: string; disabled?: boolean; customClaims?: Readonly<Record<string, unknown>> }>>;
+  getUser: (
+    uid: string,
+  ) => Promise<
+    Readonly<{ uid: string; disabled?: boolean; customClaims?: Readonly<Record<string, unknown>> }>
+  >;
   setCustomUserClaims: (uid: string, claims: Record<string, unknown>) => Promise<void>;
 }>;
 
@@ -69,7 +73,9 @@ const APPROVAL_LEASE_MS = 10 * 60 * 1000;
 const openStatuses = ["pending", "approving"] as const;
 const requestIdSchema = z.uuid();
 /** `pending` lists every open request: waiting, and being approved (`approving`). */
-export const listMemberPlanRequestsInputSchema = z.strictObject({ status: z.literal("pending").optional() });
+export const listMemberPlanRequestsInputSchema = z.strictObject({
+  status: z.literal("pending").optional(),
+});
 export const decideMemberPlanRequestInputSchema = z.strictObject({
   requestId: requestIdSchema,
   decision: z.enum(["approve", "reject"]),
@@ -95,7 +101,10 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
   async function accountProfile(academyId: string, userId: string) {
     const parsed = parseUserProfile((await db.doc(userPath(academyId, userId)).get()).data());
     if (!parsed.ok || parsed.value.active !== true || parsed.value.status !== "active") {
-      throw new HttpsError("failed-precondition", "Your account details are incomplete. Contact the office.");
+      throw new HttpsError(
+        "failed-precondition",
+        "Your account details are incomplete. Contact the office.",
+      );
     }
     return parsed.value;
   }
@@ -121,7 +130,8 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
         throw new HttpsError("permission-denied", "Only the account holder can change the plan");
       }
       const parsed = memberPlanRequestInputSchema.safeParse(input);
-      if (!parsed.success) throw new HttpsError("invalid-argument", "Check the details and try again");
+      if (!parsed.success)
+        throw new HttpsError("invalid-argument", "Check the details and try again");
       const value = parsed.data;
       const today = dateKeyInJersey(new Date(now()));
       const age = memberAgeOn(value.dateOfBirth, today);
@@ -133,7 +143,11 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
           throw new HttpsError("failed-precondition", "You already train on this account");
         }
         // The adult writer only takes adults; say so now rather than at the office's approval.
-        if (age < 18) throw new HttpsError("invalid-argument", "You must be 18 or over to train on your own plan");
+        if (age < 18)
+          throw new HttpsError(
+            "invalid-argument",
+            "You must be 18 or over to train on your own plan",
+          );
         fullName = (await accountProfile(actor.academyId, actor.userId)).displayName;
       } else if (age >= 18) {
         throw new HttpsError("invalid-argument", "Children must be under 18");
@@ -142,20 +156,35 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
       const collection = db.collection(requestsPath(actor.academyId));
       await db.runTransaction(async (transaction) => {
         const pending = await transaction.get(
-          collection.where("requestedBy", "==", actor.userId).where("status", "in", [...openStatuses])
+          collection
+            .where("requestedBy", "==", actor.userId)
+            .where("status", "in", [...openStatuses])
             .limit(MAX_PENDING_PER_ACCOUNT),
         );
         if (pending.size >= MAX_PENDING_PER_ACCOUNT) {
-          throw new HttpsError("resource-exhausted", "You already have 5 requests waiting for the office");
+          throw new HttpsError(
+            "resource-exhausted",
+            "You already have 5 requests waiting for the office",
+          );
         }
         const doc: MemberPlanRequestDoc = {
-          academyId: actor.academyId, requestId, kind: value.kind, requestedBy: actor.userId,
+          academyId: actor.academyId,
+          requestId,
+          kind: value.kind,
+          requestedBy: actor.userId,
           person: {
-            fullName, dateOfBirth: value.dateOfBirth, trainingCenter: value.trainingCenter,
+            fullName,
+            dateOfBirth: value.dateOfBirth,
+            trainingCenter: value.trainingCenter,
             trainingTimePreferences: [...value.trainingTimePreferences],
           },
-          status: "pending", createdAt: now(), decidedAt: null, decidedBy: null, studentId: null,
-          approvingBy: null, approvingAt: null,
+          status: "pending",
+          createdAt: now(),
+          decidedAt: null,
+          decidedBy: null,
+          studentId: null,
+          approvingBy: null,
+          approvingAt: null,
         };
         transaction.create(collection.doc(requestId), doc);
       });
@@ -168,17 +197,23 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
       let query = db.collection(requestsPath(actor.academyId)).limit(100);
       if (parsed.data.status) query = query.where("status", "in", [...openStatuses]);
       const snapshot = await query.get();
-      const requests = snapshot.docs.map((document) => storedRequest(document.data()))
+      const requests = snapshot.docs
+        .map((document) => storedRequest(document.data()))
         .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
       return { requests };
     },
 
-    async decide(actor: CanonicalMemberDirectoryActor, input: unknown): Promise<{ studentId: string | null }> {
+    async decide(
+      actor: CanonicalMemberDirectoryActor,
+      input: unknown,
+    ): Promise<{ studentId: string | null }> {
       const parsed = decideMemberPlanRequestInputSchema.safeParse(input);
-      if (!parsed.success) throw new HttpsError("invalid-argument", "Invalid plan request decision");
+      if (!parsed.success)
+        throw new HttpsError("invalid-argument", "Invalid plan request decision");
       const reference = db.doc(`${requestsPath(actor.academyId)}/${parsed.data.requestId}`);
       const leaseLive = (live: MemberPlanRequestDoc, at: string) =>
-        live.status === "approving" && Date.parse(at) - Date.parse(live.approvingAt ?? "") < APPROVAL_LEASE_MS;
+        live.status === "approving" &&
+        Date.parse(at) - Date.parse(live.approvingAt ?? "") < APPROVAL_LEASE_MS;
       const heldByOther = (live: MemberPlanRequestDoc, at: string) =>
         leaseLive(live, at) && live.approvingBy !== actor.actorId;
       // Read, check and claim in one transaction: the request itself is the lock.
@@ -186,24 +221,40 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
         const snapshot = await transaction.get(reference);
         if (!snapshot.exists) throw new HttpsError("not-found", "Plan request not found");
         const live = storedRequest(snapshot.data());
-        if (live.academyId !== actor.academyId) throw new HttpsError("not-found", "Plan request not found");
+        if (live.academyId !== actor.academyId)
+          throw new HttpsError("not-found", "Plan request not found");
         if (live.status === "approved") return { done: true as const, request: live };
-        if (live.status === "rejected") throw new HttpsError("failed-precondition", "This request was already rejected");
+        if (live.status === "rejected")
+          throw new HttpsError("failed-precondition", "This request was already rejected");
         const at = now();
         if (heldByOther(live, at)) {
-          throw new HttpsError("failed-precondition", "Another office user is approving this request");
+          throw new HttpsError(
+            "failed-precondition",
+            "Another office user is approving this request",
+          );
         }
         if (parsed.data.decision === "reject") {
           // A live approval may be writing the student right now. Once its lease has expired the
           // office may reject; a student it did write stays visible in the directory.
           if (leaseLive(live, at)) {
-            throw new HttpsError("failed-precondition", "This request is being approved. Try again in a few minutes.");
+            throw new HttpsError(
+              "failed-precondition",
+              "This request is being approved. Try again in a few minutes.",
+            );
           }
           transaction.update(reference, {
-            status: "rejected", decidedAt: at, decidedBy: actor.actorId, approvingBy: null, approvingAt: null,
+            status: "rejected",
+            decidedAt: at,
+            decidedBy: actor.actorId,
+            approvingBy: null,
+            approvingAt: null,
           });
         } else {
-          transaction.update(reference, { status: "approving", approvingBy: actor.actorId, approvingAt: at });
+          transaction.update(reference, {
+            status: "approving",
+            approvingBy: actor.actorId,
+            approvingAt: at,
+          });
         }
         return { done: false as const, request: live };
       });
@@ -213,22 +264,35 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
 
       const { directory, families, auth } = dependencies;
       // Nothing has been written yet: a failure here hands the request back to the queue.
-      const releaseLock = () => db.runTransaction(async (transaction) => {
-        const live = storedRequest((await transaction.get(reference)).data());
-        if (live.status !== "approving" || live.approvingBy !== actor.actorId) return;
-        transaction.update(reference, { status: "pending", approvingBy: null, approvingAt: null });
-      });
+      const releaseLock = () =>
+        db.runTransaction(async (transaction) => {
+          const live = storedRequest((await transaction.get(reference)).data());
+          if (live.status !== "approving" || live.approvingBy !== actor.actorId) return;
+          transaction.update(reference, {
+            status: "pending",
+            approvingBy: null,
+            approvingAt: null,
+          });
+        });
       let checked;
       try {
-        if (!directory || !families || !auth) throw new HttpsError("internal", "Plan approval is not configured");
+        if (!directory || !families || !auth)
+          throw new HttpsError("internal", "Plan approval is not configured");
         const account = await auth.getUser(request.requestedBy);
         const role = account.customClaims?.role;
-        if (account.disabled === true || account.customClaims?.academyId !== actor.academyId ||
-            (role !== "guardian" && role !== "adultStudent")) {
+        if (
+          account.disabled === true ||
+          account.customClaims?.academyId !== actor.academyId ||
+          (role !== "guardian" && role !== "adultStudent")
+        ) {
           throw new HttpsError("failed-precondition", "The member's account is not available");
         }
-        const stored = memberPlanRequestInputSchema.safeParse({ kind: request.kind, ...request.person });
-        if (!stored.success) throw new HttpsError("failed-precondition", "This request is unavailable");
+        const stored = memberPlanRequestInputSchema.safeParse({
+          kind: request.kind,
+          ...request.person,
+        });
+        if (!stored.success)
+          throw new HttpsError("failed-precondition", "This request is unavailable");
         const tutor = await accountProfile(actor.academyId, request.requestedBy);
         checked = { directory, families, auth, role, person: stored.data, tutor };
       } catch (error) {
@@ -238,8 +302,10 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
       }
       const { role, person, tutor } = checked;
       const draft = {
-        fullName: person.fullName, dateOfBirth: person.dateOfBirth,
-        trainingCenter: person.trainingCenter, trainingTimePreferences: person.trainingTimePreferences,
+        fullName: person.fullName,
+        dateOfBirth: person.dateOfBirth,
+        trainingCenter: person.trainingCenter,
+        trainingTimePreferences: person.trainingTimePreferences,
       };
       const decidedAt = now();
       let studentId: string;
@@ -257,28 +323,46 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
           });
           studentId = created.studentId;
         } else {
-          if (role === "adultStudent") await promoteToGuardian(checked.auth, request.requestedBy, actor.academyId);
-          const existing = await checked.families.getGuardianFamily(actor.academyId, request.requestedBy);
+          if (role === "adultStudent")
+            await promoteToGuardian(checked.auth, request.requestedBy, actor.academyId);
+          const existing = await checked.families.getGuardianFamily(
+            actor.academyId,
+            request.requestedBy,
+          );
           // A retry by another office user must not create the same child twice.
-          const same = existing?.students.find((student) =>
-            normalizedName(student.fullName) === normalizedName(draft.fullName) && student.dateOfBirth === draft.dateOfBirth);
+          const same = existing?.students.find(
+            (student) =>
+              normalizedName(student.fullName) === normalizedName(draft.fullName) &&
+              student.dateOfBirth === draft.dateOfBirth,
+          );
           if (same) studentId = same.studentId;
           else {
             const common = {
-              academyId: actor.academyId, actorId: actor.actorId,
-              actorRole: actor.role === "owner" ? "owner" as const : "administrator" as const, now: decidedAt,
+              academyId: actor.academyId,
+              actorId: actor.actorId,
+              actorRole: actor.role === "owner" ? ("owner" as const) : ("administrator" as const),
+              now: decidedAt,
             };
             const written = existing
               ? await checked.families.updateFamily({
-                ...common, familyId: existing.family.familyId,
-                operation: { kind: "addStudent", requestId: request.requestId, student: draft },
-              })
+                  ...common,
+                  familyId: existing.family.familyId,
+                  operation: { kind: "addStudent", requestId: request.requestId, student: draft },
+                })
               : await checked.families.createFamily({
-                ...common, enrolmentRequestId: `plan-${request.requestId}`, requestId: request.requestId, tutorUserId: request.requestedBy, students: [draft],
-              });
-            const matches = written.students.filter((student) =>
-              normalizedName(student.fullName) === normalizedName(draft.fullName) && student.dateOfBirth === draft.dateOfBirth);
-            if (matches.length !== 1) throw new HttpsError("aborted", "The child's record needs office review");
+                  ...common,
+                  enrolmentRequestId: `plan-${request.requestId}`,
+                  requestId: request.requestId,
+                  tutorUserId: request.requestedBy,
+                  students: [draft],
+                });
+            const matches = written.students.filter(
+              (student) =>
+                normalizedName(student.fullName) === normalizedName(draft.fullName) &&
+                student.dateOfBirth === draft.dateOfBirth,
+            );
+            if (matches.length !== 1)
+              throw new HttpsError("aborted", "The child's record needs office review");
             studentId = matches[0]!.studentId;
           }
         }
@@ -288,8 +372,12 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
           if (error.code === "conflict" || error.code === "duplicate") {
             throw new HttpsError("already-exists", "This person already holds a member record");
           }
-          if (error.code === "unavailable") throw new HttpsError("unavailable", "The member directory is unavailable. Try again.");
-          throw new HttpsError("failed-precondition", "The request could not be approved. Check the member's account.");
+          if (error.code === "unavailable")
+            throw new HttpsError("unavailable", "The member directory is unavailable. Try again.");
+          throw new HttpsError(
+            "failed-precondition",
+            "The request could not be approved. Check the member's account.",
+          );
         }
         throw new HttpsError("unavailable", "The request could not be approved. Try again.");
       }
@@ -298,10 +386,18 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
         const live = storedRequest((await transaction.get(reference)).data());
         if (live.status === "approved" && live.studentId === studentId) return;
         if (live.status !== "approving" || live.approvingBy !== actor.actorId) {
-          throw new HttpsError("failed-precondition", "Another office user took over this request. Reload it.");
+          throw new HttpsError(
+            "failed-precondition",
+            "Another office user took over this request. Reload it.",
+          );
         }
         transaction.update(reference, {
-          status: "approved", decidedAt, decidedBy: actor.actorId, studentId, approvingBy: null, approvingAt: null,
+          status: "approved",
+          decidedAt,
+          decidedBy: actor.actorId,
+          studentId,
+          approvingBy: null,
+          approvingAt: null,
         });
       });
       return { studentId };

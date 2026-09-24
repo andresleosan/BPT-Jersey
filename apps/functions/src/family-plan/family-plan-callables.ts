@@ -70,7 +70,9 @@ function officeService() {
             uid: user.uid,
             emailVerified: user.emailVerified,
             disabled: user.disabled,
-            ...(user.customClaims ? { customClaims: user.customClaims as Readonly<Record<string, unknown>> } : {}),
+            ...(user.customClaims
+              ? { customClaims: user.customClaims as Readonly<Record<string, unknown>> }
+              : {}),
           };
         },
       },
@@ -81,7 +83,9 @@ function officeService() {
         return {
           uid: user.uid,
           disabled: user.disabled,
-          ...(user.customClaims ? { customClaims: user.customClaims as Readonly<Record<string, unknown>> } : {}),
+          ...(user.customClaims
+            ? { customClaims: user.customClaims as Readonly<Record<string, unknown>> }
+            : {}),
         };
       },
       setCustomUserClaims: (uid, claims) => auth.setCustomUserClaims(uid, claims),

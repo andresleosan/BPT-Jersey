@@ -4,7 +4,11 @@ const acceptedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 /** A full-resolution decode of anything larger can exhaust a phone tab's memory. */
 const maxSourceBytes = 25 * 1024 * 1024;
 
-export type CroppedAvatar = Readonly<{ base64: string; mime: "image/webp" | "image/png"; previewUrl: string }>;
+export type CroppedAvatar = Readonly<{
+  base64: string;
+  mime: "image/webp" | "image/png";
+  previewUrl: string;
+}>;
 
 /**
  * Q3: a fixed centre square, drawn at 512×512 and encoded as WebP with the native canvas; no library.
@@ -27,10 +31,24 @@ export async function cropToSquareWebp(file: File): Promise<CroppedAvatar> {
   canvas.width = canvas.height = 512;
   const context = canvas.getContext("2d");
   if (!context || side === 0) throw new Error(settingsMessages.photoType);
-  context.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, 512, 512);
+  context.drawImage(
+    bitmap,
+    (bitmap.width - side) / 2,
+    (bitmap.height - side) / 2,
+    side,
+    side,
+    0,
+    0,
+    512,
+    512,
+  );
   bitmap.close();
   const blob = await new Promise<Blob>((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error(settingsMessages.photoType))), "image/webp", 0.85),
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error(settingsMessages.photoType))),
+      "image/webp",
+      0.85,
+    ),
   );
   const mime = blob.type === "image/webp" ? "image/webp" : "image/png";
   const bytes = new Uint8Array(await blob.arrayBuffer());

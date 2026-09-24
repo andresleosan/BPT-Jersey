@@ -248,8 +248,10 @@ export async function projectIntroAttendance(
             familyId: studentParsed.value.familyId,
             studentId,
             planId:
-              participantBandAt({ dateOfBirth: studentParsed.value.dateOfBirth ?? null, onIso: now }) ===
-              "adult"
+              participantBandAt({
+                dateOfBirth: studentParsed.value.dateOfBirth ?? null,
+                onIso: now,
+              }) === "adult"
                 ? "payg"
                 : "west-teens-payg",
             status: "active",

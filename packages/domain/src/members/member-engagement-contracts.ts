@@ -182,12 +182,17 @@ export function publicDisplayNames(
     const [first = "", ...rest] = p.fullName.trim().split(/\s+/u);
     return { studentId: p.studentId, first, last: rest.at(-1) ?? "" };
   });
-  const label = (p: (typeof parts)[number], n: number) => (p.last ? `${p.first} ${p.last.slice(0, n)}.` : p.first);
+  const label = (p: (typeof parts)[number], n: number) =>
+    p.last ? `${p.first} ${p.last.slice(0, n)}.` : p.first;
   const result = new Map<string, string>();
   for (const p of parts) {
     let n = 1;
     // ponytail: O(n²) over one cohort (hundreds of rows), fine for a nightly job.
-    while (p.last.length > n && parts.some((o) => o !== p && o.first === p.first && label(o, n) === label(p, n))) n += 1;
+    while (
+      p.last.length > n &&
+      parts.some((o) => o !== p && o.first === p.first && label(o, n) === label(p, n))
+    )
+      n += 1;
     result.set(p.studentId, label(p, n));
   }
   return result;
@@ -195,7 +200,9 @@ export function publicDisplayNames(
 export function beltScore(sequence: number, promotionPercent: number | null): number {
   return sequence * 1000 + (promotionPercent ?? 0);
 }
-export function promotionMilestone(input: Readonly<{ percent: number | null; classesToGo: number | null }>): "75" | "90" | "oneLeft" | null {
+export function promotionMilestone(
+  input: Readonly<{ percent: number | null; classesToGo: number | null }>,
+): "75" | "90" | "oneLeft" | null {
   if (input.classesToGo === 1) return "oneLeft";
   if (input.percent === null) return null;
   if (input.percent >= 90) return "90";
@@ -205,46 +212,89 @@ export function promotionMilestone(input: Readonly<{ percent: number | null; cla
 const id = z.string().min(1).max(128);
 /** What another member may see of a student. Nothing private: no age, contact or family data. */
 export const memberPublicCardSchema = z.strictObject({
-  studentId: id, displayName: z.string().min(1).max(80), photoUrl: z.url().nullable(),
+  studentId: id,
+  displayName: z.string().min(1).max(80),
+  photoUrl: z.url().nullable(),
   belt: z.strictObject({ name: z.string().max(80), color: z.string().max(32) }).nullable(),
-  stripes: z.number().int().min(0).max(10), streakCount: z.number().int().min(0),
-  attendancesSinceSeasonStart: z.number().int().min(0), promotionPercent: z.number().min(0).max(100).nullable(),
+  stripes: z.number().int().min(0).max(10),
+  streakCount: z.number().int().min(0),
+  attendancesSinceSeasonStart: z.number().int().min(0),
+  promotionPercent: z.number().min(0).max(100).nullable(),
   skillKeys: z.array(z.string().max(128)).max(500),
 });
 export type MemberPublicCard = z.infer<typeof memberPublicCardSchema>;
-const bar = z.strictObject({ label: z.string(), target: z.number().int(), progress: z.number().int(), remaining: z.number().int(), almost: z.boolean(), complete: z.boolean() });
-export const memberStreakSummarySchema = z.strictObject({
-  streakCount: z.number().int().min(0), seasonStart: z.iso.date(), attendancesSinceSeasonStart: z.number().int().min(0),
-  hoursSinceSeasonStart: z.number().min(0), goal: bar, reward: bar,
+const bar = z.strictObject({
+  label: z.string(),
+  target: z.number().int(),
+  progress: z.number().int(),
+  remaining: z.number().int(),
+  almost: z.boolean(),
+  complete: z.boolean(),
 });
-export const neighboursSchema = z.strictObject({ above: z.array(memberPublicCardSchema).max(2), current: memberPublicCardSchema, below: z.array(memberPublicCardSchema).max(2) });
+export const memberStreakSummarySchema = z.strictObject({
+  streakCount: z.number().int().min(0),
+  seasonStart: z.iso.date(),
+  attendancesSinceSeasonStart: z.number().int().min(0),
+  hoursSinceSeasonStart: z.number().min(0),
+  goal: bar,
+  reward: bar,
+});
+export const neighboursSchema = z.strictObject({
+  above: z.array(memberPublicCardSchema).max(2),
+  current: memberPublicCardSchema,
+  below: z.array(memberPublicCardSchema).max(2),
+});
 export const competitorsResponseSchema = z.strictObject({
-  cohort: z.enum(["kids", "teens", "adults"]), builtAt: z.iso.datetime().nullable(),
-  attendance: neighboursSchema.nullable(), belt: neighboursSchema.nullable(),
+  cohort: z.enum(["kids", "teens", "adults"]),
+  builtAt: z.iso.datetime().nullable(),
+  attendance: neighboursSchema.nullable(),
+  belt: neighboursSchema.nullable(),
 });
 export const leaderboardRowSchema = memberPublicCardSchema.omit({ photoUrl: true }).extend({
-  photoObjectKey: z.string().max(200).nullable(), hidden: z.boolean(), beltScore: z.number(),
+  photoObjectKey: z.string().max(200).nullable(),
+  hidden: z.boolean(),
+  beltScore: z.number(),
 });
 export type LeaderboardRow = z.infer<typeof leaderboardRowSchema>;
 export const leaderboardSnapshotSchema = z.strictObject({
-  cohort: z.enum(["kids", "teens", "adults"]), builtAt: z.iso.datetime(), seasonStart: z.iso.date(),
+  cohort: z.enum(["kids", "teens", "adults"]),
+  builtAt: z.iso.datetime(),
+  seasonStart: z.iso.date(),
   rows: z.array(leaderboardRowSchema).max(1500),
 });
 export const sessionDetailResponseSchema = z.strictObject({
-  curriculum: z.strictObject({ title: z.string(), techniques: z.array(z.string()), details: z.string() }).nullable(),
+  curriculum: z
+    .strictObject({ title: z.string(), techniques: z.array(z.string()), details: z.string() })
+    .nullable(),
   roster: z.array(z.strictObject({ card: memberPublicCardSchema, isYou: z.boolean() })).max(200),
   hiddenCount: z.number().int().min(0),
 });
-export const promotionOutlookSchema = z.strictObject({
-  nextName: z.string().max(80), percent: z.number().min(0).max(100), classesToGo: z.number().int().min(0).nullable(),
-  milestone: z.enum(["75", "90", "oneLeft"]).nullable(), levelKey: z.string().max(128),
-}).nullable();
+export const promotionOutlookSchema = z
+  .strictObject({
+    nextName: z.string().max(80),
+    percent: z.number().min(0).max(100),
+    classesToGo: z.number().int().min(0).nullable(),
+    milestone: z.enum(["75", "90", "oneLeft"]).nullable(),
+    levelKey: z.string().max(128),
+  })
+  .nullable();
 export const uploadProfilePhotoInputSchema = z.strictObject({
-  studentId: id, base64: z.string().min(4).max(4 * Math.ceil((2 * 1024 * 1024) / 3)),
-  mime: z.enum(["image/jpeg", "image/png", "image/webp"]), consent: z.literal(true),
+  studentId: id,
+  base64: z
+    .string()
+    .min(4)
+    .max(4 * Math.ceil((2 * 1024 * 1024) / 3)),
+  mime: z.enum(["image/jpeg", "image/png", "image/webp"]),
+  consent: z.literal(true),
 });
-export const teenAccessInputSchema = z.strictObject({ studentId: id, email: z.email().max(254), password: z.string().min(10).max(128) });
+export const teenAccessInputSchema = z.strictObject({
+  studentId: id,
+  email: z.email().max(254),
+  password: z.string().min(10).max(128),
+});
 export const memberPlanRequestInputSchema = z.strictObject({
-  kind: z.enum(["self", "child"]), fullName: z.string().trim().min(2).max(160), dateOfBirth: z.iso.date(),
+  kind: z.enum(["self", "child"]),
+  fullName: z.string().trim().min(2).max(160),
+  dateOfBirth: z.iso.date(),
   ...enrolmentTrainingFields, // same centre enum and time slots as /enrol
 });
