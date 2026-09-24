@@ -20,7 +20,6 @@ vi.mock("../../../lib/finance-client", () => financeApi);
 vi.mock("../../../lib/billing-client", () => billingApi);
 vi.mock("../../../lib/membership-admin-client", () => membershipApi);
 vi.mock("../../../lib/members-client", () => membersApi);
-vi.mock("./no-show-penalty-queue", () => ({ NoShowPenaltyQueue: () => null }));
 vi.mock("./payment-instructions-panel", () => ({ PaymentInstructionsPanel: () => null }));
 
 import { BillingPage } from "./page";
@@ -151,6 +150,13 @@ describe("billing page", () => {
     expect(within(latest).getByText("Ana Coelho")).toBeInTheDocument();
     expect(within(latest).getAllByText("Cash").length).toBeGreaterThan(0);
     expect(screen.getByRole("group", { name: "Outstanding invoices" })).not.toHaveAttribute("open");
+  });
+
+  it("has no no-show penalties section", async () => {
+    render(<BillingPage />);
+    expect(await screen.findByRole("heading", { name: "Billing" })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: /No-show penalties/iu })).toBeNull();
+    expect(screen.queryByText(/no-show penalt/iu)).toBeNull();
   });
 
   it("shows a member's family payments after picking them", async () => {

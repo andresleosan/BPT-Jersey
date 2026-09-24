@@ -468,9 +468,8 @@ export function AccountClassesContent() {
             <p>
               <strong>Booking &amp; Cancellation Policy:</strong> Town &amp; West bookings must be
               made at least 1 hour before class starts. Cancellations must be made at least 1 hour
-              in advance. No-shows or late cancellations will incur a penalty fee of £15 on your
-              next booking. Classes require at least 4 attendees booked 1 hour prior to start, or
-              they will be cancelled automatically.
+              in advance. Classes require at least 4 attendees booked 1 hour prior to start, or they
+              will be cancelled automatically.
             </p>
           </aside>
 

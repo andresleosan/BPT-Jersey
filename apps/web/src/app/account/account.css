@@ -329,14 +329,6 @@
   }
 }
 
-.penalty-banner {
-  background: var(--status-missed);
-  border-left: 0.35rem solid #8d1c2f;
-  color: #5f1020;
-  margin: 1rem var(--member-gutter) 0;
-  padding: 0.9rem 1rem;
-}
-
 .member-body {
   padding: 0.5rem var(--member-gutter) 3rem;
 }

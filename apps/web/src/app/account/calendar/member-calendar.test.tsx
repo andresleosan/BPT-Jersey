@@ -72,9 +72,6 @@ vi.mock("../../../lib/courses/course-client", () => ({
       .mockResolvedValue({ sessions: [], bookings: [], attendance: [], cursor: null }),
   },
 }));
-vi.mock("../../../lib/no-show-penalties-client", () => ({
-  listNoShowPenalties: vi.fn().mockResolvedValue([]),
-}));
 
 import { createFirebaseCalendarRepository } from "../../../lib/calendar/firebase-calendar-repository";
 
@@ -145,7 +142,7 @@ describe("MemberCalendar", () => {
     expect(week?.style.getPropertyValue("--week-columns")).toContain("1.6fr");
   });
 
-  it("guardian: chips switch the selected child and the penalty banner follows Maya", async () => {
+  it("guardian: chips switch the selected child and no penalty banner shows for Maya's no-show", async () => {
     stubViewport(false);
     render(
       <MemberCalendar
@@ -157,15 +154,19 @@ describe("MemberCalendar", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Maya" })).toHaveAttribute("aria-pressed", "true"),
     );
-    expect(await screen.findByRole("alert")).toHaveTextContent("£15 no-show penalty");
+    // The fixture still records Maya's missed class as a no-show attendance; that must not
+    // turn into a charge or a warning on the member calendar.
+    await waitFor(() => expect(document.querySelectorAll(".day-column").length).toBeGreaterThan(0));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText(/penalty|£15/u)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Leo" }));
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Leo" })).toHaveAttribute("aria-pressed", "true"),
     );
-    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("books with one tap and shows the £15 note, then cancels through the dialog", async () => {
+  it("books with one tap and shows the booked note, then cancels through the dialog", async () => {
     stubViewport(true);
     render(
       <MemberCalendar
@@ -179,7 +180,7 @@ describe("MemberCalendar", () => {
     if (!first || !card) throw new Error("no open session in fixtures");
     await userEvent.click(first);
     await waitFor(() =>
-      expect(within(card).getByText("Booked. Missing it costs £15.")).toBeInTheDocument(),
+      expect(within(card).getByText("Booked.")).toBeInTheDocument(),
     );
     await userEvent.click(within(card).getByRole("button", { name: "Booked · Cancel" }));
     const dialog = screen.getByRole("dialog", { hidden: true });

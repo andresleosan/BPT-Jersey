@@ -3,10 +3,10 @@ import { expect, test, type APIRequestContext } from "@playwright/test";
 /**
  * T116 authenticated Emulator E2E for delegated administrative permissions.
  *
- * The claim is the thing under test. A head coach is refused the office penalty queue, office grants
- * them `reviewPenalties`, the very same session - same token, same claim - is then let in, and the
- * moment office revokes, the door shuts again. Nothing re-issues a token anywhere in this spec, and
- * the suite asserts the claim still reads "headCoach" after the grant.
+ * The claim is the thing under test. Office grants a head coach `reviewPenalties` and revokes it again;
+ * nothing re-issues a token anywhere in this spec, and the suite asserts the claim still reads
+ * "headCoach" after the grant. The no-show penalty queue that used to prove the grant opened a door
+ * has been removed, so no callable consumes this grant any more; the grant lifecycle is still covered.
  *
  * Same mechanism as T093-T098 and T111-T114: the web client is App Check fail-closed, so the spec
  * drives the callables directly with real Auth Emulator sessions and an unsigned App Check token
@@ -122,16 +122,13 @@ function inDays(days: number): string {
 test.describe("T116 delegated staff permissions with Firebase Emulators", () => {
   test.skip(!enabled, "T116_PERMISSION_GRANT_EMULATOR_E2E is not enabled");
 
-  test("office delegates the penalty queue to a coach and takes it back", async ({ request }) => {
+  test("office delegates a permission to a coach and takes it back", async ({ request }) => {
     expect(academyId.length).toBeGreaterThan(0);
     const owner = await signIn(request, process.env.T116_OWNER_EMAIL);
     const headCoach = await signIn(request, process.env.T116_HEAD_COACH_EMAIL);
 
     // The claim before anything happens. Nothing in this spec ever changes it.
     expect(claimRole(headCoach)).toBe("headCoach");
-
-    // 1. Without a grant the office queue is closed to the coach, which is the T111 behaviour.
-    await denied(request, "listNoShowPenalties", null, headCoach, 403, "PERMISSION_DENIED");
 
     // 2. Office grants exactly one permission, with a reason and an expiry.
     const granted = await ok<{ grant: Grant }>(
@@ -152,15 +149,7 @@ test.describe("T116 delegated staff permissions with Firebase Emulators", () => 
       grantedBy: owner.uid,
     });
 
-    // 3. The same session, with the same token, now reaches the queue.
-    const queue = await ok<{ penalties: unknown[] }>(
-      request,
-      "listNoShowPenalties",
-      null,
-      headCoach,
-    );
-    expect(Array.isArray(queue.penalties)).toBe(true);
-    // The claim is untouched: the reach came from the document, not from a widened token.
+    // 3. The claim is untouched: a grant lives in a document, never in a widened token.
     expect(claimRole(headCoach)).toBe("headCoach");
 
     // 4. The grant is bounded to what it names: another permission stays closed.
@@ -193,7 +182,7 @@ test.describe("T116 delegated staff permissions with Firebase Emulators", () => 
     expect(listed.grants.some((g) => g.grantId === granted.grant.grantId)).toBe(true);
     expect(listed.grants.find((g) => g.grantId === granted.grant.grantId)?.status).toBe("active");
 
-    // 7. Revoking shuts the door on the next call, with no token refresh anywhere.
+    // 7. Revoking is recorded, with no token refresh anywhere.
     const revoked = await ok<{ grant: Grant }>(
       request,
       "revokeStaffPermission",
@@ -201,7 +190,6 @@ test.describe("T116 delegated staff permissions with Firebase Emulators", () => 
       owner,
     );
     expect(revoked.grant.status).toBe("revoked");
-    await denied(request, "listNoShowPenalties", null, headCoach, 403, "PERMISSION_DENIED");
 
     // 8. Revoking twice is refused rather than silently writing again.
     await denied(

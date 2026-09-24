@@ -100,7 +100,6 @@ function billingCallables(calls: CallableCall[]): {
       listMemberships: [],
       listMemberNames: { members },
       getFamilyFinancialAccount: financialAccount,
-      listNoShowPenalties: { penalties: [] },
       listIntroMembershipApplications: { applications: [] },
       issueManualInvoice: (body: unknown) => {
         const data = (body as { data: Record<string, unknown> }).data;
@@ -228,7 +227,6 @@ test.describe("admin billing home", () => {
     for (const summary of [
       "Outstanding invoices",
       "Upcoming renewals",
-      "No-show penalties",
       "Payment instructions",
       "All invoices",
     ]) {

@@ -27,7 +27,6 @@ const schedule = vi.hoisted(() => {
   }));
   return mocks;
 });
-const penalties = vi.hoisted(() => ({ listNoShowPenalties: vi.fn() }));
 const profile = vi.hoisted(() => ({ getClientProfile: vi.fn() }));
 const courses = vi.hoisted(() => ({
   courseApi: {
@@ -44,7 +43,6 @@ const waitlist = vi.hoisted(() => ({ listClientMemberships: vi.fn() }));
 const family = vi.hoisted(() => ({ getFamily: vi.fn() }));
 vi.mock("../waitlist-client", () => waitlist);
 vi.mock("../family-client", () => family);
-vi.mock("../no-show-penalties-client", () => penalties);
 vi.mock("../profile-client", () => profile);
 vi.mock("../courses/course-client", () => courses);
 
@@ -75,7 +73,6 @@ describe("firebase calendar repository", () => {
     schedule.listStudentBookings.mockResolvedValue([]);
     schedule.listStudentAttendance.mockResolvedValue([]);
     schedule.listSessionBookedCounts.mockResolvedValue({ s1: 20 });
-    penalties.listNoShowPenalties.mockResolvedValue([]);
     schedule.getTrialAccess.mockResolvedValue(null);
   });
 
@@ -103,24 +100,6 @@ describe("firebase calendar repository", () => {
     await repo.loadMember();
     const week = await repo.loadWeek("s-1", "2026-09-14T00:00:00.000Z", "2026-09-20T23:59:59.999Z");
     expect(week.bookedCounts).toEqual({});
-    expect(week.sessions).toEqual([{ sessionId: "s1" }]);
-  });
-
-  it("keeps member and week data usable when the office-only penalty read is denied", async () => {
-    penalties.listNoShowPenalties.mockRejectedValue(new Error("permission-denied"));
-    const repo = createFirebaseCalendarRepository({
-      role: "adultStudent",
-      displayName: "Alex Demo",
-    });
-
-    const member = await repo.loadMember();
-    const [week, noShowPenalties] = await Promise.all([
-      repo.loadWeek("s-1", "2026-09-14T00:00:00.000Z", "2026-09-20T23:59:59.999Z"),
-      repo.loadPenalties("s-1"),
-    ]);
-
-    expect(noShowPenalties).toEqual([]);
-    expect(member.participants).toHaveLength(1);
     expect(week.sessions).toEqual([{ sessionId: "s1" }]);
   });
 

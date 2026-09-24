@@ -87,10 +87,9 @@ function trackBrowserHealth(page: Page, health: Health): void {
   page.on("console", (message) => {
     if (message.type() !== "error") return;
     const url = message.location().url;
-    // Pre-existing background calls, older than this suite: the course calendar warm-up sends an
-    // empty query on purpose, and the calendar asks for no-show penalties that are office-only.
+    // Pre-existing background call, older than this suite: the course calendar warm-up sends an
+    // empty query on purpose.
     if (/\/getCourseCalendar$/u.test(url) && message.text().includes("status of 400")) return;
-    if (/\/listNoShowPenalties$/u.test(url) && message.text().includes("status of 403")) return;
     health.errors.push(`console: ${message.text()} (${url})`);
   });
   page.on("pageerror", (error) => health.errors.push(`page: ${error.message}`));

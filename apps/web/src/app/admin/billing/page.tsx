@@ -28,7 +28,6 @@ import { formatDate, formatMoney, methodLabel } from "./billing-format";
 import { IssueInvoiceDialog } from "./issue-invoice-dialog";
 import { InvoiceRowActions, MemberAccountPanel } from "./member-account-panel";
 import { MemberPicker } from "./member-picker";
-import { NoShowPenaltyQueue } from "./no-show-penalty-queue";
 import { PaymentInstructionsPanel } from "./payment-instructions-panel";
 import { RecordPaymentDialog } from "./record-payment-dialog";
 
@@ -480,11 +479,6 @@ export function BillingPage() {
             ) : null}
           </>
         ) : null}
-      </details>
-
-      <details className="billing-details" aria-label="No-show penalties">
-        <summary>No-show penalties</summary>
-        <NoShowPenaltyQueue />
       </details>
 
       <details className="billing-details" aria-label="Payment instructions">

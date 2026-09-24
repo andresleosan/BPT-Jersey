@@ -20,7 +20,6 @@ import {
   type BookingRecord,
   type PaygBookingPayment,
 } from "@bpt-jersey/domain/schedule";
-import type { NoShowPenaltyRecord } from "@bpt-jersey/domain/penalties";
 import { PLAN_CATALOG, type PlanId } from "@bpt-jersey/domain/memberships";
 import type { TrialAccessView } from "@bpt-jersey/domain/memberships/trial-access";
 import {
@@ -49,12 +48,11 @@ import { CalendarHeader, DayStrip } from "./calendar-header";
 import { CancelDialog } from "./cancel-dialog";
 import { DayColumn } from "./day-column";
 import { PaygPaymentDialog } from "./payg-payment-dialog";
-import { PenaltyBanner } from "./penalty-banner";
 import { ReadyForJiuJitsu } from "./ready-for-jiu-jitsu";
 import type { CalendarEntry } from "./session-card";
 
 const desktopQuery = "(min-width: 58rem)";
-const bookedNote = "Booked. Missing it costs £15.";
+const bookedNote = "Booked.";
 const noteLifetimeMs = 4000;
 const pollIntervalMs = 60_000;
 
@@ -117,12 +115,6 @@ function useMinuteClock(): Date {
   return now;
 }
 
-function hasPendingPenalty(penalties: readonly NoShowPenaltyRecord[]): boolean {
-  return penalties.some(
-    (p) => (p.status === "proposed" || p.status === "charged") && p.resolution === null,
-  );
-}
-
 function dayOf(days: readonly CalendarDay[], startAt: string): CalendarDay | undefined {
   return days.find((d) => startAt >= d.startAt && startAt < d.endAt);
 }
@@ -164,7 +156,6 @@ export function MemberCalendar({
   const [weekRangeFrom, setWeekRangeFrom] = useState("");
   const [weekRangeTo, setWeekRangeTo] = useState("");
   const [weekState, setWeekState] = useState<LoadState>("loading");
-  const [penalties, setPenalties] = useState<readonly NoShowPenaltyRecord[]>([]);
   const [busyKey, setBusyKey] = useState("");
   const [notes, setNotes] = useState<Readonly<Record<string, string>>>({});
   const [cancelling, setCancelling] = useState<CalendarEntry>();
@@ -212,7 +203,6 @@ export function MemberCalendar({
     setWeekStudentId("");
     setWeekRangeFrom("");
     setWeekRangeTo("");
-    setPenalties([]);
     setSiblingReady({ studentId: "", names: [] });
     const applyMember = (loaded: CalendarMember) => {
       setMember(loaded);
@@ -265,14 +255,6 @@ export function MemberCalendar({
     if (stale) applyWeek(stale);
     else if (!silentReload.current) setWeekState("loading");
     silentReload.current = false;
-    // Penalties are an ancillary banner: they load beside the week and never hold it back.
-    void repository
-      .loadPenalties(requestedScope.studentId)
-      .then((loadedPenalties) => {
-        if (active && sameWeekScope(requestedScope, activeWeekScope.current))
-          setPenalties(loadedPenalties);
-      })
-      .catch(() => undefined);
     repository
       .loadWeek(requestedScope.studentId, requestedScope.rangeFrom, requestedScope.rangeTo)
       .then((loadedWeek) => {
@@ -484,7 +466,6 @@ export function MemberCalendar({
       setWeekStudentId("");
       setWeekRangeFrom("");
       setWeekRangeTo("");
-      setPenalties([]);
       setSiblingReady({ studentId, names: [] });
       setSelectedStudentId(studentId);
     },
@@ -653,7 +634,6 @@ export function MemberCalendar({
         />
       ) : null}
       {top ? <div className="member-top">{top}</div> : null}
-      {!failed && weekState === "ready" && hasPendingPenalty(penalties) ? <PenaltyBanner /> : null}
       {!failed && participant?.trial ? (
         <p className="calendar-trial-band" role="status">
           {participant.trial.status === "active" && participant.trial.attendedCount > 0 ? (
