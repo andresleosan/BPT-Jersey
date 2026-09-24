@@ -12,7 +12,7 @@ import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 
 import { resolveCanonicalStudentIdInTransaction } from "../members/member-identity-resolution.js";
 import type { R2Client } from "../storage/r2-client.js";
-import { PhotoRejected, sanitiseAvatar, signAvatarObject, signPhotoUrl } from "./profile-photo.js";
+import { PhotoRejected, sanitiseAvatar, signPhotoUrl } from "./profile-photo.js";
 
 /** academies/{academyId}/memberPublicSettings/{studentId}: server-only, default-denied by the rules. */
 export type MemberPublicSettingsDoc = {
@@ -64,6 +64,15 @@ function fromData(academyId: string, studentId: string, data: Readonly<Record<st
 export async function readPublicSettings(db: Firestore, academyId: string, studentId: string): Promise<MemberPublicSettingsDoc> {
   const snapshot = await db.doc(settingsPath(academyId, studentId)).get();
   return fromData(academyId, studentId, snapshot.exists ? snapshot.data() : undefined);
+}
+
+/**
+ * A teen's unconsented proposal, signed only for callers already authorised on this student (the teen and
+ * their guardian, in their own settings). Module-private on purpose: public cards sign through signPhotoUrl.
+ */
+async function signProposalPreview(r2: R2Client, objectKey: string | null): Promise<string | null> {
+  if (!objectKey || !r2.createPrivateImageUrl) return null;
+  return r2.createPrivateImageUrl({ objectKey, expiresInSeconds: 900, contentType: "image/webp" });
 }
 
 function parse<T>(schema: z.ZodType<T>, value: unknown): T {
@@ -163,7 +172,7 @@ export function createAccountSettingsService(deps: AccountSettingsDependencies) 
       if (previous !== objectKey) await deleteQuietly(previous, actor.academyId, studentId);
       return permission === "manage"
         ? { photoUrl: await signPhotoUrl(deps.r2, objectKey, at), pending: false }
-        : { photoUrl: await signAvatarObject(deps.r2, objectKey), pending: true };
+        : { photoUrl: await signProposalPreview(deps.r2, objectKey), pending: true };
     },
 
     /** Q2: removing the photo clears every pointer (and any pending proposal) and deletes the objects. */
@@ -204,7 +213,7 @@ export function createAccountSettingsService(deps: AccountSettingsDependencies) 
       const email = teen.exists ? nullableString(teen.data?.email) : null;
       return {
         photoUrl: await signPhotoUrl(deps.r2, settings.photoObjectKey, settings.photoConsentAt),
-        pendingPhotoUrl: await signAvatarObject(deps.r2, settings.pendingPhotoObjectKey),
+        pendingPhotoUrl: await signProposalPreview(deps.r2, settings.pendingPhotoObjectKey),
         showToMembers: settings.showToMembers,
         canManage: permission === "manage",
         teenAccess: email ? { email, active: teen.data?.revokedAt === null || teen.data?.revokedAt === undefined } : null,

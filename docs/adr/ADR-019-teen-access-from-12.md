@@ -30,6 +30,9 @@ La cohorte teen de la academia empieza a los 12, y la franja `participantBandAt`
 - Hay datos de menores de 12 a 15 años con credencial propia (email y hash de contraseña en Firebase
   Auth). Queda anotado en el inventario de la DPIA (`docs/operations/t011-dpia-draft.md` §2) con base
   legal el consentimiento del tutor.
+- Salud y datos médicos siguen siendo **16+ para el acceso propio**: el perfil de salud, las
+  solicitudes de cambio de salud y la descarga del waiver firmado exigen `ownHealthAccessMinimumAge`
+  (16) cuando el actor entra como `self`; el acceso del tutor no cambia.
 - `decideMemberAccess` concede `via: "self"` desde los 12; el acceso del tutor (`via: "guardian"`)
   sigue hasta los 18. Cualquier callable que permita a un miembro cambiar algo de sí mismo debe
   distinguir `self` < 18 de `self` adulto.

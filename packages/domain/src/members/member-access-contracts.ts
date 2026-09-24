@@ -2,6 +2,8 @@ import { z } from "zod";
 import { reviewIdentifierSchema } from "./member-reconciliation-contracts";
 
 export const teenAccountMinimumAge = 12;
+/** Health stays 16+ for own access (ADR-019); guardian access unchanged. */
+export const ownHealthAccessMinimumAge = 16;
 /** Calendar years at the academy. A leap-day birthday is reached on 1 March in a non-leap year. */
 export function memberAgeOn(dateOfBirth: string | undefined, academyDate: string): number | null {
   if (!dateOfBirth || !z.iso.date().safeParse(dateOfBirth).success || !z.iso.date().safeParse(academyDate).success || dateOfBirth > academyDate) return null;
@@ -18,6 +20,11 @@ export function decideMemberAccess(facts: MemberAccessFacts): MemberAccessDecisi
   if (facts.ownLinkApproved && facts.confirmedAge >= teenAccountMinimumAge) return { allowed: true, via: "self" };
   if (facts.guardianLinkCurrent && facts.confirmedAge < 18) return { allowed: true, via: "guardian" };
   return { allowed: false };
+}
+/** Health profiles and waiver evidence: a guardian as before, `self` only from `ownHealthAccessMinimumAge`. */
+export function allowsOwnSensitiveAccess(decision: MemberAccessDecision, age: number | null): boolean {
+  if (!decision.allowed) return false;
+  return decision.via === "guardian" || (age !== null && age >= ownHealthAccessMinimumAge);
 }
 /** Q4: credentials never expire; the first own sign-in at 18 hands the account over once. */
 export function needsAdultClaim(input: Readonly<{ age: number | null; via: "self" | "guardian"; createdByGuardian: boolean; adultClaimedAt: string | null }>): boolean {

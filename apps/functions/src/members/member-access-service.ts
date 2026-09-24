@@ -3,7 +3,7 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { parseEffectiveStudentProfileAt, parseUserProfile, type StudentProfile } from "@bpt-jersey/domain/profiles";
 import { parseFamilyRecord, parseFamilyRelationship, type FamilyRelationship } from "@bpt-jersey/domain/families";
 import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
-import { accountMemberProfileSchema, decideMemberAccess, memberAgeOn, memberGuardianStateSchema,
+import { accountMemberProfileSchema, allowsOwnSensitiveAccess, decideMemberAccess, memberAgeOn, memberGuardianStateSchema,
   type MemberAccessDecision, type MemberAccessService, type AccountMemberProfile } from "@bpt-jersey/domain/members/access";
 import { reviewIdentifierSchema } from "@bpt-jersey/domain/members/reconciliation";
 import { resolveCanonicalStudentIdInTransaction } from "./member-identity-resolution.js";
@@ -179,6 +179,29 @@ export function memberAccessInStoreTransaction<Reference, Query>(
       return result.docs.map((doc) => ({ id: doc.id, exists: doc.exists, data: doc.data() }));
     },
   });
+}
+
+/** ADR-019: own access starts at 12, but health and waiver evidence stay 16+ for `self`. Reads join THEIR transaction. */
+export async function sensitiveMemberAccessInStoreTransaction<Reference, Query>(
+  firestore: Parameters<typeof memberAccessInStoreTransaction<Reference, Query>>[0],
+  transaction: Parameters<typeof memberAccessInStoreTransaction<Reference, Query>>[1],
+  now: string, academyId: string, actorId: string, studentId: string,
+): Promise<boolean> {
+  const decision = await memberAccessInStoreTransaction(firestore, transaction, now).authorise(academyId, actorId, studentId);
+  if (!decision.allowed || decision.via === "guardian") return allowsOwnSensitiveAccess(decision, null);
+  const getDocument = async (path: string) => {
+    const doc = await transaction.get(firestore.doc(path));
+    if ("docs" in doc) throw unavailable();
+    return { id: doc.id, exists: doc.exists, data: doc.data() };
+  };
+  try {
+    const canonicalId = await resolveCanonicalStudentIdInTransaction({ get: getDocument }, academyId, studentId);
+    const academyDate = dateKeyInJersey(new Date(now));
+    const student = parseEffectiveStudentProfileAt((await getDocument(`academies/${academyId}/students/${canonicalId}`)).data, academyDate);
+    return allowsOwnSensitiveAccess(decision, student.ok ? memberAgeOn(student.value.dateOfBirth, academyDate) : null);
+  } catch {
+    return false;
+  }
 }
 
 export async function requireMemberProfileAccess(academyId: string, actorUserId: string, studentId: string,

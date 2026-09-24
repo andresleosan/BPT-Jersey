@@ -26,14 +26,8 @@ export async function sanitiseAvatar(bytes: Buffer, mime: "image/jpeg" | "image/
   }
 }
 
-/** Any avatar object, consented or proposed. Callers decide who may see it. */
-export async function signAvatarObject(r2: R2Client, objectKey: string | null): Promise<string | null> {
-  if (!objectKey || !r2.createPrivateImageUrl) return null;
-  return r2.createPrivateImageUrl({ objectKey, expiresInSeconds: avatarUrlSeconds, contentType: "image/webp" });
-}
-
 /** The only way another member's photo leaves the server: a consented key, signed for 15 minutes. */
 export async function signPhotoUrl(r2: R2Client, objectKey: string | null, consentAt: string | null): Promise<string | null> {
-  if (!objectKey || !consentAt) return null;
-  return signAvatarObject(r2, objectKey);
+  if (!objectKey || !consentAt || !r2.createPrivateImageUrl) return null;
+  return r2.createPrivateImageUrl({ objectKey, expiresInSeconds: avatarUrlSeconds, contentType: "image/webp" });
 }
