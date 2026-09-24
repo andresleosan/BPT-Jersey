@@ -43,6 +43,7 @@ export const auditActions = Object.freeze([
   "invoice.created",
   "invoice.voided",
   "payment.recorded",
+  "payment.edited",
   "invoice.status.changed",
   "staff.invitation.created",
   "staff.invitation.cancelled",
@@ -352,7 +353,7 @@ export type AuditEventDraft = CommonAuditEventDraft &
         currency: "GBP";
       }>
     | Readonly<{
-        action: "payment.recorded";
+        action: "payment.recorded" | "payment.edited";
         amountMinor: number;
         currency: "GBP";
         method: "cash" | "bank_transfer" | "other";
@@ -495,6 +496,7 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "invoice.voided": Object.freeze([...commonFields, "amountMinor", "currency"]),
   "invoice.status.changed": Object.freeze([...commonFields, "amountMinor", "currency"]),
   "payment.recorded": Object.freeze([...commonFields, "amountMinor", "currency", "method"]),
+  "payment.edited": Object.freeze([...commonFields, "amountMinor", "currency", "method"]),
   "staff.invitation.created": commonFields,
   "staff.invitation.cancelled": commonFields,
   "staff.invitation.accepted": commonFields,
@@ -1175,7 +1177,8 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
       parsedAction === "invoice.created" ||
       parsedAction === "invoice.voided" ||
       parsedAction === "invoice.status.changed" ||
-      parsedAction === "payment.recorded"
+      parsedAction === "payment.recorded" ||
+      parsedAction === "payment.edited"
     ) {
       if (!isPositiveInteger(snapshot.amountMinor)) {
         issues.push(issue(["amountMinor"], "AUDIT_AMOUNT_INVALID"));
@@ -1184,7 +1187,7 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
         issues.push(issue(["currency"], "AUDIT_CURRENCY_INVALID"));
       }
       if (
-        parsedAction === "payment.recorded" &&
+        (parsedAction === "payment.recorded" || parsedAction === "payment.edited") &&
         !["cash", "bank_transfer", "other"].includes(snapshot.method as string)
       ) {
         issues.push(issue(["method"], "AUDIT_PAYMENT_METHOD_INVALID"));
@@ -1265,7 +1268,7 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
         }),
       );
     }
-    if (parsedAction === "payment.recorded") {
+    if (parsedAction === "payment.recorded" || parsedAction === "payment.edited") {
       return ok(
         Object.freeze({
           ...base,

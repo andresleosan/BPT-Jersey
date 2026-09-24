@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import type { ValidationIssue } from "../errors";
 import { err, ok, type Result } from "../result";
 
@@ -52,7 +54,40 @@ export type LegacyManualPaymentRecord = Readonly<{
   createdBy: string;
   updatedAt: string;
   updatedBy: string;
+  /** Append-only trail of office edits; absent until the payment is first edited. */
+  auditHistory?: readonly PaymentAuditEntry[] | undefined;
 }>;
+
+export type PaymentAuditEntry = Readonly<{
+  editedAt: string;
+  editedBy: string;
+  editedByName: string;
+  reason: string;
+  previousValues: Readonly<Record<string, unknown>>;
+}>;
+
+export const editPaymentReasonSchema = z.string().trim().min(10).max(280);
+
+/** Office correction of a recorded manual payment; the reason is mandatory. */
+export const editManualPaymentInputSchema = z
+  .strictObject({
+    paymentId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u),
+    amountMinor: z.number().int().positive().max(100_000_000).optional(),
+    method: z.enum(["cash", "bank_transfer", "other"]).optional(),
+    manualReference: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u).optional(),
+    occurredAt: z.iso.datetime({ offset: true }).optional(),
+    reason: editPaymentReasonSchema,
+    requestId: z.uuid(),
+  })
+  .refine(
+    (input) =>
+      input.amountMinor !== undefined ||
+      input.method !== undefined ||
+      input.manualReference !== undefined ||
+      input.occurredAt !== undefined,
+    { message: "Change at least one payment detail." },
+  );
+export type EditManualPaymentInput = z.infer<typeof editManualPaymentInputSchema>;
 
 export type CoursePayer = {kind: "user"; userId: string} | {kind: "family"; familyId: string};
 export type CourseInvoiceRecord = Omit<LegacyInvoiceRecord, "schemaVersion" | "familyId" | "membershipId" | "chargeKind" | "sourceRef"> & {
@@ -253,9 +288,28 @@ function parsePaymentValues(
   if (data.schemaVersion !== 1) issues.push(issue(["schemaVersion"], "invalid_schema_version"));
   if (!validDateTime(data.createdAt)) issues.push(issue(["createdAt"], "invalid_datetime"));
   if (!validDateTime(data.updatedAt)) issues.push(issue(["updatedAt"], "invalid_datetime"));
+  if (data.auditHistory !== undefined && !validAuditHistory(data.auditHistory)) {
+    issues.push(issue(["auditHistory"], "invalid_audit_history"));
+  }
   return issues.length > 0
     ? err(Object.freeze(issues))
     : ok(Object.freeze({ ...data }) as LegacyManualPaymentRecord);
+}
+
+function validAuditHistory(value: unknown): value is readonly PaymentAuditEntry[] {
+  return (
+    Array.isArray(value) &&
+    value.length <= 200 &&
+    value.every(
+      (entry) =>
+        isPlainRecord(entry) &&
+        validDateTime(entry.editedAt) &&
+        validString(entry.editedBy, 128, identifierPattern) &&
+        validString(entry.editedByName, 160) &&
+        editPaymentReasonSchema.safeParse(entry.reason).success &&
+        isPlainRecord(entry.previousValues),
+    )
+  );
 }
 
 function coursePayerValid(value: unknown, familyId: unknown): value is CoursePayer {
@@ -301,7 +355,10 @@ export function parseManualPaymentRecord(
 ): Result<ManualPaymentRecord, readonly ValidationIssue[]> {
   if (!isPlainRecord(value)) return err(Object.freeze([issue([], "expected_plain_object")]));
   if (value.schemaVersion === 2) return parseCoursePayment(value);
-  const fields = readExactFields(value, paymentFields);
+  const fields = readExactFields(
+    value,
+    Object.hasOwn(value, "auditHistory") ? [...paymentFields, "auditHistory"] : paymentFields,
+  );
   return fields.ok ? parsePaymentValues(fields.value) : fields;
 }
 

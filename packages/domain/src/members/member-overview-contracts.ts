@@ -15,11 +15,14 @@ export const memberReviewFlags = Object.freeze([
 ] as const);
 export type MemberReviewFlag = (typeof memberReviewFlags)[number];
 
-export const memberPlanStates = Object.freeze(["current", "expiring", "expired", "none"] as const);
+export const memberPlanStates = Object.freeze(["current", "expiring", "expired", "trial", "none"] as const);
 export type MemberPlanState = (typeof memberPlanStates)[number];
 
 export const memberOverviewRowSchema = z.strictObject({
   studentId: z.string().min(1),
+  /** Guardian rows are adults shown only because they look after an active member. */
+  rowKind: z.enum(["member", "guardian"]).default("member"),
+  userId: z.string().min(1).max(128).optional(),
   fullName: z.string().min(1).max(160),
   age: z.number().int().min(0).max(120).optional(),
   ageBand: z.enum(["kids", "teens", "adult"]).optional(),
@@ -53,12 +56,22 @@ export const memberOverviewSchema = z.strictObject({
     expiring: z.number().int().min(0),
     review: z.number().int().min(0),
     inactive: z.number().int().min(0),
+    guardians: z.number().int().min(0),
   }),
   generatedAt: z.string().min(1),
 });
 export type MemberOverview = Readonly<z.infer<typeof memberOverviewSchema>>;
 
 export const expiringWindowDays = 30;
+
+/** A guardian row: looks after an active member and has no live plan or trial of their own. */
+export function isGuardianOnly(input: Readonly<{
+  hasOwnCoveringPlan: boolean;
+  hasActiveTrial: boolean;
+  guardsActiveStudent: boolean;
+}>): boolean {
+  return input.guardsActiveStudent && !input.hasOwnCoveringPlan && !input.hasActiveTrial;
+}
 
 export type OverviewStudentSource = Readonly<{
   studentId: string;
@@ -124,7 +137,7 @@ export function buildMemberOverview(input: {
 }): MemberOverview {
   const today = input.now.slice(0, 10);
   const expiringUntil = addDays(today, expiringWindowDays);
-  const counters = { total: 0, active: 0, expiring: 0, review: 0, inactive: 0 };
+  const counters = { total: 0, active: 0, expiring: 0, review: 0, inactive: 0, guardians: 0 };
   const rows = input.students.map((student): MemberOverviewRow => {
     const membership = currentMembership(input.membershipsByStudent.get(student.studentId) ?? [], input.now);
     const endsDate = membership?.endsAt?.slice(0, 10) ?? null;
@@ -155,6 +168,7 @@ export function buildMemberOverview(input: {
     if (flags.length > 0) counters.review += 1;
     return {
       studentId: student.studentId,
+      rowKind: "member",
       fullName: student.fullName,
       ...(age === undefined || ageBand === undefined ? {} : { age, ageBand }),
       trainingCenter: student.trainingCenter,
