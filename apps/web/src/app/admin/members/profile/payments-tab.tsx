@@ -2,9 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { SubscriptionBilling } from "@bpt-jersey/domain/memberships/admin";
+import type {
+  SubscriptionBilling,
+  SubscriptionBillingPayment,
+} from "@bpt-jersey/domain/memberships/admin";
 import { getMemberSubscriptionBilling } from "../../../../lib/subscription-admin-client";
 import { SubscriptionBillingHistory } from "../member-subscription-editor";
+import { EditPaymentDialog, RecordMemberPaymentDialog } from "./payment-dialogs";
 
 import { MemberRecordLoadError } from "../../../../lib/member-profile-client";
 
@@ -18,6 +22,14 @@ export function PaymentsTab({
 }) {
   const [state, setState] = useState<State>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
+  const [dialog, setDialog] = useState<
+    { kind: "record" } | { kind: "edit"; payment: SubscriptionBillingPayment } | null
+  >(null);
+  const closeDialog = () => setDialog(null);
+  const afterSave = () => {
+    setDialog(null);
+    setAttempt((value) => value + 1);
+  };
   useEffect(() => {
     let active = true;
     setState({ status: "loading" });
@@ -46,6 +58,15 @@ export function PaymentsTab({
         available in Billing.
       </p>
       <div className="member-subscription-actions">
+        {state.status === "ready" ? (
+          <button
+            className="member-record-button"
+            type="button"
+            onClick={() => setDialog({ kind: "record" })}
+          >
+            Record payment
+          </button>
+        ) : null}
         <Link className="member-record-link" href="/admin/billing">
           Open Billing
         </Link>
@@ -75,7 +96,11 @@ export function PaymentsTab({
       ) : null}
       {state.status === "ready" ? (
         state.billing.some((item) => item.invoices.length > 0) ? (
-          <SubscriptionBillingHistory billing={state.billing} showHeading={false} />
+          <SubscriptionBillingHistory
+            billing={state.billing}
+            onEditPayment={(payment) => setDialog({ kind: "edit", payment })}
+            showHeading={false}
+          />
         ) : (
           <p role="status">No invoices or payments recorded for this member&apos;s memberships.</p>
         )
@@ -90,6 +115,16 @@ export function PaymentsTab({
             ))
         : null}
       <p>Earlier payments may still be in the imported archive.</p>
+      {state.status === "ready" && dialog?.kind === "record" ? (
+        <RecordMemberPaymentDialog
+          invoices={state.billing.flatMap((item) => item.invoices)}
+          onClose={closeDialog}
+          onRecorded={afterSave}
+        />
+      ) : null}
+      {dialog?.kind === "edit" ? (
+        <EditPaymentDialog payment={dialog.payment} onClose={closeDialog} onSaved={afterSave} />
+      ) : null}
     </section>
   );
 }

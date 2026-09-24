@@ -12,6 +12,7 @@ import { parseFamilyRecord } from "@bpt-jersey/domain/families";
 import { parsePlanRecord } from "@bpt-jersey/domain/memberships";
 import { parseMembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle";
 import {
+  calculateInvoiceBalance,
   parseInvoiceRecord,
   parseManualPaymentRecord,
   type InvoiceRecord,
@@ -696,15 +697,33 @@ export async function listSubscriptionBilling(db: Firestore, academyId: string, 
         invoices: validatedInvoices
           .map((invoice) => {
             const { invoiceId, status, totalMinor, paidAt, dueAt, description } = invoice;
-            const payments = receipts
-              .filter((payment) => payment.invoiceId === invoiceId)
-              .map(({ paymentId, amountMinor, method, manualReference, occurredAt }) => ({
-                paymentId,
-                amountMinor,
-                method,
-                reference: manualReference,
-                occurredAt: new Date(occurredAt).toISOString(),
-              }))
+            const invoiceReceipts = receipts.filter((payment) => payment.invoiceId === invoiceId);
+            const payments = invoiceReceipts
+              .map(
+                ({ paymentId, amountMinor, method, manualReference, occurredAt, auditHistory }) => {
+                  const history = (auditHistory ?? []).map((entry) => ({
+                    ...entry,
+                    editedAt: new Date(entry.editedAt).toISOString(),
+                  }));
+                  const last = history.at(-1);
+                  return {
+                    paymentId,
+                    invoiceId,
+                    amountMinor,
+                    method,
+                    reference: manualReference,
+                    occurredAt: new Date(occurredAt).toISOString(),
+                    lastEdit: last
+                      ? {
+                          editedAt: last.editedAt,
+                          editedByName: last.editedByName,
+                          reason: last.reason,
+                        }
+                      : null,
+                    auditHistory: history,
+                  };
+                },
+              )
               .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
             return {
               invoiceId,
@@ -713,6 +732,8 @@ export async function listSubscriptionBilling(db: Firestore, academyId: string, 
               paidAt: paidAt ? new Date(paidAt).toISOString() : null,
               dueAt: new Date(dueAt).toISOString(),
               description,
+              invoiceReference: invoice.invoiceReference,
+              balanceMinor: calculateInvoiceBalance(invoice, invoiceReceipts),
               payments,
             };
           })

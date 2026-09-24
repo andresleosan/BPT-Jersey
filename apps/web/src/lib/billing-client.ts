@@ -1,10 +1,15 @@
+import { z } from "zod";
 import {
+  editManualPaymentInputSchema,
+  invoiceStatuses,
   manualPaymentMethods,
   parseInvoiceRecord,
   sameInvoicePayer,
   parseManualPaymentRecord,
   type ChargeKind,
+  type EditManualPaymentInput,
   type InvoiceRecord,
+  type InvoiceStatus,
   type ManualPaymentMethod,
   type ManualPaymentRecord,
 } from "@bpt-jersey/domain/finance";
@@ -327,5 +332,62 @@ export async function savePaymentInstructions(
     return parsed;
   } catch {
     throw new Error(safeInstructionsError);
+  }
+}
+
+const safeEditError = "Unable to save the payment change. Refresh and try again.";
+/** Server refusals the office can act on, matched exactly; anything else keeps the safe wording. */
+const editRefusals = new Set([
+  "This change would overpay the invoice",
+  "That reference is already used by another payment.",
+  "This edit was already sent with other details.",
+]);
+const editResultSchema = z.strictObject({
+  paymentId: z.string(),
+  invoiceId: z.string(),
+  invoiceStatus: z.enum(invoiceStatuses),
+});
+
+export type EditManualPaymentResult =
+  | Readonly<{ ok: true; invoiceStatus: InvoiceStatus }>
+  | Readonly<{ ok: false; message: string }>;
+
+/** Office correction of a recorded payment. Never throws: the dialog shows the message. */
+export async function editManualPayment(
+  input: EditManualPaymentInput,
+): Promise<EditManualPaymentResult> {
+  const parsed = editManualPaymentInputSchema.safeParse(input);
+  if (!parsed.success) {
+    const reasonIssue = parsed.error.issues.some((issue) => issue.path[0] === "reason");
+    return {
+      ok: false,
+      message: reasonIssue
+        ? "Give a reason of at least 10 characters."
+        : "Check the payment details and try again.",
+    };
+  }
+  try {
+    const callable = httpsCallable<EditManualPaymentInput, unknown>(
+      getFirebaseFunctions(),
+      "editManualPayment",
+      callableOptions,
+    );
+    const result = editResultSchema.parse((await callable(parsed.data)).data);
+    if (result.paymentId !== parsed.data.paymentId) return { ok: false, message: safeEditError };
+    return { ok: true, invoiceStatus: result.invoiceStatus };
+  } catch (error) {
+    const code = typeof error === "object" && error !== null && "code" in error ? error.code : null;
+    const message =
+      typeof error === "object" && error !== null && "message" in error ? error.message : null;
+    if (code === "functions/failed-precondition" && typeof message === "string" && editRefusals.has(message)) {
+      return { ok: false, message };
+    }
+    if (code === "functions/permission-denied" || code === "functions/unauthenticated") {
+      return {
+        ok: false,
+        message: "An active owner or administrator session is required. Sign in again.",
+      };
+    }
+    return { ok: false, message: safeEditError };
   }
 }
