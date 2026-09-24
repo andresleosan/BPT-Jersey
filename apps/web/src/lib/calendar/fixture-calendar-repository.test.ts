@@ -86,10 +86,9 @@ describe("fixture calendar repository", () => {
     ).rejects.toMatchObject({ code: "functions/failed-precondition" });
   });
 
-  it("seeds a pending penalty for Maya only", async () => {
+  it("offers no penalty read, since a missed class is only an attendance record", () => {
     const repo = createFixtureCalendarRepository("guardian");
-    expect(await repo.loadPenalties("maya")).toHaveLength(1);
-    expect(await repo.loadPenalties("leo")).toHaveLength(0);
+    expect("loadPenalties" in repo).toBe(false);
   });
 });
 

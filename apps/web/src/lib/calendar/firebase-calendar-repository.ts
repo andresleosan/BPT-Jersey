@@ -9,7 +9,6 @@ import { listAvailableMembershipPlans } from "../membership-client";
 import { getFamily } from "../family-client";
 import { getClientProfile } from "../profile-client";
 import { participantBand } from "../participant-band";
-import { listNoShowPenalties } from "../no-show-penalties-client";
 import {
   cancelBooking,
   getMemberCalendarWeek,
@@ -230,12 +229,5 @@ export function createFirebaseCalendarRepository(session: {
     book: requestBooking,
     cancel: cancelBooking,
     async clockIn(input) {return courseSessions.has(input.sessionId) ? (await courseApi.checkIn(input)).attendance : selfCheckIn(input);},
-    async loadPenalties(studentId) {
-      if (session.scope === "courses") return [];
-      // Penalties are an office-only ancillary display. A member denial must not prevent the
-      // calendar's booking and attendance data from remaining usable.
-      const penalties = await listNoShowPenalties().catch(() => []);
-      return penalties.filter((p) => p.studentId === studentId);
-    },
   };
 }

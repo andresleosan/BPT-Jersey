@@ -158,11 +158,6 @@ export {
   updateSession,
 } from "./schedule/schedule-callables.js";
 export {
-  listNoShowPenalties,
-  proposeNoShowPenalties,
-  resolveNoShowPenalty,
-} from "./penalties/no-show-penalty-callables.js";
-export {
   acceptDisclaimer,
   getOutstandingDisclaimers,
   listDisclaimers,

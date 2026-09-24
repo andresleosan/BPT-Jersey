@@ -272,7 +272,7 @@ describe("admin staff page", () => {
       expect(screen.getByText("No permission has been delegated.")).toBeVisible();
     });
 
-    it("offers only the two delegable permissions, never an escalating one", async () => {
+    it("offers only Manage classes now the no-show penalty is gone, never an escalating one", async () => {
       staffApi.listStaffProfiles.mockResolvedValue([coach]);
       render(<StaffAdminPage />);
 
@@ -280,7 +280,7 @@ describe("admin staff page", () => {
       const options = within(select)
         .getAllByRole("option")
         .map((option) => option.textContent);
-      expect(options).toEqual(["Review no-show penalties", "Manage classes"]);
+      expect(options).toEqual(["Manage classes"]);
     });
 
     it("grants with the reason and expiry office typed, then reloads the list", async () => {
@@ -297,7 +297,7 @@ describe("admin staff page", () => {
       await waitFor(() =>
         expect(permissionsApi.grantStaffPermission).toHaveBeenCalledWith({
           subjectUserId: "coach-1",
-          permission: "reviewPenalties",
+          permission: "manageClasses",
           reason: "Covers the office desk",
           expiresAt: "2026-10-05T23:59:59.000Z",
         }),

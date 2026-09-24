@@ -2,12 +2,12 @@ import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
 // T098 golden path: the authenticated callable-level suites (T094 onboarding, T095 manual
-// billing, T096 class operations with T109/T110, T111 no-show penalty, T116 delegated staff
+// billing, T096 class operations with T109/T110, T116 delegated staff
 // permissions, T117 disclaimers,
 // permissions, T112 coach birthdays,
 // T113 level age bands and T097 progress) chained in ONE emulator run over ONE synthetic academy:
 // family/adult -> waiver ->
-// membership -> class -> booking -> attendance -> no-show penalty -> invoice and payment ->
+// membership -> class -> booking -> attendance -> invoice and payment ->
 // birthdays -> progress -> report.
 // Run inside `firebase emulators:exec --only auth,firestore,functions`.
 const repositoryRoot = resolve(import.meta.dirname, "../..");
@@ -65,7 +65,6 @@ const adults = {
   onboarding: required("GOLDEN_PATH_ADULT_ONBOARDING_EMAIL"),
   billing: required("GOLDEN_PATH_ADULT_BILLING_EMAIL"),
   schedule: required("GOLDEN_PATH_ADULT_SCHEDULE_EMAIL"),
-  penalty: required("GOLDEN_PATH_ADULT_PENALTY_EMAIL"),
   birthdayTown: required("GOLDEN_PATH_ADULT_BIRTHDAY_TOWN_EMAIL"),
   birthdayWest: required("GOLDEN_PATH_ADULT_BIRTHDAY_WEST_EMAIL"),
   progress: required("GOLDEN_PATH_ADULT_PROGRESS_EMAIL"),
@@ -142,14 +141,13 @@ run([
 ]);
 run(["apps/functions/scripts/seed-levels.mjs", "--target=emulator", `--academy-id=${academyId}`]);
 
-// The nine suites in order, one worker, no retries, no static web server.
+// The eight suites in order, one worker, no retries, no static web server.
 run(
   [
     "qa/run-e2e.mjs",
     "tests/onboarding-auth-emulator.spec.ts",
     "tests/manual-billing-auth-emulator.spec.ts",
     "tests/schedule-auth-emulator.spec.ts",
-    "tests/no-show-penalty-auth-emulator.spec.ts",
     "tests/staff-permission-grant-auth-emulator.spec.ts",
     "tests/disclaimer-auth-emulator.spec.ts",
     "tests/coach-birthday-auth-emulator.spec.ts",
@@ -181,13 +179,6 @@ run(
     T096_OWNER_EMAIL: ownerEmail,
     T096_ADULT_EMAIL: adults.schedule,
     T096_E2E_PASSWORD: password,
-    T111_NO_SHOW_PENALTY_EMULATOR_E2E: "true",
-    T111_E2E_ACADEMY_ID: academyId,
-    T111_FUNCTIONS_EMULATOR_PORT: functionsPort,
-    T111_OWNER_EMAIL: ownerEmail,
-    T111_HEAD_COACH_EMAIL: headCoachEmail,
-    T111_ADULT_EMAIL: adults.penalty,
-    T111_E2E_PASSWORD: password,
     T116_PERMISSION_GRANT_EMULATOR_E2E: "true",
     T116_E2E_ACADEMY_ID: academyId,
     T116_FUNCTIONS_EMULATOR_PORT: functionsPort,

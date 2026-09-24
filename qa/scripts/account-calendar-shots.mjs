@@ -28,7 +28,6 @@ function summarize() {
     columns: document.querySelectorAll(".day-column").length,
     statuses: [...document.querySelectorAll(".session-card")].map((c) => c.dataset.status),
     chips: document.querySelectorAll(".member-chip").length,
-    banner: Boolean(document.querySelector(".penalty-banner")),
     scrollWidth: document.documentElement.scrollWidth,
     todayHeading: document.querySelector(".day-column--today .day-heading")?.textContent ?? null,
   };
@@ -70,7 +69,7 @@ for (const [who, email] of users) {
         .getAttribute("data-session-id");
       const card = page.locator(`li[data-session-id="${sessionId}"]`);
       await card.getByRole("button", { name: "Book" }).click();
-      await card.getByText("Booked. Missing it costs £15.").waitFor({ timeout: 5000 });
+      await card.getByText("Booked.", { exact: true }).waitFor({ timeout: 5000 });
       await page.screenshot({
         path: "screenshots/account-teen-desktop-booked.png",
         fullPage: true,

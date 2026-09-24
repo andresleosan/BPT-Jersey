@@ -9,7 +9,6 @@ import type {
   ProgramRecord,
   SessionRecord,
 } from "@bpt-jersey/domain/schedule";
-import type { NoShowPenaltyRecord } from "@bpt-jersey/domain/penalties";
 
 import type {
   CalendarMember,
@@ -21,7 +20,6 @@ import type {
 
 // ponytail: deterministic in-memory fixtures so /account renders and round-trips without Firebase.
 // Sessions are generated around "today" so cut-offs, past days and the 14-day cap all exercise.
-// Maya always carries a pending £15 penalty so the banner can be seen on the workbench.
 
 const academyId = "bpt-jersey";
 const dayMs = 86400000;
@@ -510,7 +508,6 @@ export function createFixtureCalendarRepository(
   const bookings: BookingRecord[] = [];
   const attendance: AttendanceRecord[] = [];
   const bookedCounts: Record<string, number> = {};
-  const penalties: NoShowPenaltyRecord[] = [];
 
   const isPast = (s: SessionRecord) => Date.parse(s.endAt) < now.getTime();
   const isUpcoming = (s: SessionRecord) => Date.parse(s.startAt) > now.getTime() + 2 * 3600000;
@@ -565,26 +562,6 @@ export function createFixtureCalendarRepository(
       continue;
     }
     attendance.push(restored);
-  }
-
-  const mayaMissed = attendance.find((a) => a.studentId === "maya" && a.state === "no_show");
-  const penaltySession = sessions.find((s) => s.sessionId === mayaMissed?.sessionId);
-  if (mayaMissed && penaltySession) {
-    penalties.push({
-      penaltyId: `pen_${penaltySession.sessionId}`,
-      academyId,
-      sessionId: penaltySession.sessionId,
-      studentId: "maya",
-      locationId: "town",
-      amountMinor: 1500,
-      currency: "GBP",
-      status: "proposed",
-      sessionStartAt: penaltySession.startAt,
-      proposedAt: penaltySession.endAt,
-      proposedBy: "system",
-      resolution: null,
-      ...audit,
-    });
   }
 
   function replaceBooking(previous: BookingRecord | undefined, next: BookingRecord): void {
@@ -699,9 +676,6 @@ export function createFixtureCalendarRepository(
       };
       replaceBooking(existing, record);
       return record;
-    },
-    async loadPenalties(studentId) {
-      return participantFor(studentId) ? penalties.filter((p) => p.studentId === studentId) : [];
     },
   };
 }

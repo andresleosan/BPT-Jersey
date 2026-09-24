@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { browserAdminCallableOptions, browserOrigins } from "./callable-options.js";
 import { upcomingBirthdayCallableOptions } from "../birthdays/upcoming-birthday-callables.js";
-import { noShowPenaltyCallableOptions } from "../penalties/no-show-penalty-callables.js";
 import { permissionGrantCallableOptions } from "../staff/permission-grant-callables.js";
 
 describe("browser origins", () => {
@@ -35,7 +34,6 @@ describe("every restricted callable option set", () => {
   it.each([
     ["permission grant", permissionGrantCallableOptions],
     ["upcoming birthday", upcomingBirthdayCallableOptions],
-    ["no-show penalty", noShowPenaltyCallableOptions],
   ])("shares the one origin list (%s)", (_name, options) => {
     expect(options.cors).toBe(browserOrigins);
   });

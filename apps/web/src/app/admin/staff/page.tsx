@@ -40,7 +40,6 @@ type StaffFieldElement = HTMLInputElement | HTMLSelectElement;
  * `delegablePermissions` produces a rejected call, which is the correct direction to fail.
  */
 const permissionOptions: readonly { value: DelegablePermission; label: string }[] = [
-  { value: "reviewPenalties", label: "Review no-show penalties" },
   { value: "manageClasses", label: "Manage classes" },
 ];
 
@@ -93,7 +92,7 @@ export function StaffAdminPage() {
   const [grants, setGrants] = useState<readonly PermissionGrantView[]>([]);
   const [grantsError, setGrantsError] = useState("");
   const [grantSubject, setGrantSubject] = useState("");
-  const [grantPermission, setGrantPermission] = useState<DelegablePermission>("reviewPenalties");
+  const [grantPermission, setGrantPermission] = useState<DelegablePermission>("manageClasses");
   const [grantReason, setGrantReason] = useState("");
   const [grantExpiry, setGrantExpiry] = useState("");
   const [invalidField, setInvalidField] = useState<StaffField>();

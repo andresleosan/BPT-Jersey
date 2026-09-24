@@ -255,11 +255,6 @@
       "import": "./src/exports/aggregate-report-export.ts",
       "default": "./lib/exports/aggregate-report-export.js"
     },
-    "./penalties": {
-      "types": "./src/penalties/no-show-penalty-contracts.ts",
-      "import": "./src/penalties/no-show-penalty-contracts.ts",
-      "default": "./lib/penalties/no-show-penalty-contracts.js"
-    },
     "./schedule/pre-class": {
       "types": "./src/schedule/pre-class-contracts.ts",
       "import": "./src/schedule/pre-class-contracts.ts",

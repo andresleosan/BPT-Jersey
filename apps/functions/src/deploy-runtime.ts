@@ -73,7 +73,6 @@ export const domainImportReplacements: Readonly<Record<string, string>> = Object
   "@bpt-jersey/domain/reports": "../../domain/reports/operational-report.js",
   "@bpt-jersey/domain/exports": "../../domain/exports/aggregate-report-export.js",
   "@bpt-jersey/domain/shop": "../../domain/shop/shop-contracts.js",
-  "@bpt-jersey/domain/penalties": "../../domain/penalties/no-show-penalty-contracts.js",
   "@bpt-jersey/domain/birthdays": "../../domain/birthdays/upcoming-birthday-contracts.js",
   "@bpt-jersey/domain/consents/disclaimers": "../../domain/consents/disclaimer-contracts.js",
   "@bpt-jersey/domain/staff/team-access": "../../domain/staff/team-access-contracts.js",

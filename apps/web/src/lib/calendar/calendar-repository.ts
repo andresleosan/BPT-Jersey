@@ -13,7 +13,6 @@ import type {
   Site,
   WeeklyClassLimit,
 } from "@bpt-jersey/domain/memberships";
-import type { NoShowPenaltyRecord } from "@bpt-jersey/domain/penalties";
 import type { TrialAccessView } from "@bpt-jersey/domain/memberships/trial-access";
 import type { SelfCheckInInput } from "@bpt-jersey/domain/schedule/self-check-in";
 
@@ -68,5 +67,4 @@ export interface CalendarRepository {
   cancel(input: CancelBookingInput): Promise<BookingRecord>;
   /** T040V2: member self check-in. Refusals preserve `code` and `details.reason`. */
   clockIn(input: SelfCheckInInput): Promise<AttendanceRecord>;
-  loadPenalties(studentId: string): Promise<readonly NoShowPenaltyRecord[]>;
 }
