@@ -70,6 +70,18 @@ function httpsCallable<RequestData, ResponseData>(
   );
 }
 
+/**
+ * Reads use the browser's cached App Check token: their callables do not consume it, and asking
+ * for a limited-use token meant one reCAPTCHA exchange per read, which the calendar's parallel reads
+ * turned into `appCheck/initial-throttle`. Writes keep the limited-use token above.
+ */
+function readCallable<RequestData, ResponseData>(
+  functions: ReturnType<typeof getFirebaseFunctions>,
+  name: string,
+) {
+  return firebaseHttpsCallable<RequestData, ResponseData>(functions, name);
+}
+
 export type ScheduleCatalogResponse = Readonly<{
   locations: readonly LocationRecord[];
   programs: readonly ProgramRecord[];
@@ -79,7 +91,7 @@ export async function getDailyOperationsDashboard(
   query: ListSessionsQuery,
 ): Promise<DailyOperationsDashboard> {
   const functions = getFirebaseFunctions();
-  const callable = httpsCallable<ListSessionsQuery, { dashboard: DailyOperationsDashboard }>(
+  const callable = readCallable<ListSessionsQuery, { dashboard: DailyOperationsDashboard }>(
     functions,
     "getDailyOperationsDashboard",
   );
@@ -90,7 +102,7 @@ export async function getDailyOperationsDashboard(
 
 export async function getScheduleCatalog(): Promise<ScheduleCatalogResponse> {
   const functions = getFirebaseFunctions();
-  const callable = httpsCallable<null, { locations: LocationRecord[]; programs: ProgramRecord[] }>(
+  const callable = readCallable<null, { locations: LocationRecord[]; programs: ProgramRecord[] }>(
     functions,
     "listScheduleCatalog",
   );
@@ -104,7 +116,7 @@ export async function getScheduleCatalog(): Promise<ScheduleCatalogResponse> {
 
 export async function listClasses(): Promise<readonly ClassRecord[]> {
   const functions = getFirebaseFunctions();
-  const callable = httpsCallable<null, { classes: ClassRecord[] }>(functions, "listClasses");
+  const callable = readCallable<null, { classes: ClassRecord[] }>(functions, "listClasses");
 
   const result = await callable(null);
   return result.data.classes;
@@ -112,7 +124,7 @@ export async function listClasses(): Promise<readonly ClassRecord[]> {
 
 export async function listSessions(query: ListSessionsQuery): Promise<readonly SessionRecord[]> {
   const functions = getFirebaseFunctions();
-  const callable = httpsCallable<ListSessionsQuery, { sessions: SessionRecord[] }>(
+  const callable = readCallable<ListSessionsQuery, { sessions: SessionRecord[] }>(
     functions,
     "listSessions",
   );
@@ -339,7 +351,7 @@ export async function listSessionBookedCounts(
   query: ListSessionsQuery,
 ): Promise<Readonly<Record<string, number>>> {
   const functions = getFirebaseFunctions();
-  const callable = httpsCallable<ListSessionsQuery, { counts: unknown }>(
+  const callable = readCallable<ListSessionsQuery, { counts: unknown }>(
     functions,
     "listSessionBookedCounts",
   );
@@ -481,7 +493,7 @@ export async function cancelBooking(input: CancelBookingInput): Promise<BookingR
 
 export async function listSessionBookings(sessionId: string): Promise<readonly SessionRegistrationRecord[]> {
   const functions = getFirebaseFunctions();
-  const callable = httpsCallable<{ sessionId: string }, { bookings: SessionRegistrationRecord[] }>(
+  const callable = readCallable<{ sessionId: string }, { bookings: SessionRegistrationRecord[] }>(
     functions,
     "listSessionBookings",
   );
@@ -492,7 +504,7 @@ export async function listSessionBookings(sessionId: string): Promise<readonly S
 
 export async function listStudentBookings(studentId?: string): Promise<readonly BookingRecord[]> {
   const functions = getFirebaseFunctions();
-  const callable = httpsCallable<{ studentId?: string }, { bookings: BookingRecord[] }>(
+  const callable = readCallable<{ studentId?: string }, { bookings: BookingRecord[] }>(
     functions,
     "listStudentBookings",
   );
@@ -540,7 +552,7 @@ export async function listSessionAttendance(
   sessionId: string,
 ): Promise<readonly AttendanceRecord[]> {
   const functions = getFirebaseFunctions();
-  const callable = httpsCallable<{ sessionId: string }, { attendance: AttendanceRecord[] }>(
+  const callable = readCallable<{ sessionId: string }, { attendance: AttendanceRecord[] }>(
     functions,
     "listSessionAttendance",
   );
@@ -553,7 +565,7 @@ export async function listStudentAttendance(
   studentId?: string,
 ): Promise<readonly AttendanceRecord[]> {
   const functions = getFirebaseFunctions();
-  const callable = httpsCallable<{ studentId?: string }, { attendance: AttendanceRecord[] }>(
+  const callable = readCallable<{ studentId?: string }, { attendance: AttendanceRecord[] }>(
     functions,
     "listStudentAttendance",
   );
@@ -593,7 +605,7 @@ export async function listAttendanceHistory(
   studentId?: string,
 ): Promise<readonly AttendanceRecord[]> {
   const functions = getFirebaseFunctions();
-  const callable = httpsCallable<
+  const callable = readCallable<
     { sessionId: string; studentId?: string },
     { history: AttendanceRecord[] }
   >(functions, "listAttendanceHistory");
@@ -615,7 +627,7 @@ export async function recordCheckout(input: RecordCheckoutInput): Promise<Checko
 
 export async function listSessionCheckouts(sessionId: string): Promise<readonly CheckoutRecord[]> {
   const functions = getFirebaseFunctions();
-  const callable = httpsCallable<{ sessionId: string }, { checkouts: CheckoutRecord[] }>(
+  const callable = readCallable<{ sessionId: string }, { checkouts: CheckoutRecord[] }>(
     functions,
     "listSessionCheckouts",
   );
@@ -629,7 +641,7 @@ export async function getStudentCheckout(
   studentId?: string,
 ): Promise<CheckoutRecord | null> {
   const functions = getFirebaseFunctions();
-  const callable = httpsCallable<
+  const callable = readCallable<
     { sessionId: string; studentId?: string },
     { checkout: CheckoutRecord | null }
   >(functions, "getStudentCheckout");
@@ -642,7 +654,7 @@ export async function getSessionOperationalView(
   sessionId: string,
 ): Promise<SessionOperationalView> {
   const functions = getFirebaseFunctions();
-  const callable = httpsCallable<{ sessionId: string }, { view: SessionOperationalView }>(
+  const callable = readCallable<{ sessionId: string }, { view: SessionOperationalView }>(
     functions,
     "getSessionOperationalView",
   );

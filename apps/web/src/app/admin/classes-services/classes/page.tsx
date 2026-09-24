@@ -11,6 +11,7 @@ import {
   listSessions,
   type ScheduleCatalogResponse,
 } from "../../../../lib/schedule-client";
+import { appCheckFailureMessage, isAppCheckFailure } from "../../../../lib/callable";
 import { listStaffProfiles } from "../../../../lib/staff-client";
 import { useAdminOrStaffSession } from "../../admin-gate";
 import { useCompactCalendar } from "./use-compact-calendar";
@@ -30,6 +31,7 @@ import { dayLabel, localParts, mondayOf, weekDays, type GridSession } from "./we
 type View = "calendar" | "list";
 type StaffStatus = "loading" | "ready" | "unavailable";
 type Range = "week" | "month" | "day";
+type Read = "catalog" | "schedule" | "counts";
 type Panel =
   | null
   | Readonly<{ mode: "create"; defaults: { date: string; startTime: string } }>
@@ -62,6 +64,12 @@ const ranges: readonly { id: Range; label: string }[] = [
 
 function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.length > 0 ? error.message : fallback;
+}
+
+/** A state updater that records whether App Check refused one read, keeping the object when unchanged. */
+function flagRead(read: Read, failed: boolean) {
+  return (previous: Readonly<Record<Read, boolean>>): Readonly<Record<Read, boolean>> =>
+    previous[read] === failed ? previous : { ...previous, [read]: failed };
 }
 
 function monthOf(date: string): { year: number; month: number } {
@@ -175,6 +183,12 @@ function ClassesContent(): ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [catalogReload, setCatalogReload] = useState(0);
+  // Reads App Check refused; they share one notice instead of one raw error each.
+  const [appCheckFailed, setAppCheckFailed] = useState<Readonly<Record<Read, boolean>>>({
+    catalog: false,
+    schedule: false,
+    counts: false,
+  });
   const lastRangeKey = useRef("");
   const [filters, setFilters] = useState<ClassFilters>(emptyClassFilters);
 
@@ -194,10 +208,17 @@ function ClassesContent(): ReactElement {
         if (!abandoned) {
           setCatalog(loaded);
           setCatalogError(null);
+          setAppCheckFailed(flagRead("catalog", false));
         }
       } catch (failure) {
         if (!abandoned) {
-          setCatalogError(messageOf(failure, "Unable to load the schedule catalogue"));
+          const appCheck = isAppCheckFailure(failure);
+          setAppCheckFailed(flagRead("catalog", appCheck));
+          setCatalogError(
+            appCheck
+              ? appCheckFailureMessage
+              : messageOf(failure, "Unable to load the schedule catalogue"),
+          );
         }
       }
     })();
@@ -258,8 +279,15 @@ function ClassesContent(): ReactElement {
         setSessions(loaded);
         setScheduleLoaded(true);
         setError(null);
+        setAppCheckFailed(flagRead("schedule", false));
       } catch (failure) {
-        if (!abandoned) setError(messageOf(failure, "Unable to load the classes"));
+        if (!abandoned) {
+          const appCheck = isAppCheckFailure(failure);
+          setAppCheckFailed(flagRead("schedule", appCheck));
+          setError(
+            appCheck ? appCheckFailureMessage : messageOf(failure, "Unable to load the classes"),
+          );
+        }
       } finally {
         if (!abandoned) {
           setLoading(false);
@@ -298,8 +326,11 @@ function ClassesContent(): ReactElement {
         });
         setBooked(counts);
         setCountsStatus("ready");
-      } catch {
-        if (!abandoned) setCountsStatus("unavailable");
+        setAppCheckFailed(flagRead("counts", false));
+      } catch (failure) {
+        if (abandoned) return;
+        setAppCheckFailed(flagRead("counts", isAppCheckFailure(failure)));
+        setCountsStatus("unavailable");
       }
     })();
     return () => {
@@ -394,6 +425,16 @@ function ClassesContent(): ReactElement {
   const seats = live.reduce((sum, row) => sum + (row.capacity ?? 0), 0);
   const occupancy =
     countsStatus === "ready" && seats > 0 ? `${Math.round((100 * registrations) / seats)}%` : "—";
+
+  const appCheckNotice = appCheckFailed.catalog || appCheckFailed.schedule || appCheckFailed.counts;
+
+  /** One retry for every read App Check refused: the catalogue, the classes and their counts. */
+  function retryAll(): void {
+    rangeCache.current.clear();
+    countsCache.current.clear();
+    setCatalogReload((value) => value + 1);
+    setReload((value) => value + 1);
+  }
 
   /** Week and month always sit on a Monday; the month keeps its own month when the two disagree. */
   function anchorFor(date: string): string {
@@ -537,7 +578,9 @@ function ClassesContent(): ReactElement {
           ))}
         </div>
         {(session.role === "owner" || session.role === "administrator") && (
-          <a className="cs-button" href="/admin/courses?create=1">Create course / seminar</a>
+          <a className="cs-button cs-toolbar-action" href="/admin/courses?create=1">
+            Create course / seminar
+          </a>
         )}
         {canCreate && (!compact || range === "month" || view === "list") ? (
           <button
@@ -592,9 +635,17 @@ function ClassesContent(): ReactElement {
           Staff profiles unavailable. Academy trainers are still available.
         </p>
       ) : null}
-      {catalogError ? (
-        <p className="cs-notice" data-kind="error" role="alert">
-          {catalogError}{" "}
+      {appCheckNotice ? (
+        <div className="cs-notice cs-notice-action" data-kind="error" role="alert">
+          <p>{appCheckFailureMessage}</p>
+          <button type="button" className="cs-button" onClick={retryAll}>
+            Retry
+          </button>
+        </div>
+      ) : null}
+      {catalogError && !appCheckFailed.catalog ? (
+        <div className="cs-notice cs-notice-action" data-kind="error" role="alert">
+          <p>{catalogError}</p>
           <button
             type="button"
             className="cs-button"
@@ -602,16 +653,16 @@ function ClassesContent(): ReactElement {
           >
             Retry catalogue
           </button>
-        </p>
+        </div>
       ) : null}
       {countsStatus === "loading" && !loading ? (
         <p className="cs-placeholder" role="status">
           Loading registrations…
         </p>
       ) : null}
-      {countsStatus === "unavailable" ? (
-        <p className="cs-notice" data-kind="error" role="status">
-          Registration counts unavailable. Classes are still available.
+      {countsStatus === "unavailable" && !appCheckFailed.counts ? (
+        <div className="cs-notice cs-notice-action" data-kind="error" role="status">
+          <p>Registration counts unavailable. Classes are still available.</p>
           <button
             type="button"
             className="cs-button"
@@ -622,11 +673,11 @@ function ClassesContent(): ReactElement {
           >
             Retry registrations
           </button>
-        </p>
+        </div>
       ) : null}
-      {error === null ? null : (
-        <p className="cs-notice" data-kind="error" role="alert">
-          {error}
+      {error === null || appCheckFailed.schedule ? null : (
+        <div className="cs-notice cs-notice-action" data-kind="error" role="alert">
+          <p>{error}</p>
           <button
             type="button"
             className="cs-button"
@@ -637,7 +688,7 @@ function ClassesContent(): ReactElement {
           >
             Retry schedule
           </button>
-        </p>
+        </div>
       )}
       {loading ? (
         <p className="cs-placeholder" role="status">
