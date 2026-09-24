@@ -1,0 +1,245 @@
+/* /account/settings (DESIGN.md §9): radius 1rem, BPT Purple the only accent, labels above inputs. */
+.settings-page {
+  --radius: 1rem;
+  box-sizing: border-box;
+  max-width: 44rem;
+}
+
+.settings-sections {
+  display: grid;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.settings-section {
+  background: var(--gi-white);
+  border-radius: var(--radius);
+  border-top: 0.35rem solid var(--bpt-purple);
+  box-sizing: border-box;
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  padding: 1.25rem;
+}
+
+.settings-section h2 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.6rem, 5vw, 2.2rem);
+  line-height: 1;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.settings-person {
+  margin-top: 2rem;
+}
+
+.settings-form {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.settings-field {
+  display: grid;
+  font-weight: 700;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.settings-field input,
+.settings-field select {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-sizing: border-box;
+  color: var(--mat-ink);
+  font: inherit;
+  font-weight: 400;
+  max-width: 100%;
+  min-height: 3.15rem;
+  padding: 0.7rem 0.9rem;
+  width: 100%;
+}
+
+.settings-field small,
+.settings-help {
+  color: var(--muted);
+  font-weight: 400;
+  margin: 0;
+}
+
+.settings-email {
+  color: var(--mat-ink);
+  overflow-wrap: anywhere;
+}
+
+.settings-check,
+.settings-switch {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.settings-check input,
+.settings-switch input {
+  accent-color: var(--bpt-purple);
+  flex: none;
+  height: 1.4rem;
+  margin: 0.1rem 0 0;
+  width: 1.4rem;
+}
+
+.settings-switch {
+  align-items: center;
+  font-weight: 700;
+  min-height: 3.15rem;
+}
+
+/* The switch reads as a track and thumb; the native checkbox stays the control. */
+.settings-switch input {
+  appearance: none;
+  background: var(--paper-edge);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  height: 1.75rem;
+  margin: 0;
+  position: relative;
+  transition: background-color 160ms ease;
+  width: 3.1rem;
+}
+
+.settings-switch input::after {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  content: "";
+  height: 1.35rem;
+  left: 0.12rem;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  transition: left 160ms ease;
+  width: 1.35rem;
+}
+
+.settings-switch input:checked {
+  background: var(--bpt-purple);
+  border-color: var(--bpt-purple);
+}
+
+.settings-switch input:checked::after {
+  left: 1.55rem;
+}
+
+.settings-switch input:focus-visible,
+.settings-check input:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+
+.settings-switch input:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.settings-photo {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.settings-pending {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.settings-avatar {
+  border-radius: 50%;
+  flex: none;
+  height: 96px;
+  object-fit: cover;
+  width: 96px;
+}
+
+.settings-avatar-initials {
+  align-items: center;
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+  display: inline-flex;
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 2.2rem;
+  justify-content: center;
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.settings-section .button {
+  border-radius: 999px;
+}
+
+.settings-section .button-primary {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+.settings-section .button-secondary {
+  border-color: var(--mat-ink);
+  color: var(--mat-ink);
+}
+
+.settings-section .button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+}
+
+.settings-error {
+  border-left: 0.35rem solid #8d1c2f;
+  margin: 0;
+  padding-left: 0.75rem;
+}
+
+.settings-skeleton-title {
+  height: 2rem;
+  width: 40%;
+}
+
+.settings-skeleton-photo {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+}
+
+.settings-skeleton-avatar {
+  border-radius: 50%;
+  flex: none;
+  height: 96px;
+  width: 96px;
+}
+
+.settings-skeleton-line {
+  flex: 1;
+  height: 1.25rem;
+}
+
+.settings-skeleton-button {
+  border-radius: 999px;
+  height: 3.15rem;
+  width: 10rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-switch input,
+  .settings-switch input::after {
+    transition: none;
+  }
+}
