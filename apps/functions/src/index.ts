@@ -175,6 +175,10 @@ export {
   getEnrolmentWaiverStatus,
 } from "./consents/enrolment-waiver-callables.js";
 export {
+  getMyDisclaimerStatus,
+  listDisclaimerAcceptances,
+} from "./disclaimer-status/disclaimer-status-callables.js";
+export {
   grantStaffPermission,
   listStaffPermissionGrants,
   revokeStaffPermission,

@@ -21,11 +21,12 @@ import {
 /**
  * T117 callables. Office writes the corpus; a participant reads only what is outstanding for them
  * and accepts it. Nobody reads anybody else's acceptances: the office list carries counts, not
- * names.
+ * names. The one exception is the academy terms audit («Acceptances», operator decision Luis
+ * 2026-09-24), which lists names per student and lives in disclaimer-status-callables.ts.
  */
 export const disclaimerClientCallableOptions = { enforceAppCheck: true };
 
-function office(request: CallableRequest<unknown>) {
+export function office(request: CallableRequest<unknown>) {
   const actor = requireUserActor(request);
   if (actor.role !== "owner" && actor.role !== "administrator") {
     throw new HttpsError("permission-denied", "Disclaimer administration is not permitted");

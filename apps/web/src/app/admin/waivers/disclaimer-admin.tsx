@@ -21,6 +21,9 @@ import {
  *
  * Adoption is a count. Office sees how many accepted a version, never who, because a list of names
  * beside a consent question is a different and much more sensitive thing than a total.
+ * Exception (operator decision, Luis 2026-09-24): the «Acceptances» tab names each student with
+ * their academy terms status and whether their required disclaimers are clear; per-version counts
+ * here stay counts.
  */
 const audienceOptions: readonly { value: DisclaimerAudience; label: string }[] = [
   { value: "all", label: "Everyone" },

@@ -10,6 +10,7 @@ import type {
 } from "@bpt-jersey/domain/consents";
 import { ClientAuthGate, ClientAuthProvider } from "../../../lib/client-auth";
 import { DisclaimersPanel } from "../disclaimers";
+import { AcademyTermsAcceptance } from "../waiver-acceptance";
 import {
   acceptWaiver,
   getWaiverEvidenceDownload,
@@ -189,6 +190,7 @@ function WaiverContent() {
         <p className="waiver-message waiver-message-error" role="alert">
           Unable to load waiver registration. Please try again.
         </p>
+        <AcademyTermsAcceptance />
       </main>
     );
 
@@ -205,6 +207,9 @@ function WaiverContent() {
           PDF.
         </p>
       </header>
+
+      {/* D12: the academy terms, moved here from the old account-wide gate (Q5). */}
+      <AcademyTermsAcceptance />
 
       {!currentVersion ? (
         <section className="waiver-empty">
