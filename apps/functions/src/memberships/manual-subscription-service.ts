@@ -187,8 +187,6 @@ export async function saveManualSubscriptionInTransaction(
     )
       fail("Choose an active catalogue plan.");
     const transitFree = input.planId === "transit-free";
-    if (transitFree && actor.role !== "owner")
-      throw new HttpsError("permission-denied", "Only an owner can assign Transit Free.");
     if (
       transitFree &&
       (input.endsAt !== null ||

@@ -326,7 +326,7 @@ function MembershipContent() {
                 <p className="client-current-line">
                   <strong>{statusLabels[current.status]}</strong>
                   {current.endsAt
-                    ? ` · paid until ${dateLabel(current.endsAt)}`
+                    ? ` · expires ${dateLabel(current.endsAt)}`
                     : ` · since ${dateLabel(current.startsAt)}`}
                 </p>
               ) : trial ? (
