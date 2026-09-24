@@ -11,6 +11,7 @@ vi.mock("firebase/functions", () => ({
 
 vi.mock("./firebase-client", () => ({
   getFirebaseFunctions: () => ({}),
+  memberFunctionsRegion: "europe-west9",
 }));
 
 import {
@@ -587,5 +588,50 @@ describe("bulk booking client", () => {
       {}, "bulkBookEligibleSessions", scheduleCallableClientOptions,
     );
     expect(mockCallable).toHaveBeenCalledWith(input);
+  });
+});
+
+describe("App Check token per callable", () => {
+  beforeEach(() => {
+    mockHttpsCallable.mockReset();
+    mockHttpsCallable.mockReturnValue(mockCallable);
+  });
+
+  function optionsFor(name: string): unknown {
+    const call = mockHttpsCallable.mock.calls.find((args) => args[1] === name);
+    expect(call).toBeDefined();
+    return call![2];
+  }
+
+  it("lets the calendar reads use the cached App Check token", async () => {
+    const week = { from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" };
+    mockCallable.mockResolvedValueOnce({ data: { locations: [], programs: [] } });
+    await getScheduleCatalog();
+    mockCallable.mockResolvedValueOnce({ data: { sessions: [] } });
+    await listSessions(week);
+    mockCallable.mockResolvedValueOnce({ data: { counts: {} } });
+    await listSessionBookedCounts(week);
+    mockCallable.mockResolvedValueOnce({ data: { bookings: [] } });
+    await listSessionBookings("s-1");
+    for (const name of [
+      "listScheduleCatalog",
+      "listSessions",
+      "listSessionBookedCounts",
+      "listSessionBookings",
+    ]) {
+      expect(optionsFor(name)).toBeUndefined();
+    }
+  });
+
+  it("asks for a limited-use token on bookings and on copying a week", async () => {
+    mockCallable.mockResolvedValueOnce({ data: { booking: { bookingId: "b-1" } } });
+    await requestBooking({ sessionId: "s-1", studentId: "sam" } as never);
+    mockCallable.mockResolvedValueOnce({ data: { booking: { bookingId: "b-1" } } });
+    await cancelBooking({ bookingId: "b-1" } as never);
+    mockCallable.mockResolvedValueOnce({ data: { sessions: [] } });
+    await copyWeek({ fromWeekStart: "2026-09-07", toWeekStart: "2026-09-14", copyBookings: false });
+    for (const name of ["requestBookingEu", "cancelBookingEu", "copyWeek"]) {
+      expect(optionsFor(name)).toEqual({ limitedUseAppCheckTokens: true });
+    }
   });
 });

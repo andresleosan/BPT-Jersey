@@ -58,7 +58,10 @@ import {
 import { enrolmentStorageSecrets } from "../members/enrolment-payment-proof.js";
 import { createPrivateStorageR2Client } from "../storage/r2-client.js";
 import { attachPaygBookingPayment, voidUnpaidPaygInvoice } from "./payg-booking-payment.js";
-import { scheduleCallableOptions } from "./schedule-callable-options.js";
+import {
+  scheduleCallableOptions,
+  scheduleReadCallableOptions,
+} from "./schedule-callable-options.js";
 import { createFirestoreScheduleStore, type ScheduleStore } from "./schedule-service.js";
 
 const staffRoles = Object.freeze(["owner", "administrator", "headCoach", "coach"] as const);
@@ -1396,7 +1399,7 @@ export function getStudentScopeOptions(): StudentScopeOptions {
   };
 }
 
-export const listScheduleCatalog = onCall(scheduleCallableOptions, async (request) =>
+export const listScheduleCatalog = onCall(scheduleReadCallableOptions, async (request) =>
   createListScheduleCatalogHandler({ store: getStore() })(request),
 );
 
@@ -1408,7 +1411,7 @@ export const saveProgram = onCall(scheduleCallableOptions, async (request) =>
   createSaveProgramHandler({ store: getStore() })(request),
 );
 
-export const listClasses = onCall(scheduleCallableOptions, async (request) =>
+export const listClasses = onCall(scheduleReadCallableOptions, async (request) =>
   createListClassesHandler({ store: getStore() })(request),
 );
 
@@ -1421,7 +1424,7 @@ async function guardCourseStaffSession(request: CallableRequest<unknown>): Promi
   if (session.data()?.courseId)
     await requireCourseRosterAccess(getFirestore(), await requireCourseActor(request), String(id));
 }
-export const listSessions = onCall(scheduleCallableOptions, async (request) => {
+export const listSessions = onCall(scheduleReadCallableOptions, async (request) => {
   const result = await createListSessionsHandler({ store: getStore() })(request);
   const actor = requireUserActor(request);
   if (!["coach", "headCoach"].includes(actor.role)) return result;
@@ -1442,7 +1445,7 @@ export const listSessions = onCall(scheduleCallableOptions, async (request) => {
   return { sessions: result.sessions.filter((_, index) => allowed[index]) };
 });
 
-export const getDailyOperationsDashboard = onCall(scheduleCallableOptions, async (request) =>
+export const getDailyOperationsDashboard = onCall(scheduleReadCallableOptions, async (request) =>
   createGetDailyOperationsDashboardHandler({ store: getStore() })(request),
 );
 
@@ -1474,7 +1477,7 @@ export const removeClass = onCall(scheduleCallableOptions, async (request) =>
   createRemoveClassHandler({ store: getStore() })(request),
 );
 
-export const listSessionBookedCounts = onCall(scheduleCallableOptions, async (request) =>
+export const listSessionBookedCounts = onCall(scheduleReadCallableOptions, async (request) =>
   createListSessionBookedCountsHandler({ store: getStore() })(request),
 );
 
@@ -1491,14 +1494,14 @@ export const cancelBooking = onCall(scheduleCallableOptions, async (request) =>
   createCancelBookingHandler(getStudentScopeOptions())(request),
 );
 
-export const listSessionBookings = onCall(scheduleCallableOptions, async (request) => {
+export const listSessionBookings = onCall(scheduleReadCallableOptions, async (request) => {
   await guardCourseStaffSession(request);
   const response = await createListSessionBookingsHandler({ store: getStore() })(request);
   const actor = requireUserActor(request);
   return { bookings: await sessionRegistrations(getFirestore(), actor.academyId, response.bookings) };
 });
 
-export const listStudentBookings = onCall(scheduleCallableOptions, async (request) =>
+export const listStudentBookings = onCall(scheduleReadCallableOptions, async (request) =>
   createListStudentBookingsHandler(getStudentScopeOptions())(request),
 );
 
@@ -1519,12 +1522,12 @@ export const reconcileSessionQuorum = onCall(scheduleCallableOptions, async (req
   createReconcileSessionQuorumHandler({ store: getStore() })(request),
 );
 
-export const listSessionAttendance = onCall(scheduleCallableOptions, async (request) => {
+export const listSessionAttendance = onCall(scheduleReadCallableOptions, async (request) => {
   await guardCourseStaffSession(request);
   return createListSessionAttendanceHandler({ store: getStore() })(request);
 });
 
-export const listStudentAttendance = onCall(scheduleCallableOptions, async (request) =>
+export const listStudentAttendance = onCall(scheduleReadCallableOptions, async (request) =>
   createListStudentAttendanceHandler(getStudentScopeOptions())(request),
 );
 
@@ -1538,7 +1541,7 @@ export const reconcileSessionNoShows = onCall(scheduleCallableOptions, async (re
   return createReconcileSessionNoShowsHandler({ store: getStore() })(request);
 });
 
-export const listAttendanceHistory = onCall(scheduleCallableOptions, async (request) =>
+export const listAttendanceHistory = onCall(scheduleReadCallableOptions, async (request) =>
   createListAttendanceHistoryHandler(getStudentScopeOptions())(request),
 );
 
@@ -1547,16 +1550,16 @@ export const recordCheckout = onCall(scheduleCallableOptions, async (request) =>
   return createRecordCheckoutHandler(getStudentScopeOptions())(request);
 });
 
-export const listSessionCheckouts = onCall(scheduleCallableOptions, async (request) => {
+export const listSessionCheckouts = onCall(scheduleReadCallableOptions, async (request) => {
   await guardCourseStaffSession(request);
   return createListSessionCheckoutsHandler({ store: getStore() })(request);
 });
 
-export const getStudentCheckout = onCall(scheduleCallableOptions, async (request) =>
+export const getStudentCheckout = onCall(scheduleReadCallableOptions, async (request) =>
   createGetStudentCheckoutHandler(getStudentScopeOptions())(request),
 );
 
-export const getSessionOperationalView = onCall(scheduleCallableOptions, async (request) => {
+export const getSessionOperationalView = onCall(scheduleReadCallableOptions, async (request) => {
   await guardCourseStaffSession(request);
   return createGetSessionOperationalViewHandler({ store: getStore() })(request);
 });

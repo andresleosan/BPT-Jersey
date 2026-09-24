@@ -237,6 +237,71 @@ describe("Classes & Services 2.0 page", () => {
     expect(mocks.listSessions).toHaveBeenCalledTimes(1);
   });
 
+  it("folds App Check failures from all three reads into one notice with one retry", async () => {
+    const appCheck = Object.assign(
+      new Error(
+        "AppCheck: 403 error. Attempts allowed again after 01d:00m:00s (appCheck/initial-throttle).",
+      ),
+      { code: "appCheck/initial-throttle" },
+    );
+    mocks.getScheduleCatalog.mockRejectedValueOnce(appCheck);
+    mocks.listSessions.mockRejectedValueOnce(appCheck);
+    mocks.listSessionBookedCounts.mockRejectedValueOnce(appCheck);
+    render(<ClassesPage />);
+    expect(
+      await screen.findByText("We couldn't verify this device. Try again in a moment."),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByText("Loading registrations…")).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getAllByText("We couldn't verify this device. Try again in a moment."),
+    ).toHaveLength(1);
+    expect(screen.queryByText(/appCheck\/initial-throttle/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Registration counts unavailable/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry catalogue" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry registrations" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry schedule" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await screen.findByRole("button", { name: /GI All Levels Evenings/ });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /GI All Levels Evenings/ })).toHaveTextContent(
+        "3 / 40",
+      ),
+    );
+    expect(mocks.getScheduleCatalog).toHaveBeenCalledTimes(2);
+    expect(mocks.listSessions).toHaveBeenCalledTimes(2);
+    expect(mocks.listSessionBookedCounts).toHaveBeenCalledTimes(2);
+    expect(
+      screen.queryByText("We couldn't verify this device. Try again in a moment."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the separate notices for failures that are not App Check", async () => {
+    mocks.getScheduleCatalog.mockRejectedValueOnce(new Error("Catalogue unavailable"));
+    mocks.listSessionBookedCounts.mockRejectedValueOnce(new Error("Synthetic unavailable"));
+    render(<ClassesPage />);
+    expect(await screen.findByText("Catalogue unavailable")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Registration counts unavailable. Classes are still available."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry catalogue" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry registrations" })).toBeInTheDocument();
+    expect(
+      screen.queryByText("We couldn't verify this device. Try again in a moment."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("marks the course link as a full-width toolbar action", async () => {
+    render(<ClassesPage />);
+    await screen.findByRole("button", { name: /GI All Levels Evenings/ });
+    expect(screen.getByRole("link", { name: "Create course / seminar" })).toHaveClass(
+      "cs-button",
+      "cs-toolbar-action",
+    );
+  });
+
   it("reuses a recently visited week and ignores an empty date", async () => {
     render(<ClassesPage />);
     await screen.findByRole("button", { name: /GI All Levels Evenings/ });
