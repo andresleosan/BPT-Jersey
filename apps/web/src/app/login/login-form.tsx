@@ -62,6 +62,12 @@ export function LoginForm({ audience }: LoginFormProps) {
   const [busy, setBusy] = useState(false);
   const locationSearch = useLocationSearch();
   const queryReturnTo = new URLSearchParams(locationSearch).get("returnTo");
+  // Q4: the hand-over at 18 signs the member out and sends them here.
+  const claimedNotice =
+    !isStaff && new URLSearchParams(locationSearch).get("claimed") === "1"
+      ? "Sign in with your new password."
+      : "";
+  const shownNotice = notice || claimedNotice;
 
   const isCreating = !isStaff && mode === "create-client";
   const contextTitle = isStaff
@@ -336,9 +342,9 @@ export function LoginForm({ audience }: LoginFormProps) {
             Continue with existing staff access
           </button>
         )}
-        {notice ? (
+        {shownNotice ? (
           <p className="login-message" role="status">
-            {notice}
+            {shownNotice}
           </p>
         ) : null}
 

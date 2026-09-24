@@ -130,7 +130,20 @@ export type OfficeMemberDirectoryService = CanonicalMemberDirectoryService &
     ) => Promise<CreateAdminAdultResult>;
     skipLegacyMember: (command: LegacyMemberSkipCommand) => Promise<void>;
     reviewMember: (command: CreateAdminAdultCommand) => Promise<Readonly<{ studentId: string }>>;
+    setStudentAccountLink: (command: SetStudentAccountLinkCommand) => Promise<void>;
   }>;
+
+/**
+ * A guardian gives a 12–17 year old their own sign-in, or takes it back (ADR-019). Only `userId` on
+ * the student changes; the control plane advances exactly as `updateAdminMember` does. The caller has
+ * already proved the guardian link: this writer checks the record, not the relationship.
+ */
+export type SetStudentAccountLinkCommand = Readonly<{
+  actor: CanonicalMemberDirectoryActor;
+  studentId: string;
+  userId: string | null;
+  now: string;
+}>;
 
 export type CreateAdminAdultResult = Readonly<{ memberId: string; studentId: string }>;
 
@@ -1815,6 +1828,130 @@ export function createCanonicalMemberDirectoryService(
         command.courseEnrolmentId,
         command.existingClientAccount,
       );
+    },
+    async setStudentAccountLink(command) {
+      const { actor } = command;
+      if (!actor.appCheckVerified || !actor.active || actor.role !== "guardian") {
+        throw new CanonicalMemberDirectoryError("unauthorized", "An active guardian is required");
+      }
+      const academyId = requiredIdentifier(actor.academyId, "academy ID");
+      const actorId = requiredIdentifier(actor.actorId, "actor ID");
+      const studentId = requiredIdentifier(command.studentId, "student ID");
+      const userId = command.userId === null ? null : requiredIdentifier(command.userId, "account user ID");
+      const now = requiredTimestamp(command.now);
+      const operationId = requiredIdentifier(`account-link-${generateAuditId()}`, "operation ID");
+      const auditEventId = requiredIdentifier(generateAuditId(), "generated audit ID");
+
+      await dependencies.firestore.runTransaction(async (transaction) => {
+        const stateRef = dependencies.firestore.doc(statePath(academyId));
+        const guardRef = dependencies.firestore.doc(guardPath(academyId));
+        const studentRef = dependencies.firestore.doc(studentPath(academyId, studentId));
+        const [stateSnapshot, guardSnapshot, studentSnapshot] = await Promise.all([
+          transaction.get(stateRef),
+          transaction.get(guardRef),
+          transaction.get(studentRef),
+        ]);
+        const state = assertCanonicalMemberDirectoryWriterReady(
+          documentData(stateSnapshot, "Member directory state"),
+          {
+            academyId,
+            digestVersion: "hmac-sha256-v1",
+            secretVersion: dependencies.identitySecretVersion,
+          },
+        );
+        const guard = memberDirectoryRestoreGuardSchema.safeParse(
+          documentData(guardSnapshot, "Member directory restore guard"),
+        );
+        if (!guard.success) {
+          throw new CanonicalMemberDirectoryError(
+            "unavailable",
+            "Member directory restore guard is invalid",
+          );
+        }
+        const currentEventSnapshot = await transaction.get(
+          dependencies.firestore.doc(guardEventPath(academyId, guard.data.lastEventId)),
+        );
+        const currentControl = assertMemberDirectoryControlPlane({
+          projectId: dependencies.projectId,
+          state,
+          guard: guard.data,
+          event: documentData(currentEventSnapshot, "Member directory guard event"),
+          integritySecretMaterial: dependencies.integritySecretMaterial,
+          integritySecretVersion: dependencies.integritySecretVersion,
+        });
+
+        const stored = documentData(studentSnapshot, "Student") as MemberDirectoryDocumentData;
+        const existing = parseStudentProfileAt(stored, now.slice(0, 10));
+        if (
+          !existing.ok ||
+          studentSnapshot.id !== studentId ||
+          existing.value.studentId !== studentId ||
+          existing.value.academyId !== academyId
+        ) {
+          throw new CanonicalMemberDirectoryError(
+            "unavailable",
+            "Canonical member record is unavailable",
+          );
+        }
+        if (userId !== null && existing.value.userId !== undefined) {
+          throw new CanonicalMemberDirectoryError("conflict", "Member already has an account");
+        }
+        const withoutUser = Object.fromEntries(
+          Object.entries(stored).filter(([field]) => field !== "userId"),
+        );
+        const next = parseStudentProfileAt(
+          {
+            ...withoutUser,
+            ...(userId === null ? {} : { userId }),
+            updatedAt: now,
+            updatedBy: actorId,
+          },
+          now.slice(0, 10),
+        );
+        if (!next.ok) {
+          throw new CanonicalMemberDirectoryError("invalid", "Invalid updated student record");
+        }
+
+        const nextState = {
+          ...state,
+          stateRevision: state.stateRevision + 1,
+          updatedAt: now,
+          updatedBy: actorId,
+        };
+        const nextControl = advanceMemberDirectoryControlPlane({
+          projectId: dependencies.projectId,
+          state: currentControl.state,
+          guard: currentControl.guard,
+          event: currentControl.event,
+          nextState,
+          operationId,
+          transitionKind: "canonical-identity-update",
+          integritySecretMaterial: dependencies.integritySecretMaterial,
+          integritySecretVersion: dependencies.integritySecretVersion,
+          now,
+          actorId,
+        });
+
+        transaction.set(studentRef, next.value);
+        transaction.set(stateRef, nextState);
+        transaction.set(guardRef, nextControl.guard);
+        transaction.create(
+          dependencies.firestore.doc(guardEventPath(academyId, nextControl.event.eventId)),
+          nextControl.event,
+        );
+        appendAuditEventInTransaction(
+          transaction,
+          dependencies.firestore.doc(auditPath(academyId, auditEventId)),
+          {
+            academyId,
+            actorId,
+            action: "member.updated",
+            targetRef: studentRef.path,
+            purpose: "member-record-maintenance",
+            correlationId: operationId,
+          } as unknown as AuditEventDraft,
+        );
+      });
     },
     async updateAdminMember(command) {
       requireAuthorizedActor(command.actor);
