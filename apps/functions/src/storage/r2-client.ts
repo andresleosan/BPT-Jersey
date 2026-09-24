@@ -35,7 +35,7 @@ export type R2Client = Readonly<{
     input: PdfUploadMetadata & { objectKey: string; expiresInSeconds: number },
   ) => Promise<string>;
   createPdfDownloadUrl: (input: { objectKey: string; expiresInSeconds: number }) => Promise<string>;
-  createPrivateImageUrl?: (input: {objectKey: string; expiresInSeconds: number; contentType: "image/jpeg" | "image/png"}) => Promise<string>;
+  createPrivateImageUrl?: (input: {objectKey: string; expiresInSeconds: number; contentType: "image/jpeg" | "image/png" | "image/webp"}) => Promise<string>;
   putObject: (objectKey: string, body: Uint8Array, contentType: string) => Promise<void>;
   readObject: (objectKey: string) => Promise<Uint8Array>;
   deleteObject: (objectKey: string) => Promise<void>;
@@ -69,6 +69,23 @@ function assertObjectKey(objectKey: string): void {
   ) {
     throw new Error("Invalid private object key");
   }
+}
+
+const MAX_PRIVATE_IMAGE_BYTES = 2 * 1024 * 1024;
+
+/** Payment proofs: jpeg/png read for 60 s. Profile avatars: webp read for 900 s. Nothing else. */
+function isPrivateImageRequest(input: Readonly<{ objectKey: string; expiresInSeconds: number; contentType: string }>): boolean {
+  if (input.objectKey.includes("/avatars/")) return input.contentType === "image/webp" && input.expiresInSeconds === 900;
+  return (input.objectKey.includes("/course-proofs/") || input.objectKey.includes("/membership-application-proofs/")) &&
+    input.expiresInSeconds === 60 && ["image/jpeg", "image/png"].includes(input.contentType);
+}
+
+/** Non-PDF objects: jpeg/png proofs or webp avatars, never above 2 MB. */
+function isPrivateImageObject(objectKey: string, contentType: string, byteLength: number): boolean {
+  if (byteLength > MAX_PRIVATE_IMAGE_BYTES) return false;
+  if (objectKey.includes("/avatars/")) return contentType === "image/webp";
+  return (objectKey.includes("/enrolment-proofs/") || objectKey.includes("/course-proofs/") || objectKey.includes("/membership-application-proofs/")) &&
+    ["image/png", "image/jpeg"].includes(contentType);
 }
 
 function assertHttpsAbsoluteUrl(value: unknown): string {
@@ -232,17 +249,13 @@ export function createR2Client(options: R2ClientOptions): R2Client {
     },
     createPrivateImageUrl: async (input) => {
       assertObjectKey(input.objectKey);
-      if ((!input.objectKey.includes("/course-proofs/") && !input.objectKey.includes("/membership-application-proofs/")) || input.expiresInSeconds !== 60 || !["image/jpeg", "image/png"].includes(input.contentType)) throw new Error("Invalid private image request");
-      return assertHttpsAbsoluteUrl(await getSigner(new GetObjectCommand({Bucket: options.bucket, Key: input.objectKey, ResponseContentType: input.contentType, ResponseCacheControl: "private, no-store, max-age=0", ResponseContentDisposition: "inline"}), {expiresIn: 60}));
+      if (!isPrivateImageRequest(input)) throw new Error("Invalid private image request");
+      return assertHttpsAbsoluteUrl(await getSigner(new GetObjectCommand({Bucket: options.bucket, Key: input.objectKey, ResponseContentType: input.contentType, ResponseCacheControl: "private, no-store, max-age=0", ResponseContentDisposition: "inline"}), {expiresIn: input.expiresInSeconds}));
     },
     putObject: async (objectKey, body, contentType) => {
       assertObjectKey(objectKey);
       if (contentType !== "application/pdf") {
-        if (
-          (!objectKey.includes("/enrolment-proofs/") && !objectKey.includes("/course-proofs/") && !objectKey.includes("/membership-application-proofs/")) ||
-          !["image/png", "image/jpeg"].includes(contentType) ||
-          body.byteLength > 2 * 1024 * 1024
-        )
+        if (!isPrivateImageObject(objectKey, contentType, body.byteLength))
           throw new Error("Only PDF objects are accepted");
       }
       if (body.byteLength > MAX_MEMBER_IMPORT_PDF_BYTES) {
@@ -393,17 +406,13 @@ export function createEmulatorR2Client(
     },
     createPrivateImageUrl: async (input) => {
       assertObjectKey(input.objectKey);
-      if ((!input.objectKey.includes("/course-proofs/") && !input.objectKey.includes("/membership-application-proofs/")) || input.expiresInSeconds !== 60 || !["image/jpeg", "image/png"].includes(input.contentType)) throw new Error("Invalid private image request");
+      if (!isPrivateImageRequest(input)) throw new Error("Invalid private image request");
       return assertHttpsAbsoluteUrl(signedUrl(input.objectKey, "download"));
     },
     putObject: async (objectKey, body, contentType) => {
       assertObjectKey(objectKey);
       if (contentType !== "application/pdf") {
-        if (
-          (!objectKey.includes("/enrolment-proofs/") && !objectKey.includes("/course-proofs/") && !objectKey.includes("/membership-application-proofs/")) ||
-          !["image/png", "image/jpeg"].includes(contentType) ||
-          body.byteLength > 2 * 1024 * 1024
-        )
+        if (!isPrivateImageObject(objectKey, contentType, body.byteLength))
           throw new Error("Only PDF objects are accepted");
       }
       if (body.byteLength > MAX_MEMBER_IMPORT_PDF_BYTES) {

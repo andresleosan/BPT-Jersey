@@ -65,6 +65,7 @@ Cada fila se comprobó contra los contratos del dominio, no contra la memoria.
 | Auditoría                          | `auditEvents`                                      | Metadatos              | Todos             |
 | **Importación Regyfit**            | `regyfitMemberRecords`, `regyfitAccessRecords`     | **Ver §4.1**           | Adultos y menores |
 | Claves de identidad                | `studentIdentityKeys` (HMAC-SHA256, no reversible) | Seudonimizado          | Adultos y menores |
+| Acceso propio teen (12–17)         | Firebase Auth (email + hash de contraseña), `teenAccess/{studentId}` | Confidencial; base legal: consentimiento del tutor (ADR-019) | Menores 12–17 y tutor |
 
 ---
 
