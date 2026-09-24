@@ -1,5 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useEffect } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const waiverApi = vi.hoisted(() => ({
@@ -25,10 +26,23 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+function Calendar({
+  gate,
+  track,
+  studentId,
+}: {
+  gate: (studentId: string) => React.ReactNode | null;
+  track: (studentIds: readonly string[]) => void;
+  studentId: string;
+}) {
+  useEffect(() => track([studentId]), [track, studentId]);
+  return gate(studentId) ?? <p>Member calendar</p>;
+}
+
 function renderGate(studentId: string) {
   render(
     <WaiverGate>
-      {(gate) => gate(studentId) ?? <p>Member calendar</p>}
+      {(gate, track) => <Calendar gate={gate} studentId={studentId} track={track} />}
     </WaiverGate>,
   );
 }
@@ -60,7 +74,15 @@ it("accepts the terms for every pending member on /account/waiver (D12)", async 
 
 it("opens the calendar of a participant whose terms are accepted", async () => {
   statusApi.getMyDisclaimerStatus.mockResolvedValue({
-    participants: [{ studentId: "s1", fullName: "Ava Example", terms: true, disclaimers: true }],
+    participants: [
+      {
+        studentId: "s1",
+        status: "checked",
+        fullName: "Ava Example",
+        terms: true,
+        disclaimers: true,
+      },
+    ],
   });
   renderGate("s1");
   expect(await screen.findByText("Member calendar")).toBeVisible();
@@ -68,7 +90,15 @@ it("opens the calendar of a participant whose terms are accepted", async () => {
 
 it("blocks only the participant without the terms", async () => {
   statusApi.getMyDisclaimerStatus.mockResolvedValue({
-    participants: [{ studentId: "s1", fullName: "Ava Example", terms: false, disclaimers: true }],
+    participants: [
+      {
+        studentId: "s1",
+        status: "checked",
+        fullName: "Ava Example",
+        terms: false,
+        disclaimers: true,
+      },
+    ],
   });
   renderGate("s1");
   expect(

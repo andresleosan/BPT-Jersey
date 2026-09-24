@@ -69,6 +69,8 @@ type MemberCalendarProps = Readonly<{
   topSlot?: ReactNode | ((studentId: string) => ReactNode);
   /** Non-null for the selected participant: rendered in place of the week (and check-in); the selector stays. */
   gate?: (studentId: string) => ReactNode | null;
+  /** Called with every participant id whenever the loaded list changes (the gate checks exactly these). */
+  onParticipants?: (studentIds: readonly string[]) => void;
   /** The signed-in uid: paints the last member and week at once while the live load runs. */
   cacheKey?: string;
 }>;
@@ -148,6 +150,7 @@ export function MemberCalendar({
   onSignOut,
   topSlot,
   gate,
+  onParticipants,
   cacheKey,
 }: MemberCalendarProps) {
   const viewport = useViewport();
@@ -286,6 +289,11 @@ export function MemberCalendar({
       active = false;
     };
   }, [repository, selectedStudentId, rangeFrom, rangeTo, reloadToken, pollToken, cacheKey]);
+
+  const participantKey = (member?.participants ?? []).map((p) => p.studentId).join("\n");
+  useEffect(() => {
+    if (participantKey) onParticipants?.(participantKey.split("\n"));
+  }, [participantKey, onParticipants]);
 
   const participant = member?.participants.find((p) => p.studentId === selectedStudentId);
   const selectedWeek =
