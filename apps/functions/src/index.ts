@@ -259,6 +259,7 @@ export {
 
 // Member engagement features, one file per team (phase 0, T041V2).
 export * from "./streak/streak-callables.js";
+export * from "./promotion/promotion-callables.js";
 export * from "./competitors/competitors-callables.js";
 export * from "./account-settings/account-settings-callables.js";
 export {
