@@ -11,6 +11,7 @@ import { z } from "zod";
 
 import { participantBandAt } from "../memberships/participant-band";
 import { memberAgeOn } from "./member-access-contracts";
+import { emergencyContactSchema } from "./member-directory-contracts";
 import { enrolmentTrainingFields } from "./enrolment-request-contracts";
 
 export type AttendedSession = Readonly<{
@@ -298,6 +299,12 @@ export const teenAccessInputSchema = z.strictObject({
   studentId: id,
   email: z.email().max(254),
   password: z.string().min(10).max(128),
+});
+/** A member (or their guardian) edits the emergency contact from account settings. */
+export const ownEmergencyContactInputSchema = z.strictObject({
+  studentId: id,
+  contact: emergencyContactSchema,
+  requestId: z.uuid(),
 });
 export const memberPlanRequestInputSchema = z.strictObject({
   kind: z.enum(["self", "child"]),

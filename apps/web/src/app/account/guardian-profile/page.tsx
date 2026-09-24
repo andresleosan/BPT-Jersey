@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
+import { syncOwnAccountEmail } from "../../../lib/account-settings-client";
 import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../../lib/client-auth";
 import {
   createGuardianProfileRequestId,
@@ -52,7 +53,9 @@ function GuardianProfileContent() {
       return;
     }
     let active = true;
-    void getGuardianProfile()
+    // A changed sign-in email must reach the profile first: the guardian store refuses a mismatch.
+    void syncOwnAccountEmail()
+      .then(() => getGuardianProfile())
       .then((profile) => {
         if (!active) return;
         setForm(
