@@ -778,3 +778,318 @@ describe("subscription activation from Billing", () => {
     },
   );
 });
+
+describe("editing a manual payment", () => {
+  const requestId = "0b8f7c52-3d5e-4c8a-9f1e-2a7b6c5d4e3f";
+
+  async function paidInvoice(totalMinor = 5000, amountMinor = 5000) {
+    const h = store();
+    const invoice = await h.service.issueManualInvoice({
+      academyId,
+      actorId: "admin-1",
+      familyId,
+      membershipId,
+      totalMinor,
+      dueAt: now,
+      chargeKind: "membership",
+      invoiceReference: "SUBSCRIPTION-EDIT",
+      description: "Monthly subscription",
+    });
+    const payment = await h.service.recordManualPayment({
+      academyId,
+      actorId: "admin-1",
+      invoiceId: invoice.invoiceId,
+      amountMinor,
+      method: "cash",
+      manualReference: "CASH-EDIT-1",
+      occurredAt: now,
+    });
+    const invoicePath = `academies/${academyId}/invoices/${invoice.invoiceId}`;
+    const paymentPath = `academies/${academyId}/payments/${payment.paymentId}`;
+    h.audits.length = 0;
+    return { ...h, invoice, payment, invoicePath, paymentPath };
+  }
+
+  function edit(paymentId: string, changes: Record<string, unknown>, id = requestId) {
+    return {
+      academyId,
+      actorId: "admin-1",
+      actorName: "Ana Office",
+      paymentId,
+      reason: "Cash was miscounted at the desk",
+      requestId: id,
+      ...changes,
+    };
+  }
+
+  it("lowers the amount and leaves the invoice partially paid", async () => {
+    const h = await paidInvoice();
+    const result = await h.service.editManualPayment(
+      edit(h.payment.paymentId, { amountMinor: 3000 }),
+    );
+    expect(result).toEqual({
+      paymentId: h.payment.paymentId,
+      invoiceId: h.invoice.invoiceId,
+      invoiceStatus: "partially_paid",
+    });
+    expect(h.records.get(h.paymentPath)).toMatchObject({
+      amountMinor: 3000,
+      updatedBy: "admin-1",
+      auditHistory: [
+        {
+          editedAt: now,
+          editedBy: "admin-1",
+          editedByName: "Ana Office",
+          reason: "Cash was miscounted at the desk",
+          previousValues: { amountMinor: 5000 },
+        },
+      ],
+    });
+    expect(h.records.get(h.invoicePath)).toMatchObject({ status: "partially_paid", paidAt: null });
+    expect(h.audits.map((audit) => audit.action)).toEqual([
+      "payment.edited",
+      "invoice.status.changed",
+    ]);
+    expect(h.audits[0]).toMatchObject({ amountMinor: 3000, currency: "GBP", method: "cash" });
+  });
+
+  it("raises the amount back to the total and marks the invoice paid", async () => {
+    const h = await paidInvoice(5000, 3000);
+    const result = await h.service.editManualPayment(
+      edit(h.payment.paymentId, { amountMinor: 5000 }),
+    );
+    expect(result.invoiceStatus).toBe("paid");
+    expect(h.records.get(h.invoicePath)).toMatchObject({ status: "paid", paidAt: now });
+  });
+
+  it("refuses an amount that would overpay the invoice and writes nothing", async () => {
+    const h = await paidInvoice();
+    const before = new Map(h.records);
+    await expect(
+      h.service.editManualPayment(edit(h.payment.paymentId, { amountMinor: 6000 })),
+    ).rejects.toMatchObject({
+      code: "precondition",
+      message: "This change would overpay the invoice",
+    });
+    expect(h.records).toEqual(before);
+    expect(h.audits).toEqual([]);
+  });
+
+  it("refuses a reason shorter than ten characters", async () => {
+    const h = await paidInvoice();
+    await expect(
+      h.service.editManualPayment(
+        edit(h.payment.paymentId, { amountMinor: 3000, reason: "too short" }),
+      ),
+    ).rejects.toMatchObject({ code: "invalid" });
+  });
+
+  it("refuses an edit that changes nothing", async () => {
+    const h = await paidInvoice();
+    await expect(
+      h.service.editManualPayment(edit(h.payment.paymentId, { amountMinor: 5000, method: "cash" })),
+    ).rejects.toMatchObject({ code: "invalid" });
+  });
+
+  it("appends every edit and never rewrites an earlier entry", async () => {
+    const h = await paidInvoice();
+    await h.service.editManualPayment(edit(h.payment.paymentId, { amountMinor: 3000 }));
+    const first = (h.records.get(h.paymentPath)?.auditHistory as unknown[])[0];
+    await h.service.editManualPayment(
+      edit(
+        h.payment.paymentId,
+        {
+          method: "bank_transfer",
+          occurredAt: "2026-08-18T09:30:00+01:00",
+          reason: "Paid by transfer, not cash",
+        },
+        "5a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+      ),
+    );
+    const history = h.records.get(h.paymentPath)?.auditHistory as Array<Record<string, unknown>>;
+    expect(history).toHaveLength(2);
+    expect(history[0]).toEqual(first);
+    expect(history[1]).toMatchObject({
+      reason: "Paid by transfer, not cash",
+      previousValues: { method: "cash", occurredAt: now },
+    });
+    expect(h.records.get(h.paymentPath)).toMatchObject({
+      method: "bank_transfer",
+      occurredAt: "2026-08-18T08:30:00.000Z",
+      amountMinor: 3000,
+    });
+  });
+
+  it("replays the same request once and refuses the same request id with other details", async () => {
+    const h = await paidInvoice();
+    const input = edit(h.payment.paymentId, { amountMinor: 3000 });
+    const first = await h.service.editManualPayment(input);
+    await expect(h.service.editManualPayment(input)).resolves.toEqual(first);
+    expect(h.records.get(h.paymentPath)?.auditHistory).toHaveLength(1);
+    expect(h.audits.filter((audit) => audit.action === "payment.edited")).toHaveLength(1);
+    await expect(
+      h.service.editManualPayment({ ...input, amountMinor: 2000 }),
+    ).rejects.toMatchObject({ code: "conflict" });
+  });
+
+  it("refuses a manual reference already used by another payment", async () => {
+    const h = await paidInvoice(5000, 3000);
+    await h.service.recordManualPayment({
+      academyId,
+      actorId: "admin-1",
+      invoiceId: h.invoice.invoiceId,
+      amountMinor: 1000,
+      method: "cash",
+      manualReference: "CASH-EDIT-2",
+      occurredAt: now,
+    });
+    await expect(
+      h.service.editManualPayment(edit(h.payment.paymentId, { manualReference: "CASH-EDIT-2" })),
+    ).rejects.toMatchObject({ code: "conflict" });
+  });
+
+  it("refuses course payments and payments on a void invoice", async () => {
+    const h = await paidInvoice();
+    const course = {
+      ...h.records.get(h.paymentPath)!,
+      schemaVersion: 2,
+      method: "bank_transfer",
+      payer: { kind: "family", familyId },
+    };
+    h.records.set(h.paymentPath, course);
+    await expect(
+      h.service.editManualPayment(edit(h.payment.paymentId, { amountMinor: 3000 })),
+    ).rejects.toMatchObject({ code: "precondition" });
+    const legacy = await paidInvoice();
+    legacy.records.set(legacy.invoicePath, {
+      ...legacy.records.get(legacy.invoicePath)!,
+      status: "void",
+      paidAt: null,
+    });
+    await expect(
+      legacy.service.editManualPayment(edit(legacy.payment.paymentId, { amountMinor: 3000 })),
+    ).rejects.toMatchObject({ code: "precondition" });
+  });
+
+  it("shares an invoice's total across its payments: no overpay, and a partial after lowering", async () => {
+    const h = await paidInvoice(5000, 3000);
+    const second = await h.service.recordManualPayment({
+      academyId,
+      actorId: "admin-1",
+      invoiceId: h.invoice.invoiceId,
+      amountMinor: 2000,
+      method: "cash",
+      manualReference: "CASH-EDIT-2",
+      occurredAt: now,
+    });
+    await expect(
+      h.service.editManualPayment(edit(second.paymentId, { amountMinor: 3000 })),
+    ).rejects.toMatchObject({ message: "This change would overpay the invoice" });
+    await expect(
+      h.service.editManualPayment(edit(second.paymentId, { amountMinor: 1000 })),
+    ).resolves.toMatchObject({ invoiceStatus: "partially_paid" });
+    expect(h.records.get(h.invoicePath)).toMatchObject({ status: "partially_paid", paidAt: null });
+  });
+
+  it("refuses to replay a receipt whose stored result is not this payment's", async () => {
+    const h = await paidInvoice();
+    const input = edit(h.payment.paymentId, { amountMinor: 3000 });
+    await h.service.editManualPayment(input);
+    const [receiptPath, receipt] = [...h.records].find(([path]) =>
+      path.includes("/paymentEditReceipts/"),
+    )!;
+    h.records.set(receiptPath, {
+      ...receipt,
+      result: { paymentId: "payment-other", invoiceId: h.invoice.invoiceId, invoiceStatus: "paid" },
+    });
+    await expect(h.service.editManualPayment(input)).rejects.toMatchObject({ code: "invalid" });
+    h.records.set(receiptPath, { ...receipt, result: { paymentId: h.payment.paymentId } });
+    await expect(h.service.editManualPayment(input)).rejects.toMatchObject({ code: "invalid" });
+  });
+});
+
+describe("payment edits and the membership they pay for", () => {
+  const membershipPathFor = `academies/${academyId}/memberships/${membershipId}`;
+  const membership = {
+    membershipId,
+    academyId,
+    familyId,
+    studentId: "student-1",
+    planId: "payg",
+    status: "active",
+    startsAt: now,
+    endsAt: null,
+    nextBillingAt: null,
+    schemaVersion: "1",
+    createdAt: now,
+    createdBy: "admin-1",
+    updatedAt: now,
+    updatedBy: "admin-1",
+  };
+
+  async function scenario(amountMinor: number, status: "active" | "overdue") {
+    const h = store({ ...seedSources(), [membershipPathFor]: membership });
+    const invoice = await h.service.issueManualInvoice({
+      academyId,
+      actorId: "admin-1",
+      familyId,
+      membershipId,
+      totalMinor: 5000,
+      dueAt: now,
+      chargeKind: "membership",
+      invoiceReference: "SUBSCRIPTION-M",
+      description: "Monthly subscription",
+    });
+    const payment = await h.service.recordManualPayment({
+      academyId,
+      actorId: "admin-1",
+      invoiceId: invoice.invoiceId,
+      amountMinor,
+      method: "cash",
+      manualReference: "CASH-M-1",
+      occurredAt: now,
+    });
+    h.records.set(membershipPathFor, { ...membership, status });
+    h.audits.length = 0;
+    return { ...h, payment };
+  }
+
+  const reason = "Cash was miscounted at the desk";
+
+  it("brings an overdue subscription back once an edit pays its invoice in full", async () => {
+    const h = await scenario(3000, "overdue");
+    await h.service.editManualPayment({
+      academyId,
+      actorId: "admin-1",
+      actorName: "Ana Office",
+      paymentId: h.payment.paymentId,
+      amountMinor: 5000,
+      reason,
+      requestId: "3c9e1f2a-7b4d-4e8f-9a1b-2c3d4e5f6a7b",
+    });
+    expect(h.records.get(membershipPathFor)).toMatchObject({
+      status: "active",
+      updatedBy: "admin-1",
+    });
+    expect(h.audits.map((audit) => audit.action).sort()).toEqual([
+      "invoice.status.changed",
+      "membership.status.changed",
+      "payment.edited",
+    ]);
+  });
+
+  it("never marks a subscription overdue when an edit lowers a paid invoice", async () => {
+    const h = await scenario(5000, "active");
+    await h.service.editManualPayment({
+      academyId,
+      actorId: "admin-1",
+      actorName: "Ana Office",
+      paymentId: h.payment.paymentId,
+      amountMinor: 2000,
+      reason,
+      requestId: "4d0f2a3b-8c5e-4f9a-8b2c-3d4e5f6a7b8c",
+    });
+    expect(h.records.get(membershipPathFor)).toMatchObject({ status: "active" });
+    expect(h.audits.map((audit) => audit.action)).not.toContain("membership.status.changed");
+  });
+});

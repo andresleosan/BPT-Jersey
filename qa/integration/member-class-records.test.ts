@@ -235,13 +235,18 @@ describe.skipIf(!enabled)("member class Firestore pages", () => {
             dueAt: at,
             paidAt: null,
             description: "Synthetic period",
+            invoiceReference: "SYNTHETIC",
+            balanceMinor: 4000,
             payments: [
               {
                 paymentId: "p",
+                invoiceId: "i",
                 amountMinor: 2000,
                 method: "cash",
                 reference: "SYNTHETIC",
                 occurredAt: at,
+                lastEdit: null,
+                auditHistory: [],
               },
             ],
           },

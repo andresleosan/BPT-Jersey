@@ -6,6 +6,8 @@ import type { GuardianFamilyProjection } from "@bpt-jersey/domain/families";
 
 import {
   FinanceCallableError,
+  editManualPaymentCallableOptions,
+  editManualPaymentHandler,
   financeCallableOptions,
   getFamilyFinancialAccountHandler,
   getInvoiceHandler,
@@ -17,7 +19,8 @@ import {
   voidManualInvoiceHandler,
   type FinanceCallableServices,
 } from "./finance-callables.js";
-import type { FinanceStore } from "./finance-service.js";
+import { FinanceStoreError, type FinanceStore } from "./finance-service.js";
+import { browserAdminCallableOptions } from "../auth/callable-options.js";
 
 const academyId = "academy-1";
 
@@ -66,6 +69,7 @@ function services(overrides: Partial<FinanceCallableServices> = {}): FinanceCall
     issueManualInvoice: vi.fn(),
     issuePaygInvoice: vi.fn(),
     recordManualPayment: vi.fn(),
+    editManualPayment: vi.fn(),
     voidManualInvoice: vi.fn(),
     listFinancialAccount: vi.fn().mockResolvedValue({
       invoices: [],
@@ -384,5 +388,97 @@ describe("savePaymentInstructions (T010/T035 re-scope)", () => {
     await expect(
       getFamilyFinancialAccountHandler(request({ familyId: "bad id" }, actor("owner")), s),
     ).rejects.toMatchObject({ code: "invalid-argument" });
+  });
+
+  describe("editManualPayment", () => {
+    const valid = {
+      paymentId: "payment-1",
+      amountMinor: 3000,
+      reason: "Cash was miscounted at the desk",
+      requestId: "0b8f7c52-3d5e-4c8a-9f1e-2a7b6c5d4e3f",
+    };
+
+    function editServices(name: string | null = "Ana Office") {
+      const finance = services({ actorDisplayName: vi.fn().mockResolvedValue(name) });
+      const store = finance.store as unknown as { editManualPayment: ReturnType<typeof vi.fn> };
+      store.editManualPayment.mockResolvedValue({
+        paymentId: "payment-1",
+        invoiceId: "invoice-1",
+        invoiceStatus: "partially_paid",
+      });
+      return { finance, store };
+    }
+
+    it("passes the parsed edit, the actor and the actor's name to the store", async () => {
+      const { finance, store } = editServices();
+      await expect(
+        editManualPaymentHandler(request(valid, actor("owner")), finance),
+      ).resolves.toEqual({
+        paymentId: "payment-1",
+        invoiceId: "invoice-1",
+        invoiceStatus: "partially_paid",
+      });
+      expect(store.editManualPayment).toHaveBeenCalledWith({
+        ...valid,
+        academyId,
+        actorId: "owner-1",
+        actorName: "Ana Office",
+      });
+    });
+
+    it("falls back to Office when the actor has no display name", async () => {
+      const { finance, store } = editServices(null);
+      await editManualPaymentHandler(request(valid, actor("administrator")), finance);
+      expect(store.editManualPayment).toHaveBeenCalledWith(
+        expect.objectContaining({ actorName: "Office" }),
+      );
+    });
+
+    it.each([
+      ["a nine-character reason", { ...valid, reason: "too short" }],
+      [
+        "no editable field",
+        { paymentId: "payment-1", reason: valid.reason, requestId: valid.requestId },
+      ],
+      ["an extra field", { ...valid, invoiceId: "invoice-2" }],
+      ["a request id that is not a uuid", { ...valid, requestId: "request-1" }],
+    ])("rejects %s before calling the store", async (_label, data) => {
+      const { finance, store } = editServices();
+      await expect(
+        editManualPaymentHandler(request(data, actor("owner")), finance),
+      ).rejects.toMatchObject({ code: "invalid-argument" });
+      expect(store.editManualPayment).not.toHaveBeenCalled();
+    });
+
+    it.each(["coach", "headCoach", "guardian", "adultStudent"] as const)(
+      "denies a %s",
+      async (role) => {
+        const { finance, store } = editServices();
+        await expect(
+          editManualPaymentHandler(request(valid, actor(role)), finance),
+        ).rejects.toMatchObject({ code: "permission-denied" });
+        expect(store.editManualPayment).not.toHaveBeenCalled();
+      },
+    );
+
+    it("tells the office plainly when the edit would overpay the invoice", async () => {
+      const { finance, store } = editServices();
+      store.editManualPayment.mockRejectedValue(
+        new FinanceStoreError("precondition", "This change would overpay the invoice"),
+      );
+      await expect(
+        editManualPaymentHandler(request(valid, actor("owner")), finance),
+      ).rejects.toMatchObject({
+        code: "failed-precondition",
+        message: "This change would overpay the invoice",
+      });
+    });
+
+    it("uses the browser admin options with single-use App Check tokens", () => {
+      expect(editManualPaymentCallableOptions).toEqual({
+        ...browserAdminCallableOptions,
+        consumeAppCheckToken: true,
+      });
+    });
   });
 });

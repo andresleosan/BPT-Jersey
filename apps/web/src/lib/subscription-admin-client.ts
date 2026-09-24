@@ -111,6 +111,16 @@ export function getMemberSubscriptionBilling(studentId: string) {
   return invoke(
     "listMemberSubscriptionBilling",
     memberSubscriptionQuerySchema.parse({ studentId }),
-    z.array(subscriptionBillingSchema),
+    // A payment is only ever edited through its own invoice, so a row filed under another one is
+    // refused rather than shown with an Edit action that would correct the wrong record.
+    z.array(subscriptionBillingSchema).refine((billing) =>
+      billing.every((membership) =>
+        membership.invoices.every((invoice) =>
+          invoice.payments.every(
+            (payment) => payment.invoiceId === undefined || payment.invoiceId === invoice.invoiceId,
+          ),
+        ),
+      ),
+    ),
   );
 }

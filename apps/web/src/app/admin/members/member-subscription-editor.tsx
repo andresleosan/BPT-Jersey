@@ -8,6 +8,7 @@ import {
   type ManualSubscriptionInput,
   type MemberSubscriptionContext,
   type SubscriptionBilling,
+  type SubscriptionBillingPayment,
 } from "@bpt-jersey/domain/memberships/admin";
 import type { RegyfitMemberRecord } from "@bpt-jersey/domain/members/regyfit-records";
 import type { PlanId } from "@bpt-jersey/domain/memberships";
@@ -34,12 +35,55 @@ const invoiceStates = {
   void: "Void",
 };
 
+const shortMonths = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+/** "25 Sep 2026, 14:05" in Jersey time; built by hand because ICU now spells September "Sept". */
+function editTime(value: string): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Jersey",
+      day: "numeric",
+      month: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(new Date(value))
+      .map((part) => [part.type, part.value]),
+  );
+  return `${parts.day} ${shortMonths[Number(parts.month) - 1]} ${parts.year}, ${parts.hour}:${parts.minute}`;
+}
+function previousValue(field: string, value: string | number): string {
+  if (field === "amountMinor" && typeof value === "number") return `amount ${money(value)}`;
+  if (field === "method" && typeof value === "string")
+    return `method ${methodNames[value as keyof typeof methodNames] ?? value}`;
+  if (field === "manualReference") return `reference ${value}`;
+  if (field === "occurredAt" && typeof value === "string") return `paid on ${editTime(value)}`;
+  return `${field} ${value}`;
+}
+
 export function SubscriptionBillingHistory({
   billing,
   showHeading = true,
+  onEditPayment,
 }: {
   billing: readonly SubscriptionBilling[];
   showHeading?: boolean;
+  /** Office correction of one receipt; without it the history is read-only. */
+  onEditPayment?: (payment: SubscriptionBillingPayment) => void;
 }) {
   const invoices = billing
     .flatMap((item) => item.invoices)
@@ -63,16 +107,64 @@ export function SubscriptionBillingHistory({
                 Due{" "}
                 {new Date(invoice.dueAt).toLocaleDateString("en-GB", { timeZone: "Europe/Jersey" })}
               </p>
-              {invoice.payments.map((payment) => (
-                <p key={payment.paymentId}>
-                  {money(payment.amountMinor)} received · {methodNames[payment.method]} ·{" "}
-                  {new Date(payment.occurredAt).toLocaleDateString("en-GB", {
-                    timeZone: "Europe/Jersey",
-                  })}
-                  <br />
-                  <span className="member-subscription-help">Reference: {payment.reference}</span>
-                </p>
-              ))}
+              {invoice.payments.map((payment) => {
+                // A response from before payment edits existed carries neither field.
+                const history = payment.auditHistory ?? [];
+                const lastEdit = payment.lastEdit ?? null;
+                return (
+                  <div
+                    key={payment.paymentId}
+                    style={{ borderTop: "1px solid #D9D8D2", marginTop: "0.5rem", minWidth: 0 }}
+                  >
+                    <div className="member-subscription-actions">
+                      <p style={{ fontVariantNumeric: "tabular-nums", margin: 0, minWidth: 0 }}>
+                        {money(payment.amountMinor)} received · {methodNames[payment.method]} ·{" "}
+                        {new Date(payment.occurredAt).toLocaleDateString("en-GB", {
+                          timeZone: "Europe/Jersey",
+                        })}
+                        <br />
+                        <span className="member-subscription-help">
+                          Reference: {payment.reference}
+                        </span>
+                      </p>
+                      {onEditPayment && invoice.status !== "void" ? (
+                        <button
+                          aria-label={`Edit payment ${payment.reference}`}
+                          className="member-record-link"
+                          onClick={() => onEditPayment(payment)}
+                          type="button"
+                        >
+                          Edit
+                        </button>
+                      ) : null}
+                    </div>
+                    {lastEdit ? (
+                      <p className="member-subscription-help">
+                        Edited on {editTime(lastEdit.editedAt)} by {lastEdit.editedByName} — Reason:{" "}
+                        {lastEdit.reason}
+                      </p>
+                    ) : null}
+                    {history.length > 0 ? (
+                      <details>
+                        <summary>Edit history</summary>
+                        <ol>
+                          {history.map((entry, index) => (
+                            <li key={`${entry.editedAt}-${index}`}>
+                              {editTime(entry.editedAt)} · {entry.editedByName} · Reason:{" "}
+                              {entry.reason}
+                              {Object.keys(entry.previousValues).length > 0
+                                ? ` · Before: ${Object.entries(entry.previousValues)
+                                    .map(([field, value]) => previousValue(field, value))
+                                    .join(", ")}`
+                                : ""}
+                            </li>
+                          ))}
+                        </ol>
+                      </details>
+                    ) : null}
+                  </div>
+                );
+              })}
             </li>
           ))}
         </ul>

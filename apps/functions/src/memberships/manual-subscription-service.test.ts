@@ -407,6 +407,61 @@ it("settles an existing Billing invoice without an office link and exposes the a
   });
 });
 
+it("exposes each payment's invoice, its edit trail and the invoice's open balance", async () => {
+  const h = harness();
+  const saved = await saveManualSubscription(h.db, actor, input(paid));
+  const [paymentPath, payment] = [...h.records].find(([path]) => path.includes("/payments/"))!;
+  const [invoicePath, invoice] = [...h.records].find(([path]) => path.includes("/invoices/"))!;
+  h.records.set(invoicePath, {
+    ...invoice,
+    totalMinor: 8000,
+    status: "partially_paid",
+    paidAt: null,
+  });
+  const first = {
+    editedAt: "2026-08-02T09:00:00.000Z",
+    editedBy: "owner-1",
+    editedByName: "Ana Office",
+    reason: "Cash was miscounted at the desk",
+    previousValues: { amountMinor: 7000 },
+  };
+  const second = {
+    ...first,
+    editedAt: "2026-08-03T09:00:00.000Z",
+    reason: "Paid by transfer, not cash",
+    previousValues: { method: "bank_transfer" },
+  };
+  h.records.set(paymentPath, { ...payment, auditHistory: [first, second] });
+  const [billing] = await listSubscriptionBilling(h.db, actor.academyId, saved.studentId);
+  expect(billing?.invoices[0]).toMatchObject({
+    invoiceId: invoice.invoiceId,
+    invoiceReference: invoice.invoiceReference,
+    balanceMinor: 2000,
+    payments: [
+      {
+        paymentId: payment.paymentId,
+        invoiceId: invoice.invoiceId,
+        lastEdit: {
+          editedAt: second.editedAt,
+          editedByName: "Ana Office",
+          reason: "Paid by transfer, not cash",
+        },
+        auditHistory: [first, second],
+      },
+    ],
+  });
+});
+
+it("shows an unedited payment with no edit and an empty trail", async () => {
+  const h = harness();
+  const saved = await saveManualSubscription(h.db, actor, input(paid));
+  const [billing] = await listSubscriptionBilling(h.db, actor.academyId, saved.studentId);
+  expect(billing?.invoices[0]).toMatchObject({
+    balanceMinor: 0,
+    payments: [{ lastEdit: null, auditHistory: [] }],
+  });
+});
+
 it("distinguishes an absent student from an existing student without a billing family", async () => {
   const h = harness();
   delete h.records.get(base + "students/student-1")!.familyId;

@@ -175,6 +175,31 @@ export const officeMemberRegistrationSchema = z.strictObject({
     .refine((values) => new Set(values).size === values.length),
 });
 export type OfficeMemberRegistration = z.infer<typeof officeMemberRegistrationSchema>;
+/** One office edit of a payment, as stored in the payment's append-only auditHistory. */
+export const paymentAuditEntrySchema = z.strictObject({
+  editedAt: instant,
+  editedBy: id,
+  editedByName: z.string().min(1).max(160),
+  reason: z.string().min(1).max(280),
+  previousValues: z.record(z.string(), z.union([z.string(), z.number()])),
+});
+export type PaymentAuditEntryView = z.infer<typeof paymentAuditEntrySchema>;
+// The edit fields default so a web build that ships before the functions deploy still reads the
+// older response shape; the service always sends them.
+const billingPaymentSchema = z.strictObject({
+  paymentId: id,
+  invoiceId: id.optional(),
+  amountMinor: z.number().int().positive(),
+  method: z.enum(["cash", "bank_transfer", "other"]),
+  reference: z.string(),
+  occurredAt: instant,
+  lastEdit: z
+    .strictObject({ editedAt: instant, editedByName: z.string(), reason: z.string() })
+    .nullable()
+    .default(null),
+  auditHistory: z.array(paymentAuditEntrySchema).max(200).default([]),
+});
+export type SubscriptionBillingPayment = z.infer<typeof billingPaymentSchema>;
 export const subscriptionBillingSchema = z.strictObject({
   membershipId: id,
   complimentary: z.boolean(),
@@ -189,15 +214,9 @@ export const subscriptionBillingSchema = z.strictObject({
       paidAt: instant.nullable(),
       dueAt: instant,
       description: z.string(),
-      payments: z.array(
-        z.strictObject({
-          paymentId: id,
-          amountMinor: z.number().int().positive(),
-          method: z.enum(["cash", "bank_transfer", "other"]),
-          reference: z.string(),
-          occurredAt: instant,
-        }),
-      ),
+      invoiceReference: z.string().optional(),
+      balanceMinor: z.number().int().nonnegative().optional(),
+      payments: z.array(billingPaymentSchema),
     }),
   ),
 });

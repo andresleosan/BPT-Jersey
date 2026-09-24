@@ -5,13 +5,18 @@ import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
 import type { UserActorContext } from "@bpt-jersey/domain";
-import { parsePaymentInstructionsInput, recentPaymentsLimit } from "@bpt-jersey/domain/finance";
+import {
+  editManualPaymentInputSchema,
+  parsePaymentInstructionsInput,
+  recentPaymentsLimit,
+} from "@bpt-jersey/domain/finance";
 import type { RecentPaymentRow } from "@bpt-jersey/domain/finance";
 import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { createFamilyStore, type FamilyStore } from "../families/family-service.js";
 import { requireUserActor } from "../auth/user-authorization.js";
+import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import {
   FinanceStoreError,
   createFinanceStore,
@@ -42,6 +47,8 @@ export type FinanceCallableServices = Readonly<{
     userId: string,
   ) => Promise<FinanceStudentScope | undefined>;
   isActorActive: (actor: UserActorContext) => Promise<boolean>;
+  /** The editor's name as the office knows it, stamped on a payment edit; null when unknown. */
+  actorDisplayName?: ((actor: UserActorContext) => Promise<string | null>) | undefined;
 }>;
 
 export class FinanceCallableError extends HttpsError {
@@ -300,6 +307,36 @@ export async function recordManualPaymentHandler(
   }
 }
 
+/** Store refusals the office can act on; every other failure keeps the generic wording. */
+const editRefusals: Readonly<Record<string, string>> = Object.freeze({
+  "This change would overpay the invoice": "This change would overpay the invoice",
+  "Payment reference is already used": "That reference is already used by another payment.",
+  "Request id was already used for another edit": "This edit was already sent with other details.",
+});
+
+export async function editManualPaymentHandler(
+  request: CallableRequest<unknown>,
+  services: FinanceCallableServices,
+) {
+  const actor = await requireAdministrator(request, services);
+  const parsed = editManualPaymentInputSchema.safeParse(request.data);
+  if (!parsed.success) return invalidPayload();
+  try {
+    const name = (await services.actorDisplayName?.(actor))?.trim();
+    return await services.store.editManualPayment({
+      ...parsed.data,
+      academyId: actor.academyId,
+      actorId: actor.userId,
+      actorName: name ? name : "Office",
+    });
+  } catch (error) {
+    if (error instanceof FinanceStoreError && Object.hasOwn(editRefusals, error.message)) {
+      throw new FinanceCallableError("failed-precondition", editRefusals[error.message]!);
+    }
+    return mapStoreError(error, "write");
+  }
+}
+
 export async function voidManualInvoiceHandler(
   request: CallableRequest<unknown>,
   services: FinanceCallableServices,
@@ -445,6 +482,14 @@ function financeCallableServices(): FinanceCallableServices {
     payerFamilyIds: (academyId, actorId) => listPayerFamilyIds(academyId, actorId, firestore),
     findStudentByUserId,
     isActorActive: async (actor) => !(await getAuth().getUser(actor.userId)).disabled,
+    actorDisplayName: async (actor) => {
+      const profile = await firestore
+        .doc(`academies/${actor.academyId}/users/${actor.userId}`)
+        .get();
+      const stored: unknown = profile.get("displayName");
+      if (typeof stored === "string" && stored.trim()) return stored;
+      return (await getAuth().getUser(actor.userId)).displayName ?? null;
+    },
   };
 }
 
@@ -458,6 +503,14 @@ export const issueManualInvoice = onCall(financeCallableOptions, async (request)
 );
 export const recordManualPayment = onCall(financeCallableOptions, async (request) =>
   recordManualPaymentHandler(request, financeCallableServices()),
+);
+/** Single-use App Check tokens, as the billing client already sends for every finance call. */
+export const editManualPaymentCallableOptions = {
+  ...browserAdminCallableOptions,
+  consumeAppCheckToken: true,
+};
+export const editManualPayment = onCall(editManualPaymentCallableOptions, async (request) =>
+  editManualPaymentHandler(request, financeCallableServices()),
 );
 export const voidManualInvoice = onCall(financeCallableOptions, async (request) =>
   voidManualInvoiceHandler(request, financeCallableServices()),

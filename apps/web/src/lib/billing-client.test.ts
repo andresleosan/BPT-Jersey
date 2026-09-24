@@ -4,7 +4,12 @@ const callable = vi.hoisted(() => vi.fn());
 vi.mock("firebase/functions", () => ({ httpsCallable: () => callable }));
 vi.mock("./firebase-client", () => ({ getFirebaseFunctions: () => ({}) }));
 
-import { issueManualInvoice, listFinancialAccount, savePaymentInstructions } from "./billing-client";
+import {
+  editManualPayment,
+  issueManualInvoice,
+  listFinancialAccount,
+  savePaymentInstructions,
+} from "./billing-client";
 
 const instructions = {
   accountName: "BPT Jersey",
@@ -112,5 +117,66 @@ describe("billing client payment instructions (T010/T035 re-scope)", () => {
         description: "Seminar",
       }),
     ).resolves.toMatchObject({ membershipId: null });
+  });
+});
+
+describe("billing client payment edits", () => {
+  const edit = {
+    paymentId: "payment-1",
+    amountMinor: 3000,
+    reason: "Cash was miscounted at the desk",
+    requestId: "0b8f7c52-3d5e-4c8a-9f1e-2a7b6c5d4e3f",
+  };
+
+  beforeEach(() => {
+    callable.mockReset();
+  });
+
+  it("sends only the parsed edit and returns the invoice's new status", async () => {
+    callable.mockResolvedValue({
+      data: { paymentId: "payment-1", invoiceId: "invoice-1", invoiceStatus: "partially_paid" },
+    });
+    await expect(editManualPayment(edit)).resolves.toEqual({
+      ok: true,
+      invoiceStatus: "partially_paid",
+    });
+    expect(callable).toHaveBeenCalledWith(edit);
+  });
+
+  it("refuses a short reason without calling the backend", async () => {
+    await expect(editManualPayment({ ...edit, reason: "too short" })).resolves.toEqual({
+      ok: false,
+      message: "Give a reason of at least 10 characters.",
+    });
+    expect(callable).not.toHaveBeenCalled();
+  });
+
+  it("shows the overpayment refusal and hides any other backend wording", async () => {
+    callable.mockRejectedValueOnce({
+      code: "functions/failed-precondition",
+      message: "This change would overpay the invoice",
+    });
+    await expect(editManualPayment(edit)).resolves.toEqual({
+      ok: false,
+      message: "This change would overpay the invoice",
+    });
+    callable.mockRejectedValueOnce({
+      code: "functions/internal",
+      message: "FirebaseError: stack trace at firestore.googleapis.com",
+    });
+    await expect(editManualPayment(edit)).resolves.toEqual({
+      ok: false,
+      message: "Unable to save the payment change. Refresh and try again.",
+    });
+  });
+
+  it("refuses a response for another payment", async () => {
+    callable.mockResolvedValue({
+      data: { paymentId: "payment-2", invoiceId: "invoice-1", invoiceStatus: "paid" },
+    });
+    await expect(editManualPayment(edit)).resolves.toEqual({
+      ok: false,
+      message: "Unable to save the payment change. Refresh and try again.",
+    });
   });
 });
