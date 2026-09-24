@@ -9,6 +9,7 @@ import {
   type APIRequestContext,
   type Browser,
   type BrowserContext,
+  type BrowserContextOptions,
   type Page,
   type TestInfo,
 } from "@playwright/test";
@@ -147,16 +148,20 @@ type Member = Readonly<{ page: Page; context: BrowserContext; health: Health }>;
 
 async function openContext(browser: Browser, testInfo: TestInfo): Promise<Member> {
   const use = testInfo.project.use;
-  const context = await browser.newContext({
-    baseURL: use.baseURL,
-    viewport: use.viewport,
-    userAgent: use.userAgent,
-    deviceScaleFactor: use.deviceScaleFactor,
-    isMobile: use.isMobile,
-    hasTouch: use.hasTouch,
-    locale: use.locale,
-    timezoneId: use.timezoneId,
-  });
+  // The project's device and locale settings, without the keys it leaves unset.
+  const options = Object.fromEntries(
+    Object.entries({
+      baseURL: use.baseURL,
+      viewport: use.viewport,
+      userAgent: use.userAgent,
+      deviceScaleFactor: use.deviceScaleFactor,
+      isMobile: use.isMobile,
+      hasTouch: use.hasTouch,
+      locale: use.locale,
+      timezoneId: use.timezoneId,
+    }).filter(([, value]) => value !== undefined),
+  ) as BrowserContextOptions;
+  const context = await browser.newContext(options);
   await routeBackend(context);
   const page = await context.newPage();
   const health: Health = { errors: [], directDataRequests: [] };
