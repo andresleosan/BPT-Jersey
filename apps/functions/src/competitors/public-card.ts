@@ -67,6 +67,23 @@ export async function buildLeaderboardRows(
     db.collection(`${root}/attendance`).where("occurredAt", ">=", seasonStartIso).get(),
   ]);
 
+  // Historical identities count for their canonical student, as in the member's own streak panel.
+  const aliasesOf = new Map<string, string[]>();
+  const canonicalOf = new Map<string, string>();
+  for (const document of aliases.docs) {
+    const parsed = memberIdentityAliasSchema.safeParse(document.data());
+    if (
+      !parsed.success ||
+      parsed.data.academyId !== academyId ||
+      parsed.data.studentId !== document.id
+    )
+      continue;
+    canonicalOf.set(document.id, parsed.data.canonicalStudentId);
+    aliasesOf.set(parsed.data.canonicalStudentId, [
+      ...(aliasesOf.get(parsed.data.canonicalStudentId) ?? []),
+      document.id,
+    ]);
+  }
   const onLivePlan = new Set<string>();
   for (const document of memberships.docs) {
     const data = document.data();
@@ -78,7 +95,8 @@ export async function buildLeaderboardRows(
         data.endsAt === undefined ||
         (typeof data.endsAt === "string" && data.endsAt >= nowIso))
     ) {
-      onLivePlan.add(data.studentId);
+      // A plan can still sit on a historical identity: it counts for the canonical student.
+      onLivePlan.add(canonicalOf.get(data.studentId) ?? data.studentId);
     }
   }
 
@@ -102,21 +120,6 @@ export async function buildLeaderboardRows(
     });
   }
 
-  // Historical identities count for their canonical student, as in the member's own streak panel.
-  const aliasesOf = new Map<string, string[]>();
-  for (const document of aliases.docs) {
-    const parsed = memberIdentityAliasSchema.safeParse(document.data());
-    if (
-      !parsed.success ||
-      parsed.data.academyId !== academyId ||
-      parsed.data.studentId !== document.id
-    )
-      continue;
-    aliasesOf.set(parsed.data.canonicalStudentId, [
-      ...(aliasesOf.get(parsed.data.canonicalStudentId) ?? []),
-      document.id,
-    ]);
-  }
   const attendanceByIdentity = new Map<string, QueryDocumentSnapshot[]>();
   for (const document of attendance.docs) {
     const identity = document.get("studentId");
@@ -189,28 +192,46 @@ export async function buildLeaderboardRows(
     const members = candidates
       .filter((candidate) => candidate.cohort === cohort)
       .sort((a, b) => a.studentId.localeCompare(b.studentId));
-    // Q8: the "Mia R." / "Mia Ro." disambiguation only looks at the member's own table.
-    const names = publicDisplayNames(members);
+    const settingsOf = new Map(
+      members.map((member) => [
+        member.studentId,
+        publicSettingsFrom(academyId, member.studentId, settingsById.get(member.studentId)),
+      ]),
+    );
+    // Q8: the "Mia R." / "Mia Ro." disambiguation only looks at the member's own table, and (Q9)
+    // only at its visible members, so a hidden member never shows through someone else's label.
+    // A hidden member's own label is worked out against the visible members plus themselves.
+    const visible = members.filter((member) => settingsOf.get(member.studentId)?.showToMembers);
+    const visibleNames = publicDisplayNames(visible);
+    const nameOf = (member: Candidate) =>
+      (
+        visibleNames.get(member.studentId) ??
+        publicDisplayNames([...visible, member]).get(member.studentId) ??
+        member.fullName
+      ).slice(0, 80);
     const rows: LeaderboardRow[] = [];
     for (const member of members) {
       const attendedAt = attendedAtOf(member.studentId);
-      const publicSettings = publicSettingsFrom(
-        academyId,
-        member.studentId,
-        settingsById.get(member.studentId),
-      );
-      const parsed = leaderboardRowSchema.safeParse({
+      const publicSettings = settingsOf.get(member.studentId)!;
+      const row = {
         studentId: member.studentId,
-        displayName: (names.get(member.studentId) ?? member.fullName).slice(0, 80),
+        displayName: nameOf(member),
         ...(progressById.get(member.studentId) ?? noProgress),
         streakCount: sessionStreak(attendedAt, nowIso),
         attendancesSinceSeasonStart: attendedAt.length,
         // Only a consented photo ever reaches a row; toPublicCard relies on it.
         photoObjectKey: publicSettings.photoConsentAt ? publicSettings.photoObjectKey : null,
         hidden: !publicSettings.showToMembers,
-      });
-      if (parsed.success) rows.push(parsed.data);
-      else logError("Leaderboard row is invalid", { studentId: member.studentId });
+      };
+      const parsed = leaderboardRowSchema.safeParse(row);
+      if (parsed.success) {
+        rows.push(parsed.data);
+        continue;
+      }
+      // Keep the member with the safe defaults; drop the row only if even that is invalid.
+      logError("Leaderboard row is invalid", { studentId: member.studentId });
+      const fallback = leaderboardRowSchema.safeParse({ ...row, ...noProgress });
+      if (fallback.success) rows.push(fallback.data);
     }
     cohorts.set(cohort, rows);
   }
