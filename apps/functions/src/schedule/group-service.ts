@@ -3,7 +3,9 @@ import { type Firestore, type Transaction, type QueryDocumentSnapshot } from "fi
 import { HttpsError } from "firebase-functions/v2/https";
 import { buildBookingIdCandidates, type SessionRecord } from "@bpt-jersey/domain/schedule";
 import { parseMembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle";
-import type { GroupSessionView, MemberGroup, MemberGroupView, SaveMemberGroup } from "@bpt-jersey/domain/schedule/groups";
+import type { GroupSessionView, GroupSite, MemberGroup, MemberGroupView, SaveMemberGroup } from "@bpt-jersey/domain/schedule/groups";
+import { isGuardianOnly } from "@bpt-jersey/domain/members/overview";
+import { trialAccessSchema, trialStatusAt } from "@bpt-jersey/domain/memberships/trial-access";
 import {
   BookingTransactionError, confirmBookingInTransaction, cancelBookingInTransaction,
   type BookingFirestore, type BookingTransaction,
@@ -13,6 +15,9 @@ const root = (academy: string) => `academies/${academy}`;
 type Actor = { userId: string; role: "owner" | "administrator" | "system"; ip?: string | null };
 type Assignment = { groupId: string; sessionId: string; seriesId: string | null; fromIndex: number; startAt: string; active: boolean; authorisedBy: string; authorisedRole: "owner" | "administrator"; authorisedAt: string; authorisationRef: string };
 const systemActor: Actor = { userId: "group-registration", role: "system" };
+/** Same mapping as the booking transaction: a class is at Town or, otherwise, West. */
+const siteOf = (session: SessionRecord): GroupSite => (session.locationId === "town" ? "Town" : "West");
+const offeredFor = (group: MemberGroup, session: SessionRecord) => !group.site || group.site === siteOf(session);
 const time = () => new Date().toISOString();
 const covers = (assignment: Assignment, session: SessionRecord) => assignment.active && Boolean(assignment.authorisedBy) && ["owner", "administrator"].includes(assignment.authorisedRole) &&
   (assignment.seriesId ? assignment.seriesId === session.weeklySeriesId && (session.weeklyIndex ?? 0) >= assignment.fromIndex : assignment.sessionId === session.sessionId);
@@ -59,8 +64,47 @@ export function createGroupService(db: Firestore, academy: string) {
       return { studentId, fullName: String(data.fullName ?? "Member"), missingPayment: activeMemberships(memberships.docs, academy, studentId, at).length === 0 };
     })).then((rows) => rows.filter((row): row is NonNullable<typeof row> => row !== null));
   }
+  const isActive = (data: FirebaseFirestore.DocumentData | undefined) => data?.active !== false && data?.status === "active";
+  async function coveredAt(studentId: string, at: string) {
+    const [memberships, trial] = await Promise.all([
+      collection("memberships").where("studentId", "==", studentId).get(), collection("trialAccess").doc(studentId).get(),
+    ]);
+    const parsedTrial = trialAccessSchema.safeParse(trial.data());
+    return {
+      hasOwnCoveringPlan: activeMemberships(memberships.docs, academy, studentId, at).length > 0,
+      hasActiveTrial: parsedTrial.success && parsedTrial.data.academyId === academy && trialStatusAt(parsedTrial.data, at) === "active",
+    };
+  }
+  /** A guardian is the primary contact of a family where another member trains, with no plan or trial of their own. */
+  async function assertAddable(studentId: string, data: FirebaseFirestore.DocumentData | undefined, at: string) {
+    if (!isActive(data)) throw new HttpsError("failed-precondition", `Only active members can be added: ${String(data?.fullName ?? "Member")}`);
+    const userId = data?.userId;
+    if (typeof userId !== "string") return;
+    const families = await collection("families").where("primaryContactUserId", "==", userId).get();
+    let guardsActiveStudent = false;
+    for (const family of families.docs) {
+      const relatives = await collection("students").where("familyId", "==", family.id).get();
+      for (const relative of relatives.docs) {
+        if (relative.id === studentId || relative.get("academyId") !== academy || !isActive(relative.data())) continue;
+        const cover = await coveredAt(relative.id, at);
+        if (cover.hasOwnCoveringPlan || cover.hasActiveTrial) { guardsActiveStudent = true; break; }
+      }
+      if (guardsActiveStudent) break;
+    }
+    if (!guardsActiveStudent) return;
+    if (isGuardianOnly({ ...(await coveredAt(studentId, at)), guardsActiveStudent }))
+      throw new HttpsError("failed-precondition", `Guardians can't be added to a group: ${String(data?.fullName ?? "Member")}`);
+  }
   async function save(input: SaveMemberGroup, actor: Actor) {
     const ref = collection("memberGroups").doc(input.groupId);
+    // Only newly added members are checked, so a rename or site pick on an older group still saves.
+    // Existing members are not re-validated here: syncMember re-checks active status and payment at booking time.
+    // The revision check in the transaction below refuses the save if the group changed since this read.
+    const existingIds = new Set<string>((await ref.get()).data()?.studentIds ?? []);
+    const added = input.studentIds.filter((id) => !existingIds.has(id));
+    const at = time();
+    const addedDocs = added.length ? await db.getAll(...added.map((id) => collection("students").doc(id))) : [];
+    await Promise.all(addedDocs.filter((doc) => doc.exists && doc.data()?.academyId === academy).map((doc) => assertAddable(doc.id, doc.data(), at)));
     await db.runTransaction(async (tx) => {
       const existing = await tx.get(ref);
       if ((existing.data()?.revision ?? 0) !== input.revision || (existing.exists && existing.data()?.active !== true))
@@ -87,7 +131,7 @@ export function createGroupService(db: Firestore, academy: string) {
     const groups = await collection("memberGroups").where("active", "==", true).get();
     return Promise.all(groups.docs.map(async (doc) => {
       const group = doc.data() as MemberGroup;
-      return { groupId: doc.id, name: group.name, studentIds: group.studentIds, revision: group.revision, active: group.active, updatedAt: group.updatedAt, members: await membersOf(group, time()) };
+      return { groupId: doc.id, name: group.name, ...(group.site ? { site: group.site } : {}), studentIds: group.studentIds, revision: group.revision, active: group.active, updatedAt: group.updatedAt, members: await membersOf(group, time()) };
     })).then((rows) => rows.sort((a, b) => a.name.localeCompare(b.name)));
   }
   async function syncMember(groupId: string, session: SessionRecord, studentId: string, actor: Actor) {
@@ -131,7 +175,7 @@ export function createGroupService(db: Firestore, academy: string) {
         }
         const booking = await confirmBookingInTransaction({ firestore: db as unknown as BookingFirestore, transaction: tx as unknown as BookingTransaction,
           academyId: academy, request: { kind: "membership", sessionId: session.sessionId, studentId, membershipId: active[0]!.membershipId },
-          actorId: actor.userId, actorRole: actor.role, actorIp: actor.ip ?? null, now: time(), groupRegistration: true });
+          actorId: actor.userId, actorRole: actor.role, actorIp: actor.ip ?? null, now: time(), groupRegistration: true, groupOverride: true });
         tx.set(originRef, { academyId: academy, sessionId: session.sessionId, studentId, bookingId: booking.bookingId, owned: true });
         saveResult("registered", "Registered", booking.bookingId);
       });
@@ -158,6 +202,7 @@ export function createGroupService(db: Firestore, academy: string) {
       const ref = assignmentRef(groupId, session);
       const [group, current] = await Promise.all([tx.get(collection("memberGroups").doc(groupId)), tx.get(ref)]);
       if (!group.data()?.active) throw new HttpsError("not-found", "Group not found.");
+      if (!offeredFor(group.data() as MemberGroup, session)) throw new HttpsError("failed-precondition", "Choose a group from this class's site.");
       const previous = current.data() as Assignment | undefined;
       const fromIndex = Math.min(previous?.fromIndex ?? Infinity, session.weeklyIndex ?? 0);
       const authority = collection("groupActivity").doc();
@@ -176,14 +221,17 @@ export function createGroupService(db: Firestore, academy: string) {
     const assignedIds = new Set(assignments.map((doc) => String(doc.get("groupId"))));
     const groupIds = new Set(assignedIds);
     for (const receipt of receipts.docs) groupIds.add(String(receipt.get("groupId")));
-    const available = includeAvailable ? (await collection("memberGroups").where("active", "==", true).get()).docs : [];
+    // Groups already registered stay visible whatever their site; new ones are offered per site.
+    const available = includeAvailable
+      ? (await collection("memberGroups").where("active", "==", true).get()).docs.filter((doc) => groupIds.has(doc.id) || offeredFor(doc.data() as MemberGroup, session))
+      : [];
     const missingIds = [...groupIds].filter((id) => !available.some((doc) => doc.id === id));
     const groups = [...available, ...(missingIds.length ? await db.getAll(...missingIds.map((id) => collection("memberGroups").doc(id))) : [])];
     return Promise.all(groups.filter((doc) => doc.exists).map(async (doc) => {
       const group = doc.data() as MemberGroup;
       const studentIds = [...new Set([...group.studentIds, ...receipts.docs.filter((row) => row.get("groupId") === doc.id).map((row) => String(row.get("studentId")))])];
       const members = await membersOf({ ...group, studentIds }, session.startAt);
-      return { groupId: doc.id, name: group.name, active: group.active, assigned: assignedIds.has(doc.id) || receipts.docs.some((row) => row.get("groupId") === doc.id), recurring: Boolean(session.weeklySeriesId), members: members.map((member) => {
+      return { groupId: doc.id, name: group.name, ...(group.site ? { site: group.site } : {}), active: group.active, assigned: assignedIds.has(doc.id) || receipts.docs.some((row) => row.get("groupId") === doc.id), recurring: Boolean(session.weeklySeriesId), members: members.map((member) => {
         const result = receipts.docs.find((row) => row.get("groupId") === doc.id && row.get("studentId") === member.studentId);
         const excluded = exclusions.docs.some((row) => row.get("studentId") === member.studentId);
         const registered = bookings.docs.some((row) => row.get("studentId") === member.studentId && row.get("status") === "confirmed");

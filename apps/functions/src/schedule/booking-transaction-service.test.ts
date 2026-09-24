@@ -5,6 +5,7 @@ import { buildBookingId } from "@bpt-jersey/domain/schedule";
 import { enrolmentWaiverTermsVersion } from "@bpt-jersey/domain/consents/enrolment-waiver";
 
 import {
+  confirmBookingInTransaction,
   createBookingTransactionService,
   type BookingFirestore,
 } from "./booking-transaction-service";
@@ -470,5 +471,162 @@ describe("paid period at the time of the class", () => {
       await expect(attempt).rejects.toMatchObject({ code: "ineligible" });
       expect(store.documents(bookingsPath)).toEqual([]);
     }
+  });
+});
+
+describe("group registration eligibility override", () => {
+  const membershipsPath = `academies/${academyId}/memberships`;
+  const plansPath = `academies/${academyId}/plans`;
+  const programsPath = `academies/${academyId}/programs`;
+  const sessionsPath = `academies/${academyId}/sessions`;
+
+  function usePlan(store: ReturnType<typeof createFirestore>, planId: string) {
+    store.seed(`${plansPath}/${planId}`, {
+      ...PLAN_CATALOG.find((plan) => plan.planId === planId)!,
+      academyId,
+      active: true,
+      schemaVersion: "1",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "owner-1",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      updatedBy: "owner-1",
+    });
+    store.seed(`${membershipsPath}/m1`, { ...store.documents(membershipsPath)[0], planId });
+  }
+  function useProgram(store: ReturnType<typeof createFirestore>, program: Document) {
+    store.seed(`${programsPath}/${String(program.programId)}`, {
+      academyId,
+      name: "Synthetic Type",
+      ageBand: "adult",
+      discipline: "bjj",
+      level: "fundamentals",
+      active: true,
+      schemaVersion: "1",
+      ...program,
+    });
+  }
+  function book(
+    store: ReturnType<typeof createFirestore>,
+    groupOverride: boolean,
+    sessionId = "sess1",
+  ) {
+    return store.firestore.runTransaction((transaction) =>
+      confirmBookingInTransaction({
+        firestore: store.firestore,
+        transaction,
+        academyId,
+        request: { ...bookingRequest, sessionId },
+        actorId: "owner-1",
+        actorIp: null,
+        actorRole: "owner",
+        now,
+        groupRegistration: true,
+        ...(groupOverride ? { groupOverride: true as const } : {}),
+      }),
+    );
+  }
+
+  it("lets a group place a 30 year old in a class for ages 4 to 5", async () => {
+    const store = createFirestore();
+    seedAcademy(store, { programId: "tiny-kids" });
+    useProgram(store, { programId: "tiny-kids", ageBand: "kids", ageRange: { minAge: 4, maxAge: 5 } });
+
+    await expect(book(store, false)).rejects.toMatchObject({ code: "ineligible" });
+    await expect(book(store, true)).resolves.toMatchObject({ status: "confirmed" });
+  });
+
+  it("lets a group place a Town-only plan in a West class", async () => {
+    const store = createFirestore();
+    seedAcademy(store, { locationId: "west" });
+    usePlan(store, "town-adult");
+
+    await expect(book(store, false)).rejects.toMatchObject({ code: "ineligible" });
+    await expect(book(store, true)).resolves.toMatchObject({ status: "confirmed" });
+  });
+
+  it("lets a group place a plan without open mat access in an open mat", async () => {
+    const store = createFirestore();
+    seedAcademy(store, { programId: "open-mat", locationId: "west" });
+    useProgram(store, { programId: "open-mat", ageBand: "all", discipline: "open-mat" });
+    usePlan(store, "west-teens");
+
+    await expect(book(store, false)).rejects.toMatchObject({ code: "ineligible" });
+    await expect(book(store, true)).resolves.toMatchObject({ status: "confirmed" });
+  });
+
+  it("lets a group book past the plan's weekly allowance", async () => {
+    const store = createFirestore();
+    seedAcademy(store, { locationId: "west" });
+    usePlan(store, "west-adult");
+    const base = store.documents(sessionsPath)[0]!;
+    for (const [sessionId, hour] of [["sess2", "10"], ["sess3", "12"]] as const) {
+      store.seed(`${sessionsPath}/${sessionId}`, {
+        ...base,
+        sessionId,
+        startAt: `2026-09-18T${hour}:00:00.000Z`,
+        endAt: `2026-09-18T${hour}:45:00.000Z`,
+      });
+      await book(store, false, sessionId);
+    }
+
+    await expect(book(store, false)).rejects.toMatchObject({ code: "weekly-limit" });
+    await expect(book(store, true)).resolves.toMatchObject({ status: "confirmed" });
+  });
+
+  it("still refuses a group booking on a retired plan", async () => {
+    const store = createFirestore();
+    seedAcademy(store);
+    store.seed(`${plansPath}/bpt-jersey-adult`, { ...store.documents(plansPath)[0], active: false });
+
+    await expect(book(store, true)).rejects.toMatchObject({ code: "ineligible" });
+    expect(store.documents(bookingsPath)).toEqual([]);
+  });
+
+  it("still refuses a group booking without a paid period covering the class", async () => {
+    const store = createFirestore();
+    seedAcademy(store);
+    store.seed(`${membershipsPath}/m1`, {
+      ...store.documents(membershipsPath)[0],
+      endsAt: "2026-09-18T17:00:00.000Z",
+    });
+
+    await expect(book(store, true)).rejects.toMatchObject({ code: "ineligible" });
+    expect(store.documents(bookingsPath)).toEqual([]);
+  });
+
+  it("still refuses a group booking for a full class", async () => {
+    const store = createFirestore();
+    seedAcademy(store, { capacity: 1 });
+    const takenId = buildBookingId("sess1", "s2");
+    store.seed(`${bookingsPath}/${takenId}`, {
+      bookingId: takenId,
+      academyId,
+      sessionId: "sess1",
+      studentId: "s2",
+      membershipId: "m2",
+      status: "confirmed",
+      requestedAt: now,
+      cancelledAt: null,
+      cancellationReason: null,
+      schemaVersion: "1",
+      createdAt: now,
+      createdBy: "s2",
+      updatedAt: now,
+      updatedBy: "s2",
+    });
+
+    await expect(book(store, true)).rejects.toMatchObject({ code: "capacity" });
+  });
+
+  it("still refuses a group booking while the training centre is unconfirmed", async () => {
+    const store = createFirestore();
+    seedAcademy(store);
+    const studentsPath = `academies/${academyId}/students`;
+    store.seed(`${studentsPath}/s1`, {
+      ...store.documents(studentsPath)[0],
+      trainingCenterStatus: "unconfirmed",
+    });
+
+    await expect(book(store, true)).rejects.toThrow("Confirm the member's training centre first");
   });
 });
