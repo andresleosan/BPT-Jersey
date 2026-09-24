@@ -1952,7 +1952,13 @@ export function createCanonicalMemberDirectoryService(
             action: "member.updated",
             targetRef: studentRef.path,
             purpose: "member-record-maintenance",
-            correlationId: operationId,
+            // The audit contract only accepts a `write-<digest>` correlation for member writes.
+            correlationId: requestReceiptId(
+              academyId,
+              actorId,
+              operationId,
+              dependencies.integritySecretMaterial,
+            ),
           } as unknown as AuditEventDraft,
         );
       });

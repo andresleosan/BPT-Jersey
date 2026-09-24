@@ -118,6 +118,8 @@ function requireCatalogReader(request: CallableRequest<unknown>) {
     actor.role !== "administrator" &&
     actor.role !== "guardian" &&
     actor.role !== "adultStudent" &&
+    // A teen's own sign-in (ADR-019) loads the calendar, which needs the plan's sites and limits.
+    actor.role !== "teenStudent" &&
     actor.role !== "headCoach" &&
     actor.role !== "coach"
   ) {
