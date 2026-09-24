@@ -74,7 +74,7 @@ function payment(overrides: Partial<ManualPaymentRecord> = {}): ManualPaymentRec
     updatedAt: "2026-08-05T00:00:00.000Z",
     updatedBy: "owner-1",
     ...overrides,
-  };
+  } as ManualPaymentRecord;
 }
 
 function document(id: string, value: unknown) {

@@ -10,6 +10,7 @@ import {
   parseInvoiceRecord,
   parseManualPaymentRecord,
   recentPaymentsLimit,
+  editManualPaymentInputSchema,
   type InvoiceRecord,
   type ManualPaymentRecord,
 } from "./finance-contracts";
@@ -171,5 +172,31 @@ describe("finance contracts", () => {
     const future = { ...paygInvoice, invoiceId: "i2", dueAt: "2026-09-25T18:00:00.000Z" };
     expect(calculatePaygDebt([due, future], [], "2026-09-22T10:00:00.000Z")).toBe(due.totalMinor);
     expect(calculatePaygDebt([due, future], [])).toBe(due.totalMinor + future.totalMinor);
+  });
+});
+
+describe("payment edit audit trail", () => {
+  const entry = {
+    editedAt: "2026-09-25T10:00:00Z",
+    editedBy: "admin-1",
+    editedByName: "Office Admin",
+    reason: "Wrong amount typed at the desk",
+    previousValues: { amountMinor: 500 },
+  };
+
+  it("accepts a legacy payment carrying an audit history", () => {
+    const record = { ...paymentBase, auditHistory: [entry] };
+    expect(parseManualPaymentRecord(record)).toEqual({ ok: true, value: record });
+  });
+
+  it("rejects an audit entry with a reason that is too short", () => {
+    expect(parseManualPaymentRecord({ ...paymentBase, auditHistory: [{ ...entry, reason: "short" }] }).ok).toBe(false);
+  });
+
+  it("requires a reason of 10 to 280 characters and at least one change to edit a payment", () => {
+    const base = { paymentId: "payment-1", requestId: "3f1b0c5e-8a4e-4c2b-9f57-1d2e3c4b5a69" };
+    expect(editManualPaymentInputSchema.safeParse({ ...base, amountMinor: 300, reason: "Corrected amount" }).success).toBe(true);
+    expect(editManualPaymentInputSchema.safeParse({ ...base, amountMinor: 300, reason: "too short" }).success).toBe(false);
+    expect(editManualPaymentInputSchema.safeParse({ ...base, reason: "Nothing changed at all" }).success).toBe(false);
   });
 });

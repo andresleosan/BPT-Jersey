@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildMemberOverview } from "./member-overview-contracts";
+import { buildMemberOverview, isGuardianOnly } from "./member-overview-contracts";
 
 const baseInput = {
   students: [
@@ -51,5 +51,14 @@ describe("buildMemberOverview", () => {
       planBands: new Map([["teens-monthly", ["teens", "adult"] as const]]),
     });
     expect(overview.rows[0]?.flags).not.toContain("plan-band-differs");
+  });
+});
+
+describe("isGuardianOnly", () => {
+  it("marks a guardian of an active member with no plan or trial of their own", () => {
+    expect(isGuardianOnly({ hasOwnCoveringPlan: false, hasActiveTrial: false, guardsActiveStudent: true })).toBe(true);
+    expect(isGuardianOnly({ hasOwnCoveringPlan: true, hasActiveTrial: false, guardsActiveStudent: true })).toBe(false);
+    expect(isGuardianOnly({ hasOwnCoveringPlan: false, hasActiveTrial: true, guardsActiveStudent: true })).toBe(false);
+    expect(isGuardianOnly({ hasOwnCoveringPlan: false, hasActiveTrial: false, guardsActiveStudent: false })).toBe(false);
   });
 });
