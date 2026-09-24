@@ -82,6 +82,7 @@ const [
   { createGuardianProfileStore },
   { createPlanStore },
   { buildLeaderboardRows },
+  { createLevelCatalogStore },
   engagement,
 ] = await Promise.all([
   load("members/canonical-member-directory-service.js"),
@@ -90,6 +91,7 @@ const [
   load("profiles/guardian-profile-service.js"),
   load("memberships/plan-service.js"),
   load("competitors/public-card.js"),
+  load("levels/level-service.js"),
   import(pathToFileURL(requireFunctions.resolve("@bpt-jersey/domain/members/engagement")).href),
 ]);
 
@@ -146,12 +148,17 @@ await createPlanStore({ firestore }).seedPlanCatalog({
 });
 
 // ---------------------------------------------------------------------------------------------
-// People. Ages are measured today on the Jersey calendar, so the dates of birth move with the run.
-const yearsAgo = (years, monthDay = "01-15") => `${now.getUTCFullYear() - years}-${monthDay}`;
+// People. Dates of birth are `age` years and 40 days before today, so everyone is exactly that age
+// on whatever date the suite runs (no fixed birthday anchor).
+const dobFor = (age) =>
+  new Date(
+    Date.UTC(now.getUTCFullYear() - age, now.getUTCMonth(), now.getUTCDate()) - 40 * 86_400_000,
+  )
+    .toISOString()
+    .slice(0, 10);
 const minor = (fullName, age, extra = {}) => ({
   fullName,
-  // Born in January: already had this year's birthday whenever the suite runs after 15 January.
-  dateOfBirth: yearsAgo(age),
+  dateOfBirth: dobFor(age),
   trainingCenter: "Town",
   trainingTimePreferences: ["afternoon"],
   ...extra,
@@ -178,7 +185,7 @@ async function adultWithAccount(key, fullName, age) {
     value: {
       requestId: randomUUID(),
       fullName,
-      dateOfBirth: yearsAgo(age, "03-10"),
+      dateOfBirth: dobFor(age),
       phoneNumber,
       email: email(key),
       trainingCenter: "Town",
@@ -329,11 +336,13 @@ const pastStart = (daysAgo, hour) => new Date(dayStart - daysAgo * 86_400_000 + 
 const seasonStartIso = new Date(
   Date.parse(`${engagement.seasonStartFor(nowIso)}T00:00:00.000Z`) - 3_600_000,
 ).toISOString();
-if (pastStart(18, 10).toISOString() <= seasonStartIso) {
-  throw new Error(
-    "The streak fixtures need 18 days of this season behind today; run after 19 September.",
-  );
-}
+// The attendance below spans the last 9 days (several sessions a day). Early in a season (about
+// 1–9 September) that does not fit: the seed still runs, and records why the cases that depend on
+// this season's counts (streak, competitors) must be skipped rather than pass on empty data.
+const skipReason =
+  pastStart(9, 6).toISOString() <= seasonStartIso
+    ? `The season began ${engagement.seasonStartFor(nowIso)}; the streak and competitor fixtures need 9 days of it behind today.`
+    : null;
 const pastSessions = new Map();
 function pastSession(daysAgo, hour) {
   const sessionId = `mge-past-${daysAgo}-${hour}`;
@@ -346,24 +355,25 @@ function pastSession(daysAgo, hour) {
   return pastSessions.get(sessionId);
 }
 const range = (from, to) => Array.from({ length: to - from + 1 }, (_, index) => from + index);
-// Attendance this season. Blake: 9 in total, the last three within a week of each other and of
-// today (streak x3), the other six more than a week before them. Dana would sit directly above
-// Blake if she were visible.
+// Attendance this season, packed into the last 9 days. `slots(days, hours)` is one session per
+// day and hour. Blake: 9 in total, three yesterday (streak x3) and six on one day more than a week
+// before those (so the run stops there). Dana would sit directly above Blake if she were visible.
+const slots = (days, hours) => days.flatMap((day) => hours.map((hour) => [day, hour]));
 const attended = new Map([
-  [casey, [...range(1, 12).map((day) => [day, 10]), ...range(1, 12).map((day) => [day, 18])]],
-  [finley, range(1, 15).map((day) => [day, 10])],
-  [gray, range(1, 12).map((day) => [day, 18])],
-  [dana, range(2, 11).map((day) => [day, 10])],
-  [blake, [[1, 18], [3, 18], [5, 18], ...range(13, 18).map((day) => [day, 10])]],
-  [avery, [2, 4, 6, 8, 10, 12].map((day) => [day, 10])],
-  [taylor, [3, 6, 9, 14].map((day) => [day, 18])],
-  [eli, [4, 7].map((day) => [day, 18])],
-  [charlie, [2, 5, 8, 11, 14].map((day) => [day, 16])],
-  [jordan, range(1, 7).map((day) => [day, 16])],
-  [kai, [3, 9, 15].map((day) => [day, 16])],
-  [poppy, [2, 4, 6, 8].map((day) => [day, 15])],
-  [rory, range(2, 7).map((day) => [day, 15])],
-  [sky, [5, 10].map((day) => [day, 15])],
+  [casey, slots(range(1, 8), [6, 10, 18])],
+  [finley, slots(range(1, 5), [6, 10, 18])],
+  [gray, slots(range(1, 4), [7, 12, 19])],
+  [dana, slots(range(1, 5), [8, 14])],
+  [blake, [...slots([1], [7, 12, 18]), ...slots([9], [6, 7, 8, 9, 10, 11])]],
+  [avery, slots([1, 2], [6, 10, 18])],
+  [taylor, slots([1, 2], [7, 19])],
+  [eli, slots([1], [8, 19])],
+  [charlie, slots(range(1, 5), [16])],
+  [jordan, slots(range(1, 7), [16])],
+  [kai, slots([1, 2, 3], [16])],
+  [poppy, slots([1, 2], [15, 16])],
+  [rory, slots([1, 2, 3], [15, 16])],
+  [sky, slots([1], [15, 16])],
 ]);
 for (const [person, visits] of attended) {
   for (const [daysAgo, hour] of visits) {
@@ -394,10 +404,28 @@ for (const session of pastSessions.values()) {
   writes.push(firestore.doc(`${base}/sessions/${session.sessionId}`).set(session));
 }
 
-// Tomorrow's booked class with the coach's plan. Avery books it; three visible adults, one hidden
-// adult and two members of other age groups are booked too.
+// The booked class with the coach's plan, by default this time tomorrow (MGE_BOOK_DAYS_AHEAD moves
+// it, e.g. into next week to exercise the Sunday case on any day). Avery books it; three visible
+// adults, one hidden adult and two members of other age groups are booked too. The world file
+// records how far ahead it is, in Jersey days and in Monday-to-Sunday weeks, so the spec pages the
+// calendar to it on any weekday.
 const bookedSessionId = "mge-fundamentals";
-const bookedStart = new Date(dayStart + 86_400_000 + 18 * 3_600_000);
+const bookDaysAhead = Number(process.env.MGE_BOOK_DAYS_AHEAD ?? "1");
+if (!Number.isInteger(bookDaysAhead) || bookDaysAhead < 1 || bookDaysAhead > 13) {
+  throw new Error("MGE_BOOK_DAYS_AHEAD must be a whole number of days from 1 to 13");
+}
+const bookedStart = new Date(
+  Math.floor((now.getTime() + bookDaysAhead * 86_400_000) / 60_000) * 60_000,
+);
+const jerseyDay = (date) =>
+  Date.parse(
+    `${new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Jersey" }).format(date)}T12:00:00.000Z`,
+  );
+const mondayOf = (dayMs) => dayMs - ((new Date(dayMs).getUTCDay() + 6) % 7) * 86_400_000;
+const bookedDaysAhead = Math.round((jerseyDay(bookedStart) - jerseyDay(now)) / 86_400_000);
+const bookedWeeksAhead = Math.round(
+  (mondayOf(jerseyDay(bookedStart)) - mondayOf(jerseyDay(now))) / (7 * 86_400_000),
+);
 const curriculum = {
   title: "Guard retention",
   techniques: ["Hip escape", "Knee shield frame", "Technical stand-up"],
@@ -456,6 +484,65 @@ writes.push(
 );
 await Promise.all(writes);
 
+// Technique progress for the comparator (R8): Finley and Blake stand at the same rank; both have
+// completed technique C, only Finley A and only Blake B. Written through the level store.
+const levels = createLevelCatalogStore({ firestore });
+const catalog = await levels.listPublished(academyId);
+const byKey = new Map(catalog.skills.map((skill) => [skill.key, skill]));
+const ordered = [...catalog.definitions].sort((a, b) => a.sequence - b.sequence);
+let comparison = null;
+for (const definition of ordered) {
+  const next = ordered.find((candidate) => candidate.sequence === definition.sequence + 1);
+  const requirements = next
+    ? catalog.requirements.filter(
+        (requirement) =>
+          requirement.definitionKey === next.definitionKey && byKey.has(requirement.skillKey),
+      )
+    : [];
+  const distinct = [
+    ...new Map(requirements.map((requirement) => [requirement.skillKey, requirement])).values(),
+  ];
+  if (distinct.length >= 3) {
+    comparison = { definitionKey: definition.definitionKey, skills: distinct.slice(0, 3) };
+    break;
+  }
+}
+if (!comparison) throw new Error("The level catalogue has no rank with three required techniques");
+const [onlyFinley, onlyBlake, shared] = comparison.skills;
+const startedOn = new Date(now.getTime() - 60 * 86_400_000).toISOString().slice(0, 10);
+for (const [person, skills] of [
+  [finley, [onlyFinley, shared]],
+  [blake, [onlyBlake, shared]],
+]) {
+  await levels.openStudentLevel({
+    academyId,
+    input: {
+      studentId: person.studentId,
+      definitionKey: comparison.definitionKey,
+      startedOn,
+      decisionNotes: "Synthetic E2E starting rank.",
+    },
+    openedBy: owner.uid,
+    openedByRole: "owner",
+    openedByStaffId: null,
+  });
+  await levels.recordSkillRatings({
+    academyId,
+    input: {
+      studentId: person.studentId,
+      definitionKey: comparison.definitionKey,
+      ratings: skills.map((requirement) => ({
+        skillKey: requirement.skillKey,
+        score: Math.max(1, Math.min(5, requirement.minimumRating)),
+      })),
+    },
+    evaluatorId: owner.uid,
+    evaluatorStaffId: null,
+    evaluatorRole: "owner",
+  });
+}
+const skillLabel = (requirement) => byKey.get(requirement.skillKey).displayLabel;
+
 // The nightly snapshot, built by the job's own logic.
 const cohorts = await buildLeaderboardRows(firestore, academyId, nowIso);
 for (const cohort of ["kids", "teens", "adults"]) {
@@ -484,8 +571,16 @@ const world = {
     taylor: taylor.email,
     teen: email("charlie-own"),
   },
+  skipReason,
   bookedSessionId,
+  bookedDaysAhead,
+  bookedWeeksAhead,
   curriculum,
+  techniques: {
+    onlyFinley: skillLabel(onlyFinley),
+    onlyBlake: skillLabel(onlyBlake),
+    shared: skillLabel(shared),
+  },
   names: Object.fromEntries(
     [...cohorts.entries()].map(([cohort, rows]) => [
       cohort,
