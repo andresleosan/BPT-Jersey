@@ -1,7 +1,11 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
-const client = vi.hoisted(() => ({ getMemberSubscriptions: vi.fn(), listManagedPlans: vi.fn() }));
+const client = vi.hoisted(() => ({
+  getMemberSubscriptions: vi.fn(),
+  listManagedPlans: vi.fn(),
+  manageManualSubscription: vi.fn(),
+}));
 vi.mock("../../../../lib/subscription-admin-client", () => client);
 vi.mock("../../../../lib/membership-admin-client", () => client);
 import { PlanTab } from "./plan-tab";
@@ -20,9 +24,7 @@ it("renders a successful empty history, then refreshes without claiming an error
     "no membership history",
   );
   expect(update).toHaveBeenCalledWith(null);
-  expect(screen.getByRole("link", { name: "Open Memberships" }).getAttribute("href")).toBe(
-    "/admin/memberships?studentId=student-1",
-  );
+  expect(screen.getByRole("button", { name: "Change Plan" })).toBeTruthy();
   await userEvent.setup().click(screen.getByRole("button", { name: "Refresh" }));
   await waitFor(() =>
     expect(screen.getByRole("alert").textContent).toContain("Unable to load membership history"),
