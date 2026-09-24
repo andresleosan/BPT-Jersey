@@ -1015,3 +1015,110 @@
   cursor: not-allowed;
   opacity: 0.7;
 }
+
+/* T042V2 — streak panel above the purple header. BPT Purple at 70 % normally, full tone one class short. */
+.streak-panel,
+.streak-panel-skeleton {
+  box-sizing: border-box;
+  margin: 1rem clamp(1rem, 4vw, 3rem) 0;
+  min-height: 17.5rem;
+}
+
+.streak-panel-skeleton {
+  height: 17.5rem;
+}
+
+.streak-panel {
+  background: var(--gi-white);
+  border-radius: var(--radius);
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 1.25rem;
+}
+
+.streak-flame {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.streak-flame-art {
+  flex: none;
+  height: 4rem;
+  width: 3.5rem;
+}
+
+.streak-multiplier {
+  color: var(--bpt-purple);
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 2.4rem;
+  line-height: 1;
+}
+
+.streak-bar,
+.promotion-bar {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.streak-bar-head {
+  display: flex;
+  flex-wrap: wrap;
+  font-weight: 700;
+  gap: 0.25rem 1rem;
+  justify-content: space-between;
+}
+
+.streak-bar progress,
+.promotion-bar progress {
+  --streak-fill: rgba(47, 36, 131, 0.7);
+  appearance: none;
+  background: var(--status-grey);
+  border: 0;
+  border-radius: 999px;
+  color: var(--streak-fill);
+  height: 0.75rem;
+  overflow: hidden;
+  width: 100%;
+}
+
+.streak-bar.is-almost progress,
+.promotion-bar progress {
+  --streak-fill: var(--bpt-purple);
+}
+
+.streak-bar progress::-webkit-progress-bar,
+.promotion-bar progress::-webkit-progress-bar {
+  background: var(--status-grey);
+}
+
+.streak-bar progress::-webkit-progress-value,
+.promotion-bar progress::-webkit-progress-value {
+  background: var(--streak-fill);
+  border-radius: 999px;
+}
+
+.streak-bar progress::-moz-progress-bar,
+.promotion-bar progress::-moz-progress-bar {
+  background: var(--streak-fill);
+  border-radius: 999px;
+}
+
+.streak-bar-hint,
+.promotion-notice {
+  color: var(--bpt-purple);
+  font-weight: 600;
+  margin: 0;
+}
+
+.promotion-to-go,
+.streak-hours {
+  margin: 0;
+}
+
+.promotion-bar {
+  border-bottom: 1px solid var(--status-grey);
+  padding-bottom: 0.75rem;
+}

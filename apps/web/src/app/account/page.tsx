@@ -47,7 +47,7 @@ function AccountContent() {
           onSignOut={() => void handleSignOut()}
           repository={repository}
           session={{ role, displayName }}
-          topSlot={(studentId) => <><IntroNotices /><StreakPanel studentId={studentId} /></>}
+          topSlot={(studentId) => <><IntroNotices /><StreakPanel key={studentId} studentId={studentId} /></>}
         />
       </WaiverGate>
     </AdultClaimGate>

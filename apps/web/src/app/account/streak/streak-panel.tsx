@@ -1,12 +1,91 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
+import {
+  defaultGoal,
+  defaultReward,
+  type ProgressBar,
+} from "@bpt-jersey/domain/members/engagement";
+
+import {
+  getMemberStreak,
+  getPromotionOutlook,
+  type MemberStreak,
+  type PromotionOutlook,
+} from "../../../lib/streak-client";
+import { PromotionBar } from "../promotion/promotion-bar";
+import { StreakFlame } from "./streak-flame";
+
+type PanelState =
+  | { status: "loading" }
+  | { status: "hidden" }
+  | { status: "ready"; streak: MemberStreak; outlook: PromotionOutlook };
+
+function Bar({
+  bar,
+  base,
+  noun,
+}: Readonly<{ bar: ProgressBar; base: number; noun: "goal" | "reward" }>) {
+  const done = base - bar.remaining;
+  return (
+    <div className={`streak-bar${bar.almost ? " is-almost" : ""}`}>
+      <div className="streak-bar-head">
+        <span>{bar.label}</span>
+        <span>
+          {bar.progress}/{bar.target}
+        </span>
+      </div>
+      <progress
+        max={base}
+        value={done}
+        aria-label={`${bar.label}: ${bar.progress} of ${bar.target}`}
+      />
+      {bar.almost ? <p className="streak-bar-hint">Just x1 missing to get {noun}!</p> : null}
+    </div>
+  );
+}
+
 /**
- * Streak panel slot (T042V2). Phase 0 mounts it in `/account` between the check-in slider and the
- * purple header (`topSlot` of `MemberCalendar`); the streak team fills it in from
- * `docs/superpowers/specs/2026-09-16-member-engagement-phase-0-design.md`. The flame animation is
- * served from `/animations/streak-flame.json` and `lottie-web` is already a dependency.
+ * Streak slot above the purple header (T042V2). Both calls load together so the card appears once,
+ * at the skeleton's height. Any error hides the slot; a missing outlook only drops the belt bar.
+ * Mounted with `key={studentId}`, so switching participant starts again from the skeleton.
  */
-export function StreakPanel(props: Readonly<{ studentId: string }>) {
-  void props; // The panel itself lands with the streak UI unit; the selected participant is already wired.
-  return null;
+export function StreakPanel({ studentId }: Readonly<{ studentId: string }>) {
+  const [state, setState] = useState<PanelState>({ status: "loading" });
+  useEffect(() => {
+    let active = true;
+    Promise.all([getMemberStreak(studentId), getPromotionOutlook(studentId).catch(() => null)])
+      .then(([streak, outlook]) => {
+        if (active) setState({ status: "ready", streak, outlook });
+      })
+      .catch(() => {
+        if (active) setState({ status: "hidden" });
+      });
+    return () => {
+      active = false;
+    };
+  }, [studentId]);
+
+  if (state.status === "hidden") return null;
+  if (state.status === "loading") {
+    return (
+      <div
+        aria-hidden="true"
+        className="skeleton-card streak-panel-skeleton"
+        data-testid="streak-skeleton"
+      />
+    );
+  }
+  const { streak, outlook } = state;
+  return (
+    <section aria-label="Streak" className="streak-panel">
+      <PromotionBar outlook={outlook} studentId={studentId} />
+      <p className="account-eyebrow">Streak</p>
+      <StreakFlame count={streak.streakCount} />
+      <Bar bar={streak.goal} base={defaultGoal.target} noun="goal" />
+      <Bar bar={streak.reward} base={defaultReward.target} noun="reward" />
+      <p className="streak-hours">{streak.hoursSinceSeasonStart} h trained since September</p>
+    </section>
+  );
 }
