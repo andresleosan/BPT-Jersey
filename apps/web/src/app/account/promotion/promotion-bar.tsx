@@ -43,7 +43,8 @@ export function PromotionBar({
     if (text && firstSighting(studentId, outlook)) setNotice(text);
   }, [outlook, studentId]);
   if (!outlook) return null;
-  const percent = Math.round(outlook.percent);
+  // Floor, so the figure never runs ahead of the milestone the server reports.
+  const percent = Math.floor(outlook.percent);
   return (
     <div className="promotion-bar">
       <div className="streak-bar-head">
@@ -60,11 +61,10 @@ export function PromotionBar({
           {outlook.classesToGo} {outlook.classesToGo === 1 ? "class" : "classes"} to go
         </p>
       ) : null}
-      {notice ? (
-        <p className="promotion-notice" role="status">
-          {notice}
-        </p>
-      ) : null}
+      {/* Mounted empty so the text change is announced; `:empty` hides it until then. */}
+      <p className="promotion-notice" role="status">
+        {notice ?? ""}
+      </p>
     </div>
   );
 }

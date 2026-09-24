@@ -22,15 +22,24 @@ export function SessionDetailDialog({
   sessionId,
   studentId,
   onClose,
-}: Readonly<{ sessionId: string; studentId: string; onClose: () => void }>) {
+  returnFocus,
+}: Readonly<{
+  sessionId: string;
+  studentId: string;
+  onClose: () => void;
+  /** Safari does not focus a clicked button, so the caller hands over the opener. */
+  returnFocus?: HTMLElement | null;
+}>) {
   const ref = useRef<HTMLDialogElement>(null);
   const [state, setState] = useState<State>({ kind: "loading" });
-  const [open, setOpen] = useState<MemberPublicCard | null>(null);
+  const [open, setOpen] = useState<{ card: MemberPublicCard; opener: HTMLElement } | null>(null);
   // Read at first render, before showModal moves focus, so a StrictMode re-run keeps the real trigger.
-  const [trigger] = useState(() =>
-    typeof document !== "undefined" && document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null,
+  const [trigger] = useState(
+    () =>
+      returnFocus ??
+      (typeof document !== "undefined" && document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null),
   );
 
   useEffect(() => {
@@ -81,7 +90,8 @@ export function SessionDetailDialog({
         onClose={onClose}
       >
         {state.kind === "loading" ? (
-          <div className="session-detail-skeleton" aria-busy="true" aria-label="Loading this class">
+          <div className="session-detail-skeleton" aria-busy="true" role="status">
+            <span className="visually-hidden">Loading this class</span>
             <div className="skeleton-card" />
             <div className="skeleton-card competitor-skeleton-row" />
             <div className="skeleton-card competitor-skeleton-row" />
@@ -139,7 +149,7 @@ export function SessionDetailDialog({
                       <button
                         type="button"
                         className="competitor-row"
-                        onClick={() => setOpen(card)}
+                        onClick={(event) => setOpen({ card, opener: event.currentTarget })}
                       >
                         {body}
                       </button>
@@ -163,9 +173,10 @@ export function SessionDetailDialog({
       </dialog>
       {open ? (
         <MemberCardDialog
-          key={open.studentId}
-          card={open}
+          key={open.card.studentId}
+          card={open.card}
           mine={mine}
+          returnFocus={open.opener}
           onClose={() => setOpen(null)}
         />
       ) : null}

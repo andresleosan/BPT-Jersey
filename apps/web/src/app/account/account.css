@@ -440,6 +440,11 @@
   background: rgba(26, 26, 24, 0.6);
 }
 
+/* A native modal leaves the page scrollable behind it; hold it still while one is open. */
+html:has(dialog[open]:modal) {
+  overflow: hidden;
+}
+
 .cancel-dialog h2 {
   font-family: var(--font-display), Impact, sans-serif;
   font-size: 1.6rem;
@@ -457,6 +462,8 @@
 
 .cancel-dialog .button {
   border-radius: 999px;
+  font: inherit;
+  font-weight: 700;
 }
 
 .cancel-dialog .button-primary {
@@ -465,6 +472,7 @@
 }
 
 .cancel-dialog .button-secondary {
+  background: var(--gi-white);
   border-color: var(--mat-ink);
   color: var(--mat-ink);
 }
@@ -965,6 +973,12 @@
 }
 
 /* Q4: the hand-over card at 18 that stands in for /account until a new password is set. */
+/* The claim card stands in for the whole member app, so it carries the app's radius itself. */
+.adult-claim,
+.adult-claim-loading {
+  --radius: 1rem;
+}
+
 .adult-claim-loading {
   margin: clamp(1rem, 4vw, 3rem) auto;
   max-width: 34rem;
@@ -1028,7 +1042,15 @@
 }
 
 .adult-claim .button {
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 700;
   justify-self: start;
+}
+
+.adult-claim-field input:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 2px;
 }
 
 .adult-claim .button-primary {
@@ -1051,8 +1073,9 @@
   min-height: 17.5rem;
 }
 
+/* Sized for the usual card, which carries the belt bar: less shift when it lands. */
 .streak-panel-skeleton {
-  height: 17.5rem;
+  height: 23.25rem;
 }
 
 .streak-panel {
@@ -1138,6 +1161,10 @@
   color: var(--bpt-purple);
   font-weight: 600;
   margin: 0;
+}
+
+.promotion-notice:empty {
+  display: none;
 }
 
 .promotion-to-go,

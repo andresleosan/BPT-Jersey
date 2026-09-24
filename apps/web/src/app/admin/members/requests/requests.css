@@ -400,6 +400,9 @@
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+.plan-requests-status:empty {
+  display: none;
+}
 .plan-requests-skeleton {
   display: grid;
   gap: 0.75rem;

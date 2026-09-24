@@ -112,7 +112,9 @@ export function AcceptancesPanel() {
       </div>
 
       {state.status === "loading" ? (
-        <div aria-busy="true" className="acceptances-skeleton" />
+        <div aria-busy="true" className="acceptances-skeleton" role="status">
+          <span className="visually-hidden">Loading acceptances</span>
+        </div>
       ) : state.status === "error" ? (
         <p className="waiver-message waiver-message-error" role="alert">
           {state.message}

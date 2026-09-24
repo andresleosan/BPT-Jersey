@@ -75,7 +75,8 @@ function SettingsContent() {
       </p>
       <h1 id="settings-title">Account settings</h1>
       {people === undefined ? (
-        <div aria-busy="true" aria-label="Loading your settings">
+        <div aria-busy="true" role="status">
+          <span className="visually-hidden">Loading your settings</span>
           <SectionSkeletons />
         </div>
       ) : people === null || people.length === 0 ? (
@@ -138,7 +139,8 @@ function PersonSettings({ person }: Readonly<{ person: Person }>) {
 
   if (settings === undefined) {
     return (
-      <div aria-busy="true" aria-label="Loading settings">
+      <div aria-busy="true" role="status">
+        <span className="visually-hidden">Loading settings</span>
         <SectionSkeletons />
       </div>
     );
@@ -170,6 +172,25 @@ function PhotoSection({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
+  const confirm = useRef<HTMLDialogElement>(null);
+  const confirmTrigger = useRef<HTMLButtonElement | null>(null);
+  const [pendingAction, setPendingAction] = useState<"approve" | "remove">("remove");
+
+  /** Approving or removing a photo changes what other members see, so it asks first. */
+  function ask(action: "approve" | "remove", button: HTMLButtonElement) {
+    confirmTrigger.current = button;
+    setPendingAction(action);
+    confirm.current?.showModal();
+  }
+
+  function confirmAction() {
+    confirm.current?.close();
+    if (pendingAction === "approve") {
+      void run(() => approveProposedPhoto(profile.studentId), settingsMessages.approveFailed, "Photo approved.");
+    } else {
+      void run(() => removeProfilePhoto(profile.studentId), settingsMessages.removeFailed, "Photo removed.");
+    }
+  }
 
   async function choose(event: ChangeEvent<HTMLInputElement>) {
     setError(undefined);
@@ -179,8 +200,9 @@ function PhotoSection({
     if (!file) return;
     try {
       setCrop(await cropToSquareWebp(file));
-    } catch {
-      setError(settingsMessages.photoType);
+    } catch (cause) {
+      const tooLarge = cause instanceof Error && cause.message === settingsMessages.photoTooLarge;
+      setError(tooLarge ? settingsMessages.photoTooLarge : settingsMessages.photoType);
       event.target.value = "";
     }
   }
@@ -214,7 +236,10 @@ function PhotoSection({
     );
   }
 
-  const shown = crop?.previewUrl ?? settings.photoUrl;
+  const [brokenSrc, setBrokenSrc] = useState<string>();
+  const loaded = crop?.previewUrl ?? settings.photoUrl;
+  // A signed URL expires after a few minutes: one that no longer loads falls back to initials.
+  const shown = loaded === brokenSrc ? null : loaded;
   return (
     <section className="settings-section" aria-labelledby={`${ids}-title`}>
       <h2 id={`${ids}-title`}>Photo</h2>
@@ -222,7 +247,14 @@ function PhotoSection({
         {shown ? (
           // A signed, short-lived URL or a local preview: next/image cannot optimise either in a static export.
           // eslint-disable-next-line @next/next/no-img-element
-          <img className="settings-avatar" src={shown} alt={crop ? "Preview of your new photo" : "Current photo"} width={96} height={96} />
+          <img
+            className="settings-avatar"
+            src={shown}
+            alt={crop ? "Preview of your new photo" : "Current photo"}
+            width={96}
+            height={96}
+            onError={() => setBrokenSrc(shown)}
+          />
         ) : (
           <span className="settings-avatar settings-avatar-initials" aria-hidden="true">
             {initials(profile.fullName)}
@@ -230,6 +262,7 @@ function PhotoSection({
         )}
         {settings.pendingPhotoUrl ? (
           <div className="settings-pending">
+            <p className="settings-help settings-pending-label">Suggested photo</p>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img className="settings-avatar" src={settings.pendingPhotoUrl} alt="Suggested photo" width={96} height={96} />
             {settings.canManage ? (
@@ -237,7 +270,7 @@ function PhotoSection({
                 className="button button-primary"
                 type="button"
                 disabled={busy}
-                onClick={() => void run(() => approveProposedPhoto(profile.studentId), settingsMessages.approveFailed, "Photo approved.")}
+                onClick={(event) => ask("approve", event.currentTarget)}
               >
                 Approve photo
               </button>
@@ -273,7 +306,7 @@ function PhotoSection({
               className="button button-secondary"
               type="button"
               disabled={busy}
-              onClick={() => void run(() => removeProfilePhoto(profile.studentId), settingsMessages.removeFailed, "Photo removed.")}
+              onClick={(event) => ask("remove", event.currentTarget)}
             >
               Remove photo
             </button>
@@ -285,11 +318,31 @@ function PhotoSection({
           {error}
         </p>
       ) : null}
-      {notice ? (
-        <p className="settings-help" role="status">
-          {notice}
+      {/* Mounted empty so each new notice is announced. */}
+      <p className="settings-help settings-notice" role="status">
+        {notice ?? ""}
+      </p>
+      <dialog
+        ref={confirm}
+        className="cancel-dialog"
+        aria-labelledby={`${ids}-confirm`}
+        onClose={() => confirmTrigger.current?.focus()}
+      >
+        <h2 id={`${ids}-confirm`}>{pendingAction === "approve" ? "Approve this photo?" : "Remove this photo?"}</h2>
+        <p>
+          {pendingAction === "approve"
+            ? "It will be shown to other members in leaderboards and class lists."
+            : "Other members will see initials instead."}
         </p>
-      ) : null}
+        <div className="cancel-dialog-actions">
+          <button className="button button-secondary" type="button" onClick={() => confirm.current?.close()}>
+            Keep as it is
+          </button>
+          <button className="button button-primary" type="button" onClick={confirmAction}>
+            {pendingAction === "approve" ? "Approve photo" : "Remove photo"}
+          </button>
+        </div>
+      </dialog>
     </section>
   );
 }
@@ -349,6 +402,7 @@ function OwnAccessSection({
   const ids = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -380,6 +434,8 @@ function OwnAccessSection({
       await revokeTeenAccess(profile.studentId);
       dialog.current?.close();
       await onChanged();
+      // The Revoke button is gone now; keep keyboard focus in this section.
+      heading.current?.focus();
     } catch (cause) {
       dialog.current?.close();
       setError(errorText(cause, settingsMessages.revokeFailed));
@@ -390,7 +446,9 @@ function OwnAccessSection({
 
   return (
     <section className="settings-section" aria-labelledby={`${ids}-title`}>
-      <h2 id={`${ids}-title`}>Own access</h2>
+      <h2 id={`${ids}-title`} ref={heading} tabIndex={-1}>
+        Own access
+      </h2>
       {access ? (
         <>
           <p className="settings-help">

@@ -3603,6 +3603,24 @@ button:focus-visible {
   width: auto;
 }
 
+/* A guardian's "I also want to train": the same row as the waiver tick, at touch size. */
+.enrol-also-train {
+  align-items: center;
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: auto 1fr;
+  letter-spacing: normal;
+  min-height: 2.75rem;
+  text-transform: none;
+}
+
+.enrol-also-train input {
+  accent-color: var(--bpt-purple);
+  height: 1.25rem;
+  min-height: auto;
+  width: 1.25rem;
+}
+
 .enrol-minors {
   display: grid;
   gap: 1rem;

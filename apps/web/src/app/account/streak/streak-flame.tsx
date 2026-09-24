@@ -39,8 +39,9 @@ export function StreakFlame({ count }: Readonly<{ count: number }>) {
     <div className="streak-flame">
       <div ref={box} className="streak-flame-art" aria-hidden="true" data-testid="streak-flame" />
       {count >= 2 ? (
-        <span className="streak-multiplier" aria-label={`${count} session streak`}>
-          x{count}
+        <span className="streak-multiplier">
+          <span aria-hidden="true">x{count}</span>
+          <span className="visually-hidden">{count} session streak</span>
         </span>
       ) : null}
     </div>

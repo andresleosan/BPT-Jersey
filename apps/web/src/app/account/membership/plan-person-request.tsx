@@ -93,11 +93,10 @@ export function PlanPersonRequests({ canTrainYourself }: Readonly<{ canTrainYour
           </button>
         ) : null}
       </div>
-      {notice?.kind === "success" ? (
-        <p className="client-membership-notice client-membership-notice-success" role="status">
-          {notice.text}
-        </p>
-      ) : null}
+      {/* Mounted empty so the confirmation is announced when it arrives. */}
+      <p className="client-membership-notice client-membership-notice-success" role="status">
+        {notice?.kind === "success" ? notice.text : ""}
+      </p>
 
       <dialog aria-labelledby="plan-people-form-title" className="client-plan-people-dialog" ref={dialog}>
         <form className="client-plan-people-form" onSubmit={(event) => void submit(event)}>
