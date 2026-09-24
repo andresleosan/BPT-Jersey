@@ -1,7 +1,12 @@
-import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, verifyBeforeUpdateEmail } from "firebase/auth";
 import { z } from "zod";
 
-import { teenAccessInputSchema, uploadProfilePhotoInputSchema } from "@bpt-jersey/domain/members/engagement";
+import { emergencyContactSchema, type EmergencyContact } from "@bpt-jersey/domain/members/directory";
+import {
+  ownEmergencyContactInputSchema,
+  teenAccessInputSchema,
+  uploadProfilePhotoInputSchema,
+} from "@bpt-jersey/domain/members/engagement";
 
 import { httpsCallable } from "./callable";
 import { getFirebaseAuth, getFirebaseFunctions } from "./firebase-client";
@@ -155,3 +160,126 @@ export function createTeenAccess(input: Readonly<{ studentId: string; email: str
 
 export const revokeTeenAccess = (studentId: string) =>
   call("revokeTeenAccess", { studentId }, empty, settingsMessages.revokeFailed).then(() => undefined);
+
+/* ---------- Settings: email, password and emergency contact (25 September batch, lane C) ---------- */
+
+export const accountMessages = Object.freeze({
+  invalidEmail: "Enter a valid email address.",
+  sameEmail: "That is already your email address.",
+  currentPassword: "Enter your current password.",
+  shortPassword: "Choose a new password of at least 12 characters.",
+  longPassword: "Choose a new password of 128 characters or fewer.",
+  passwordMismatch: "The new passwords do not match.",
+  samePassword: "Choose a new password that is different from the current one.",
+  wrongPassword: "That password is not right.",
+  tooMany: "Too many attempts. Wait a few minutes and try again.",
+  emailInUse: "That email is already used by another account.",
+  recentLogin: "Please sign in again, then retry.",
+  failed: "We couldn't update your account. Try again later.",
+  contactLoad: "We couldn't load the emergency contact. Try again.",
+  contactFailed: "We couldn't save the emergency contact. Try again.",
+});
+
+export type AccountResult<T extends object = object> = ({ ok: true } & T) | { ok: false; message: string };
+
+function accountErrorMessage(cause: unknown): string {
+  switch (authCode(cause)) {
+    case "auth/wrong-password":
+    case "auth/invalid-credential":
+    case "auth/invalid-login-credentials":
+      return accountMessages.wrongPassword;
+    case "auth/too-many-requests":
+      return accountMessages.tooMany;
+    case "auth/email-already-in-use":
+      return accountMessages.emailInUse;
+    case "auth/requires-recent-login":
+      return accountMessages.recentLogin;
+    case "auth/invalid-email":
+      return accountMessages.invalidEmail;
+    default:
+      return accountMessages.failed;
+  }
+}
+
+const emailChangeSchema = z.object({
+  newEmail: z.string().trim().toLowerCase().pipe(z.email(accountMessages.invalidEmail).max(254, accountMessages.invalidEmail)),
+  currentPassword: z.string().min(1, accountMessages.currentPassword),
+});
+const passwordChangeSchema = z
+  .object({
+    currentPassword: z.string().min(1, accountMessages.currentPassword),
+    newPassword: z.string().min(12, accountMessages.shortPassword).max(128, accountMessages.longPassword),
+    confirmPassword: z.string(),
+  })
+  .refine((input) => input.newPassword === input.confirmPassword, { message: accountMessages.passwordMismatch })
+  .refine((input) => input.newPassword !== input.currentPassword, { message: accountMessages.samePassword });
+
+const firstMessage = (error: z.ZodError) => error.issues[0]?.message ?? accountMessages.failed;
+
+/** Re-authenticates, then asks Firebase to send a link: the email only changes once the link is opened. */
+export async function requestEmailChange(
+  input: Readonly<{ currentPassword: string; newEmail: string }>,
+): Promise<AccountResult<{ sentTo: string }>> {
+  const parsed = emailChangeSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: firstMessage(parsed.error) };
+  const { newEmail, currentPassword } = parsed.data;
+  const user = getFirebaseAuth().currentUser;
+  if (!user?.email) return { ok: false, message: accountMessages.recentLogin };
+  if (user.email.toLowerCase() === newEmail) return { ok: false, message: accountMessages.sameEmail };
+  try {
+    await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, currentPassword));
+    await verifyBeforeUpdateEmail(user, newEmail);
+    return { ok: true, sentTo: newEmail };
+  } catch (cause) {
+    return { ok: false, message: accountErrorMessage(cause) };
+  }
+}
+
+/** Same sequence as the adult hand-over: re-authenticate, update, then sign in again with the new password. */
+export async function changePassword(
+  input: Readonly<{ currentPassword: string; newPassword: string; confirmPassword: string }>,
+): Promise<AccountResult> {
+  const parsed = passwordChangeSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: firstMessage(parsed.error) };
+  const user = getFirebaseAuth().currentUser;
+  if (!user?.email) return { ok: false, message: accountMessages.recentLogin };
+  try {
+    await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, input.currentPassword));
+    await updatePassword(user, input.newPassword);
+  } catch (cause) {
+    return { ok: false, message: accountErrorMessage(cause) };
+  }
+  try {
+    // The change ends older sessions; a fresh sign-in keeps this one accepted by the member door.
+    await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, input.newPassword));
+  } catch {
+    /* The password is already changed; the next sign-in uses it. */
+  }
+  return { ok: true };
+}
+
+/** Copies a verified sign-in email to the profile. Silent: nothing to show when it fails or nothing changed. */
+export async function syncOwnAccountEmail(): Promise<void> {
+  try {
+    await httpsCallable<unknown, unknown>(getFirebaseFunctions(), "syncOwnAccountEmail")({});
+  } catch {
+    /* retried on the next visit */
+  }
+}
+
+const ownContactSchema = z.object({ contact: emergencyContactSchema.nullable() });
+
+export async function getOwnEmergencyContact(studentId: string): Promise<EmergencyContact | null> {
+  return (await call("getOwnEmergencyContact", { studentId }, ownContactSchema, accountMessages.contactLoad)).contact;
+}
+
+export async function saveOwnEmergencyContact(studentId: string, contact: EmergencyContact): Promise<AccountResult> {
+  const parsed = ownEmergencyContactInputSchema.safeParse({ studentId, contact, requestId: globalThis.crypto.randomUUID() });
+  if (!parsed.success) return { ok: false, message: accountMessages.contactFailed };
+  try {
+    await call("saveOwnEmergencyContact", parsed.data, z.object({ saved: z.literal(true) }), accountMessages.contactFailed);
+    return { ok: true };
+  } catch {
+    return { ok: false, message: accountMessages.contactFailed };
+  }
+}

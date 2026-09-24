@@ -22,13 +22,19 @@ import {
   revokeTeenAccess,
   setMemberVisibility,
   settingsMessages,
+  syncOwnAccountEmail,
   uploadProfilePhoto,
   type MySettings,
 } from "../../../lib/account-settings-client";
-import { ClientAuthGate, ClientAuthProvider } from "../../../lib/client-auth";
+import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../../lib/client-auth";
 import { getFamily } from "../../../lib/family-client";
 import { listMyProfiles } from "../../../lib/family-plan-client";
+import { getFirebaseAuth } from "../../../lib/firebase-client";
 import { cropToSquareWebp, type CroppedAvatar } from "./avatar-cropper";
+import { EmailSection } from "./email-section";
+import { EmergencyContactSection } from "./emergency-contact-section";
+import { PasswordSection } from "./password-section";
+import { PhoneSection } from "./phone-section";
 
 import "../account.css";
 import "./settings.css";
@@ -48,15 +54,31 @@ function initials(fullName: string): string {
   ).toUpperCase();
 }
 
-/** Account settings (T044V2): photo, visibility and, for a guardian, a 12–17 year old's own sign-in. */
+function signedInEmail(): string | null {
+  try {
+    return getFirebaseAuth().currentUser?.email ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Account settings (T044V2): photo, visibility and, for a guardian, a 12–17 year old's own sign-in;
+ * then the account itself: phone, emergency contact, email and password.
+ */
 function SettingsContent() {
   const [people, setPeople] = useState<readonly Person[] | null>();
   const [selected, setSelected] = useState("");
+  const [email] = useState(signedInEmail);
+  // A guardian controls a teen's sign-in through own access, so teens do not change it here.
+  const isTeen = useClientSession().session?.role === "teenStudent";
 
   useEffect(() => {
     let active = true;
     void (async () => {
       try {
+        // A changed and verified sign-in email reaches the profile first; silent when nothing changed.
+        await syncOwnAccountEmail();
         const profiles = await listMyProfiles();
         // Children's dates of birth only narrow the own-access section; without them the server decides.
         const family = profiles.some((profile) => profile.via === "guardian")
@@ -115,6 +137,28 @@ function SettingsContent() {
           {person ? <PersonSettings key={person.profile.studentId} person={person} /> : null}
         </>
       )}
+      <div className="settings-sections">
+        {/* Without the profile list the account kind is unknown, so the phone section waits. */}
+        {people && people.length > 0 ? (
+          <PhoneSection
+            mode={people.some((item) => item.profile.via === "self") ? "member" : "guardian"}
+          />
+        ) : null}
+        {people && people.length > 0 ? (
+          <EmergencyContactSection
+            students={people.map((item) => ({
+              studentId: item.profile.studentId,
+              label: item.profile.via === "self" ? "You" : item.profile.fullName,
+            }))}
+          />
+        ) : null}
+        {isTeen ? null : (
+          <>
+            <EmailSection currentEmail={email} />
+            <PasswordSection />
+          </>
+        )}
+      </div>
     </main>
   );
 }

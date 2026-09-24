@@ -282,3 +282,59 @@
     transition: none;
   }
 }
+
+/* Account sections (email, password, phone, emergency contact): DESIGN.md §9 member app. */
+.settings-field input[type="email"],
+.settings-field input[type="password"],
+.settings-field input[type="tel"],
+.settings-field input:not([type]) {
+  min-height: 3rem;
+}
+
+.settings-field-invalid input {
+  background: #fff0f2;
+  border-color: #8d1c2f;
+}
+
+.settings-field-error {
+  color: #721626;
+  font-weight: 600;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-band {
+  border-left: 0.35rem solid;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  padding: 0.75rem 1rem;
+}
+
+.settings-band-success {
+  background: #e7f6ee;
+  border-left-color: #176b49;
+  color: #176b49;
+}
+
+.settings-band-error {
+  background: #fff0f2;
+  border-left-color: #8d1c2f;
+  color: #721626;
+}
+
+.settings-skeleton-input {
+  border-radius: var(--radius);
+  height: 3rem;
+  margin-bottom: 0.5rem;
+}
+
+.settings-section .settings-actions .button {
+  min-height: 3.15rem;
+}
+
+@media (max-width: 50rem) {
+  .settings-section .settings-actions .button {
+    width: 100%;
+  }
+}
