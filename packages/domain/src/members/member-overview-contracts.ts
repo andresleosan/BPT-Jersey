@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ParticipantType } from "../memberships/plan-contracts";
+import { trialStatusAt, type TrialAccessRecord } from "../memberships/trial-access-contracts";
 import { participantTypeOn } from "../schedule/member-calendar-contracts";
 
 /**
@@ -49,14 +50,16 @@ export const memberOverviewRowSchema = z.strictObject({
 export type MemberOverviewRow = Readonly<z.infer<typeof memberOverviewRowSchema>>;
 
 export const memberOverviewSchema = z.strictObject({
-  rows: z.array(memberOverviewRowSchema).max(500).readonly(),
+  // Up to 500 students plus the synthetic guardian rows of family contacts without a record.
+  rows: z.array(memberOverviewRowSchema).max(1000).readonly(),
   counters: z.strictObject({
     total: z.number().int().min(0),
     active: z.number().int().min(0),
     expiring: z.number().int().min(0),
     review: z.number().int().min(0),
     inactive: z.number().int().min(0),
-    guardians: z.number().int().min(0),
+    // Defaulted so a response from a server that predates guardian rows still parses.
+    guardians: z.number().int().min(0).default(0),
   }),
   generatedAt: z.string().min(1),
 });
@@ -95,9 +98,20 @@ export type OverviewMembershipSource = Readonly<{
 }>;
 export type OverviewFamilySource = Readonly<{
   familyId: string;
+  primaryContactUserId?: string;
   guardianName?: string;
   online: boolean;
 }>;
+export type OverviewTrialSource = Readonly<{
+  status: string;
+  expiresAt: string;
+  allowance: number;
+  countedAttendanceIds: readonly string[];
+}>;
+/** A family's primary contact account, shown as a guardian row when it has no member record. */
+export type OverviewGuardianUserSource = Readonly<{ userId: string; fullName: string; familyIds: readonly string[] }>;
+
+export const freeTrialPlanId = "free-trial";
 
 function ageOn(dateOfBirth: string, today: string): number {
   let age = Number(today.slice(0, 4)) - Number(dateOfBirth.slice(0, 4));
@@ -133,22 +147,67 @@ export function buildMemberOverview(input: {
   levelByStudent: ReadonlyMap<string, string>;
   /** Plan id → its `eligibleParticipantTypes`, to flag a live plan outside the member's age band. */
   planBands: ReadonlyMap<string, readonly ParticipantType[]>;
+  trialsByStudent: ReadonlyMap<string, OverviewTrialSource>;
+  /** Primary contacts of families (`families.primaryContactUserId`). */
+  guardianUsers: readonly OverviewGuardianUserSource[];
   now: string;
 }): MemberOverview {
   const today = input.now.slice(0, 10);
   const expiringUntil = addDays(today, expiringWindowDays);
   const counters = { total: 0, active: 0, expiring: 0, review: 0, inactive: 0, guardians: 0 };
-  const rows = input.students.map((student): MemberOverviewRow => {
-    const membership = currentMembership(input.membershipsByStudent.get(student.studentId) ?? [], input.now);
-    const endsDate = membership?.endsAt?.slice(0, 10) ?? null;
-    const covering = membership !== undefined && (endsDate === null || endsDate >= today) && membership.startsAt <= input.now;
-    const planState: MemberPlanState = !membership
-      ? "none"
-      : !covering
-        ? "expired"
-        : endsDate !== null && endsDate <= expiringUntil
+  // First pass: each student's plan standing, so guardians can be judged against their children.
+  const standings = new Map(
+    input.students.map((student) => {
+      const membership = currentMembership(input.membershipsByStudent.get(student.studentId) ?? [], input.now);
+      const endsDate = membership?.endsAt?.slice(0, 10) ?? null;
+      const covering = membership !== undefined && (endsDate === null || endsDate >= today) && membership.startsAt <= input.now;
+      const trial = input.trialsByStudent.get(student.studentId);
+      // trialStatusAt reads only status, expiry, allowance and counted attendance; a stored
+      // "exhausted" or "expired" status also ends the trial, and a deactivated member has none.
+      const activeTrial =
+        student.active &&
+        trial !== undefined &&
+        trial.status === "active" &&
+        trialStatusAt(trial as TrialAccessRecord, input.now) === "active";
+      const planState: MemberPlanState = covering
+        ? endsDate !== null && endsDate <= expiringUntil
           ? "expiring"
-          : "current";
+          : "current"
+        : activeTrial
+          ? "trial"
+          : membership
+            ? "expired"
+            : "none";
+      const training = student.active && (planState === "current" || planState === "expiring" || planState === "trial");
+      return [student.studentId, { membership, covering, activeTrial, trial, planState, training }] as const;
+    }),
+  );
+  const familiesByGuardian = new Map<string, Set<string>>();
+  const guard = (userId: string, familyId: string) =>
+    familiesByGuardian.set(userId, (familiesByGuardian.get(userId) ?? new Set()).add(familyId));
+  for (const family of input.familiesById.values()) if (family.primaryContactUserId) guard(family.primaryContactUserId, family.familyId);
+  for (const user of input.guardianUsers) for (const familyId of user.familyIds) guard(user.userId, familyId);
+  /** The first training member of a family this user looks after, other than the user's own record. */
+  const activeChildOf = (userId: string): OverviewStudentSource | undefined => {
+    const familyIds = familiesByGuardian.get(userId);
+    if (!familyIds) return undefined;
+    return input.students.find(
+      (student) =>
+        student.familyId !== undefined &&
+        familyIds.has(student.familyId) &&
+        student.userId !== userId &&
+        standings.get(student.studentId)?.training === true,
+    );
+  };
+  const rows = input.students.map((student): MemberOverviewRow => {
+    const { membership, covering, activeTrial, trial, planState, training } = standings.get(student.studentId)!;
+    const guardianOnly =
+      student.userId !== undefined &&
+      isGuardianOnly({
+        hasOwnCoveringPlan: covering,
+        hasActiveTrial: activeTrial,
+        guardsActiveStudent: activeChildOf(student.userId) !== undefined,
+      });
     const flags: MemberReviewFlag[] = [];
     if (student.trainingCenterStatus === "unconfirmed") flags.push("centre-unconfirmed");
     if (!student.dateOfBirth || student.reviewReason === "date-of-birth-missing") flags.push("date-of-birth-missing");
@@ -159,16 +218,16 @@ export function buildMemberOverview(input: {
     const eligible = membership ? input.planBands.get(membership.planId) : undefined;
     // H3: only flagged for the office; the live subscription is never changed here.
     if (covering && ageBand && eligible && !eligible.includes(ageBand)) flags.push("plan-band-differs");
-    // Active means training on a live plan; anything else (no plan, lapsed, deactivated) is inactive.
-    const training = student.active && (planState === "current" || planState === "expiring");
+    // Active means training on a live plan or trial; guardians are counted apart; the rest is inactive.
     counters.total += 1;
     if (training) counters.active += 1;
+    else if (guardianOnly) counters.guardians += 1;
     else counters.inactive += 1;
     if (planState === "expiring") counters.expiring += 1;
     if (flags.length > 0) counters.review += 1;
     return {
       studentId: student.studentId,
-      rowKind: "member",
+      rowKind: guardianOnly ? "guardian" : "member",
       fullName: student.fullName,
       ...(age === undefined || ageBand === undefined ? {} : { age, ageBand }),
       trainingCenter: student.trainingCenter,
@@ -176,7 +235,9 @@ export function buildMemberOverview(input: {
       active: training,
       source: student.legacy ? "regyfit" : "bpt",
       ...(input.levelByStudent.has(student.studentId) ? { levelKey: input.levelByStudent.get(student.studentId) as string } : {}),
-      ...(membership
+      ...(planState === "trial" && trial
+        ? { plan: { planId: freeTrialPlanId, displayName: "Free Trial", status: "active", endsAt: trial.expiresAt } }
+        : membership
         ? {
             plan: {
               planId: membership.planId,
@@ -192,6 +253,29 @@ export function buildMemberOverview(input: {
       flags,
     };
   });
+  const withRecord = new Set(input.students.map((student) => student.userId).filter((id) => id !== undefined));
+  const seen = new Set<string>();
+  for (const user of input.guardianUsers) {
+    if (withRecord.has(user.userId) || seen.has(user.userId)) continue;
+    const child = activeChildOf(user.userId);
+    if (!child) continue;
+    seen.add(user.userId);
+    counters.total += 1;
+    counters.guardians += 1;
+    rows.push({
+      studentId: `guardian:${user.userId}`,
+      rowKind: "guardian",
+      userId: user.userId,
+      fullName: user.fullName,
+      trainingCenter: child.trainingCenter,
+      centreConfirmed: child.trainingCenterStatus !== "unconfirmed",
+      active: false,
+      source: "bpt",
+      planState: "none",
+      ownAccount: true,
+      flags: [],
+    });
+  }
   rows.sort((a, b) => a.fullName.localeCompare(b.fullName, "en-GB"));
   return { rows, counters, generatedAt: input.now };
 }

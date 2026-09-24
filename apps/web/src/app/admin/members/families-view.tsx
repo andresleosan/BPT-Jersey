@@ -43,7 +43,13 @@ export function FamiliesView({ rows }: { rows: readonly MemberOverviewRow[] }) {
                   </Link>
                   <span className="members-cell-detail">
                     {row.age === undefined ? "Age unknown" : `${row.age} years`} · {row.trainingCenter} ·{" "}
-                    {row.planState === "current" || row.planState === "expiring" ? "Current plan" : row.planState === "expired" ? "Expired plan" : "No plan"}
+                    {row.planState === "current" || row.planState === "expiring"
+                      ? "Current plan"
+                      : row.planState === "trial"
+                        ? "Free Trial"
+                        : row.planState === "expired"
+                          ? "Expired plan"
+                          : "No plan"}
                   </span>
                 </li>
               ))}
