@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { reviewIdentifierSchema } from "./member-reconciliation-contracts";
 
-export const teenAccountMinimumAge = 16;
+export const teenAccountMinimumAge = 12;
 /** Calendar years at the academy. A leap-day birthday is reached on 1 March in a non-leap year. */
 export function memberAgeOn(dateOfBirth: string | undefined, academyDate: string): number | null {
   if (!dateOfBirth || !z.iso.date().safeParse(dateOfBirth).success || !z.iso.date().safeParse(academyDate).success || dateOfBirth > academyDate) return null;
