@@ -294,15 +294,21 @@ function requireStudent(
   return parsed.value;
 }
 
-function requireConfirmedBooking(
+export type ConfirmedBookingCheck = "confirmed" | "missing" | "ambiguous" | "tenant" | "not-confirmed";
+
+/**
+ * The one confirmed-booking rule: exactly one existing booking among a student's id candidates,
+ * bound to this academy, session and student, with status `confirmed`. Shared with the session roster.
+ */
+export function checkConfirmedBooking(
   snapshots: readonly BookingDocumentSnapshot[],
   academyId: string,
   sessionId: string,
   studentId: string,
-): void {
+): ConfirmedBookingCheck {
   const existing = snapshots.filter((snapshot) => snapshot.exists);
-  if (existing.length === 0) return fail("ineligible", "Confirmed booking is required");
-  if (existing.length !== 1) return fail("conflict", "Booking identity is ambiguous");
+  if (existing.length === 0) return "missing";
+  if (existing.length !== 1) return "ambiguous";
   const snapshot = existing[0]!;
   const value = data(snapshot);
   if (
@@ -312,11 +318,21 @@ function requireConfirmedBooking(
     value.sessionId !== sessionId ||
     value.studentId !== studentId
   ) {
-    return fail("tenant", "Booking tenant binding is invalid");
+    return "tenant";
   }
-  if (value.status !== "confirmed") {
-    return fail("ineligible", "Confirmed booking is required");
-  }
+  return value.status === "confirmed" ? "confirmed" : "not-confirmed";
+}
+
+function requireConfirmedBooking(
+  snapshots: readonly BookingDocumentSnapshot[],
+  academyId: string,
+  sessionId: string,
+  studentId: string,
+): void {
+  const check = checkConfirmedBooking(snapshots, academyId, sessionId, studentId);
+  if (check === "ambiguous") return fail("conflict", "Booking identity is ambiguous");
+  if (check === "tenant") return fail("tenant", "Booking tenant binding is invalid");
+  if (check !== "confirmed") return fail("ineligible", "Confirmed booking is required");
 }
 
 function storedAttendance(

@@ -3,7 +3,7 @@
  * Everything another member sees goes through a MemberPublicCard; anyone outside the requester's own
  * cohort, hidden, or without a date of birth only adds to `hiddenCount` and never leaves an id.
  */
-import { getFirestore, type DocumentSnapshot, type Firestore } from "firebase-admin/firestore";
+import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { z } from "zod";
 import {
@@ -21,6 +21,7 @@ import { fromData as publicSettingsFrom } from "../account-settings/account-sett
 import { signPhotoUrl } from "../account-settings/profile-photo.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { toPublicCard } from "../competitors/public-card.js";
+import { checkConfirmedBooking } from "../schedule/attendance-transaction-service.js";
 import { enrolmentStorageSecrets } from "../members/enrolment-payment-proof.js";
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { createFirestoreMemberAccessService } from "../members/member-access-service.js";
@@ -41,27 +42,6 @@ type Person = {
   settings: ReturnType<typeof publicSettingsFrom>;
 };
 
-/** Same checks as the attendance service's requireConfirmedBooking: one booking, bound to this tenant, confirmed. */
-function confirmedBookingFor(
-  snapshots: readonly DocumentSnapshot[],
-  academyId: string,
-  sessionId: string,
-  studentId: string,
-): boolean {
-  const existing = snapshots.filter((snapshot) => snapshot.exists);
-  if (existing.length !== 1) return false;
-  const snapshot = existing[0]!;
-  const value = snapshot.data();
-  return (
-    value !== undefined &&
-    snapshot.id === value.bookingId &&
-    value.academyId === academyId &&
-    value.sessionId === sessionId &&
-    value.studentId === studentId &&
-    value.status === "confirmed"
-  );
-}
-
 async function requesterHasConfirmedBooking(
   db: Firestore,
   academyId: string,
@@ -69,17 +49,18 @@ async function requesterHasConfirmedBooking(
   identityIds: readonly string[],
 ): Promise<boolean> {
   const results = await Promise.all(
-    identityIds.map(async (id) =>
-      confirmedBookingFor(
-        await db.getAll(
-          ...buildBookingIdCandidates(sessionId, id).map((bookingId) =>
-            db.doc(`academies/${academyId}/bookings/${bookingId}`),
+    identityIds.map(
+      async (id) =>
+        checkConfirmedBooking(
+          await db.getAll(
+            ...buildBookingIdCandidates(sessionId, id).map((bookingId) =>
+              db.doc(`academies/${academyId}/bookings/${bookingId}`),
+            ),
           ),
-        ),
-        academyId,
-        sessionId,
-        id,
-      ),
+          academyId,
+          sessionId,
+          id,
+        ) === "confirmed",
     ),
   );
   return results.includes(true);
@@ -144,15 +125,15 @@ export const getSessionDetail = onCall(
           : null;
       const curriculum = curriculumResult?.ok ? curriculumResult.value : null;
 
+      // Confirmed bookings under the same rule as the gate; a member marked absent (the calendar's
+      // `schemaVersion === "2" && absent` signal) is not coming, so is neither listed nor counted.
       const bookedIds = new Set<string>();
       for (const booking of bookings.docs) {
         const value = booking.data();
         if (
-          booking.id === value.bookingId &&
-          value.academyId === academyId &&
-          value.sessionId === sessionId &&
-          value.status === "confirmed" &&
-          typeof value.studentId === "string"
+          typeof value.studentId === "string" &&
+          checkConfirmedBooking([booking], academyId, sessionId, value.studentId) === "confirmed" &&
+          !(value.schemaVersion === "2" && value.absent === true)
         )
           bookedIds.add(value.studentId);
       }
@@ -220,25 +201,26 @@ export const getSessionDetail = onCall(
       }
       const names = publicDisplayNames(self.fullName === "" ? visible : [...visible, self]);
       const r2 = createPrivateStorageR2Client();
+      const nameOf = (person: Person, fallbackName: string) =>
+        rowsById.get(person.studentId)?.displayName ?? names.get(person.studentId) ?? fallbackName;
       const cardOf = (person: Person, fallbackName: string) => {
         const row = rowsById.get(person.studentId);
-        return row
-          ? toPublicCard(row, r2)
-          : minimalCard(person, names.get(person.studentId) ?? fallbackName, r2);
+        return row ? toPublicCard(row, r2) : minimalCard(person, nameOf(person, fallbackName), r2);
       };
+      // Sorted and capped before any card is built, so photos are signed only for returned cards.
+      const shown = visible
+        .map((person) => ({ person, name: nameOf(person, person.fullName) }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .slice(0, rosterLimit - 1);
       const [mine, ...theirs] = await Promise.all([
         cardOf(self, "You"),
-        ...visible.map((person) => cardOf(person, person.fullName)),
+        ...shown.map(({ person }) => cardOf(person, person.fullName)),
       ]);
-      theirs.sort((a, b) => a.displayName.localeCompare(b.displayName));
 
       return sessionDetailResponseSchema.parse({
         curriculum,
-        roster: [
-          { card: mine!, isYou: true },
-          ...theirs.slice(0, rosterLimit - 1).map((card) => ({ card, isYou: false })),
-        ],
-        hiddenCount: hiddenCount + Math.max(0, theirs.length - (rosterLimit - 1)),
+        roster: [{ card: mine!, isYou: true }, ...theirs.map((card) => ({ card, isYou: false }))],
+        hiddenCount: hiddenCount + (visible.length - shown.length),
       });
     } catch (error) {
       if (error instanceof HttpsError) throw error;
