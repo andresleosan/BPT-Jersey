@@ -34,15 +34,29 @@ function loadSkillLabels(): Promise<ReadonlyMap<string, string>> {
   return skillLabels;
 }
 
+/** The name always sits beside the avatar, so the image is decorative (`alt=""`). */
 export function MemberAvatar({ card, size }: Readonly<{ card: MemberPublicCard; size: number }>) {
-  if (card.photoUrl?.startsWith("https://")) {
+  // Signed URLs expire after a few minutes: a photo that no longer loads falls back to initials.
+  const [failed, setFailed] = useState(false);
+  if (card.photoUrl?.startsWith("https://") && !failed) {
     return (
       // eslint-disable-next-line @next/next/no-img-element -- short-lived signed R2 URL on a static export
-      <img className="competitor-avatar" src={card.photoUrl} width={size} height={size} alt={card.displayName} />
+      <img
+        className="competitor-avatar"
+        src={card.photoUrl}
+        width={size}
+        height={size}
+        alt=""
+        onError={() => setFailed(true)}
+      />
     );
   }
   return (
-    <span className="competitor-avatar competitor-initials" style={{ width: size, height: size }} aria-hidden="true">
+    <span
+      className="competitor-avatar competitor-initials"
+      style={{ width: size, height: size, fontSize: Math.max(16, Math.round(size * 0.34)) }}
+      aria-hidden="true"
+    >
       {initials(card.displayName)}
     </span>
   );
@@ -86,18 +100,27 @@ function TechniqueList({
 
 /**
  * Another member's public card in a native dialog. Opens on mount, closes on Esc or «Close», and
- * gives focus back to whatever opened it. Without `mine` the technique comparator is left out.
+ * gives focus back to `returnFocus` (Safari does not focus a clicked button) or else to whatever
+ * held focus when it opened. Without `mine` the technique comparator is left out. Callers key it by
+ * `card.studentId`: the trigger and the labels are captured once per mount.
  */
 export function MemberCardDialog({
   card,
   mine,
   onClose,
-}: Readonly<{ card: MemberPublicCard; mine: MemberPublicCard | null; onClose: () => void }>) {
+  returnFocus,
+}: Readonly<{
+  card: MemberPublicCard;
+  mine: MemberPublicCard | null;
+  onClose: () => void;
+  returnFocus?: HTMLElement | null;
+}>) {
   const ref = useRef<HTMLDialogElement>(null);
   const [labels, setLabels] = useState<ReadonlyMap<string, string>>(new Map());
   // Read at first render, before showModal moves focus, so a StrictMode re-run keeps the real trigger.
   const [trigger] = useState(() =>
-    typeof document !== "undefined" && document.activeElement instanceof HTMLElement ? document.activeElement : null,
+    returnFocus ??
+    (typeof document !== "undefined" && document.activeElement instanceof HTMLElement ? document.activeElement : null),
   );
   const titleId = `member-card-${card.studentId}`;
 
@@ -139,10 +162,13 @@ export function MemberCardDialog({
         </div>
       </div>
       <dl className="member-card-stats">
-        <div>
-          <dt>Streak</dt>
-          <dd>x{card.streakCount}</dd>
-        </div>
+        {/* Like the rows, a streak shows only once there is one. */}
+        {card.streakCount > 0 ? (
+          <div>
+            <dt>Streak</dt>
+            <dd>x{card.streakCount}</dd>
+          </div>
+        ) : null}
         <div>
           <dt>Sessions this season</dt>
           <dd>{card.attendancesSinceSeasonStart}</dd>

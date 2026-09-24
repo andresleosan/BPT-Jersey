@@ -24,20 +24,20 @@ export default function AdminWaiversPage() {
   const [tab, setTab] = useState<"versions" | "acceptances">("versions");
   return (
     <>
+      {/* Two view switches, not ARIA tabs: the pressed state is what a screen reader needs here. */}
       <nav aria-label="Waiver views" className="waiver-tabs">
-        <ul role="tablist">
+        <ul>
           {(
             [
               ["versions", "Versions"],
               ["acceptances", "Acceptances"],
             ] as const
           ).map(([value, label]) => (
-            <li key={value} role="presentation">
+            <li key={value}>
               <button
-                aria-selected={tab === value}
+                aria-pressed={tab === value}
                 className="waiver-tab"
                 onClick={() => setTab(value)}
-                role="tab"
                 type="button"
               >
                 {label}

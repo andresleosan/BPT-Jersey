@@ -187,13 +187,14 @@ export function PendingTermsBanner({ studentId }: Readonly<{ studentId: string }
     <>
       {terms.length > 0 ? (
         <p className="calendar-trial-band" role="status">
-          {names(terms)} still need to accept the academy terms.{" "}
+          {names(terms)} still {terms.length === 1 ? "needs" : "need"} to accept the academy terms.{" "}
           {teen ? null : <a href={acceptTermsHref}>Review and accept</a>}
         </p>
       ) : null}
       {disclaimersOnly.length > 0 ? (
         <p className="calendar-trial-band" role="status">
-          {names(disclaimersOnly)} still need to accept the disclaimers.{" "}
+          {names(disclaimersOnly)} still {disclaimersOnly.length === 1 ? "needs" : "need"} to accept the
+          disclaimers.{" "}
           {teen ? null : <a href={acceptDisclaimersHref}>Review and accept</a>}
         </p>
       ) : null}

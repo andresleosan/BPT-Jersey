@@ -1,6 +1,8 @@
 import { settingsMessages } from "../../../lib/account-settings-client";
 
 const acceptedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+/** A full-resolution decode of anything larger can exhaust a phone tab's memory. */
+const maxSourceBytes = 25 * 1024 * 1024;
 
 export type CroppedAvatar = Readonly<{ base64: string; mime: "image/webp" | "image/png"; previewUrl: string }>;
 
@@ -12,9 +14,11 @@ export type CroppedAvatar = Readonly<{ base64: string; mime: "image/webp" | "ima
  */
 export async function cropToSquareWebp(file: File): Promise<CroppedAvatar> {
   if (!acceptedTypes.has(file.type)) throw new Error(settingsMessages.photoType);
+  if (file.size > maxSourceBytes) throw new Error(settingsMessages.photoTooLarge);
   let bitmap: ImageBitmap;
   try {
-    bitmap = await createImageBitmap(file);
+    // The canvas output carries no EXIF, so the rotation must be applied here.
+    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
   } catch {
     throw new Error(settingsMessages.photoType);
   }

@@ -73,12 +73,14 @@ export class AccountSettingsUnavailableError extends Error {}
 export const settingsMessages = Object.freeze({
   load: "We couldn't load your settings right now. Try again.",
   photoType: "Choose a JPEG, PNG or WebP photo.",
+  photoTooLarge: "Choose a photo under 25 MB.",
   photoRejected: "Choose a single JPEG, PNG or WebP image under 2 MB.",
   photoFailed: "We couldn't save the photo. Try again.",
   removeFailed: "We couldn't remove the photo. Try again.",
   approveFailed: "We couldn't approve the photo. Try again.",
   visibilityFailed: "We couldn't change your visibility. Try again.",
   teenPassword: "Choose a password of at least 10 characters.",
+  teenPasswordLong: "Choose a password of 128 characters or fewer.",
   teenEmail: "Enter a valid email address.",
   createFailed: "Own access could not be set up. Try again.",
   revokeFailed: "Own access could not be removed. Try again.",
@@ -145,6 +147,7 @@ export const setMemberVisibility = (studentId: string, showToMembers: boolean) =
 
 export function createTeenAccess(input: Readonly<{ studentId: string; email: string; password: string }>) {
   if (input.password.length < 10) return Promise.reject(new Error(settingsMessages.teenPassword));
+  if (input.password.length > 128) return Promise.reject(new Error(settingsMessages.teenPasswordLong));
   const parsed = teenAccessInputSchema.safeParse({ ...input, email: input.email.trim() });
   if (!parsed.success) return Promise.reject(new Error(settingsMessages.teenEmail));
   return call("createTeenAccess", parsed.data, z.object({ email: z.string() }), settingsMessages.createFailed);

@@ -33,7 +33,8 @@ const builtAtFormat = new Intl.DateTimeFormat("en-GB", {
 
 function Skeleton() {
   return (
-    <div className="competitor-skeleton" aria-busy="true" aria-label="Loading competitors">
+    <div className="competitor-skeleton" aria-busy="true" role="status">
+      <span className="visually-hidden">Loading competitors</span>
       {[0, 1, 2, 3, 4].map((row) => (
         <div key={row} className="skeleton-card competitor-skeleton-row" />
       ))}
@@ -45,7 +46,11 @@ function CompetitorTable({
   table,
   neighbours,
   onOpen,
-}: Readonly<{ table: TableKey; neighbours: Neighbours | null; onOpen: (card: MemberPublicCard) => void }>) {
+}: Readonly<{
+  table: TableKey;
+  neighbours: Neighbours | null;
+  onOpen: (card: MemberPublicCard, opener: HTMLElement) => void;
+}>) {
   if (!neighbours) return <p className="competitor-muted">Your place appears after tonight&apos;s update.</p>;
   const rows = [...neighbours.above, neighbours.current, ...neighbours.below];
   return (
@@ -64,7 +69,9 @@ function CompetitorTable({
             </span>
             <span className="competitor-figures">
               {card.streakCount > 0 ? (
-                <span aria-label={`Streak x${card.streakCount}`}>x{card.streakCount}</span>
+                <span>
+                  <span className="visually-hidden">Streak </span>x{card.streakCount}
+                </span>
               ) : null}
               <span>
                 {table === "attendance"
@@ -81,7 +88,7 @@ function CompetitorTable({
             {isYou ? (
               <div className="competitor-row">{body}</div>
             ) : (
-              <button type="button" className="competitor-row" onClick={() => onOpen(card)}>
+              <button type="button" className="competitor-row" onClick={(event) => onOpen(card, event.currentTarget)}>
                 {body}
               </button>
             )}
@@ -95,7 +102,7 @@ function CompetitorTable({
 function Competitors({ studentId }: Readonly<{ studentId: string }>) {
   const [state, setState] = useState<CompetitorsResponse | "loading" | "error">("loading");
   const [tab, setTab] = useState<TableKey>("attendance");
-  const [open, setOpen] = useState<MemberPublicCard | null>(null);
+  const [open, setOpen] = useState<{ card: MemberPublicCard; opener: HTMLElement } | null>(null);
   const tabRefs = useRef<Record<TableKey, HTMLButtonElement | null>>({ attendance: null, belt: null });
 
   useEffect(() => {
@@ -167,14 +174,24 @@ function Competitors({ studentId }: Readonly<{ studentId: string }>) {
           hidden={tab !== item.key}
           className="competitor-panel"
         >
-          <CompetitorTable table={item.key} neighbours={state[item.key]} onOpen={setOpen} />
+          <CompetitorTable
+            table={item.key}
+            neighbours={state[item.key]}
+            onOpen={(card, opener) => setOpen({ card, opener })}
+          />
         </div>
       ))}
       <p className="competitor-footer">
         Updated nightly{state.builtAt ? ` · ${builtAtFormat.format(new Date(state.builtAt))}` : ""}
       </p>
       {open ? (
-        <MemberCardDialog key={open.studentId} card={open} mine={mine} onClose={() => setOpen(null)} />
+        <MemberCardDialog
+          key={open.card.studentId}
+          card={open.card}
+          mine={mine}
+          returnFocus={open.opener}
+          onClose={() => setOpen(null)}
+        />
       ) : null}
     </section>
   );

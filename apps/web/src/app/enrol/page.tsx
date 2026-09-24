@@ -780,7 +780,7 @@ function EnrolContent() {
                   </select>
                 </label>
                 {form.guardian ? (
-                  <label htmlFor="enrol-guardian-trains">
+                  <label className="enrol-also-train" htmlFor="enrol-guardian-trains">
                     <input
                       checked={form.applicantIsStudent}
                       id="enrol-guardian-trains"

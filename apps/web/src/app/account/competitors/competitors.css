@@ -271,6 +271,8 @@ button.competitor-row {
   background: var(--bpt-purple);
   border-radius: 999px;
   color: var(--gi-white);
+  font: inherit;
+  font-weight: 700;
   min-height: 3.15rem;
   padding: 0 1.5rem;
 }

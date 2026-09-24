@@ -151,6 +151,10 @@
   gap: 1rem;
 }
 
+.settings-pending-label {
+  flex-basis: 100%;
+}
+
 .settings-pending {
   align-items: center;
   display: flex;
@@ -184,6 +188,26 @@
 
 .settings-section .button {
   border-radius: 999px;
+  font: inherit;
+  font-weight: 700;
+}
+
+.settings-field input::file-selector-button {
+  background: var(--gi-white);
+  border: 1px solid var(--mat-ink);
+  border-radius: 999px;
+  color: var(--mat-ink);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  margin-right: 0.75rem;
+  padding: 0.35rem 0.9rem;
+}
+
+.settings-field input:focus-visible,
+.settings-field select:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 2px;
 }
 
 .settings-section .button-primary {
@@ -192,6 +216,7 @@
 }
 
 .settings-section .button-secondary {
+  background: var(--gi-white);
   border-color: var(--mat-ink);
   color: var(--mat-ink);
 }
@@ -202,8 +227,22 @@
   transform: none;
 }
 
+.settings-notice:empty {
+  display: none;
+}
+
+.settings-section h2:focus {
+  outline: none;
+}
+
+.settings-section h2:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 4px;
+}
+
 .settings-error {
   border-left: 0.35rem solid #8d1c2f;
+  color: #721626;
   margin: 0;
   padding-left: 0.75rem;
 }

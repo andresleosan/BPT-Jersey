@@ -55,7 +55,8 @@ export function SessionCard({
   onCancelRequest,
 }: SessionCardProps) {
   const [showReason, setShowReason] = useState(false);
-  const [showDetail, setShowDetail] = useState(false);
+  // The title that opened the detail, to take focus back on close (Safari does not focus it on click).
+  const [detailOpener, setDetailOpener] = useState<HTMLElement | null>(null);
   const { session, program, derived } = entry;
   const status = derived.status;
   const site = sessionSite(session);
@@ -149,7 +150,11 @@ export function SessionCard({
       <span className="session-time">{formatSessionTimeRange(session)}</span>
       {detailStudentId ? (
         <p className="session-title">
-          <button type="button" className="session-card-open" onClick={() => setShowDetail(true)}>
+          <button
+            type="button"
+            className="session-card-open"
+            onClick={(event) => setDetailOpener(event.currentTarget)}
+          >
             {session.title}
           </button>
         </p>
@@ -183,11 +188,12 @@ export function SessionCard({
           {note}
         </p>
       ) : null}
-      {showDetail && detailStudentId ? (
+      {detailOpener && detailStudentId ? (
         <SessionDetailDialog
           sessionId={session.sessionId}
           studentId={detailStudentId}
-          onClose={() => setShowDetail(false)}
+          returnFocus={detailOpener}
+          onClose={() => setDetailOpener(null)}
         />
       ) : null}
     </li>

@@ -21,7 +21,14 @@
   padding: 0.5rem 1rem;
 }
 
-.waiver-tab[aria-selected="true"] {
+.waiver-tab:focus-visible,
+.acceptances-search input:focus-visible,
+.acceptances-download:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 2px;
+}
+
+.waiver-tab[aria-pressed="true"] {
   border-bottom-color: var(--bpt-purple);
   color: var(--bpt-purple);
 }
@@ -53,6 +60,12 @@
   padding: 0 0.75rem;
 }
 
+.acceptances-missing input {
+  accent-color: var(--bpt-purple);
+  height: 1.25rem;
+  width: 1.25rem;
+}
+
 .acceptances-missing {
   align-items: center;
   display: inline-flex;
@@ -61,9 +74,23 @@
   min-height: 3.15rem;
 }
 
+/* On canvas the secondary button is a Mat Ink outline (DESIGN.md §4), not the hero's white one. */
 .acceptances-download {
+  background: var(--gi-white);
+  border: 1px solid var(--mat-ink);
   border-radius: 0;
+  color: var(--mat-ink);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
   min-height: 3.15rem;
+}
+
+.acceptances-download:disabled {
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: not-allowed;
+  transform: none;
 }
 
 .acceptances-skeleton {

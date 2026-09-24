@@ -72,16 +72,18 @@ export function PlanRequestsPanel() {
           <p>Members asking to add a child or to train themselves from My plan.</p>
         </div>
       </div>
-      {notice ? (
-        <p
-          className={`shop-admin-notice shop-admin-notice-${notice.tone}`}
-          role={notice.tone === "error" ? "alert" : "status"}
-        >
+      {notice?.tone === "error" ? (
+        <p className="shop-admin-notice shop-admin-notice-error" role="alert">
           {notice.text}
         </p>
       ) : null}
+      {/* Mounted empty so each decision is announced when it lands. */}
+      <p className="shop-admin-notice shop-admin-notice-success plan-requests-status" role="status">
+        {notice?.tone === "success" ? notice.text : ""}
+      </p>
       {state.status === "loading" ? (
-        <div aria-busy="true" aria-label="Loading plan requests" className="plan-requests-skeleton">
+        <div aria-busy="true" className="plan-requests-skeleton" role="status">
+          <span className="visually-hidden">Loading plan requests</span>
           <div />
           <div />
         </div>

@@ -382,6 +382,11 @@
   padding: 0.6rem 1rem;
 }
 
+.client-membership-person input,
+.client-plan-people-times input {
+  accent-color: var(--bpt-purple);
+}
+
 .client-membership-person:has(input:checked) {
   border-color: var(--bpt-purple);
   box-shadow: inset 0 0 0 1px var(--bpt-purple);
@@ -422,8 +427,24 @@
   border-color: var(--bpt-purple);
 }
 
+.client-plan-people-card:focus-visible,
+.client-plan-people-form input:focus-visible,
+.client-plan-people-form select:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 2px;
+}
+
 .client-plan-people-card span {
   color: var(--muted);
+}
+
+.client-plan-people-dialog::backdrop {
+  background: rgba(26, 26, 24, 0.6);
+}
+
+/* A native modal leaves the page scrollable behind it; hold it still while one is open. */
+html:has(dialog[open]:modal) {
+  overflow: hidden;
 }
 
 .client-plan-people-dialog {
@@ -450,6 +471,7 @@
   border: 1px solid var(--line);
   border-radius: 1rem;
   color: var(--mat-ink);
+  font: inherit;
   min-height: 3.15rem;
   padding: 0.6rem 0.8rem;
 }
@@ -482,6 +504,12 @@
 }
 
 .client-plan-people-buttons .button {
-  border-radius: 1rem;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 700;
   min-height: 3.15rem;
+}
+
+.client-plan-people .client-membership-notice:empty {
+  display: none;
 }
