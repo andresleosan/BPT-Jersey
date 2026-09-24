@@ -261,6 +261,7 @@ export {
 export * from "./streak/streak-callables.js";
 export * from "./promotion/promotion-callables.js";
 export * from "./competitors/competitors-callables.js";
+export * from "./session-roster/session-roster-callables.js";
 export * from "./account-settings/account-settings-callables.js";
 export {
   beginMemberRecovery,

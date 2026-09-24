@@ -18,6 +18,8 @@ import {
   type SessionRecord,
 } from "@bpt-jersey/domain/schedule";
 
+import { SessionDetailDialog } from "../session-detail/session-detail-dialog";
+
 export type CalendarEntry = Readonly<{
   session: SessionRecord;
   program: ProgramRecord;
@@ -53,10 +55,14 @@ export function SessionCard({
   onCancelRequest,
 }: SessionCardProps) {
   const [showReason, setShowReason] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
   const { session, program, derived } = entry;
   const status = derived.status;
   const site = sessionSite(session);
   const isIntro = sessionAccessMode(session) === "intro";
+  // Only an ordinary booked class opens its plan and roster; course sessions stay as they are.
+  const detailStudentId =
+    status === "booked" && !session.courseId ? entry.booking?.studentId : undefined;
 
   let action: React.ReactNode;
   if (session.courseId && status === "booked") {
@@ -138,7 +144,15 @@ export function SessionCard({
       data-status={status}
     >
       <span className="session-time">{formatSessionTimeRange(session)}</span>
-      <p className="session-title">{session.title}</p>
+      {detailStudentId ? (
+        <p className="session-title">
+          <button type="button" className="session-card-open" onClick={() => setShowDetail(true)}>
+            {session.title}
+          </button>
+        </p>
+      ) : (
+        <p className="session-title">{session.title}</p>
+      )}
       <p className="session-site">
         {site}
         {isIntro ? " · Free Intro Class" : ""}
@@ -165,6 +179,13 @@ export function SessionCard({
         <p className="session-note" role="status">
           {note}
         </p>
+      ) : null}
+      {showDetail && detailStudentId ? (
+        <SessionDetailDialog
+          sessionId={session.sessionId}
+          studentId={detailStudentId}
+          onClose={() => setShowDetail(false)}
+        />
       ) : null}
     </li>
   );
