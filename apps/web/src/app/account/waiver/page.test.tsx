@@ -30,6 +30,12 @@ const disclaimerApi = vi.hoisted(() => ({
 }));
 vi.mock("../../../lib/disclaimers-client", () => disclaimerApi);
 
+// The academy terms form (moved here from the account gate) has nothing pending in these tests.
+vi.mock("../../../lib/enrolment-waiver-client", () => ({
+  getEnrolmentWaiverStatus: vi.fn(async () => ({ version: "2026-09", pending: [] })),
+  acceptEnrolmentWaiver: vi.fn(),
+}));
+
 import WaiverPage from "./page";
 
 const clauses = [

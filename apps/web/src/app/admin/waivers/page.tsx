@@ -8,6 +8,7 @@ import {
   publishWaiverVersion,
   withdrawCurrentWaiver,
 } from "../../../lib/waiver-client";
+import { AcceptancesPanel } from "./acceptances";
 import { DisclaimerAdminPanel } from "./disclaimer-admin";
 import "../../account/waiver/waiver.css";
 
@@ -20,6 +21,37 @@ const initialClauses: ClauseDraft[] = [
 ];
 
 export default function AdminWaiversPage() {
+  const [tab, setTab] = useState<"versions" | "acceptances">("versions");
+  return (
+    <>
+      <nav aria-label="Waiver views" className="waiver-tabs">
+        <ul role="tablist">
+          {(
+            [
+              ["versions", "Versions"],
+              ["acceptances", "Acceptances"],
+            ] as const
+          ).map(([value, label]) => (
+            <li key={value} role="presentation">
+              <button
+                aria-selected={tab === value}
+                className="waiver-tab"
+                onClick={() => setTab(value)}
+                role="tab"
+                type="button"
+              >
+                {label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      {tab === "versions" ? <WaiverVersions /> : <AcceptancesPanel />}
+    </>
+  );
+}
+
+function WaiverVersions() {
   const [current, setCurrent] = useState<WaiverVersionProjection | null>(null);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [versionLabel, setVersionLabel] = useState("");

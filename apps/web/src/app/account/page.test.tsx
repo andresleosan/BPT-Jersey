@@ -36,10 +36,9 @@ vi.mock("./calendar/member-calendar", () => ({
   ),
 }));
 
-// D12 gate: nothing pending, so the calendar opens once the waiver check resolves.
-vi.mock("../../lib/enrolment-waiver-client", () => ({
-  getEnrolmentWaiverStatus: vi.fn(async () => ({ version: "2026-09", pending: [] })),
-  acceptEnrolmentWaiver: vi.fn(),
+// Q5: the terms status only feeds the per-participant gate; the calendar itself always mounts.
+vi.mock("../../lib/disclaimer-status-client", () => ({
+  getMyDisclaimerStatus: vi.fn(async () => ({ participants: [] })),
 }));
 
 import AccountPage from "./page";

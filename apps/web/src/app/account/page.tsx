@@ -9,7 +9,7 @@ import { AdultClaimGate } from "./adult-claim";
 import { MemberCalendar } from "./calendar/member-calendar";
 import { IntroNotices } from "./intro-notices";
 import { StreakPanel } from "./streak/streak-panel";
-import { WaiverGate } from "./waiver-acceptance";
+import { PendingTermsBanner, WaiverGate } from "./waiver-acceptance";
 import { clearCalendarCache } from "../../lib/calendar/calendar-cache";
 
 import "./account.css";
@@ -42,13 +42,22 @@ function AccountContent() {
   return (
     <AdultClaimGate>
       <WaiverGate>
-        <MemberCalendar
-          cacheKey={session.uid}
-          onSignOut={() => void handleSignOut()}
-          repository={repository}
-          session={{ role, displayName }}
-          topSlot={(studentId) => <><IntroNotices /><StreakPanel key={studentId} studentId={studentId} /></>}
-        />
+        {(gate) => (
+          <MemberCalendar
+            cacheKey={session.uid}
+            onSignOut={() => void handleSignOut()}
+            repository={repository}
+            session={{ role, displayName }}
+            gate={gate}
+            topSlot={(studentId) => (
+              <>
+                <IntroNotices />
+                <PendingTermsBanner studentId={studentId} />
+                <StreakPanel key={studentId} studentId={studentId} />
+              </>
+            )}
+          />
+        )}
       </WaiverGate>
     </AdultClaimGate>
   );
