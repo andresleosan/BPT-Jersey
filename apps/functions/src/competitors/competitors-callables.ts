@@ -3,7 +3,7 @@
  * features register their callables in their own file; `src/index.ts` already re-exports it.
  * Add the callable here and its name to `deploy-runtime.ts`, nothing else touches `index.ts`.
  */
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { error as logError } from "firebase-functions/logger";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
@@ -18,6 +18,7 @@ import {
   type LeaderboardRow,
 } from "@bpt-jersey/domain/members/engagement";
 
+import { fromData as publicSettingsFrom } from "../account-settings/account-settings-service.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { coursesAcademyId } from "../courses/course-public-http.js";
 import { enrolmentStorageSecrets } from "../members/enrolment-payment-proof.js";
@@ -66,21 +67,80 @@ export const buildLeaderboards = onSchedule(
   },
 );
 
-async function neighbourCards(
-  rows: readonly LeaderboardRow[],
+/**
+ * I1: "Show me to other members" and photo removal apply at once, not after the nightly build.
+ * Reads the live settings of the members that would be shown (never the whole cohort), drops the
+ * ones hidden since the build and ranks again until every shown member is still visible. The
+ * requester's own row always stays. Cards sign only the photo the live settings still consent to.
+ */
+async function liveNeighbourCards(
+  db: Firestore,
+  academyId: string,
+  snapshotRows: readonly LeaderboardRow[],
   studentId: string,
-  score: (row: LeaderboardRow) => number,
   r2: R2Client,
 ) {
-  const neighbours = rankNeighbours({ entries: rows, currentStudentId: studentId, score });
-  if (neighbours === null) return null;
-  const card = (row: LeaderboardRow) => toPublicCard(row, r2);
-  const [above, current, below] = await Promise.all([
-    Promise.all(neighbours.above.map(card)),
-    card(neighbours.current),
-    Promise.all(neighbours.below.map(card)),
-  ]);
-  return { above, current, below };
+  const scores = {
+    attendance: (row: LeaderboardRow) => row.attendancesSinceSeasonStart * 1000 + row.streakCount,
+    belt: (row: LeaderboardRow) => row.beltScore,
+  };
+  const live = new Map<string, ReturnType<typeof publicSettingsFrom>>();
+  let rows = snapshotRows;
+  for (;;) {
+    const windows = {
+      attendance: rankNeighbours({
+        entries: rows,
+        currentStudentId: studentId,
+        score: scores.attendance,
+      }),
+      belt: rankNeighbours({ entries: rows, currentStudentId: studentId, score: scores.belt }),
+    };
+    const shown = new Set(
+      [windows.attendance, windows.belt].flatMap((window) =>
+        window === null ? [] : [...window.above, window.current, ...window.below],
+      ),
+    );
+    const unread = [...shown].map((row) => row.studentId).filter((id) => !live.has(id));
+    if (unread.length > 0) {
+      const documents = await db.getAll(
+        ...unread.map((id) => db.doc(`academies/${academyId}/memberPublicSettings/${id}`)),
+      );
+      unread.forEach((id, index) => {
+        const document = documents[index]!;
+        live.set(
+          id,
+          publicSettingsFrom(academyId, id, document.exists ? document.data() : undefined),
+        );
+      });
+    }
+    const hiddenNow = new Set(
+      [...shown]
+        .map((row) => row.studentId)
+        .filter((id) => id !== studentId && live.get(id)?.showToMembers === false),
+    );
+    if (hiddenNow.size === 0) {
+      const card = (row: LeaderboardRow) => {
+        const settings = live.get(row.studentId);
+        const photoObjectKey = settings?.photoConsentAt ? settings.photoObjectKey : null;
+        return toPublicCard({ ...row, photoObjectKey }, r2);
+      };
+      const cards = async (window: (typeof windows)["belt"]) => {
+        if (window === null) return null;
+        const [above, current, below] = await Promise.all([
+          Promise.all(window.above.map(card)),
+          card(window.current),
+          Promise.all(window.below.map(card)),
+        ]);
+        return { above, current, below };
+      };
+      const [attendance, belt] = await Promise.all([
+        cards(windows.attendance),
+        cards(windows.belt),
+      ]);
+      return { attendance, belt };
+    }
+    rows = rows.filter((row) => !hiddenNow.has(row.studentId));
+  }
 }
 
 /** The two members above and below the requested student in their own cohort (R2, R7). */
@@ -111,7 +171,7 @@ export const getCompetitors = onCall(
       );
       const student = await db.doc(`academies/${actor.academyId}/students/${canonicalId}`).get();
       const dateOfBirth = student.get("dateOfBirth");
-      if (!leaderboardEligible(dateOfBirth)) {
+      if (!leaderboardEligible(dateOfBirth, now)) {
         return competitorsResponseSchema.parse({
           cohort: "adults",
           builtAt: null,
@@ -132,16 +192,13 @@ export const getCompetitors = onCall(
         });
       }
       const rows = parsed.data.rows.filter((row) => !row.hidden || row.studentId === canonicalId);
-      const r2 = createPrivateStorageR2Client();
-      const [attendance, belt] = await Promise.all([
-        neighbourCards(
-          rows,
-          canonicalId,
-          (row) => row.attendancesSinceSeasonStart * 1000 + row.streakCount,
-          r2,
-        ),
-        neighbourCards(rows, canonicalId, (row) => row.beltScore, r2),
-      ]);
+      const { attendance, belt } = await liveNeighbourCards(
+        db,
+        actor.academyId,
+        rows,
+        canonicalId,
+        createPrivateStorageR2Client(),
+      );
       return competitorsResponseSchema.parse({
         cohort,
         builtAt: parsed.data.builtAt,

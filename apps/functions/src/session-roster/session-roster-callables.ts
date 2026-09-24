@@ -34,6 +34,7 @@ import { createPrivateStorageR2Client, type R2Client } from "../storage/r2-clien
 const documentId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u);
 const sessionDetailRequestSchema = z.strictObject({ sessionId: documentId, studentId: documentId });
 const notBookedMessage = "This class is only available once you have booked it.";
+const courseSessionMessage = "Class details are not available for course sessions.";
 const rosterLimit = 200;
 
 type Person = {
@@ -119,6 +120,8 @@ export const getSessionDetail = onCall(
         db.doc(`${root}/sessions/${sessionId}`).get(),
         db.collection(`${root}/bookings`).where("sessionId", "==", sessionId).get(),
       ]);
+      // Course-only participants never saw the social settings, so a course session has no roster.
+      if (session.get("courseId")) throw new HttpsError("permission-denied", courseSessionMessage);
       const curriculumResult =
         session.exists && session.get("academyId") === academyId
           ? parseSessionCurriculum(session.get("curriculum"))
@@ -178,7 +181,7 @@ export const getSessionDetail = onCall(
       const self = people[0]!;
 
       // The requester's own cohort decides who they may see; without a date of birth they see nobody else.
-      const eligible = leaderboardEligible(self.dateOfBirth as string | null | undefined);
+      const eligible = leaderboardEligible(self.dateOfBirth as string | null | undefined, now);
       const cohort = eligible ? leaderboardCohort(self.dateOfBirth as string, now) : null;
       const visible = people
         .slice(1)
@@ -187,7 +190,7 @@ export const getSessionDetail = onCall(
             cohort !== null &&
             person.fullName !== "" &&
             person.settings.showToMembers &&
-            leaderboardEligible(person.dateOfBirth as string | null | undefined) &&
+            leaderboardEligible(person.dateOfBirth as string | null | undefined, now) &&
             leaderboardCohort(person.dateOfBirth as string, now) === cohort,
         );
       const hiddenCount = people.length - 1 - visible.length + unresolved;

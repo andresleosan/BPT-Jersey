@@ -374,6 +374,7 @@ test.describe("Member gamification and social layer with Firebase Emulators", ()
 
   test("3 competitors: two above and below in your own cohort, hidden members left out (R2, R7, R8)", async ({
     browser,
+    request,
   }, testInfo) => {
     const w = world(testInfo);
     test.skip(w.skipReason !== null, w.skipReason ?? "");
@@ -422,6 +423,21 @@ test.describe("Member gamification and social layer with Firebase Emulators", ()
       label(w, "Finley Hart"),
       label(w, "Gray Wolfe"),
     ]);
+
+    // I1: hiding yourself takes effect at once, not after the nightly build.
+    const hide = (showToMembers: boolean) =>
+      callAs(request, w.emails.avery!, "setMemberVisibility", {
+        studentId: w.studentIds["Avery Stone"],
+        showToMembers,
+      });
+    expect((await hide(false)).status).toBe(200);
+    await blake.page.reload();
+    await expect(blake.page.getByText("Adults table")).toBeVisible({ timeout: 90_000 });
+    await expect(rows(blake.page).nth(2)).toHaveText(`${label(w, "Blake Rivers")} (you)`);
+    const afterHide = await rows(blake.page).allTextContents();
+    expect(afterHide).not.toContain(label(w, "Avery Stone"));
+    expect(afterHide).toContain(label(w, "Taylor Parker"));
+    expect((await hide(true)).status).toBe(200);
 
     // The 13-year-old, seen by the guardian, is in the teens table and sees no adult.
     const taylor = await member(browser, testInfo, w.emails.taylor!);

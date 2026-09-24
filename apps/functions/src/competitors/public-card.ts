@@ -110,7 +110,7 @@ export async function buildLeaderboardRows(
       data.active !== true ||
       fullName === "" ||
       !onLivePlan.has(document.id) ||
-      !leaderboardEligible(dateOfBirth)
+      !leaderboardEligible(dateOfBirth, nowIso)
     )
       continue;
     candidates.push({

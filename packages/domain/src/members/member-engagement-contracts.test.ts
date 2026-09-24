@@ -173,9 +173,16 @@ describe("leaderboardCohort", () => {
 });
 describe("leaderboardEligible", () => {
   it("excludes students without a readable date of birth", () => {
-    expect(leaderboardEligible("2010-01-01")).toBe(true);
-    expect(leaderboardEligible(null)).toBe(false);
-    expect(leaderboardEligible("nope")).toBe(false);
+    expect(leaderboardEligible("2010-01-01", now)).toBe(true);
+    expect(leaderboardEligible(null, now)).toBe(false);
+    expect(leaderboardEligible("nope", now)).toBe(false);
+  });
+  it("excludes a date of birth after today in Jersey", () => {
+    // 23:30 UTC on 16 September is already 17 September in Jersey (BST).
+    const lateEvening = "2026-09-16T23:30:00.000Z";
+    expect(leaderboardEligible("2026-09-17", lateEvening)).toBe(true);
+    expect(leaderboardEligible("2026-09-18", lateEvening)).toBe(false);
+    expect(leaderboardEligible("2030-01-01", now)).toBe(false);
   });
 });
 describe("nextProgressTarget", () => {
