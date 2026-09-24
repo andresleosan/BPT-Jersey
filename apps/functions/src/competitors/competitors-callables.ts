@@ -4,6 +4,7 @@
  * Add the callable here and its name to `deploy-runtime.ts`, nothing else touches `index.ts`.
  */
 import { getFirestore } from "firebase-admin/firestore";
+import { error as logError } from "firebase-functions/logger";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { z } from "zod";
@@ -21,6 +22,8 @@ import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { coursesAcademyId } from "../courses/course-public-http.js";
 import { enrolmentStorageSecrets } from "../members/enrolment-payment-proof.js";
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
+import { createMemberDirectoryReadTransaction } from "../members/member-directory-firestore.js";
+import { resolveCanonicalStudentIdInTransaction } from "../members/member-identity-resolution.js";
 import { createFirestoreMemberAccessService } from "../members/member-access-service.js";
 import { createPrivateStorageR2Client, type R2Client } from "../storage/r2-client.js";
 import { buildLeaderboardRows, toPublicCard } from "./public-card.js";
@@ -42,20 +45,24 @@ export const buildLeaderboards = onSchedule(
     const db = getFirestore();
     const now = new Date().toISOString();
     const cohorts = await buildLeaderboardRows(db, academyId, now);
-    const batch = db.batch();
+    // One write per cohort: a cohort that fails the schema (or the document size) keeps yesterday's
+    // snapshot without holding back the other two.
     for (const cohort of ["kids", "teens", "adults"] as const) {
-      // ponytail: one document per cohort, ~1 KB a row → fine below ~800 members per cohort; shard by page past that.
-      batch.set(
-        db.doc(`academies/${academyId}/leaderboards/${cohort}`),
-        leaderboardSnapshotSchema.parse({
-          cohort,
-          builtAt: now,
-          seasonStart: seasonStartFor(now),
-          rows: cohorts.get(cohort) ?? [],
-        }),
-      );
+      const rows = cohorts.get(cohort) ?? [];
+      try {
+        // ponytail: one document per cohort, ~1 KB a row → fine below ~800 members per cohort; shard by page past that.
+        await db.doc(`academies/${academyId}/leaderboards/${cohort}`).set(
+          leaderboardSnapshotSchema.parse({
+            cohort,
+            builtAt: now,
+            seasonStart: seasonStartFor(now),
+            rows,
+          }),
+        );
+      } catch {
+        logError("Leaderboard snapshot not written", { cohort, rowCount: rows.length });
+      }
     }
-    await batch.commit();
   },
 );
 
@@ -94,7 +101,15 @@ export const getCompetitors = onCall(
     try {
       const db = getFirestore();
       const now = new Date().toISOString();
-      const student = await db.doc(`academies/${actor.academyId}/students/${studentId}`).get();
+      // Same resolver as the access service: a member addressed by a historical id finds their row.
+      const canonicalId = await db.runTransaction((tx) =>
+        resolveCanonicalStudentIdInTransaction(
+          createMemberDirectoryReadTransaction(db, tx),
+          actor.academyId,
+          studentId,
+        ),
+      );
+      const student = await db.doc(`academies/${actor.academyId}/students/${canonicalId}`).get();
       const dateOfBirth = student.get("dateOfBirth");
       if (!leaderboardEligible(dateOfBirth)) {
         return competitorsResponseSchema.parse({
@@ -116,16 +131,16 @@ export const getCompetitors = onCall(
           belt: null,
         });
       }
-      const rows = parsed.data.rows.filter((row) => !row.hidden || row.studentId === studentId);
+      const rows = parsed.data.rows.filter((row) => !row.hidden || row.studentId === canonicalId);
       const r2 = createPrivateStorageR2Client();
       const [attendance, belt] = await Promise.all([
         neighbourCards(
           rows,
-          studentId,
+          canonicalId,
           (row) => row.attendancesSinceSeasonStart * 1000 + row.streakCount,
           r2,
         ),
-        neighbourCards(rows, studentId, (row) => row.beltScore, r2),
+        neighbourCards(rows, canonicalId, (row) => row.beltScore, r2),
       ]);
       return competitorsResponseSchema.parse({
         cohort,
