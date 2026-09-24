@@ -27,6 +27,7 @@ const statusFilters = [
   { value: "expiring", label: "Expiring in 30 days", detail: "Plan ends soon" },
   { value: "review", label: "Details to review", detail: "Missing data" },
   { value: "inactive", label: "Inactive", detail: "No longer training" },
+  { value: "guardians", label: "Guardians", detail: "Parents of active members" },
 ] as const;
 type StatusFilter = (typeof statusFilters)[number]["value"] | "everyone";
 
@@ -35,11 +36,23 @@ function groupLabel(row: MemberOverviewRow): string {
   return row.centreConfirmed ? `${band} · ${row.trainingCenter}` : `${band} · centre to be confirmed`;
 }
 
-function planLabel(row: MemberOverviewRow): { title: string; detail: string } {
+/** A guardian with no member record of their own: there is no student profile to open or delete. */
+function isSyntheticGuardian(row: MemberOverviewRow): boolean {
+  return row.studentId.startsWith("guardian:");
+}
+
+export function planLabel(row: MemberOverviewRow): { title: string; detail: string } {
+  if (row.rowKind === "guardian") return { title: "Guardian", detail: "Parent or guardian of an active member" };
   if (!row.plan) return { title: "No plan", detail: row.source === "regyfit" ? "Previous plan not linked" : "—" };
   const ends = row.plan.endsAt ? new Date(row.plan.endsAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null;
   const detail =
-    row.planState === "expired" ? `Expired on ${ends ?? "—"}` : ends ? `Valid until ${ends}` : "Ongoing";
+    row.planState === "expired"
+      ? `Expired on ${ends ?? "—"}`
+      : row.planState === "trial"
+        ? `Trial until ${ends ?? "—"}`
+        : ends
+          ? `Valid until ${ends}`
+          : "Ongoing";
   return { title: row.plan.displayName, detail };
 }
 
@@ -54,7 +67,9 @@ export function matchesStatus(row: MemberOverviewRow, filter: StatusFilter): boo
     case "review":
       return row.flags.length > 0;
     case "inactive":
-      return !row.active;
+      return !row.active && row.rowKind !== "guardian";
+    case "guardians":
+      return row.rowKind === "guardian";
   }
 }
 
@@ -126,11 +141,17 @@ export function MembersWorkspace() {
       label: "Member",
       render: (row: MemberOverviewRow) => (
         <div className="members-cell">
-          <Link className="member-record-link" href={recordHref(row.studentId)}>
-            {row.fullName}
-          </Link>
+          {isSyntheticGuardian(row) ? (
+            <strong>{row.fullName}</strong>
+          ) : (
+            <Link className="member-record-link" href={recordHref(row.studentId)}>
+              {row.fullName}
+            </Link>
+          )}
           <span className="members-cell-detail">
-            {row.age === undefined ? "Age unknown" : `${row.age} years`} · {row.source === "regyfit" ? "Regyfit" : "BPT registration"}
+            {isSyntheticGuardian(row)
+              ? "Guardian account"
+              : `${row.age === undefined ? "Age unknown" : `${row.age} years`} · ${row.source === "regyfit" ? "Regyfit" : "BPT registration"}`}
           </span>
         </div>
       ),
@@ -138,12 +159,18 @@ export function MembersWorkspace() {
     {
       key: "level",
       label: "Level / group",
-      render: (row: MemberOverviewRow) => (
-        <div className="members-cell">
-          <span>{levelLabel(row.levelKey)}</span>
-          <span className="members-cell-detail">{groupLabel(row)}</span>
-        </div>
-      ),
+      render: (row: MemberOverviewRow) =>
+        isSyntheticGuardian(row) ? (
+          <div className="members-cell">
+            <span>—</span>
+            <span className="members-cell-detail">{row.trainingCenter}</span>
+          </div>
+        ) : (
+          <div className="members-cell">
+            <span>{levelLabel(row.levelKey)}</span>
+            <span className="members-cell-detail">{groupLabel(row)}</span>
+          </div>
+        ),
     },
     {
       key: "plan",
@@ -187,7 +214,12 @@ export function MembersWorkspace() {
     {
       key: "actions",
       label: "Actions",
-      render: (row: MemberOverviewRow) => <DeleteAccountButton row={row} onDeleted={reload} />,
+      render: (row: MemberOverviewRow) =>
+        isSyntheticGuardian(row) ? (
+          <span className="members-cell-detail">—</span>
+        ) : (
+          <DeleteAccountButton row={row} onDeleted={reload} />
+        ),
     },
   ];
 
