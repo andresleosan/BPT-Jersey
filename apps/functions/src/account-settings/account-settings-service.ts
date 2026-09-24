@@ -79,7 +79,7 @@ function defaults(academyId: string, studentId: string): MemberPublicSettingsDoc
 
 const nullableString = (value: unknown): string | null => (typeof value === "string" && value.length > 0 ? value : null);
 
-function fromData(academyId: string, studentId: string, data: Readonly<Record<string, unknown>> | undefined): MemberPublicSettingsDoc {
+export function fromData(academyId: string, studentId: string, data: Readonly<Record<string, unknown>> | undefined): MemberPublicSettingsDoc {
   const base = defaults(academyId, studentId);
   if (!data) return base;
   return {
