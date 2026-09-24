@@ -55,9 +55,9 @@ function studentAccountLinker(): StudentAccountLinker {
     firestore: createMemberDirectoryFirestoreAdapters(getFirestore()).writer,
   });
   // requireMemberAccountActor has already required App Check and an active member account.
-  return ({ actor, studentId, userId, now }) => directory.setStudentAccountLink({
+  return ({ actor, studentId, userId, expectedUserId, now }) => directory.setStudentAccountLink({
     actor: { actorId: actor.userId, academyId: actor.academyId, role: "guardian", active: true, appCheckVerified: true },
-    studentId, userId, now,
+    studentId, userId, expectedUserId, now,
   });
 }
 

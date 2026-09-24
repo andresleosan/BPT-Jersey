@@ -66,7 +66,9 @@ export type TeenAccessAuth = Readonly<{
   revokeRefreshTokens: (uid: string) => Promise<void>;
 }>;
 /** Sets or clears `students/{studentId}.userId` through the canonical directory writer. */
-export type StudentAccountLinker = (input: Readonly<{ actor: MemberActor; studentId: string; userId: string | null; now: string }>) => Promise<void>;
+export type StudentAccountLinker = (input: Readonly<{
+  actor: MemberActor; studentId: string; userId: string | null; expectedUserId: string | null; now: string;
+}>) => Promise<void>;
 
 function defaults(academyId: string, studentId: string): MemberPublicSettingsDoc {
   return {
@@ -330,7 +332,6 @@ export function createAccountSettingsService(deps: AccountSettingsDependencies) 
         throw new HttpsError("unavailable", teenUnavailableMessage);
       }
       const at = now();
-      let linked = false;
       try {
         await teen.auth.setCustomUserClaims(uid, { academyId: actor.academyId, role: "teenStudent" });
         const profile: UserProfile = {
@@ -341,17 +342,21 @@ export function createAccountSettingsService(deps: AccountSettingsDependencies) 
         const parsedProfile = parseUserProfile(profile);
         if (!parsedProfile.ok) throw new Error("Teen user profile is invalid");
         await db.doc(userPath(actor.academyId, uid)).create(parsedProfile.value);
-        await teen.linkStudentAccount({ actor, studentId, userId: uid, now: at });
-        linked = true;
+        await teen.linkStudentAccount({ actor, studentId, userId: uid, expectedUserId: null, now: at });
         const doc: TeenAccessDoc = {
           academyId: actor.academyId, studentId, uid, email: input.email,
           createdBy: actor.userId, createdAt: at, adultClaimedAt: null, revokedAt: null,
         };
         await db.doc(teenAccessPath(actor.academyId, studentId)).set(doc);
       } catch {
-        if (linked) {
-          await teen.linkStudentAccount({ actor, studentId, userId: null, now: now() }).catch(() =>
-            warn("Teen access rollback could not unlink the student", { academyId: actor.academyId, studentId }));
+        // The link write may have committed even if the call failed: re-read and unlink only our own uid.
+        try {
+          const { student: current } = await studentAge(actor.academyId, studentId);
+          if (current.userId === uid) {
+            await teen.linkStudentAccount({ actor, studentId, userId: null, expectedUserId: uid, now: now() });
+          }
+        } catch {
+          warn("Teen access rollback could not unlink the student", { academyId: actor.academyId, studentId });
         }
         await db.doc(userPath(actor.academyId, uid)).delete().catch(() => undefined);
         await teen.auth.deleteUser(uid).catch(() =>
@@ -376,7 +381,7 @@ export function createAccountSettingsService(deps: AccountSettingsDependencies) 
         await teen.auth.revokeRefreshTokens(doc.uid);
         await db.doc(userPath(actor.academyId, doc.uid)).update({ active: false, updatedAt: at, updatedBy: actor.userId });
         const { student } = await studentAge(actor.academyId, studentId);
-        if (student.userId === doc.uid) await teen.linkStudentAccount({ actor, studentId, userId: null, now: at });
+        if (student.userId === doc.uid) await teen.linkStudentAccount({ actor, studentId, userId: null, expectedUserId: doc.uid, now: at });
         await db.doc(teenAccessPath(actor.academyId, studentId)).update({ revokedAt: at });
       } catch {
         throw new HttpsError("unavailable", "Own access could not be removed. Try again.");
@@ -404,9 +409,11 @@ export function createAccountSettingsService(deps: AccountSettingsDependencies) 
       const own = await ownTeenAccess(actor);
       if (!own || !own.required || own.studentId !== input.studentId) throw new HttpsError("failed-precondition", "There is nothing to claim on this account.");
       const at = now();
-      await db.doc(teenAccessPath(actor.academyId, own.studentId)).update({ adultClaimedAt: at });
-      await teen.auth.setCustomUserClaims(actor.userId, { academyId: actor.academyId, role: "adultStudent" });
+      // Marker last: every step before it is idempotent, so a partial failure leaves the block showing
+      // and a retry completes the hand-over. Revoke first so no older session mints an adult token.
       await teen.auth.revokeRefreshTokens(actor.userId);
+      await teen.auth.setCustomUserClaims(actor.userId, { academyId: actor.academyId, role: "adultStudent" });
+      await db.doc(teenAccessPath(actor.academyId, own.studentId)).update({ adultClaimedAt: at });
       return {};
     },
 

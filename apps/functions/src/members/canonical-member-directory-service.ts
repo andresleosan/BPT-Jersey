@@ -142,6 +142,8 @@ export type SetStudentAccountLinkCommand = Readonly<{
   actor: CanonicalMemberDirectoryActor;
   studentId: string;
   userId: string | null;
+  /** The link the caller believes is stored; any other value is a conflict, so nobody clears a link they did not make. */
+  expectedUserId: string | null;
   now: string;
 }>;
 
@@ -1838,6 +1840,8 @@ export function createCanonicalMemberDirectoryService(
       const actorId = requiredIdentifier(actor.actorId, "actor ID");
       const studentId = requiredIdentifier(command.studentId, "student ID");
       const userId = command.userId === null ? null : requiredIdentifier(command.userId, "account user ID");
+      const expectedUserId =
+        command.expectedUserId === null ? null : requiredIdentifier(command.expectedUserId, "expected account user ID");
       const now = requiredTimestamp(command.now);
       const operationId = requiredIdentifier(`account-link-${generateAuditId()}`, "operation ID");
       const auditEventId = requiredIdentifier(generateAuditId(), "generated audit ID");
@@ -1893,8 +1897,8 @@ export function createCanonicalMemberDirectoryService(
             "Canonical member record is unavailable",
           );
         }
-        if (userId !== null && existing.value.userId !== undefined) {
-          throw new CanonicalMemberDirectoryError("conflict", "Member already has an account");
+        if ((existing.value.userId ?? null) !== expectedUserId) {
+          throw new CanonicalMemberDirectoryError("conflict", "Member account link has changed");
         }
         const withoutUser = Object.fromEntries(
           Object.entries(stored).filter(([field]) => field !== "userId"),
