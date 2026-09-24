@@ -33,6 +33,8 @@ type SessionCardProps = Readonly<{
   busy: boolean;
   /** The member is on a free trial, so an ordinary class is still one of their free ones. */
   hasTrial?: boolean;
+  /** The participant whose eyes the detail uses (cohort, own booking); absent means no detail. */
+  studentId?: string | undefined;
   note?: string | undefined;
   onBook: (entry: CalendarEntry) => void;
   onCancelRequest: (entry: CalendarEntry) => void;
@@ -50,6 +52,7 @@ export function SessionCard({
   now,
   busy,
   hasTrial = false,
+  studentId,
   note,
   onBook,
   onCancelRequest,
@@ -61,12 +64,8 @@ export function SessionCard({
   const status = derived.status;
   const site = sessionSite(session);
   const isIntro = sessionAccessMode(session) === "intro";
-  // Only an ordinary class with a confirmed booking opens its plan and roster ("booked" also covers
-  // bookings still awaiting approval, which the server refuses); course sessions stay as they are.
-  const detailStudentId =
-    status === "booked" && !session.courseId && entry.booking?.status === "confirmed"
-      ? entry.booking.studentId
-      : undefined;
+  // Every ordinary class opens its plan and roster, booked or not; course sessions have no roster.
+  const detailStudentId = session.courseId ? undefined : studentId;
 
   let action: React.ReactNode;
   if (session.courseId && status === "booked") {
@@ -143,7 +142,7 @@ export function SessionCard({
 
   return (
     <li
-      className={`session-card session-card--${status}`}
+      className={`session-card session-card--${status}${detailStudentId ? " session-card--openable" : ""}`}
       data-session-id={session.sessionId}
       data-status={status}
     >
@@ -153,9 +152,11 @@ export function SessionCard({
           <button
             type="button"
             className="session-card-open"
+            aria-haspopup="dialog"
             onClick={(event) => setDetailOpener(event.currentTarget)}
           >
             {session.title}
+            <span className="visually-hidden">: see the plan and who is coming</span>
           </button>
         </p>
       ) : (
@@ -192,6 +193,7 @@ export function SessionCard({
         <SessionDetailDialog
           sessionId={session.sessionId}
           studentId={detailStudentId}
+          heading={`${formatSessionTimeRange(session)} · ${session.title}`}
           returnFocus={detailOpener}
           onClose={() => setDetailOpener(null)}
         />

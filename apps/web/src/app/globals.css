@@ -3626,4 +3626,79 @@ button:focus-visible {
   gap: 1rem;
 }
 
-.client-course-nav{display:flex;flex-wrap:wrap;gap:.75rem 1.5rem;padding:.75rem clamp(1.25rem,4vw,4.5rem);background:#F2F1ED;border-bottom:1px solid #D9D8D2}.client-course-nav a{color:#2F2483;min-height:2.75rem;display:inline-flex;align-items:center;font-weight:600}.client-course-nav a:focus-visible{outline:3px solid #2F2483;outline-offset:3px}
+
+/* /account back buttons: every way back inside the member area leads to /account and reads as one
+   control (DESIGN.md §9 pill). Ink outline on canvas, white outline on purple. */
+.account-eyebrow > a[href="/account"],
+a.client-billing-back,
+a.client-membership-back,
+a.profile-back-link,
+a.waiver-back-link {
+  align-items: center;
+  border: 1px solid var(--mat-ink);
+  border-radius: 999px;
+  color: var(--mat-ink);
+  display: inline-flex;
+  font-size: 0.85rem;
+  font-weight: 700;
+  gap: 0.45rem;
+  letter-spacing: 0.025em;
+  min-height: 2.75rem;
+  padding: 0.5rem 1.1rem;
+  text-decoration: none;
+  text-transform: none;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+a.profile-back-link,
+a.waiver-back-link {
+  border-color: rgba(255, 255, 255, 0.55);
+  color: var(--gi-white);
+}
+
+.account-eyebrow > a[href="/account"]:hover,
+a.client-billing-back:hover,
+a.client-membership-back:hover {
+  background: var(--mat-ink);
+  color: var(--gi-white);
+  transform: translateY(-2px);
+}
+
+a.profile-back-link:hover,
+a.waiver-back-link:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--gi-white);
+  transform: translateY(-2px);
+}
+
+.account-eyebrow > a[href="/account"]:focus-visible,
+a.client-billing-back:focus-visible,
+a.client-membership-back:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+
+/* Member subpages open close to the top: the back button, then the title, no empty band. */
+.client-destination:has(> .account-eyebrow > a[href="/account"]) {
+  padding-top: clamp(1.25rem, 4vw, 3rem);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .account-eyebrow > a[href="/account"],
+  a.client-billing-back,
+  a.client-membership-back,
+  a.profile-back-link,
+  a.waiver-back-link {
+    transition: none;
+  }
+  .account-eyebrow > a[href="/account"]:hover,
+  a.client-billing-back:hover,
+  a.client-membership-back:hover,
+  a.profile-back-link:hover,
+  a.waiver-back-link:hover {
+    transform: none;
+  }
+}

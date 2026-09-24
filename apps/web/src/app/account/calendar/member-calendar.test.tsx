@@ -484,7 +484,7 @@ describe("MemberCalendar", () => {
         />,
       );
       await screen.findByRole("slider", { name: /Teens BJJ/u });
-      await screen.findByText("Leo is ready too — switch to Leo");
+      await screen.findByText("Leo is ready too. Switch to Leo");
       await userEvent.click(screen.getByRole("button", { name: "Leo" }));
       await screen.findByRole("slider", { name: /Kids BJJ/u });
       await screen.findByText("Maya is ready too — switch to Maya");

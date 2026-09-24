@@ -15,7 +15,11 @@ function courseAvailability(course: PublicCourse): string {
   return "Places available";
 }
 
-export function CourseCatalogue() {
+/**
+ * The public catalogue. Inside /account, `onChoose` keeps the member there: a course opens the
+ * enrolment panel in place instead of the public programme page.
+ */
+export function CourseCatalogue({ onChoose }: Readonly<{ onChoose?: (courseId: string) => void }> = {}) {
   const [page, setPage] = useState<CoursePage<PublicCourse> | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -77,9 +81,11 @@ export function CourseCatalogue() {
         <div className="course-panel course-empty">
           <h3>New courses are on the way</h3>
           <p>Ask the academy about the next programme.</p>
-          <a className="course-button" href="/#contact">
-            Contact the academy
-          </a>
+          {onChoose ? null : (
+            <a className="course-button" href="/#contact">
+              Contact the academy
+            </a>
+          )}
         </div>
       ) : null}
 
@@ -93,7 +99,11 @@ export function CourseCatalogue() {
                   <span>Ages {participantAges(course)}</span>
                 </p>
                 <h3>
-                  <a href={`/courses/view?course=${course.courseId}`}>{course.title}</a>
+                  {onChoose ? (
+                    course.title
+                  ) : (
+                    <a href={`/courses/view?course=${course.courseId}`}>{course.title}</a>
+                  )}
                 </h3>
                 <p className="course-description-preview">
                   {course.description.length > 420
@@ -123,12 +133,24 @@ export function CourseCatalogue() {
                 <p className="course-availability">{courseAvailability(course)}</p>
                 <p className="course-price">{courseMoney(course.priceMinor)}</p>
                 <p className="course-meta">One payment</p>
-                <a
-                  className="course-button secondary"
-                  href={`/courses/view?course=${course.courseId}`}
-                >
-                  {course.availability === "waitlist" ? "View waitlist" : "View programme"}
-                </a>
+                {onChoose ? (
+                  course.availability === "closed" ? null : (
+                    <button
+                      className="course-button secondary"
+                      onClick={() => onChoose(course.courseId)}
+                      type="button"
+                    >
+                      {course.availability === "waitlist" ? "Join the waitlist" : "Enrol"}
+                    </button>
+                  )
+                ) : (
+                  <a
+                    className="course-button secondary"
+                    href={`/courses/view?course=${course.courseId}`}
+                  >
+                    {course.availability === "waitlist" ? "View waitlist" : "View programme"}
+                  </a>
+                )}
               </div>
             </article>
           </li>

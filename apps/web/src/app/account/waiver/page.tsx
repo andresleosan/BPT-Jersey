@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import type {
@@ -197,9 +199,9 @@ function WaiverContent() {
   return (
     <main className="waiver-page" id="main-content" aria-labelledby="waiver-title">
       <header className="waiver-hero">
-        <a href="/account" className="waiver-back-link">
+        <Link href="/account" className="waiver-back-link">
           <span aria-hidden="true">&larr;</span> Back to account
-        </a>
+        </Link>
         <p className="account-eyebrow">BPT Jersey / Registration evidence</p>
         <h1 id="waiver-title">Waiver registration</h1>
         <p>

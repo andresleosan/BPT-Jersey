@@ -15,17 +15,20 @@ type State =
   | { kind: "ready"; detail: SessionDetailResponse };
 
 /**
- * The coach's plan and who is coming, for a session the participant booked. Opens on mount as a native
+ * The coach's plan and who is coming, for any ordinary session (booked or not). Opens on mount as a native
  * dialog, closes on Esc or «Close», and gives focus back to the card title that opened it.
  */
 export function SessionDetailDialog({
   sessionId,
   studentId,
+  heading,
   onClose,
   returnFocus,
 }: Readonly<{
   sessionId: string;
   studentId: string;
+  /** Time and title of the class, so the dialog says which one it is. */
+  heading?: string;
   onClose: () => void;
   /** Safari does not focus a clicked button, so the caller hands over the opener. */
   returnFocus?: HTMLElement | null;
@@ -86,9 +89,14 @@ export function SessionDetailDialog({
       <dialog
         ref={ref}
         className="member-card-dialog session-detail-dialog"
-        aria-labelledby="session-detail-plan"
+        aria-labelledby={heading ? "session-detail-heading" : "session-detail-plan"}
         onClose={onClose}
       >
+        {heading ? (
+          <p className="session-detail-heading" id="session-detail-heading">
+            {heading}
+          </p>
+        ) : null}
         {state.kind === "loading" ? (
           <div className="session-detail-skeleton" aria-busy="true" role="status">
             <span className="visually-hidden">Loading this class</span>
@@ -130,6 +138,9 @@ export function SessionDetailDialog({
         {state.kind === "ready" ? (
           <section className="session-detail-section">
             <h2>Who&apos;s coming</h2>
+            {state.detail.roster.length === 0 && state.detail.hiddenCount === 0 ? (
+              <p className="competitor-muted">Nobody has booked this class yet.</p>
+            ) : null}
             <ul className="competitor-list">
               {state.detail.roster.map(({ card, isYou }) => {
                 const body = (

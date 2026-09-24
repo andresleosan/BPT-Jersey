@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useState } from "react";
 
 import { ClientAuthGate, ClientAuthProvider } from "../../../lib/client-auth";
@@ -37,7 +39,9 @@ function FamilyContent() {
   if (status === "error") {
     return (
       <main className="client-destination family-client-page" aria-labelledby="family-title">
-        <p className="account-eyebrow">BPT Jersey / Family</p>
+        <p className="account-eyebrow">
+          <Link href="/account">← Back to Account</Link>
+        </p>
         <h1 id="family-title">Your family</h1>
         <p aria-live="assertive" className="family-message family-message-error" role="alert">
           Unable to load your family. Please try again.
@@ -49,7 +53,9 @@ function FamilyContent() {
   if (status === "empty" || family === undefined) {
     return (
       <main className="client-destination family-client-page" aria-labelledby="family-title">
-        <p className="account-eyebrow">BPT Jersey / Family</p>
+        <p className="account-eyebrow">
+          <Link href="/account">← Back to Account</Link>
+        </p>
         <h1 id="family-title">Your family</h1>
         <p className="family-empty-state">No family has been linked to your account yet.</p>
       </main>
@@ -58,7 +64,9 @@ function FamilyContent() {
 
   return (
     <main className="client-destination family-client-page" aria-labelledby="family-title">
-      <p className="account-eyebrow">BPT Jersey / Family</p>
+      <p className="account-eyebrow">
+        <Link href="/account">← Back to Account</Link>
+      </p>
       <h1 id="family-title">Your family</h1>
       <p className="client-destination-intro">
         A read-only view of the children connected to your guardian account.

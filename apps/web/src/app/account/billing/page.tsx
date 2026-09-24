@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useCallback, useEffect, useState } from "react";
 
 import { ClientAuthGate, ClientAuthProvider } from "../../../lib/client-auth";
@@ -65,9 +67,9 @@ function BillingContent() {
 
   return (
     <main className="client-destination client-billing-page" aria-labelledby="billing-title">
-      <a className="client-billing-back" href="/account">
+      <Link className="client-billing-back" href="/account">
         <span aria-hidden="true">&larr;</span> Back to account
-      </a>
+      </Link>
       <p className="account-eyebrow">BPT Jersey / Billing</p>
       <h1 id="billing-title">Invoices & payments</h1>
       <p className="client-destination-intro">

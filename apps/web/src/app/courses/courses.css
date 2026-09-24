@@ -1292,3 +1292,20 @@
   outline: 3px solid var(--bpt-purple);
   outline-offset: 3px;
 }
+
+/* /account/courses: one hub (requests + catalogue) that never leaves the member area. */
+.course-account > .account-eyebrow {
+  margin: 0;
+}
+
+.course-account .course-page-hero {
+  padding: clamp(1.5rem, 4vw, 3rem) 0 clamp(1.5rem, 4vw, 2.5rem);
+}
+
+.course-account .course-catalogue {
+  margin-top: clamp(2.5rem, 6vw, 4rem);
+}
+
+.course-account-panel {
+  scroll-margin-top: 1rem;
+}

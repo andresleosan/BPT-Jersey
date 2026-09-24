@@ -11,7 +11,7 @@ function milestoneNotice(outlook: Outlook): string | null {
     case "oneLeft":
       return `1 more class and your coach can assess you for ${outlook.nextName}.`;
     case "90":
-      return "You're at 90% — your coach can assess you soon.";
+      return "You're at 90%: your coach can assess you soon.";
     case "75":
       return `75% of the way to ${outlook.nextName}.`;
     default:

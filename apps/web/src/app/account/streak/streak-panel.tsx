@@ -29,7 +29,7 @@ function Bar({
 }: Readonly<{ bar: ProgressBar; base: number; noun: "goal" | "reward" }>) {
   const done = base - bar.remaining;
   return (
-    <div className={`streak-bar${bar.almost ? " is-almost" : ""}`}>
+    <div className={`streak-bar streak-bar--${noun}${bar.almost ? " is-almost" : ""}`}>
       <div className="streak-bar-head">
         <span>{bar.label}</span>
         <span>
@@ -47,7 +47,7 @@ function Bar({
 }
 
 /**
- * Streak slot above the purple header (T042V2). Both calls load together so the card appears once,
+ * Streak slot between the purple header and the calendar (T042V2). Both calls load together so the card appears once,
  * at the skeleton's height. Any error hides the slot; a missing outlook only drops the belt bar.
  * Mounted with `key={studentId}`, so switching participant starts again from the skeleton.
  */
