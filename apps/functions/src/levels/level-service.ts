@@ -1229,7 +1229,7 @@ function promotionAssignmentOf(
 }
 
 /** The student's attended/late, uncorrected attendance; every record must carry a real time. */
-function countedAttendance(
+export function countedAttendance(
   snapshot: GenericQuerySnapshot,
   academyId: string,
   studentId: string,

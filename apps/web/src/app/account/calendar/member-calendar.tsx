@@ -62,8 +62,13 @@ type MemberCalendarProps = Readonly<{
   repository: CalendarRepository;
   session: Readonly<{ role: CalendarMember["role"]; displayName: string }>;
   onSignOut: () => void;
-  /** Rendered after the check-in slider and before the purple header: the streak panel (T042V2). */
-  topSlot?: ReactNode;
+  /**
+   * Rendered after the check-in slider and before the purple header: the streak panel (T042V2).
+   * A function receives the selected participant and renders nothing until one is selected.
+   */
+  topSlot?: ReactNode | ((studentId: string) => ReactNode);
+  /** Non-null for the selected participant: rendered in place of the week (and check-in); the selector stays. */
+  gate?: (studentId: string) => ReactNode | null;
   /** The signed-in uid: paints the last member and week at once while the live load runs. */
   cacheKey?: string;
 }>;
@@ -142,6 +147,7 @@ export function MemberCalendar({
   session,
   onSignOut,
   topSlot,
+  gate,
   cacheKey,
 }: MemberCalendarProps) {
   const viewport = useViewport();
@@ -609,12 +615,15 @@ export function MemberCalendar({
       ? siblingReady.names[0] + " is ready too — switch to " + siblingReady.names[0]
       : undefined;
   const candidateScope = candidate && participant ? loadedWeekScope : undefined;
+  const top =
+    typeof topSlot === "function" ? (selectedStudentId ? topSlot(selectedStudentId) : null) : topSlot;
+  const blocked = selectedStudentId ? (gate?.(selectedStudentId) ?? null) : null;
 
   // A teen account neither sees nor manages the plan (B3): the bands keep their text, not the link.
   const planLink = session.role === "teenStudent" ? null : <a href="/account/membership">Choose a plan</a>;
   return (
     <main className="member-app">
-      {!failed && weekState === "ready" && candidate && participant ? (
+      {!blocked && !failed && weekState === "ready" && candidate && participant ? (
         <ReadyForJiuJitsu
           candidate={candidate}
           clockIn={(input) => repository.clockIn(input)}
@@ -627,7 +636,7 @@ export function MemberCalendar({
           {...(siblingHint ? { siblingHint } : {})}
         />
       ) : null}
-      {topSlot}
+      {top}
       <CalendarHeader
         canNext={!failed && next !== null}
         canPrev={!failed && prev !== null}
@@ -671,7 +680,9 @@ export function MemberCalendar({
         </p>
       ) : null}
       <div className="member-body">
-        {failed ? (
+        {blocked ? (
+          blocked
+        ) : failed ? (
           <div className="calendar-error" role="alert">
             <p>Couldn&apos;t load your calendar.</p>
             <button
