@@ -18,6 +18,7 @@ const baseRecord = {
   applicantIsStudent: true,
   approvalRequestId: "6f1d2f66-6f4f-4a2e-9a0e-2b6f0a4a1c11",
   approvalStartedAt: "2026-09-20T12:00:00.000Z",
+  minors: [],
   planSelections: { applicant: "town-adult", minors: [] },
   payment: {
     amountMinor: 8500,
