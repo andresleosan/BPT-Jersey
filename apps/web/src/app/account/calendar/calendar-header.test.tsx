@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { CalendarParticipant } from "../../../lib/calendar";
-import { CalendarHeader } from "./calendar-header";
+import { CalendarHeader, DayStrip } from "./calendar-header";
 
 const days = [
   { dateKey: "2026-09-16", weekday: "Wed", dayNumber: 16, isToday: true, startAt: "", endAt: "" },
@@ -33,12 +33,7 @@ const leo: CalendarParticipant = {
 function renderHeader(props: Partial<Parameters<typeof CalendarHeader>[0]> = {}) {
   return render(
     <CalendarHeader
-      canNext
-      canPrev={false}
-      days={days}
       displayName="Jordan Demo"
-      onNext={vi.fn()}
-      onPrev={vi.fn()}
       onSelectStudent={vi.fn()}
       onSignOut={vi.fn()}
       participants={[maya]}
@@ -51,20 +46,29 @@ function renderHeader(props: Partial<Parameters<typeof CalendarHeader>[0]> = {})
 describe("CalendarHeader", () => {
   afterEach(cleanup);
 
-  it("shows the first name, day pills with today marked, and arrows", async () => {
-    const onNext = vi.fn();
-    renderHeader({ onNext });
+  it("shows the first name without the day strip, which heads the calendar", () => {
+    renderHeader();
     expect(screen.getByRole("heading", { name: "Jordan" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Earlier" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Choose member" })).not.toBeInTheDocument();
+  });
+
+  it("shows day pills with today marked, and arrows", async () => {
+    const onNext = vi.fn();
+    render(<DayStrip canNext canPrev={false} days={days} onNext={onNext} onPrev={vi.fn()} />);
     expect(screen.getByText("16").closest(".day-pill")).toHaveClass("day-pill--today");
     expect(screen.getByRole("button", { name: "Earlier" })).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: "Later" }));
     expect(onNext).toHaveBeenCalled();
-    expect(screen.queryByRole("group", { name: "Choose member" })).not.toBeInTheDocument();
   });
 
-  it("links to progress, competitors and settings from the header", () => {
+  it("links to courses, progress, competitors and settings from the header", () => {
     renderHeader();
     const nav = within(screen.getByRole("navigation", { name: "Account" }));
+    expect(nav.getByRole("link", { name: "Courses & Seminars" })).toHaveAttribute(
+      "href",
+      "/account/courses",
+    );
     expect(nav.getByRole("link", { name: "Progress" })).toHaveAttribute(
       "href",
       "/account/progress",

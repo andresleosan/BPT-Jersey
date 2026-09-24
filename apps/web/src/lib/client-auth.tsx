@@ -188,7 +188,7 @@ export function ClientAuthGate({
   returnPath: AuthDestination;
   allow?: readonly ClientAccountRole[];
 }>) {
-  const { status, session } = useClientSession();
+  const { status, session, signOut } = useClientSession();
 
   if (status === "loading") {
     return <div className="client-auth-loading" aria-busy="true" />;
@@ -197,7 +197,7 @@ export function ClientAuthGate({
   if (status === "signed-in") {
     const role = session?.role;
     if (role === undefined || allow.includes(role)) {
-      return <><nav className="client-course-nav" aria-label="Course access"><a href="/courses">Courses &amp; seminars</a><a href="/account/courses">My course requests</a></nav>{children}</>;
+      return <>{children}</>;
     }
 
     return (
@@ -214,14 +214,19 @@ export function ClientAuthGate({
             Ask for a place
           </a>
           <a className="button button-secondary" href="/account/courses">
-            My courses
+            Courses &amp; Seminars
           </a>
           <a className="button button-secondary" href="/shop">
             Go to the club shop
           </a>
-          <a className="button button-secondary" href="/">
-            Back to the home page
-          </a>
+          {/* Inside /account only Sign out leads back to the public site. */}
+          <button
+            className="button button-secondary"
+            onClick={() => void signOut().then(() => { window.location.assign(new URL("/", window.location.origin).href); })}
+            type="button"
+          >
+            Sign out
+          </button>
         </div>
       </main>
     );
@@ -237,9 +242,6 @@ export function ClientAuthGate({
       <div className="hero-actions">
         <a className="button button-primary" href={requirement.loginPath}>
           Sign in
-        </a>
-        <a className="button button-secondary" href="/">
-          Back to the home page
         </a>
       </div>
     </main>

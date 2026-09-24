@@ -1,5 +1,7 @@
 /**
- * Session detail for a member who booked the class (T044V2): the coach's plan and who is coming.
+ * Session detail for any ordinary class a member can see (T044V2): the coach's plan and who is coming.
+ * The operator opened it to members who have not booked yet (2026-09-24); the cohort and consent
+ * filters below still decide who appears.
  * Everything another member sees goes through a MemberPublicCard; anyone outside the requester's own
  * cohort, hidden, or without a date of birth only adds to `hiddenCount` and never leaves an id.
  */
@@ -33,7 +35,6 @@ import { createPrivateStorageR2Client, type R2Client } from "../storage/r2-clien
 // Both ids end up in document paths, so no slashes or other path characters.
 const documentId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u);
 const sessionDetailRequestSchema = z.strictObject({ sessionId: documentId, studentId: documentId });
-const notBookedMessage = "This class is only available once you have booked it.";
 const courseSessionMessage = "Class details are not available for course sessions.";
 const rosterLimit = 200;
 
@@ -90,7 +91,7 @@ async function minimalCard(
   };
 }
 
-/** The plan and the roster of a session the requested participant holds a confirmed booking on (R9, R10). */
+/** The plan and the roster of an ordinary academy session; the requester appears only when booked. */
 export const getSessionDetail = onCall(
   { ...browserAdminCallableOptions, secrets: enrolmentStorageSecrets },
   async (request) => {
@@ -113,20 +114,17 @@ export const getSessionDetail = onCall(
       // Canonical id first, then its historical ids: a booking under an old identity still counts.
       const identityIds = await readCanonicalMemberIdentityIds(db, academyId, studentId);
       const canonicalId = identityIds[0] ?? studentId;
-      if (!(await requesterHasConfirmedBooking(db, academyId, sessionId, identityIds)))
-        throw new HttpsError("permission-denied", notBookedMessage);
-
-      const [session, bookings] = await Promise.all([
+      const [session, bookings, selfBooked] = await Promise.all([
         db.doc(`${root}/sessions/${sessionId}`).get(),
         db.collection(`${root}/bookings`).where("sessionId", "==", sessionId).get(),
+        requesterHasConfirmedBooking(db, academyId, sessionId, identityIds),
       ]);
+      if (!session.exists || session.get("academyId") !== academyId)
+        throw new HttpsError("not-found", "This class is not available.");
       // Course-only participants never saw the social settings, so a course session has no roster.
       if (session.get("courseId")) throw new HttpsError("permission-denied", courseSessionMessage);
-      const curriculumResult =
-        session.exists && session.get("academyId") === academyId
-          ? parseSessionCurriculum(session.get("curriculum"))
-          : null;
-      const curriculum = curriculumResult?.ok ? curriculumResult.value : null;
+      const curriculumResult = parseSessionCurriculum(session.get("curriculum"));
+      const curriculum = curriculumResult.ok ? curriculumResult.value : null;
 
       // Confirmed bookings under the same rule as the gate; a member marked absent (the calendar's
       // `schemaVersion === "2" && absent` signal) is not coming, so is neither listed nor counted.
@@ -222,7 +220,10 @@ export const getSessionDetail = onCall(
 
       return sessionDetailResponseSchema.parse({
         curriculum,
-        roster: [{ card: mine!, isYou: true }, ...theirs.map((card) => ({ card, isYou: false }))],
+        roster: [
+          ...(selfBooked ? [{ card: mine!, isYou: true }] : []),
+          ...theirs.map((card) => ({ card, isYou: false })),
+        ],
         hiddenCount: hiddenCount + (visible.length - shown.length),
       });
     } catch (error) {

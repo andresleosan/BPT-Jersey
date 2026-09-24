@@ -11,6 +11,7 @@ type DayColumnProps = Readonly<{
   now: Date;
   busyKey: string;
   hasTrial?: boolean;
+  studentId?: string | undefined;
   notes: Readonly<Record<string, string>>;
   onBook: (entry: CalendarEntry) => void;
   onCancelRequest: (entry: CalendarEntry) => void;
@@ -39,6 +40,7 @@ export function DayColumn(props: DayColumnProps) {
             hasTrial={props.hasTrial ?? false}
             key={entry.session.sessionId}
             note={props.notes[entry.session.sessionId]}
+            studentId={props.studentId}
             now={props.now}
             onBook={props.onBook}
             onCancelRequest={props.onCancelRequest}

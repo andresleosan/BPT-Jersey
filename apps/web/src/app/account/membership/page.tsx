@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { PLAN_CATALOG, type ParticipantType, type PlanId } from "@bpt-jersey/domain/memberships";
 import type { MembershipApplication } from "@bpt-jersey/domain/memberships/intro-conversion";
@@ -262,9 +264,9 @@ function MembershipContent() {
   const liveRenewal = current !== undefined;
   return (
     <main className="client-destination client-membership-page" aria-labelledby="membership-title">
-      <a className="client-membership-back" href="/account">
+      <Link className="client-membership-back" href="/account">
         <span aria-hidden="true">&larr;</span> Back to calendar
-      </a>
+      </Link>
       <p className="account-eyebrow">BPT Jersey / Membership</p>
       <h1 id="membership-title">Your plan</h1>
       <p className="client-destination-intro">

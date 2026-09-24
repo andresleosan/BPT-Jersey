@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 import {
@@ -238,7 +240,7 @@ export function AcademyTermsAcceptance() {
   if (status.pending.length === 0) {
     return done ? (
       <p className="calendar-trial-band" id="academy-terms" role="status">
-        Academy terms accepted. <a href="/account">Back to your classes</a>
+        Academy terms accepted. <Link href="/account">Back to your classes</Link>
       </p>
     ) : null;
   }

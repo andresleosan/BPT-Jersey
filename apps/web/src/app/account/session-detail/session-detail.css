@@ -12,7 +12,57 @@
   padding: 0;
   text-align: left;
   text-decoration: underline;
+  text-decoration-thickness: 1px;
   text-underline-offset: 0.2em;
+}
+
+/* The whole card opens the class: the title's hit area stretches over it, actions stay on top. */
+.session-card--openable {
+  position: relative;
+  transition: transform 160ms ease;
+}
+
+.session-card-open::after {
+  border-radius: inherit;
+  content: "";
+  inset: 0;
+  position: absolute;
+}
+
+.session-card--openable:hover {
+  transform: translateY(-2px);
+}
+
+.session-card--openable:active {
+  transform: translateY(0);
+}
+
+.session-card--openable .session-action,
+.session-card--openable .session-reason,
+.session-card--openable .session-note {
+  position: relative;
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-card--openable {
+    transition: none;
+  }
+  .session-card--openable:hover {
+    transform: none;
+  }
+}
+
+.session-detail-heading {
+  color: var(--bpt-purple);
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.05;
+  margin: 0 0 1.25rem;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
 }
 
 .session-card-open:focus-visible {

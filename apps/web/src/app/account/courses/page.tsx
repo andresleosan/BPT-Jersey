@@ -1,12 +1,14 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import type { CourseEnrolment, CoursePage } from "@bpt-jersey/domain/courses";
 import { CourseSessionGate, type CourseSession } from "../../../lib/courses/course-session";
 import { courseApi, courseError } from "../../../lib/courses/course-client";
 import { courseDate, courseMoney } from "../../../lib/courses/course-public-client";
 import { useCourseNotices } from "../../../lib/courses/use-course-notices";
 import { CourseLoading } from "../../courses/course-ui";
+import { CourseCatalogue } from "../../courses/course-catalogue";
 import { CourseStatus } from "../../courses/course-status";
 import "../../courses/courses.css";
 const CourseEnrolForm = dynamic(
@@ -23,6 +25,7 @@ function MyCourses({ session }: { session: CourseSession }) {
   const [courseId, setCourseId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const panel = useRef<HTMLDivElement>(null);
   const {
     notices,
     read,
@@ -48,10 +51,14 @@ function MyCourses({ session }: { session: CourseSession }) {
     if (id && /^[0-9a-f-]{36}$/iu.test(id)) setCourseId(id);
     void load();
   }, [session.uid]);
+  // A course chosen further down the page opens its panel at the top: bring it into view.
+  useEffect(() => {
+    if (courseId || selected) panel.current?.scrollIntoView({ block: "start" });
+  }, [courseId, selected]);
   return (
     <>
       <div className="course-actions">
-        <a href="/courses">Browse courses</a>
+        <a href="#course-catalogue-title">Browse courses</a>
         <a href="/account/courses/calendar">My course calendar and history</a>
         <button className="course-link" disabled={busy} onClick={() => void load()}>
           {busy ? "Refreshing…" : "Refresh my requests"}
@@ -102,6 +109,7 @@ function MyCourses({ session }: { session: CourseSession }) {
           Load earlier notices
         </button>
       )}
+      <div ref={panel} className="course-account-panel" />
       {courseId && session.canApply && (
         <CourseEnrolForm
           key={courseId}
@@ -138,7 +146,7 @@ function MyCourses({ session }: { session: CourseSession }) {
             <div className="course-panel course-empty">
               <h3>No course enrolments yet</h3>
               <p>Explore the catalogue to find your next programme.</p>
-              <a className="course-button" href="/courses">
+              <a className="course-button" href="#course-catalogue-title">
                 Browse courses
               </a>
             </div>
@@ -174,6 +182,12 @@ function MyCourses({ session }: { session: CourseSession }) {
           )}
         </section>
       )}
+      <CourseCatalogue
+        onChoose={(id) => {
+          setSelected(null);
+          setCourseId(id);
+        }}
+      />
     </>
   );
 }
@@ -183,16 +197,14 @@ export default function AccountCoursesPage() {
       <a className="skip-link" href="#main-content">
         Skip to main content
       </a>
-      <nav className="course-topnav" aria-label="Course navigation">
-        <a className="course-wordmark" href="/">
-          BPT Jersey
-        </a>
-        <a href="/courses">Course catalogue</a>
-      </nav>
+      <p className="account-eyebrow">
+        <Link href="/account">← Back to Account</Link>
+      </p>
       <header className="course-page-hero" id="main-content">
-        <p className="course-eyebrow">BPT Jersey / My courses</p>
-        <h1>My courses</h1>
-        <p className="course-intro">Keep track of your places, payments and course updates.</p>
+        <h1>Courses &amp; Seminars</h1>
+        <p className="course-intro">
+          Find a course, enrol, and follow your places, payments and updates in one place.
+        </p>
       </header>
       <CourseSessionGate>{(session) => <MyCourses session={session} />}</CourseSessionGate>
     </main>

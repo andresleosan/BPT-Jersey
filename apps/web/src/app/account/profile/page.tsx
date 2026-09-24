@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useRouter } from "next/navigation";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -159,9 +161,9 @@ function ProfileContent() {
   return (
     <main className="profile-page" id="main-content">
       <section className="profile-rail" aria-labelledby="profile-title">
-        <a className="profile-back-link" href="/account">
+        <Link className="profile-back-link" href="/account">
           <span aria-hidden="true">&larr;</span> Back to account
-        </a>
+        </Link>
         <p className="profile-kicker">BPT Jersey / Client profile</p>
         <h1 id="profile-title">Build your training profile</h1>
         <p className="profile-rail-copy">

@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { SessionRecord } from "@bpt-jersey/domain/schedule";
 
@@ -340,9 +342,9 @@ function WaitlistContent() {
   return (
     <main className="waitlist-page" id="main-content">
       <header className="waitlist-hero">
-        <a className="profile-back-link" href="/account">
+        <Link className="profile-back-link" href="/account">
           <span aria-hidden="true">&larr;</span> Back to account
-        </a>
+        </Link>
         <p className="account-eyebrow">BPT Jersey / Class waitlist</p>
         <h1>Hold your place on the mat.</h1>
         <p>

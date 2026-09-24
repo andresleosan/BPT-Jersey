@@ -11,10 +11,17 @@
   min-height: 100dvh;
 }
 
+/* One gutter for every band: full-bleed colour, content capped at 100rem on wide desktops. */
+.member-app {
+  --member-gutter: max(clamp(1rem, 4vw, 3rem), calc((100% - 100rem) / 2));
+}
+
 .member-header {
   background: var(--bpt-purple);
   color: var(--gi-white);
-  padding: 1.25rem clamp(1rem, 4vw, 3rem) 1.5rem;
+  display: grid;
+  gap: 1.25rem;
+  padding: 1rem var(--member-gutter) 1.5rem;
 }
 
 .member-header-top {
@@ -25,12 +32,21 @@
 }
 
 .member-eyebrow {
+  align-items: center;
   color: var(--bpt-lime);
+  display: inline-flex;
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.15em;
   margin: 0;
+  min-height: 2.75rem;
+  text-decoration: none;
   text-transform: uppercase;
+}
+
+.member-eyebrow:focus-visible {
+  outline: 3px solid var(--gi-white);
+  outline-offset: 3px;
 }
 
 .member-header-actions {
@@ -46,52 +62,48 @@
   border-radius: 999px;
   color: var(--mat-ink);
   display: inline-flex;
-  font-size: 0.8rem;
-  font-weight: 800;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.025em;
   min-height: 2.75rem;
-  padding: 0.5rem 1rem;
+  padding: 0.5rem 1.1rem;
   text-decoration: none;
   transition: transform 160ms ease;
 }
 
-.member-plan-link:hover {
-  transform: translateY(-2px);
-}
-
-.member-plan-link:active {
-  transform: translateY(0);
-}
-
-.member-plan-link:focus-visible {
-  outline: 3px solid var(--gi-white);
-  outline-offset: 3px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .member-plan-link {
-    transition: none;
-  }
-}
-
 .member-signout {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.55);
   border-radius: 999px;
   color: var(--gi-white);
   cursor: pointer;
   font: inherit;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.025em;
   min-height: 2.75rem;
-  padding: 0.5rem 1rem;
+  padding: 0.5rem 1.1rem;
+  transition:
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.member-header-main {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  justify-content: space-between;
 }
 
 .member-name {
   font-family: var(--font-display), Impact, sans-serif;
-  font-size: clamp(2.4rem, 8vw, 4rem);
+  font-size: clamp(3rem, 9vw, 5.5rem);
   font-weight: 700;
-  letter-spacing: 0.02em;
-  line-height: 1;
-  margin: 0.5rem 0 1rem;
+  letter-spacing: 0.035em;
+  line-height: 0.9;
+  margin: 0;
+  overflow-wrap: anywhere;
   text-transform: uppercase;
 }
 
@@ -101,23 +113,59 @@
   max-width: none;
 }
 
+/* The four destinations are real buttons, one row on desktop, an even 2 x 2 grid on a phone. */
 .member-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 1.25rem;
-  margin: 0 0 1rem;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
 }
 
 .member-links a {
-  color: var(--gi-white);
-  font-size: 0.85rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  min-height: 2.75rem;
-  display: inline-flex;
   align-items: center;
-  text-decoration: underline;
-  text-underline-offset: 0.25em;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 999px;
+  color: var(--gi-white);
+  display: inline-flex;
+  font-size: 0.9rem;
+  font-weight: 700;
+  justify-content: center;
+  letter-spacing: 0.025em;
+  min-height: 2.75rem;
+  padding: 0.5rem 1.1rem;
+  text-align: center;
+  text-decoration: none;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+  white-space: nowrap;
+}
+
+.member-plan-link:hover,
+.member-signout:hover,
+.member-links a:hover {
+  transform: translateY(-2px);
+}
+
+.member-signout:hover,
+.member-links a:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.member-plan-link:active,
+.member-signout:active,
+.member-links a:active {
+  transform: translateY(0);
+}
+
+.member-plan-link:focus-visible,
+.member-signout:focus-visible,
+.member-links a:focus-visible,
+.member-chip:focus-visible {
+  box-shadow: 0 0 0 6px var(--mat-ink);
+  outline: 3px solid var(--gi-white);
+  outline-offset: 3px;
 }
 
 .member-chips {
@@ -125,7 +173,7 @@
   flex-wrap: wrap;
   gap: 0.5rem;
   list-style: none;
-  margin: 0 0 1rem;
+  margin: 0;
   padding: 0;
 }
 
@@ -136,7 +184,7 @@
   color: var(--gi-white);
   cursor: pointer;
   font: inherit;
-  font-weight: 600;
+  font-weight: 700;
   min-height: 2.75rem;
   padding: 0.5rem 1.1rem;
 }
@@ -147,19 +195,59 @@
   color: var(--mat-ink);
 }
 
+@media (min-width: 42rem) {
+  .member-links {
+    display: flex;
+    flex-wrap: wrap;
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .member-plan-link,
+  .member-signout,
+  .member-links a {
+    transition: none;
+  }
+
+  .member-plan-link:hover,
+  .member-signout:hover,
+  .member-links a:hover {
+    transform: none;
+  }
+}
+
+/* Everything between the header and the calendar: check-in, notices, streak. */
+.member-top {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem var(--member-gutter) 0;
+}
+
+.member-app .member-top > * {
+  margin: 0;
+}
+
+/* Week toolbar on canvas: it sticks while the days scroll, so the date never leaves the screen. */
 .day-strip-row {
   align-items: center;
+  background: var(--canvas);
   display: grid;
   gap: 0.5rem;
   grid-template-columns: auto minmax(0, 1fr) auto;
+  margin: 0 0 1.25rem;
+  padding: 0.75rem 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .day-nav {
   align-items: center;
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: var(--gi-white);
+  border: 1px solid var(--mat-ink);
   border-radius: 999px;
-  color: var(--gi-white);
+  color: var(--mat-ink);
   cursor: pointer;
   display: inline-flex;
   font: inherit;
@@ -167,17 +255,28 @@
   height: 2.75rem;
   justify-content: center;
   line-height: 1;
+  transition: transform 160ms ease;
   width: 2.75rem;
 }
 
+.day-nav:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.day-nav:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+
 .day-nav:disabled {
+  border-color: var(--line);
+  color: var(--line);
   cursor: default;
-  opacity: 0.35;
 }
 
 .day-strip {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.4rem;
   grid-auto-columns: minmax(0, 1fr);
   grid-auto-flow: column;
   list-style: none;
@@ -187,7 +286,8 @@
 
 .day-pill {
   align-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: var(--gi-white);
+  border: 1px solid #d9d8d2;
   border-radius: 999px;
   display: flex;
   flex-direction: column;
@@ -198,9 +298,10 @@
 }
 
 .day-pill span:first-child {
+  color: var(--muted);
   font-size: 0.72rem;
+  font-weight: 700;
   letter-spacing: 0.08em;
-  opacity: 0.85;
   text-transform: uppercase;
 }
 
@@ -211,22 +312,33 @@
   line-height: 1;
 }
 
+/* Today: the single lime accent, on purple so it stays legible off the header. */
 .day-pill--today {
-  background: var(--bpt-lime);
-  border-color: var(--bpt-lime);
-  color: var(--mat-ink);
+  background: var(--bpt-purple);
+  border-color: var(--bpt-purple);
+  color: var(--bpt-lime);
+}
+
+.day-pill--today span:first-child {
+  color: var(--gi-white);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .day-nav {
+    transition: none;
+  }
 }
 
 .penalty-banner {
   background: var(--status-missed);
   border-left: 0.35rem solid #8d1c2f;
   color: #5f1020;
-  margin: 1rem clamp(1rem, 4vw, 3rem) 0;
+  margin: 1rem var(--member-gutter) 0;
   padding: 0.9rem 1rem;
 }
 
 .member-body {
-  padding: 1rem clamp(1rem, 4vw, 3rem) 3rem;
+  padding: 0.5rem var(--member-gutter) 3rem;
 }
 
 .member-week {
@@ -482,8 +594,9 @@ html:has(dialog[open]:modal) {
     grid-template-columns: var(--week-columns, repeat(6, minmax(0, 1fr)));
   }
 
-  .day-strip {
-    max-width: 40rem;
+  .day-strip-row {
+    grid-template-columns: auto minmax(0, 36rem) auto;
+    justify-content: start;
   }
 }
 
@@ -502,7 +615,7 @@ html:has(dialog[open]:modal) {
   background: var(--gi-white);
   border-radius: var(--radius);
   border-top: 0.35rem solid var(--bpt-purple);
-  margin: 1rem clamp(1rem, 4vw, 3rem) 0;
+  margin: 1rem var(--member-gutter, clamp(1rem, 4vw, 3rem)) 0;
   padding: 1.25rem 1.25rem 1rem;
 }
 
@@ -741,7 +854,7 @@ html:has(dialog[open]:modal) {
   flex-wrap: wrap;
   font-weight: 700;
   gap: 0.5rem;
-  margin: 1rem clamp(1rem, 4vw, 3rem) 0;
+  margin: 1rem var(--member-gutter, clamp(1rem, 4vw, 3rem)) 0;
   padding: 0.9rem 1rem;
 }
 
@@ -845,7 +958,7 @@ html:has(dialog[open]:modal) {
   border-top: 0.35rem solid var(--bpt-purple);
   display: grid;
   gap: 0.9rem;
-  margin: 1rem clamp(1rem, 4vw, 3rem) 0;
+  margin: 1rem var(--member-gutter, clamp(1rem, 4vw, 3rem)) 0;
   max-width: 58rem;
   padding: 1.25rem;
 }
@@ -938,7 +1051,7 @@ html:has(dialog[open]:modal) {
   background: #e7f6ee;
   border-left: 0.35rem solid #176b49;
   color: #0f4a32;
-  margin: 1rem clamp(1rem, 4vw, 3rem) 0;
+  margin: 1rem var(--member-gutter, clamp(1rem, 4vw, 3rem)) 0;
 }
 
 .waiver-band .waiver-band-saved {
@@ -1065,26 +1178,82 @@ html:has(dialog[open]:modal) {
   opacity: 0.7;
 }
 
-/* T042V2 — streak panel above the purple header. BPT Purple at 70 % normally, full tone one class short. */
+/* T042V2 streak panel, between the header and the calendar. BPT Purple at 70 % normally, full tone
+   one class short. Phone: flame and label side by side, bars below. Desktop: one compact row. */
 .streak-panel,
 .streak-panel-skeleton {
   box-sizing: border-box;
-  margin: 1rem clamp(1rem, 4vw, 3rem) 0;
-  min-height: 17.5rem;
+  margin: 0;
 }
 
-/* Sized for the usual card, which carries the belt bar: less shift when it lands. */
 .streak-panel-skeleton {
-  height: 23.25rem;
+  height: 17rem;
 }
 
 .streak-panel {
+  align-items: center;
   background: var(--gi-white);
   border-radius: var(--radius);
+  border-top: 0.35rem solid var(--bpt-purple);
   display: grid;
-  gap: 0.75rem;
+  gap: 0.75rem 1.5rem;
+  grid-template-areas:
+    "promo promo"
+    "flame label"
+    "flame hours"
+    "goal goal"
+    "reward reward";
+  grid-template-columns: auto minmax(0, 1fr);
   min-width: 0;
-  padding: 1.25rem;
+  padding: 1.1rem 1.25rem 1.25rem;
+}
+
+.streak-panel > .promotion-bar {
+  grid-area: promo;
+}
+
+.streak-panel > .account-eyebrow {
+  align-self: end;
+  grid-area: label;
+  margin: 0;
+}
+
+.streak-panel > .streak-flame {
+  grid-area: flame;
+}
+
+.streak-panel > .streak-bar--goal {
+  grid-area: goal;
+}
+
+.streak-panel > .streak-bar--reward {
+  grid-area: reward;
+}
+
+.streak-panel > .streak-hours {
+  align-self: start;
+  color: var(--muted);
+  grid-area: hours;
+}
+
+@media (min-width: 50rem) {
+  .streak-panel-skeleton {
+    height: 11rem;
+  }
+
+  .streak-panel {
+    grid-template-areas:
+      "promo promo promo promo"
+      "flame label goal reward"
+      "flame hours goal reward";
+    grid-template-columns: auto minmax(9rem, 0.7fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .streak-panel > .streak-bar--goal,
+  .streak-panel > .streak-bar--reward {
+    align-self: start;
+    grid-row: 2 / span 2;
+  }
 }
 
 .streak-flame {
@@ -1095,8 +1264,8 @@ html:has(dialog[open]:modal) {
 
 .streak-flame-art {
   flex: none;
-  height: 4rem;
-  width: 3.5rem;
+  height: 3.5rem;
+  width: 3rem;
 }
 
 .streak-multiplier {

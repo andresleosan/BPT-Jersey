@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import type { BookingRecord, SessionRecord } from "@bpt-jersey/domain/schedule";
@@ -389,9 +391,9 @@ export function AccountClassesContent() {
   return (
     <main className="classes-client-page" id="main-content">
       <header className="classes-client-hero">
-        <a className="profile-back-link" href="/account">
+        <Link className="profile-back-link" href="/account">
           <span aria-hidden="true">&larr;</span> Back to account
-        </a>
+        </Link>
         <p className="account-eyebrow">BPT Jersey / Upcoming classes</p>
         <h1>Choose your next session.</h1>
         <p>
@@ -411,9 +413,9 @@ export function AccountClassesContent() {
         >
           <p className="account-eyebrow">Membership needed</p>
           <h2 id="membership-needed-title">Your account has no membership to book with.</h2>
-          <p>Contact the academy to connect or activate the correct student membership.</p>
-          <a className="button button-primary" href="/#contact">
-            Contact the academy
+          <p>Choose a plan, or ask the academy to connect the correct student membership.</p>
+          <a className="button button-primary" href="/account/membership">
+            Choose a plan
           </a>
         </section>
       ) : (

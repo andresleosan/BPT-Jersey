@@ -45,7 +45,7 @@ import {
   bookingFailureMessage,
   cancellationFailureMessage,
 } from "../../../lib/calendar/booking-messages";
-import { CalendarHeader } from "./calendar-header";
+import { CalendarHeader, DayStrip } from "./calendar-header";
 import { CancelDialog } from "./cancel-dialog";
 import { DayColumn } from "./day-column";
 import { PaygPaymentDialog } from "./payg-payment-dialog";
@@ -620,7 +620,7 @@ export function MemberCalendar({
   const loading = memberState === "loading" || weekState === "loading";
   const siblingHint =
     siblingReady.studentId === selectedStudentId && siblingReady.names.length > 0
-      ? siblingReady.names[0] + " is ready too — switch to " + siblingReady.names[0]
+      ? siblingReady.names[0] + " is ready too. Switch to " + siblingReady.names[0]
       : undefined;
   const candidateScope = candidate && participant ? loadedWeekScope : undefined;
   const top =
@@ -631,6 +631,14 @@ export function MemberCalendar({
   const planLink = session.role === "teenStudent" ? null : <a href="/account/membership">Choose a plan</a>;
   return (
     <main className="member-app">
+      <CalendarHeader
+        displayName={session.displayName}
+        onSelectStudent={handleSelectStudent}
+        onSignOut={onSignOut}
+        participants={member?.participants ?? []}
+        selectedStudentId={selectedStudentId}
+        showPlanLink={planLink !== null}
+      />
       {!blocked && !failed && weekState === "ready" && candidate && participant ? (
         <ReadyForJiuJitsu
           candidate={candidate}
@@ -644,20 +652,7 @@ export function MemberCalendar({
           {...(siblingHint ? { siblingHint } : {})}
         />
       ) : null}
-      {top}
-      <CalendarHeader
-        canNext={!failed && next !== null}
-        canPrev={!failed && prev !== null}
-        days={days}
-        displayName={session.displayName}
-        onNext={() => handleOffset(next)}
-        onPrev={() => handleOffset(prev)}
-        onSelectStudent={handleSelectStudent}
-        onSignOut={onSignOut}
-        participants={member?.participants ?? []}
-        selectedStudentId={selectedStudentId}
-        showPlanLink={planLink !== null}
-      />
+      {top ? <div className="member-top">{top}</div> : null}
       {!failed && weekState === "ready" && hasPendingPenalty(penalties) ? <PenaltyBanner /> : null}
       {!failed && participant?.trial ? (
         <p className="calendar-trial-band" role="status">
@@ -687,7 +682,14 @@ export function MemberCalendar({
           {planLink}
         </p>
       ) : null}
-      <div className="member-body">
+      <section aria-label="Calendar" className="member-body">
+        <DayStrip
+          canNext={!failed && next !== null}
+          canPrev={!failed && prev !== null}
+          days={days}
+          onNext={() => handleOffset(next)}
+          onPrev={() => handleOffset(prev)}
+        />
         {blocked ? (
           blocked
         ) : failed ? (
@@ -717,6 +719,7 @@ export function MemberCalendar({
                 entries={entriesByDay.get(day.dateKey) ?? []}
                 hasTrial={participant?.trial !== undefined}
                 key={day.dateKey}
+                studentId={participant?.studentId}
                 loading={loading}
                 notes={notes}
                 now={now}
@@ -728,7 +731,7 @@ export function MemberCalendar({
             ))}
           </div>
         )}
-      </div>
+      </section>
       <CancelDialog
         busy={busyKey !== ""}
         day={cancelling ? dayOf(days, cancelling.session.startAt) : undefined}

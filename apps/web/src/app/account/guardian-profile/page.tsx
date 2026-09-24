@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
@@ -93,9 +95,9 @@ function GuardianProfileContent() {
         <p className="account-eyebrow">BPT Jersey / Guardian</p>
         <h1 id="guardian-access-title">Guardian access required</h1>
         <p>This profile is available only to an authenticated guardian account.</p>
-        <a className="button button-secondary" href="/account">
+        <Link className="button button-secondary" href="/account">
           Back to account
-        </a>
+        </Link>
       </main>
     );
   }
@@ -142,9 +144,9 @@ function GuardianProfileContent() {
   return (
     <main className="profile-page" id="main-content">
       <section className="profile-rail" aria-labelledby="guardian-profile-title">
-        <a className="profile-back-link" href="/account">
+        <Link className="profile-back-link" href="/account">
           <span aria-hidden="true">&larr;</span> Back to account
-        </a>
+        </Link>
         <p className="profile-kicker">BPT Jersey / Guardian profile</p>
         <h1 id="guardian-profile-title">Set up your family contact</h1>
         <p className="profile-rail-copy">
