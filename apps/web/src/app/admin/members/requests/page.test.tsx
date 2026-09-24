@@ -17,6 +17,12 @@ vi.mock("../../../../lib/intro-conversion-client", () => ({
   getIntroMembershipProofUrl: vi.fn(),
   reviewIntroMembershipApplication: vi.fn(),
 }));
+// The page also embeds PlanRequestsPanel (My plan requests); an empty queue keeps it out of the way.
+vi.mock("../../../../lib/family-plan-client", () => ({
+  FamilyPlanUnavailableError: class FamilyPlanUnavailableError extends Error {},
+  listMemberPlanRequests: vi.fn().mockResolvedValue([]),
+  decideMemberPlanRequest: vi.fn(),
+}));
 // A minimal slice of the real catalogue: the belts and stripes these tests need, with the same
 // definition keys, names, sequences and age criteria production uses (verified against the
 // bundled catalogue), so `defaultWhiteBelt` and the declared-level label resolve exactly as they
