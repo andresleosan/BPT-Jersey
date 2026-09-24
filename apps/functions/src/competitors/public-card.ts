@@ -16,7 +16,11 @@ import { memberIdentityAliasSchema } from "@bpt-jersey/domain/members/reconcilia
 
 import { fromData as publicSettingsFrom } from "../account-settings/account-settings-service.js";
 import { signPhotoUrl } from "../account-settings/profile-photo.js";
-import { countedAttendance, createLevelCatalogStore } from "../levels/level-service.js";
+import {
+  countedAttendance,
+  createLevelCatalogStore,
+  type GenericDocumentSnapshot,
+} from "../levels/level-service.js";
 import type { R2Client } from "../storage/r2-client.js";
 
 /** Same "live plan" rule as the member overview's `currentMembership` (E6). */
@@ -129,10 +133,17 @@ export async function buildLeaderboardRows(
     logError("Leaderboard build has no published level catalogue", { academyId });
   }
 
+  // Each session document is read at most once per build, however many students attended it.
+  const sessionCache = new Map<string, Promise<GenericDocumentSnapshot>>();
   const progressOf = async (studentId: string): Promise<Progress> => {
     if (catalog === null) return noProgress;
     try {
-      const summary = await levels.getStudentProgressSummary(academyId, studentId, catalog);
+      const summary = await levels.getStudentProgressSummary(
+        academyId,
+        studentId,
+        catalog,
+        sessionCache,
+      );
       if (summary.state !== "initialized") return noProgress;
       const current = summary.currentDefinition;
       return {

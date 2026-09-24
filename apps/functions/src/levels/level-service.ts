@@ -160,11 +160,14 @@ export type LevelCatalogLifecycleStore = Readonly<{
   /**
    * `catalog`: the published catalogue the caller already read (a batch job reads it once for every
    * student instead of once per student). Omitted, the store reads it.
+   * `sessionCache`: session reads shared across calls by a batch job, keyed by session id; a
+   * session is fetched only when absent. Omitted, every call reads its own sessions.
    */
   getStudentProgressSummary: (
     academyId: string,
     studentId: string,
     catalog?: LevelCatalogProjection,
+    sessionCache?: Map<string, Promise<GenericDocumentSnapshot>>,
   ) => Promise<StudentProgressSummary>;
   recordMedicalLeave: (params: {
     academyId: string;
@@ -2024,6 +2027,7 @@ export function createLevelCatalogStore({
       academyId: string,
       studentId: string,
       preloadedCatalog?: LevelCatalogProjection,
+      sessionCache?: Map<string, Promise<GenericDocumentSnapshot>>,
     ): Promise<StudentProgressSummary> {
       assertValidAcademyId(academyId);
       // T113: the canonical student carries the date of birth the age band of the target rank is
@@ -2077,11 +2081,17 @@ export function createLevelCatalogStore({
         attendanceSnapshot.ids,
       );
       const sessionIds = [...new Set(attendance.map((record) => String(record.sessionId)))];
+      const readSession = (id: string): Promise<GenericDocumentSnapshot> => {
+        if (!sessionCache) return firestore.doc(`academies/${academyId}/sessions/${id}`).get();
+        let pending = sessionCache.get(id);
+        if (!pending) {
+          pending = firestore.doc(`academies/${academyId}/sessions/${id}`).get();
+          sessionCache.set(id, pending);
+        }
+        return pending;
+      };
       const sessionDocuments = await Promise.all(
-        sessionIds.map(async (id) => ({
-          id,
-          snapshot: await firestore.doc(`academies/${academyId}/sessions/${id}`).get(),
-        })),
+        sessionIds.map(async (id) => ({ id, snapshot: await readSession(id) })),
       );
       const sessions = new Map(
         sessionDocuments.map(({ id, snapshot }) => {
