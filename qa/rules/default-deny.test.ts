@@ -72,6 +72,24 @@ describe("default-deny Firebase rules", () => {
     );
   });
 
+  it("keeps member gamification and social data unreachable from a member client", async () => {
+    // Leaderboard snapshots, photo/visibility settings, teen access and plan requests carry other
+    // members' names, photos and dates of birth; only callables running as the Admin SDK touch them.
+    const firestore = testEnvironment
+      .authenticatedContext("member-1", { academyId: "a", role: "adultStudent" })
+      .firestore();
+
+    for (const path of [
+      "academies/a/leaderboards/adults",
+      "academies/a/memberPublicSettings/s1",
+      "academies/a/teenAccess/s1",
+      "academies/a/memberPlanRequests/r1",
+    ]) {
+      await assertFails(getDoc(doc(firestore, path)));
+      await assertFails(setDoc(doc(firestore, path), { academyId: "a" }));
+    }
+  });
+
   it("rejects direct reads and writes to restricted health collections for authenticated users", async () => {
     const firestore = testEnvironment.authenticatedContext("owner-1").firestore();
 
