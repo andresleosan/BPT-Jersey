@@ -5,9 +5,9 @@ import { warn } from "firebase-functions/logger";
 import { HttpsError } from "firebase-functions/v2/https";
 import { z } from "zod";
 
-import { memberAgeOn, type MemberAccessService } from "@bpt-jersey/domain/members/access";
-import { uploadProfilePhotoInputSchema } from "@bpt-jersey/domain/members/engagement";
-import { parseEffectiveStudentProfileAt } from "@bpt-jersey/domain/profiles";
+import { memberAgeOn, needsAdultClaim, teenAccountMinimumAge, type MemberAccessService } from "@bpt-jersey/domain/members/access";
+import { teenAccessInputSchema, uploadProfilePhotoInputSchema } from "@bpt-jersey/domain/members/engagement";
+import { parseEffectiveStudentProfileAt, parseUserProfile, type UserProfile } from "@bpt-jersey/domain/profiles";
 import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 
 import { resolveCanonicalStudentIdInTransaction } from "../members/member-identity-resolution.js";
@@ -27,6 +27,18 @@ export type MemberPublicSettingsDoc = {
   updatedAt: string;
 };
 
+/** academies/{academyId}/teenAccess/{studentId}: server-only, default-denied by the rules. */
+export type TeenAccessDoc = {
+  academyId: string;
+  studentId: string;
+  uid: string;
+  email: string;
+  createdBy: string;
+  createdAt: string;
+  adultClaimedAt: string | null;
+  revokedAt: string | null;
+};
+
 type MemberActor = Readonly<{ userId: string; academyId: string }>;
 /** `manage`: guardian, or an adult on their own profile. `propose`: a 12–17 year old on their own profile. */
 type Permission = "manage" | "propose";
@@ -36,6 +48,25 @@ const studentInputSchema = z.strictObject({ studentId: z.string().min(1).max(128
 const visibilityInputSchema = z.strictObject({ studentId: z.string().min(1).max(128), showToMembers: z.boolean() });
 
 const settingsPath = (academyId: string, studentId: string) => `academies/${academyId}/memberPublicSettings/${studentId}`;
+const teenAccessPath = (academyId: string, studentId: string) => `academies/${academyId}/teenAccess/${studentId}`;
+const userPath = (academyId: string, userId: string) => `academies/${academyId}/users/${userId}`;
+
+export const teenAgeMessage = "Own access is available from 12 to 17.";
+export const teenEmailMessage = "We couldn't create access with that email. Try a different one.";
+const teenUnavailableMessage = "Own access could not be set up. Try again.";
+/** The client re-authenticates right before claiming; an older sign-in is refused. */
+const adultClaimSignInWindowMs = 5 * 60 * 1000;
+
+/** The Auth calls teen access needs, so the service can be exercised without Firebase. */
+export type TeenAccessAuth = Readonly<{
+  createUser: (input: { email: string; password: string; emailVerified: true; disabled: false; displayName: string }) => Promise<{ uid: string }>;
+  setCustomUserClaims: (uid: string, claims: Readonly<Record<string, unknown>>) => Promise<void>;
+  deleteUser: (uid: string) => Promise<void>;
+  updateUser: (uid: string, input: { disabled: boolean }) => Promise<unknown>;
+  revokeRefreshTokens: (uid: string) => Promise<void>;
+}>;
+/** Sets or clears `students/{studentId}.userId` through the canonical directory writer. */
+export type StudentAccountLinker = (input: Readonly<{ actor: MemberActor; studentId: string; userId: string | null; now: string }>) => Promise<void>;
 
 function defaults(academyId: string, studentId: string): MemberPublicSettingsDoc {
   return {
@@ -91,7 +122,9 @@ function decodeBase64(base64: string): Buffer {
 export type AccountSettingsDependencies = Readonly<{
   firestore: Firestore;
   r2: R2Client;
-  access: Pick<MemberAccessService, "authorise">;
+  access: Pick<MemberAccessService, "authorise"> & Partial<Pick<MemberAccessService, "listProfiles">>;
+  /** Only the teen access callables provide these (they carry the directory writer secrets). */
+  teen?: Readonly<{ auth: TeenAccessAuth; linkStudentAccount?: StudentAccountLinker }>;
   now?: () => string;
 }>;
 
@@ -104,7 +137,7 @@ export function createAccountSettingsService(deps: AccountSettingsDependencies) 
   };
 
   /** One permission decision per call: authorise() first, then age for own profiles (D10: consent is the guardian's until 18). */
-  async function permissionFor(actor: MemberActor, requestedStudentId: string): Promise<{ studentId: string; permission: Permission }> {
+  async function permissionFor(actor: MemberActor, requestedStudentId: string): Promise<{ studentId: string; permission: Permission; via: "self" | "guardian" }> {
     const decision = await deps.access.authorise(actor.academyId, actor.userId, requestedStudentId);
     if (!decision.allowed) throw new HttpsError("permission-denied", "This member is not available to your account.");
     let studentId: string;
@@ -113,13 +146,55 @@ export function createAccountSettingsService(deps: AccountSettingsDependencies) 
     } catch {
       throw new HttpsError("permission-denied", "This member is not available to your account.");
     }
-    if (decision.via === "guardian") return { studentId, permission: "manage" };
+    if (decision.via === "guardian") return { studentId, permission: "manage", via: "guardian" };
     const student = await readDoc(`academies/${actor.academyId}/students/${studentId}`);
     const academyDate = dateKeyInJersey(new Date(now()));
     const parsed = parseEffectiveStudentProfileAt(student.data, academyDate);
     if (!student.exists || !parsed.ok) throw new HttpsError("permission-denied", "This member is not available to your account.");
     const age = memberAgeOn(parsed.value.dateOfBirth, academyDate);
-    return { studentId, permission: age !== null && age >= 18 ? "manage" : "propose" };
+    return { studentId, permission: age !== null && age >= 18 ? "manage" : "propose", via: "self" };
+  }
+
+  function teenDeps() {
+    if (!deps.teen) throw new HttpsError("unavailable", teenUnavailableMessage);
+    return deps.teen;
+  }
+
+  function teenWriterDeps() {
+    const { auth, linkStudentAccount } = teenDeps();
+    if (!linkStudentAccount) throw new HttpsError("unavailable", teenUnavailableMessage);
+    return { auth, linkStudentAccount };
+  }
+
+  async function studentAge(academyId: string, studentId: string) {
+    const student = await readDoc(`academies/${academyId}/students/${studentId}`);
+    const academyDate = dateKeyInJersey(new Date(now()));
+    const parsed = parseEffectiveStudentProfileAt(student.data, academyDate);
+    if (!student.exists || !parsed.ok) throw new HttpsError("permission-denied", "This member is not available to your account.");
+    return { student: parsed.value, age: memberAgeOn(parsed.value.dateOfBirth, academyDate) };
+  }
+
+  function readTeenAccess(data: Readonly<Record<string, unknown>> | undefined): TeenAccessDoc | null {
+    if (!data || typeof data.uid !== "string" || typeof data.email !== "string") return null;
+    return {
+      academyId: String(data.academyId), studentId: String(data.studentId), uid: data.uid, email: data.email,
+      createdBy: String(data.createdBy), createdAt: String(data.createdAt),
+      adultClaimedAt: nullableString(data.adultClaimedAt), revokedAt: nullableString(data.revokedAt),
+    };
+  }
+
+  /** The own-profile (`via: "self"`) student of this account, and its teen access record if any. */
+  async function ownTeenAccess(actor: MemberActor) {
+    if (!deps.access.listProfiles) throw new HttpsError("unavailable", "Your account could not be checked. Try again.");
+    const own = (await deps.access.listProfiles(actor.academyId, actor.userId)).find((profile) => profile.via === "self");
+    if (!own) return null;
+    const { age } = await studentAge(actor.academyId, own.studentId);
+    const teen = await readDoc(teenAccessPath(actor.academyId, own.studentId));
+    const doc = teen.exists ? readTeenAccess(teen.data) : null;
+    const required = needsAdultClaim({
+      age, via: "self", createdByGuardian: doc !== null && doc.uid === actor.userId, adultClaimedAt: doc?.adultClaimedAt ?? null,
+    });
+    return { studentId: own.studentId, required };
   }
 
   async function requireManage(actor: MemberActor, requestedStudentId: string): Promise<string> {
@@ -218,6 +293,121 @@ export function createAccountSettingsService(deps: AccountSettingsDependencies) 
         canManage: permission === "manage",
         teenAccess: email ? { email, active: teen.data?.revokedAt === null || teen.data?.revokedAt === undefined } : null,
       };
+    },
+
+    /**
+     * ADR-019: a guardian gives a 12–17 year old their own sign-in. The Auth user is created verified
+     * (the member door rejects unverified accounts) with role `teenStudent`, which keeps every consent
+     * path closed to them (D10). Any failure after the user exists removes it again.
+     */
+    async createTeenAccess(actor: MemberActor, data: unknown): Promise<{ email: string }> {
+      const teen = teenWriterDeps();
+      const input = parse(teenAccessInputSchema, data);
+      const { studentId, via } = await permissionFor(actor, input.studentId);
+      if (via !== "guardian") throw new HttpsError("permission-denied", "Only a guardian can set up own access.");
+      const { student, age } = await studentAge(actor.academyId, studentId);
+      if (age === null || age < teenAccountMinimumAge || age >= 18) throw new HttpsError("failed-precondition", teenAgeMessage);
+      if (student.userId !== undefined) throw new HttpsError("already-exists", "This member already has their own access.");
+      const existing = await readDoc(teenAccessPath(actor.academyId, studentId));
+      const existingDoc = existing.exists ? readTeenAccess(existing.data) : null;
+      if (existing.exists && (existingDoc === null || existingDoc.revokedAt === null)) {
+        throw new HttpsError("already-exists", "This member already has their own access.");
+      }
+      const guardianDoc = await readDoc(userPath(actor.academyId, actor.userId));
+      const guardian = parseUserProfile(guardianDoc.data);
+      const phoneNumber = student.phoneNumber ?? (guardian.ok ? guardian.value.phoneNumber : undefined);
+      if (!phoneNumber) throw new HttpsError("failed-precondition", "Add a phone number to your profile first.");
+
+      let uid: string;
+      try {
+        ({ uid } = await teen.auth.createUser({
+          email: input.email, password: input.password, emailVerified: true, disabled: false, displayName: student.fullName,
+        }));
+      } catch (error) {
+        const code = (error as { code?: unknown }).code;
+        if (code === "auth/email-already-exists" || code === "auth/invalid-email") throw new HttpsError("already-exists", teenEmailMessage);
+        if (code === "auth/invalid-password") throw new HttpsError("invalid-argument", "Choose a password of at least 10 characters.");
+        throw new HttpsError("unavailable", teenUnavailableMessage);
+      }
+      const at = now();
+      let linked = false;
+      try {
+        await teen.auth.setCustomUserClaims(uid, { academyId: actor.academyId, role: "teenStudent" });
+        const profile: UserProfile = {
+          userId: uid, academyId: actor.academyId, accountType: "client", displayName: student.fullName, email: input.email,
+          phoneNumber, active: true, status: "active", schemaVersion: "1",
+          createdAt: at, createdBy: actor.userId, updatedAt: at, updatedBy: actor.userId,
+        };
+        const parsedProfile = parseUserProfile(profile);
+        if (!parsedProfile.ok) throw new Error("Teen user profile is invalid");
+        await db.doc(userPath(actor.academyId, uid)).create(parsedProfile.value);
+        await teen.linkStudentAccount({ actor, studentId, userId: uid, now: at });
+        linked = true;
+        const doc: TeenAccessDoc = {
+          academyId: actor.academyId, studentId, uid, email: input.email,
+          createdBy: actor.userId, createdAt: at, adultClaimedAt: null, revokedAt: null,
+        };
+        await db.doc(teenAccessPath(actor.academyId, studentId)).set(doc);
+      } catch {
+        if (linked) {
+          await teen.linkStudentAccount({ actor, studentId, userId: null, now: now() }).catch(() =>
+            warn("Teen access rollback could not unlink the student", { academyId: actor.academyId, studentId }));
+        }
+        await db.doc(userPath(actor.academyId, uid)).delete().catch(() => undefined);
+        await teen.auth.deleteUser(uid).catch(() =>
+          warn("Teen access rollback could not delete the Auth user", { academyId: actor.academyId, studentId, uid }));
+        throw new HttpsError("unavailable", teenUnavailableMessage);
+      }
+      return { email: input.email };
+    },
+
+    /** The guardian takes own access back, only while it has not been handed over at 18. */
+    async revokeTeenAccess(actor: MemberActor, data: unknown): Promise<Record<string, never>> {
+      const teen = teenWriterDeps();
+      const { studentId, via } = await permissionFor(actor, parse(studentInputSchema, data).studentId);
+      if (via !== "guardian") throw new HttpsError("permission-denied", "Only a guardian can remove own access.");
+      const record = await readDoc(teenAccessPath(actor.academyId, studentId));
+      const doc = record.exists ? readTeenAccess(record.data) : null;
+      if (!doc || doc.revokedAt !== null) throw new HttpsError("not-found", "This member has no own access to remove.");
+      if (doc.adultClaimedAt !== null) throw new HttpsError("failed-precondition", "This account now belongs to the member.");
+      const at = now();
+      try {
+        await teen.auth.updateUser(doc.uid, { disabled: true });
+        await teen.auth.revokeRefreshTokens(doc.uid);
+        await db.doc(userPath(actor.academyId, doc.uid)).update({ active: false, updatedAt: at, updatedBy: actor.userId });
+        const { student } = await studentAge(actor.academyId, studentId);
+        if (student.userId === doc.uid) await teen.linkStudentAccount({ actor, studentId, userId: null, now: at });
+        await db.doc(teenAccessPath(actor.academyId, studentId)).update({ revokedAt: at });
+      } catch {
+        throw new HttpsError("unavailable", "Own access could not be removed. Try again.");
+      }
+      return {};
+    },
+
+    async getAdultClaimStatus(actor: MemberActor, data: unknown): Promise<{ required: boolean; studentId: string | null }> {
+      parse(z.strictObject({}), data ?? {});
+      const own = await ownTeenAccess(actor);
+      return own?.required ? { required: true, studentId: own.studentId } : { required: false, studentId: null };
+    },
+
+    /**
+     * Q4: at 18 the member takes the account over once. The client has just re-authenticated and set a
+     * new password; this records the hand-over, makes the role adult and ends every older session.
+     */
+    async claimAdultAccount(actor: MemberActor, data: unknown, authTimeMs: number): Promise<Record<string, never>> {
+      const teen = teenDeps();
+      const input = parse(studentInputSchema, data);
+      const current = Date.parse(now());
+      if (!Number.isFinite(authTimeMs) || current - authTimeMs > adultClaimSignInWindowMs) {
+        throw new HttpsError("unauthenticated", "Sign in again to continue.");
+      }
+      const own = await ownTeenAccess(actor);
+      if (!own || !own.required || own.studentId !== input.studentId) throw new HttpsError("failed-precondition", "There is nothing to claim on this account.");
+      const at = now();
+      await db.doc(teenAccessPath(actor.academyId, own.studentId)).update({ adultClaimedAt: at });
+      await teen.auth.setCustomUserClaims(actor.userId, { academyId: actor.academyId, role: "adultStudent" });
+      await teen.auth.revokeRefreshTokens(actor.userId);
+      return {};
     },
 
     async setMemberVisibility(actor: MemberActor, data: unknown): Promise<Record<string, never>> {
