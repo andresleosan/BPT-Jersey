@@ -157,9 +157,14 @@ export type LevelCatalogLifecycleStore = Readonly<{
     studentId: string,
   ) => Promise<readonly EvaluationRecord[]>;
   getStudentSkillSummary: (academyId: string, studentId: string) => Promise<StudentSkillSummary>;
+  /**
+   * `catalog`: the published catalogue the caller already read (a batch job reads it once for every
+   * student instead of once per student). Omitted, the store reads it.
+   */
   getStudentProgressSummary: (
     academyId: string,
     studentId: string,
+    catalog?: LevelCatalogProjection,
   ) => Promise<StudentProgressSummary>;
   recordMedicalLeave: (params: {
     academyId: string;
@@ -2018,6 +2023,7 @@ export function createLevelCatalogStore({
     async getStudentProgressSummary(
       academyId: string,
       studentId: string,
+      preloadedCatalog?: LevelCatalogProjection,
     ): Promise<StudentProgressSummary> {
       assertValidAcademyId(academyId);
       // T113: the canonical student carries the date of birth the age band of the target rank is
@@ -2046,7 +2052,7 @@ export function createLevelCatalogStore({
       }
       // Bound reads to this athlete's linked identities and referenced sessions.
       const [catalog, evaluations, attendanceSnapshot] = await Promise.all([
-        this.listPublished(academyId),
+        preloadedCatalog ?? this.listPublished(academyId),
         this.listStudentEvaluations(academyId, studentId),
         readCanonicalMemberHistoryDocuments(
           firestore as unknown as Firestore,
