@@ -37,7 +37,13 @@ const fixtures = resolve(import.meta.dirname, "../fixtures");
 type World = Readonly<{
   academyId: string;
   emails: Readonly<Record<string, string>>;
+  /** Set when the season is too young for the attendance fixtures (about 1–9 September). */
+  skipReason: string | null;
   bookedSessionId: string;
+  /** How far ahead the booked class is: Jersey days (phone view) and Monday–Sunday weeks (desktop). */
+  bookedDaysAhead: number;
+  bookedWeeksAhead: number;
+  techniques: Readonly<{ onlyFinley: string; onlyBlake: string; shared: string }>;
   curriculum: Readonly<{ title: string; techniques: readonly string[] }>;
   names: Readonly<Record<"kids" | "teens" | "adults", Readonly<Record<string, string>>>>;
   studentIds: Readonly<Record<string, string>>;
@@ -208,32 +214,48 @@ function expectHealthy(members: readonly Member[], allowed: readonly RegExp[] = 
   }
 }
 
-/** A callable invoked from Node with a member's ID token, for the server-side refusals. */
-async function callAs(
+async function idToken(
   request: APIRequestContext,
   email: string,
-  name: string,
-  data: unknown,
-): Promise<
-  Readonly<{
-    status: number;
-    body: { result?: unknown; error?: { message?: string; status?: string } };
-  }>
-> {
+  secret: string = password,
+): Promise<string> {
   const session = await request.post(authSignInUrl, {
-    data: { email, password, returnSecureToken: true },
+    data: { email, password: secret, returnSecureToken: true },
   });
   expect(session.ok()).toBe(true);
-  const { idToken } = (await session.json()) as { idToken: string };
+  return ((await session.json()) as { idToken: string }).idToken;
+}
+
+type CallResult = Readonly<{
+  status: number;
+  body: { result?: unknown; error?: { message?: string; status?: string } };
+}>;
+
+/** A callable invoked from Node with an ID token, for the server-side refusals. */
+async function callWithToken(
+  request: APIRequestContext,
+  token: string,
+  name: string,
+  data: unknown,
+): Promise<CallResult> {
   const response = await request.post(`${functionsBase}/${name}`, {
     headers: {
-      Authorization: `Bearer ${idToken}`,
+      Authorization: `Bearer ${token}`,
       "X-Firebase-AppCheck": syntheticAppCheckToken(),
     },
     data: { data },
     timeout: 90_000,
   });
   return { status: response.status(), body: await response.json() };
+}
+
+async function callAs(
+  request: APIRequestContext,
+  email: string,
+  name: string,
+  data: unknown,
+): Promise<CallResult> {
+  return callWithToken(request, await idToken(request, email), name, data);
 }
 
 test.describe("Member gamification and social layer with Firebase Emulators", () => {
@@ -316,6 +338,7 @@ test.describe("Member gamification and social layer with Firebase Emulators", ()
     browser,
   }, testInfo) => {
     const w = world(testInfo);
+    test.skip(w.skipReason !== null, w.skipReason ?? "");
     const blake = await member(browser, testInfo, w.emails.blake!);
     const { page } = blake;
     const panel = page.getByRole("region", { name: "Streak" });
@@ -353,6 +376,7 @@ test.describe("Member gamification and social layer with Firebase Emulators", ()
     browser,
   }, testInfo) => {
     const w = world(testInfo);
+    test.skip(w.skipReason !== null, w.skipReason ?? "");
     const rows = (page: Page) =>
       page.getByRole("tabpanel", { name: "Attendance" }).locator(".competitor-name");
 
@@ -377,8 +401,15 @@ test.describe("Member gamification and social layer with Firebase Emulators", ()
       .click();
     const card = blake.page.getByRole("dialog", { name: label(w, "Finley Hart") });
     await expect(card).toBeVisible();
-    await expect(card.getByRole("heading", { name: "They have, you don't" })).toBeVisible();
-    await expect(card.getByRole("heading", { name: "You have, they don't" })).toBeVisible();
+    // Finley completed A and C, Blake B and C: exactly A one way, B the other, C in neither.
+    const techniques = (title: string) =>
+      card
+        .locator("section.competitor-techniques")
+        .filter({ has: blake.page.getByRole("heading", { name: title }) })
+        .getByRole("listitem");
+    await expect(techniques("They have, you don't")).toHaveText([w.techniques.onlyFinley]);
+    await expect(techniques("You have, they don't")).toHaveText([w.techniques.onlyBlake]);
+    await expect(card).not.toContainText(w.techniques.shared);
     await card.getByRole("button", { name: "Close" }).click();
     await expect(card).toBeHidden();
 
@@ -415,6 +446,15 @@ test.describe("Member gamification and social layer with Firebase Emulators", ()
     const w = world(testInfo);
     const avery = await member(browser, testInfo, w.emails.avery!);
     const { page } = avery;
+    // Page the calendar to the class: the phone view shows two days from today and moves a day per
+    // step, the desktop view shows this Monday–Sunday week and moves a week per step.
+    await expect(page.getByRole("button", { name: "Later" })).toBeVisible({ timeout: 90_000 });
+    const steps = testInfo.project.use.isMobile
+      ? Math.max(0, w.bookedDaysAhead - 1)
+      : w.bookedWeeksAhead;
+    for (let step = 0; step < steps; step += 1) {
+      await page.getByRole("button", { name: "Later" }).click();
+    }
     const card = page.locator(`[data-session-id="${w.bookedSessionId}"]`);
     await expect(card).toBeVisible({ timeout: 90_000 });
     await card.getByRole("button", { name: "Fundamentals" }).click();
@@ -488,6 +528,7 @@ test.describe("Member gamification and social layer with Firebase Emulators", ()
 
   test("6 teen access: the guardian gives a 13-year-old a sign-in and takes it back (R12)", async ({
     browser,
+    request,
   }, testInfo) => {
     const w = world(testInfo);
     const teenEmail = w.emails.teen!;
@@ -528,7 +569,10 @@ test.describe("Member gamification and social layer with Firebase Emulators", ()
       timeout: 60_000,
     });
     await expect(teen.page.getByRole("link", { name: "My plan" })).toHaveCount(0);
-    await close(teen);
+    await expect(teen.page.getByText("Couldn't load your calendar.")).toHaveCount(0);
+    expectHealthy([teen]);
+    // A token issued before the revoke, to check the existing session is cut off too.
+    const teenToken = await idToken(request, teenEmail, teenPassword);
 
     // The guardian revokes it.
     await page.getByRole("button", { name: "Revoke access" }).click();
@@ -540,6 +584,17 @@ test.describe("Member gamification and social layer with Firebase Emulators", ()
       timeout: 60_000,
     });
 
+    // The teen's existing session is refused: by the server, and in the open browser on reload.
+    const stale = await callWithToken(request, teenToken, "listMyMemberProfiles", {});
+    expect(stale.status).toBe(403);
+    expect(stale.body.error?.status).toBe("PERMISSION_DENIED");
+    await teen.page.reload();
+    await expect(teen.page.getByRole("heading", { level: 1, name: "Charlie" })).toHaveCount(0, {
+      timeout: 60_000,
+    });
+    await expect(teen.page.locator("[data-session-id]")).toHaveCount(0);
+    await expect(teen.page.getByRole("region", { name: "Streak" })).toHaveCount(0);
+
     // The teen can no longer sign in.
     const refused = await openContext(browser, testInfo);
     await refused.page.goto("/login");
@@ -547,11 +602,15 @@ test.describe("Member gamification and social layer with Firebase Emulators", ()
     await again.getByLabel(/email address/iu).fill(teenEmail);
     await again.getByLabel("Password", { exact: true }).fill(teenPassword);
     await again.getByRole("button", { name: /^Sign in$/u }).click();
-    await expect(refused.page.getByRole("alert")).toBeVisible({ timeout: 30_000 });
-    await refused.page.waitForTimeout(2_000);
-    expect(new URL(refused.page.url()).pathname).toBe("/login");
+    // The non-empty alert: Next's route announcer is an empty alert region too.
+    await expect(refused.page.getByRole("alert").filter({ hasText: /\S/u })).toHaveText(
+      "We couldn't complete sign-in. Please try again.",
+      { timeout: 30_000 },
+    );
+    await expect(refused.page).toHaveURL(/\/login(?:$|[?#])/u);
 
-    expectHealthy([taylor, teen]);
+    expectHealthy([taylor]);
+    await close(teen);
     expectHealthy(
       [refused],
       [/Failed to load resource: the server responded with a status of 400/u],
