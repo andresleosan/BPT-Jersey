@@ -60,9 +60,12 @@ export function SessionCard({
   const status = derived.status;
   const site = sessionSite(session);
   const isIntro = sessionAccessMode(session) === "intro";
-  // Only an ordinary booked class opens its plan and roster; course sessions stay as they are.
+  // Only an ordinary class with a confirmed booking opens its plan and roster ("booked" also covers
+  // bookings still awaiting approval, which the server refuses); course sessions stay as they are.
   const detailStudentId =
-    status === "booked" && !session.courseId ? entry.booking?.studentId : undefined;
+    status === "booked" && !session.courseId && entry.booking?.status === "confirmed"
+      ? entry.booking.studentId
+      : undefined;
 
   let action: React.ReactNode;
   if (session.courseId && status === "booked") {
