@@ -47,7 +47,7 @@ export function CalendarHeader(props: CalendarHeaderProps) {
         <h1 className="member-name">{firstName}</h1>
         <nav aria-label="Account" className="member-links">
           {accountLinks.map((link) => (
-            <Link href={link.href} key={link.href} prefetch>
+            <Link href={link.href} key={link.href}>
               {link.label}
             </Link>
           ))}
