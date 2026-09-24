@@ -72,10 +72,12 @@ function assertObjectKey(objectKey: string): void {
 }
 
 const MAX_PRIVATE_IMAGE_BYTES = 2 * 1024 * 1024;
+/** Exactly the key the avatar upload builds: academies/{academyId}/avatars/{studentId}/{uuid}.webp. */
+const AVATAR_KEY_PATTERN = /^academies\/[^/]+\/avatars\/[^/]+\/[0-9a-f-]{36}\.webp$/u;
 
 /** Payment proofs: jpeg/png read for 60 s. Profile avatars: webp read for 900 s. Nothing else. */
 function isPrivateImageRequest(input: Readonly<{ objectKey: string; expiresInSeconds: number; contentType: string }>): boolean {
-  if (input.objectKey.includes("/avatars/")) return input.contentType === "image/webp" && input.expiresInSeconds === 900;
+  if (AVATAR_KEY_PATTERN.test(input.objectKey)) return input.contentType === "image/webp" && input.expiresInSeconds === 900;
   return (input.objectKey.includes("/course-proofs/") || input.objectKey.includes("/membership-application-proofs/")) &&
     input.expiresInSeconds === 60 && ["image/jpeg", "image/png"].includes(input.contentType);
 }
@@ -83,7 +85,7 @@ function isPrivateImageRequest(input: Readonly<{ objectKey: string; expiresInSec
 /** Non-PDF objects: jpeg/png proofs or webp avatars, never above 2 MB. */
 function isPrivateImageObject(objectKey: string, contentType: string, byteLength: number): boolean {
   if (byteLength > MAX_PRIVATE_IMAGE_BYTES) return false;
-  if (objectKey.includes("/avatars/")) return contentType === "image/webp";
+  if (AVATAR_KEY_PATTERN.test(objectKey)) return contentType === "image/webp";
   return (objectKey.includes("/enrolment-proofs/") || objectKey.includes("/course-proofs/") || objectKey.includes("/membership-application-proofs/")) &&
     ["image/png", "image/jpeg"].includes(contentType);
 }

@@ -1,4 +1,4 @@
-import { memberAccessInStoreTransaction } from "../members/member-access-service.js";
+import { sensitiveMemberAccessInStoreTransaction } from "../members/member-access-service.js";
 import { randomUUID } from "node:crypto";
 
 import { parseStudentProfile, type StudentProfile } from "@bpt-jersey/domain/profiles";
@@ -205,8 +205,7 @@ function storedRequest(
   return parsed.value;
 }
 async function assertGuardian(transaction: HealthTransaction, firestore: HealthFirestore, academyId: string, actorId: string, studentId: string, now: string): Promise<void> {
-  const access = await memberAccessInStoreTransaction(firestore, transaction, now).authorise(academyId, actorId, studentId);
-  if (!access.allowed) throw new HealthStoreError("forbidden", "Member health access is not permitted");
+  if (!(await sensitiveMemberAccessInStoreTransaction(firestore, transaction, now, academyId, actorId, studentId))) throw new HealthStoreError("forbidden", "Member health access is not permitted");
 }
 async function assertStudent(
   transaction: HealthTransaction,

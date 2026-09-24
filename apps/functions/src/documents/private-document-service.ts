@@ -1,4 +1,4 @@
-import { memberAccessInStoreTransaction } from "../members/member-access-service.js";
+import { sensitiveMemberAccessInStoreTransaction } from "../members/member-access-service.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import {
@@ -155,7 +155,7 @@ async function guardianAllowed(
   studentId: string,
   now: string,
 ): Promise<boolean> {
-  return (await memberAccessInStoreTransaction(firestore, transaction, now).authorise(academyId, actorId, studentId)).allowed;
+  return sensitiveMemberAccessInStoreTransaction(firestore, transaction, now, academyId, actorId, studentId);
 }
 
 function safeUpload(input: PrivateDocumentUploadInput): PrivateDocumentUploadInput {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { decideMemberAccess, needsAdultClaim } from "./member-access-contracts";
+import { allowsOwnSensitiveAccess, decideMemberAccess, needsAdultClaim } from "./member-access-contracts";
 
 describe("needsAdultClaim", () => {
   const base = { via: "self" as const, createdByGuardian: true, adultClaimedAt: null };
@@ -21,5 +21,16 @@ describe("decideMemberAccess", () => {
     expect(decideMemberAccess({ ...base, confirmedAge: 12, ownLinkApproved: true })).toEqual({ allowed: true, via: "self" });
     expect(decideMemberAccess({ ...base, confirmedAge: 17, ownLinkApproved: false, guardianLinkCurrent: true })).toEqual({ allowed: true, via: "guardian" });
     expect(decideMemberAccess({ ...base, confirmedAge: 18, ownLinkApproved: false, guardianLinkCurrent: true })).toEqual({ allowed: false });
+  });
+});
+
+describe("allowsOwnSensitiveAccess", () => {
+  it("keeps own health access at 16 and leaves guardian access unchanged", () => {
+    const self = { allowed: true, via: "self" } as const;
+    expect(allowsOwnSensitiveAccess(self, 15)).toBe(false);
+    expect(allowsOwnSensitiveAccess(self, 16)).toBe(true);
+    expect(allowsOwnSensitiveAccess(self, null)).toBe(false);
+    expect(allowsOwnSensitiveAccess({ allowed: true, via: "guardian" }, 12)).toBe(true);
+    expect(allowsOwnSensitiveAccess({ allowed: false }, 30)).toBe(false);
   });
 });
