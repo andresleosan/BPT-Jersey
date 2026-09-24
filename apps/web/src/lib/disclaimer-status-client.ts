@@ -6,14 +6,19 @@ import { getFirebaseFunctions } from "./firebase-client";
 const statusSchema = z.strictObject({
   participants: z
     .array(
-      z.strictObject({
-        studentId: z.string(),
-        fullName: z.string(),
-        terms: z.boolean(),
-        disclaimers: z.boolean(),
-      }),
+      z.discriminatedUnion("status", [
+        z.strictObject({
+          studentId: z.string(),
+          status: z.literal("checked"),
+          fullName: z.string(),
+          terms: z.boolean(),
+          disclaimers: z.boolean(),
+        }),
+        // Not this account's to check: the server gave no name and no data.
+        z.strictObject({ studentId: z.string(), status: z.literal("not-applicable") }),
+      ]),
     )
-    .max(100),
+    .max(20),
 });
 export type DisclaimerStatus = z.infer<typeof statusSchema>;
 
@@ -35,13 +40,15 @@ export const disclaimerStatusUnavailable = "We couldn't check your terms.";
 export const disclaimerAcceptancesUnavailable =
   "Acceptances are unavailable right now. Only the owner or an administrator can see them.";
 
-/** Terms and required disclaimers for every participant on this account (Q5). */
-export async function getMyDisclaimerStatus(): Promise<DisclaimerStatus> {
+/** Terms and required disclaimers for exactly the calendar's participants (Q5). */
+export async function getMyDisclaimerStatus(
+  studentIds: readonly string[],
+): Promise<DisclaimerStatus> {
   try {
-    const response = await httpsCallable<Record<string, never>, unknown>(
+    const response = await httpsCallable<{ studentIds: readonly string[] }, unknown>(
       getFirebaseFunctions(),
       "getMyDisclaimerStatus",
-    )({});
+    )({ studentIds });
     const parsed = statusSchema.safeParse(response.data);
     if (parsed.success) return parsed.data;
   } catch {

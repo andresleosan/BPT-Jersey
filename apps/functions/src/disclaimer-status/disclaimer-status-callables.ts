@@ -32,7 +32,13 @@ import { hasAcceptedEnrolmentWaiver } from "../consents/enrolment-waiver-accepta
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { createFirestoreMemberAccessService } from "../members/member-access-service.js";
 
-const statusRequestSchema = z.strictObject({}).nullish();
+// Exactly the calendar's participant ids; path-safe, so they can be used in document paths.
+const statusRequestSchema = z.strictObject({
+  studentIds: z
+    .array(z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u))
+    .min(1)
+    .max(20),
+});
 const acceptancesRequestSchema = z.strictObject({ missingOnly: z.boolean() });
 
 async function readDisclaimers(db: Firestore, academyId: string): Promise<Disclaimer[]> {
@@ -84,18 +90,19 @@ function disclaimersClear(
 
 export const getMyDisclaimerStatus = onCall(browserAdminCallableOptions, async (request) => {
   const actor = await requireMemberAccountActor(request);
-  if (!statusRequestSchema.safeParse(request.data).success) {
-    throw new HttpsError("invalid-argument", "Invalid terms status request");
-  }
+  const input = statusRequestSchema.safeParse(request.data);
+  if (!input.success) throw new HttpsError("invalid-argument", "Invalid terms status request");
   const db = getFirestore();
   const base = `academies/${actor.academyId}`;
   const now = new Date().toISOString();
-  const [profiles, disclaimers] = await Promise.all([
-    createFirestoreMemberAccessService().listProfiles(actor.academyId, actor.userId),
-    readDisclaimers(db, actor.academyId),
-  ]);
+  const access = createFirestoreMemberAccessService();
+  const disclaimers = await readDisclaimers(db, actor.academyId);
   const participants = await Promise.all(
-    profiles.map(async ({ studentId, fullName }) => {
+    [...new Set(input.data.studentIds)].map(async (studentId) => {
+      // Not this account's to check (e.g. a course-only participant): no name, no data. The web
+      // does not block on it; any booking still goes through the server's access and terms checks.
+      const decision = await access.authorise(actor.academyId, actor.userId, studentId);
+      if (!decision.allowed) return { studentId, status: "not-applicable" as const };
       const [terms, student, acceptances] = await Promise.all([
         db.runTransaction(
           (transaction) =>
@@ -105,9 +112,11 @@ export const getMyDisclaimerStatus = onCall(browserAdminCallableOptions, async (
         db.doc(`${base}/students/${studentId}`).get(),
         db.collection(`${base}/disclaimerAcceptances`).where("studentId", "==", studentId).get(),
       ]);
+      const fullName: unknown = student.get("fullName");
       return {
         studentId,
-        fullName,
+        status: "checked" as const,
+        fullName: typeof fullName === "string" ? fullName.trim().slice(0, 160) : "",
         terms,
         disclaimers: disclaimersClear(
           disclaimers,

@@ -14,9 +14,12 @@ import "./acceptances.css";
  * 2026-09-24), which overrides the T117 "counts, never who" rule for this audit only.
  */
 
-/** One CSV cell: quotes doubled, and a leading = + - @ neutralised so a spreadsheet never runs it. */
+/**
+ * One CSV cell: quotes doubled, and a leading = + - @ tab or CR neutralised so a spreadsheet never
+ * runs it.
+ */
 function csvCell(value: string): string {
-  const safe = /^[=+\-@]/u.test(value) ? `'${value}` : value;
+  const safe = /^[=+\-@\t\r]/u.test(value) ? `'${value}` : value;
   return `"${safe.replaceAll('"', '""')}"`;
 }
 

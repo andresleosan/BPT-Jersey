@@ -42,13 +42,14 @@ function AccountContent() {
   return (
     <AdultClaimGate>
       <WaiverGate>
-        {(gate) => (
+        {(gate, track) => (
           <MemberCalendar
             cacheKey={session.uid}
             onSignOut={() => void handleSignOut()}
             repository={repository}
             session={{ role, displayName }}
             gate={gate}
+            onParticipants={track}
             topSlot={(studentId) => (
               <>
                 <IntroNotices />
