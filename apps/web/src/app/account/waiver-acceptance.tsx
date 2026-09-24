@@ -193,9 +193,8 @@ export function PendingTermsBanner({ studentId }: Readonly<{ studentId: string }
       ) : null}
       {disclaimersOnly.length > 0 ? (
         <p className="calendar-trial-band" role="status">
-          {names(disclaimersOnly)} still {disclaimersOnly.length === 1 ? "needs" : "need"} to accept the
-          disclaimers.{" "}
-          {teen ? null : <a href={acceptDisclaimersHref}>Review and accept</a>}
+          {names(disclaimersOnly)} still {disclaimersOnly.length === 1 ? "needs" : "need"} to accept
+          the disclaimers. {teen ? null : <a href={acceptDisclaimersHref}>Review and accept</a>}
         </p>
       ) : null}
     </>

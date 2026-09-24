@@ -404,13 +404,11 @@ const curriculum = {
   details: "Drill in pairs, then positional rounds.",
 };
 writes.push(
-  firestore
-    .doc(`${base}/sessions/${bookedSessionId}`)
-    .set(
-      sessionDocument(bookedSessionId, "mge-adult-bjj", "Fundamentals", bookedStart, {
-        curriculum,
-      }),
-    ),
+  firestore.doc(`${base}/sessions/${bookedSessionId}`).set(
+    sessionDocument(bookedSessionId, "mge-adult-bjj", "Fundamentals", bookedStart, {
+      curriculum,
+    }),
+  ),
 );
 for (const person of [avery, casey, finley, gray, dana, jordan, poppy]) {
   const bookingId = `v2:${bookedSessionId.length}:${bookedSessionId}:${person.studentId.length}:${person.studentId}`;

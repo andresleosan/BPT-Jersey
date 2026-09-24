@@ -3,7 +3,10 @@
 import { useRef, useState, type FormEvent } from "react";
 
 import { useClientSession } from "../../../lib/client-auth";
-import { FamilyPlanUnavailableError, requestMemberPlanPerson } from "../../../lib/family-plan-client";
+import {
+  FamilyPlanUnavailableError,
+  requestMemberPlanPerson,
+} from "../../../lib/family-plan-client";
 
 const centreOptions = ["Town", "West"] as const;
 const timeOptions = [
@@ -56,7 +59,8 @@ export function PlanPersonRequests({ canTrainYourself }: Readonly<{ canTrainYour
       await requestMemberPlanPerson({
         kind,
         // The server takes the account holder's own name for "Train yourself".
-        fullName: kind === "child" ? fullName.trim() : session?.displayName?.trim() || "Account holder",
+        fullName:
+          kind === "child" ? fullName.trim() : session?.displayName?.trim() || "Account holder",
         dateOfBirth,
         trainingCenter: centre,
         trainingTimePreferences: times,
@@ -98,7 +102,11 @@ export function PlanPersonRequests({ canTrainYourself }: Readonly<{ canTrainYour
         {notice?.kind === "success" ? notice.text : ""}
       </p>
 
-      <dialog aria-labelledby="plan-people-form-title" className="client-plan-people-dialog" ref={dialog}>
+      <dialog
+        aria-labelledby="plan-people-form-title"
+        className="client-plan-people-dialog"
+        ref={dialog}
+      >
         <form className="client-plan-people-form" onSubmit={(event) => void submit(event)}>
           <h2 id="plan-people-form-title">{kind === "child" ? "Add a child" : "Train yourself"}</h2>
           {kind === "child" ? (

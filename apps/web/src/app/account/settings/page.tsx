@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useId, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 import type { AccountMemberProfile } from "@bpt-jersey/domain/members/access";
 import { memberAgeOn } from "@bpt-jersey/domain/members/access";
 import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
@@ -30,11 +38,14 @@ const consentText =
 
 type Person = Readonly<{ profile: AccountMemberProfile; age: number | null }>;
 
-const errorText = (cause: unknown, fallback: string) => (cause instanceof Error && cause.message ? cause.message : fallback);
+const errorText = (cause: unknown, fallback: string) =>
+  cause instanceof Error && cause.message ? cause.message : fallback;
 
 function initials(fullName: string): string {
   const parts = fullName.trim().split(/\s+/u);
-  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts.at(-1)?.[0] ?? "") : "")).toUpperCase();
+  return (
+    (parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts.at(-1)?.[0] ?? "") : "")
+  ).toUpperCase();
 }
 
 /** Account settings (T044V2): photo, visibility and, for a guardian, a 12–17 year old's own sign-in. */
@@ -48,7 +59,9 @@ function SettingsContent() {
       try {
         const profiles = await listMyProfiles();
         // Children's dates of birth only narrow the own-access section; without them the server decides.
-        const family = profiles.some((profile) => profile.via === "guardian") ? await getFamily().catch(() => undefined) : undefined;
+        const family = profiles.some((profile) => profile.via === "guardian")
+          ? await getFamily().catch(() => undefined)
+          : undefined;
         const today = dateKeyInJersey(new Date());
         const next = profiles.map((profile): Person => {
           const child = family?.students.find((student) => student.studentId === profile.studentId);
@@ -86,7 +99,11 @@ function SettingsContent() {
           {people.length > 1 ? (
             <div className="settings-field settings-person">
               <label htmlFor="settings-person">Settings for</label>
-              <select id="settings-person" value={selected} onChange={(event) => setSelected(event.target.value)}>
+              <select
+                id="settings-person"
+                value={selected}
+                onChange={(event) => setSelected(event.target.value)}
+              >
                 {people.map((item) => (
                   <option key={item.profile.studentId} value={item.profile.studentId}>
                     {item.profile.via === "self" ? "You" : item.profile.fullName}
@@ -154,7 +171,9 @@ function PersonSettings({ person }: Readonly<{ person: Person }>) {
     <div className="settings-sections">
       <PhotoSection profile={profile} settings={settings} isTeen={isTeen} onChanged={reload} />
       <VisibilitySection studentId={profile.studentId} settings={settings} />
-      {ownAccess ? <OwnAccessSection profile={profile} settings={settings} onChanged={reload} /> : null}
+      {ownAccess ? (
+        <OwnAccessSection profile={profile} settings={settings} onChanged={reload} />
+      ) : null}
     </div>
   );
 }
@@ -164,7 +183,12 @@ function PhotoSection({
   settings,
   isTeen,
   onChanged,
-}: Readonly<{ profile: AccountMemberProfile; settings: MySettings; isTeen: boolean; onChanged: () => Promise<void> }>) {
+}: Readonly<{
+  profile: AccountMemberProfile;
+  settings: MySettings;
+  isTeen: boolean;
+  onChanged: () => Promise<void>;
+}>) {
   const ids = useId();
   const fileInput = useRef<HTMLInputElement>(null);
   const [crop, setCrop] = useState<CroppedAvatar>();
@@ -186,9 +210,17 @@ function PhotoSection({
   function confirmAction() {
     confirm.current?.close();
     if (pendingAction === "approve") {
-      void run(() => approveProposedPhoto(profile.studentId), settingsMessages.approveFailed, "Photo approved.");
+      void run(
+        () => approveProposedPhoto(profile.studentId),
+        settingsMessages.approveFailed,
+        "Photo approved.",
+      );
     } else {
-      void run(() => removeProfilePhoto(profile.studentId), settingsMessages.removeFailed, "Photo removed.");
+      void run(
+        () => removeProfilePhoto(profile.studentId),
+        settingsMessages.removeFailed,
+        "Photo removed.",
+      );
     }
   }
 
@@ -230,7 +262,8 @@ function PhotoSection({
     event.preventDefault();
     if (!crop || !consent) return;
     void run(
-      () => uploadProfilePhoto({ studentId: profile.studentId, base64: crop.base64, mime: crop.mime }),
+      () =>
+        uploadProfilePhoto({ studentId: profile.studentId, base64: crop.base64, mime: crop.mime }),
       settingsMessages.photoFailed,
       isTeen ? "Photo sent. Your parent or guardian will approve it." : "Photo saved.",
     );
@@ -264,7 +297,13 @@ function PhotoSection({
           <div className="settings-pending">
             <p className="settings-help settings-pending-label">Suggested photo</p>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className="settings-avatar" src={settings.pendingPhotoUrl} alt="Suggested photo" width={96} height={96} />
+            <img
+              className="settings-avatar"
+              src={settings.pendingPhotoUrl}
+              alt="Suggested photo"
+              width={96}
+              height={96}
+            />
             {settings.canManage ? (
               <button
                 className="button button-primary"
@@ -293,12 +332,21 @@ function PhotoSection({
           />
         </div>
         <label className="settings-check">
-          <input type="checkbox" checked={consent} disabled={busy} onChange={(event) => setConsent(event.target.checked)} />
+          <input
+            type="checkbox"
+            checked={consent}
+            disabled={busy}
+            onChange={(event) => setConsent(event.target.checked)}
+          />
           <span>{consentText}</span>
         </label>
         {isTeen ? <p className="settings-help">Your parent or guardian will approve it.</p> : null}
         <div className="settings-actions">
-          <button className="button button-primary" type="submit" disabled={busy || !crop || !consent}>
+          <button
+            className="button button-primary"
+            type="submit"
+            disabled={busy || !crop || !consent}
+          >
             {isTeen ? "Suggest photo" : "Upload photo"}
           </button>
           {settings.canManage && (settings.photoUrl || settings.pendingPhotoUrl) ? (
@@ -328,14 +376,20 @@ function PhotoSection({
         aria-labelledby={`${ids}-confirm`}
         onClose={() => confirmTrigger.current?.focus()}
       >
-        <h2 id={`${ids}-confirm`}>{pendingAction === "approve" ? "Approve this photo?" : "Remove this photo?"}</h2>
+        <h2 id={`${ids}-confirm`}>
+          {pendingAction === "approve" ? "Approve this photo?" : "Remove this photo?"}
+        </h2>
         <p>
           {pendingAction === "approve"
             ? "It will be shown to other members in leaderboards and class lists."
             : "Other members will see initials instead."}
         </p>
         <div className="cancel-dialog-actions">
-          <button className="button button-secondary" type="button" onClick={() => confirm.current?.close()}>
+          <button
+            className="button button-secondary"
+            type="button"
+            onClick={() => confirm.current?.close()}
+          >
             Keep as it is
           </button>
           <button className="button button-primary" type="button" onClick={confirmAction}>
@@ -347,7 +401,10 @@ function PhotoSection({
   );
 }
 
-function VisibilitySection({ studentId, settings }: Readonly<{ studentId: string; settings: MySettings }>) {
+function VisibilitySection({
+  studentId,
+  settings,
+}: Readonly<{ studentId: string; settings: MySettings }>) {
   const ids = useId();
   const [on, setOn] = useState(settings.showToMembers);
   const [busy, setBusy] = useState(false);
@@ -382,7 +439,8 @@ function VisibilitySection({ studentId, settings }: Readonly<{ studentId: string
         <span>Show me to other members</span>
       </label>
       <p className="settings-help" id={`${ids}-help`}>
-        When off, you don&apos;t appear in other members&apos; leaderboards or class lists. You still see your own position.
+        When off, you don&apos;t appear in other members&apos; leaderboards or class lists. You
+        still see your own position.
         {settings.canManage ? null : " Your parent or guardian can change this."}
       </p>
       {error ? (
@@ -398,7 +456,11 @@ function OwnAccessSection({
   profile,
   settings,
   onChanged,
-}: Readonly<{ profile: AccountMemberProfile; settings: MySettings; onChanged: () => Promise<void> }>) {
+}: Readonly<{
+  profile: AccountMemberProfile;
+  settings: MySettings;
+  onChanged: () => Promise<void>;
+}>) {
   const ids = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -452,10 +514,16 @@ function OwnAccessSection({
       {access ? (
         <>
           <p className="settings-help">
-            {profile.fullName} signs in with <strong className="settings-email">{access.email}</strong>.
+            {profile.fullName} signs in with{" "}
+            <strong className="settings-email">{access.email}</strong>.
           </p>
           <div className="settings-actions">
-            <button ref={trigger} className="button button-secondary" type="button" onClick={() => dialog.current?.showModal()}>
+            <button
+              ref={trigger}
+              className="button button-secondary"
+              type="button"
+              onClick={() => dialog.current?.showModal()}
+            >
               Revoke access
             </button>
           </div>
@@ -466,12 +534,25 @@ function OwnAccessSection({
             onClose={() => trigger.current?.focus()}
           >
             <h2 id={`${ids}-dialog`}>Revoke access?</h2>
-            <p>{profile.fullName} will be signed out and won&apos;t be able to sign in with this email.</p>
+            <p>
+              {profile.fullName} will be signed out and won&apos;t be able to sign in with this
+              email.
+            </p>
             <div className="cancel-dialog-actions">
-              <button className="button button-secondary" type="button" disabled={busy} onClick={() => dialog.current?.close()}>
+              <button
+                className="button button-secondary"
+                type="button"
+                disabled={busy}
+                onClick={() => dialog.current?.close()}
+              >
                 Keep access
               </button>
-              <button className="button button-primary" type="button" disabled={busy} onClick={() => void revoke()}>
+              <button
+                className="button button-primary"
+                type="button"
+                disabled={busy}
+                onClick={() => void revoke()}
+              >
                 Revoke access
               </button>
             </div>
@@ -479,7 +560,9 @@ function OwnAccessSection({
         </>
       ) : (
         <form className="settings-form" onSubmit={(event) => void create(event)}>
-          <p className="settings-help">Give {profile.fullName} their own sign-in. You stay their guardian.</p>
+          <p className="settings-help">
+            Give {profile.fullName} their own sign-in. You stay their guardian.
+          </p>
           <div className="settings-field">
             <label htmlFor={`${ids}-email`}>Email</label>
             <input

@@ -7,7 +7,12 @@ import { getApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
-import { HttpsError, onCall, type CallableOptions, type CallableRequest } from "firebase-functions/v2/https";
+import {
+  HttpsError,
+  onCall,
+  type CallableOptions,
+  type CallableRequest,
+} from "firebase-functions/v2/https";
 
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { createCanonicalMemberDirectoryService } from "../members/canonical-member-directory-service.js";
@@ -16,17 +21,29 @@ import { requireMemberAccountActor } from "../members/member-access-callables.js
 import { createFirestoreMemberAccessService } from "../members/member-access-service.js";
 import { createMemberDirectoryFirestoreAdapters } from "../members/member-directory-firestore.js";
 import { createPrivateStorageR2Client } from "../storage/r2-client.js";
-import { createAccountSettingsService, type StudentAccountLinker, type TeenAccessAuth } from "./account-settings-service.js";
+import {
+  createAccountSettingsService,
+  type StudentAccountLinker,
+  type TeenAccessAuth,
+} from "./account-settings-service.js";
 
 const identityKeySecret = defineSecret("MEMBER_DIRECTORY_IDENTITY_KEY_SECRET");
 const migrationIntegritySecret = defineSecret("MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET");
 
 const storageOptions = { ...browserAdminCallableOptions, secrets: enrolmentStorageSecrets };
 /** sharp decodes up to 20 MP: give the upload room and one image at a time per instance. */
-const uploadOptions = { ...storageOptions, memory: "512MiB" as const, concurrency: 1, timeoutSeconds: 30 };
+const uploadOptions = {
+  ...storageOptions,
+  memory: "512MiB" as const,
+  concurrency: 1,
+  timeoutSeconds: 30,
+};
 
 /** Teen access writes `students/{id}.userId`, so it carries the canonical directory writer secrets. */
-const directoryOptions = { ...browserAdminCallableOptions, secrets: [identityKeySecret, migrationIntegritySecret] };
+const directoryOptions = {
+  ...browserAdminCallableOptions,
+  secrets: [identityKeySecret, migrationIntegritySecret],
+};
 
 type Service = ReturnType<typeof createAccountSettingsService>;
 
@@ -55,15 +72,30 @@ function studentAccountLinker(): StudentAccountLinker {
     firestore: createMemberDirectoryFirestoreAdapters(getFirestore()).writer,
   });
   // requireMemberAccountActor has already required App Check and an active member account.
-  return ({ actor, studentId, userId, expectedUserId, now }) => directory.setStudentAccountLink({
-    actor: { actorId: actor.userId, academyId: actor.academyId, role: "guardian", active: true, appCheckVerified: true },
-    studentId, userId, expectedUserId, now,
-  });
+  return ({ actor, studentId, userId, expectedUserId, now }) =>
+    directory.setStudentAccountLink({
+      actor: {
+        actorId: actor.userId,
+        academyId: actor.academyId,
+        role: "guardian",
+        active: true,
+        appCheckVerified: true,
+      },
+      studentId,
+      userId,
+      expectedUserId,
+      now,
+    });
 }
 
 function settingsCallable<T>(
   options: CallableOptions,
-  run: (service: Service, actor: { userId: string; academyId: string }, data: unknown, request: CallableRequest<unknown>) => Promise<T>,
+  run: (
+    service: Service,
+    actor: { userId: string; academyId: string },
+    data: unknown,
+    request: CallableRequest<unknown>,
+  ) => Promise<T>,
   withTeen: "none" | "auth" | "directory" = "none",
 ) {
   return onCall(options, async (request: CallableRequest<unknown>) => {
@@ -74,9 +106,14 @@ function settingsCallable<T>(
         firestore,
         r2: createPrivateStorageR2Client(),
         access: createFirestoreMemberAccessService({ firestore }),
-        ...(withTeen === "none" ? {} : {
-          teen: { auth: teenAuth(), ...(withTeen === "directory" ? { linkStudentAccount: studentAccountLinker() } : {}) },
-        }),
+        ...(withTeen === "none"
+          ? {}
+          : {
+              teen: {
+                auth: teenAuth(),
+                ...(withTeen === "directory" ? { linkStudentAccount: studentAccountLinker() } : {}),
+              },
+            }),
       });
       return await run(service, actor, request.data, request);
     } catch (error) {
@@ -86,13 +123,37 @@ function settingsCallable<T>(
   });
 }
 
-export const uploadProfilePhoto = settingsCallable(uploadOptions, (s, actor, data) => s.uploadProfilePhoto(actor, data));
-export const removeProfilePhoto = settingsCallable(storageOptions, (s, actor, data) => s.removeProfilePhoto(actor, data));
-export const approveProposedPhoto = settingsCallable(storageOptions, (s, actor, data) => s.approveProposedPhoto(actor, data));
-export const getMySettings = settingsCallable(storageOptions, (s, actor, data) => s.getMySettings(actor, data));
-export const setMemberVisibility = settingsCallable(browserAdminCallableOptions, (s, actor, data) => s.setMemberVisibility(actor, data));
-export const createTeenAccess = settingsCallable(directoryOptions, (s, actor, data) => s.createTeenAccess(actor, data), "directory");
-export const revokeTeenAccess = settingsCallable(directoryOptions, (s, actor, data) => s.revokeTeenAccess(actor, data), "directory");
-export const getAdultClaimStatus = settingsCallable(browserAdminCallableOptions, (s, actor, data) => s.getAdultClaimStatus(actor, data));
-export const claimAdultAccount = settingsCallable(browserAdminCallableOptions, (s, actor, data, request) =>
-  s.claimAdultAccount(actor, data, Number(request.auth?.token.auth_time) * 1000), "auth");
+export const uploadProfilePhoto = settingsCallable(uploadOptions, (s, actor, data) =>
+  s.uploadProfilePhoto(actor, data),
+);
+export const removeProfilePhoto = settingsCallable(storageOptions, (s, actor, data) =>
+  s.removeProfilePhoto(actor, data),
+);
+export const approveProposedPhoto = settingsCallable(storageOptions, (s, actor, data) =>
+  s.approveProposedPhoto(actor, data),
+);
+export const getMySettings = settingsCallable(storageOptions, (s, actor, data) =>
+  s.getMySettings(actor, data),
+);
+export const setMemberVisibility = settingsCallable(browserAdminCallableOptions, (s, actor, data) =>
+  s.setMemberVisibility(actor, data),
+);
+export const createTeenAccess = settingsCallable(
+  directoryOptions,
+  (s, actor, data) => s.createTeenAccess(actor, data),
+  "directory",
+);
+export const revokeTeenAccess = settingsCallable(
+  directoryOptions,
+  (s, actor, data) => s.revokeTeenAccess(actor, data),
+  "directory",
+);
+export const getAdultClaimStatus = settingsCallable(browserAdminCallableOptions, (s, actor, data) =>
+  s.getAdultClaimStatus(actor, data),
+);
+export const claimAdultAccount = settingsCallable(
+  browserAdminCallableOptions,
+  (s, actor, data, request) =>
+    s.claimAdultAccount(actor, data, Number(request.auth?.token.auth_time) * 1000),
+  "auth",
+);

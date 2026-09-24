@@ -110,7 +110,13 @@ describe("buildMemberStreakSummary", () => {
     });
     expect(summary.goal.almost).toBe(true);
     // A reached target rolls to the next multiple: 1 of 1 becomes 1 of 2.
-    expect(summary.reward).toMatchObject({ target: 2, progress: 1, remaining: 1, almost: true, complete: false });
+    expect(summary.reward).toMatchObject({
+      target: 2,
+      progress: 1,
+      remaining: 1,
+      almost: true,
+      complete: false,
+    });
   });
 });
 
@@ -184,9 +190,15 @@ describe("buildMemberStreakSummary targets", () => {
   const at = (day: string) => ({ occurredAt: `2026-09-${day}T18:00:00.000Z`, durationMinutes: 60 });
   const now = "2026-09-30T20:00:00.000Z";
   it("flags x1 missing on the goal at 9 and rolls to 20 at 10", () => {
-    const nine = buildMemberStreakSummary({ attendances: ["02","03","04","05","08","09","10","11","12"].map(at), now });
+    const nine = buildMemberStreakSummary({
+      attendances: ["02", "03", "04", "05", "08", "09", "10", "11", "12"].map(at),
+      now,
+    });
     expect(nine.goal).toMatchObject({ target: 10, remaining: 1, almost: true });
-    const ten = buildMemberStreakSummary({ attendances: ["02","03","04","05","08","09","10","11","12","15"].map(at), now });
+    const ten = buildMemberStreakSummary({
+      attendances: ["02", "03", "04", "05", "08", "09", "10", "11", "12", "15"].map(at),
+      now,
+    });
     expect(ten.goal).toMatchObject({ target: 20, remaining: 10, almost: false });
   });
 });

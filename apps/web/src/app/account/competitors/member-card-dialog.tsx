@@ -14,12 +14,17 @@ const safeColour = /^(#[0-9a-f]{3,8}|[a-z]{3,20})$/iu;
 
 function initials(name: string): string {
   const parts = name.replace(/\./gu, "").trim().split(/\s+/u);
-  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts.at(-1)?.[0] ?? "") : "")).toUpperCase();
+  return (
+    (parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts.at(-1)?.[0] ?? "") : "")
+  ).toUpperCase();
 }
 
 /** `skill-key` → «Skill key» when the catalogue has no label for it. */
 function humanise(key: string): string {
-  const words = key.replace(/[-_.:]+/gu, " ").trim().toLowerCase();
+  const words = key
+    .replace(/[-_.:]+/gu, " ")
+    .trim()
+    .toLowerCase();
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : key;
 }
 
@@ -67,7 +72,11 @@ export function BeltLabel({ card }: Readonly<{ card: MemberPublicCard }>) {
   const colour = safeColour.test(card.belt.color) ? card.belt.color : undefined;
   return (
     <span className="competitor-belt">
-      <span className="competitor-belt-swatch" style={colour ? { background: colour } : undefined} aria-hidden="true" />
+      <span
+        className="competitor-belt-swatch"
+        style={colour ? { background: colour } : undefined}
+        aria-hidden="true"
+      />
       <span>
         {card.belt.name} · {card.stripes} {card.stripes === 1 ? "stripe" : "stripes"}
       </span>
@@ -91,7 +100,9 @@ function TechniqueList({
           {shown.map((key) => (
             <li key={key}>{labels.get(key) ?? humanise(key)}</li>
           ))}
-          {keys.length > listLimit ? <li className="competitor-muted">+{keys.length - listLimit} more</li> : null}
+          {keys.length > listLimit ? (
+            <li className="competitor-muted">+{keys.length - listLimit} more</li>
+          ) : null}
         </ul>
       )}
     </section>
@@ -118,9 +129,12 @@ export function MemberCardDialog({
   const ref = useRef<HTMLDialogElement>(null);
   const [labels, setLabels] = useState<ReadonlyMap<string, string>>(new Map());
   // Read at first render, before showModal moves focus, so a StrictMode re-run keeps the real trigger.
-  const [trigger] = useState(() =>
-    returnFocus ??
-    (typeof document !== "undefined" && document.activeElement instanceof HTMLElement ? document.activeElement : null),
+  const [trigger] = useState(
+    () =>
+      returnFocus ??
+      (typeof document !== "undefined" && document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null),
   );
   const titleId = `member-card-${card.studentId}`;
 

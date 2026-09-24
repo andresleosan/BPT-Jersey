@@ -34,7 +34,8 @@ export function PlanRequestsPanel() {
         if (active) setState({ status: "ready", requests });
       })
       .catch((error: unknown) => {
-        if (active) setState({ status: error instanceof FamilyPlanUnavailableError ? "hidden" : "error" });
+        if (active)
+          setState({ status: error instanceof FamilyPlanUnavailableError ? "hidden" : "error" });
       });
     return () => {
       active = false;
@@ -43,7 +44,10 @@ export function PlanRequestsPanel() {
 
   if (state.status === "hidden") return null;
 
-  async function decide(request: MemberPlanRequestRow, decision: "approve" | "reject"): Promise<void> {
+  async function decide(
+    request: MemberPlanRequestRow,
+    decision: "approve" | "reject",
+  ): Promise<void> {
     if (busyId) return;
     setBusyId(request.requestId);
     setNotice(undefined);
@@ -51,13 +55,15 @@ export function PlanRequestsPanel() {
       await decideMemberPlanRequest(request.requestId, decision);
       setNotice({
         tone: "success",
-        text: decision === "approve" ? `${request.person.fullName} was added.` : "Request rejected.",
+        text:
+          decision === "approve" ? `${request.person.fullName} was added.` : "Request rejected.",
       });
       setReloadToken((value) => value + 1);
     } catch (error) {
       setNotice({
         tone: "error",
-        text: error instanceof Error ? error.message : "The request could not be decided. Try again.",
+        text:
+          error instanceof Error ? error.message : "The request could not be decided. Try again.",
       });
     } finally {
       setBusyId(undefined);
@@ -103,17 +109,22 @@ export function PlanRequestsPanel() {
           </button>
         </div>
       ) : null}
-      {state.status === "ready" && state.requests.length === 0 ? <p>No plan requests waiting.</p> : null}
+      {state.status === "ready" && state.requests.length === 0 ? (
+        <p>No plan requests waiting.</p>
+      ) : null}
       {state.status === "ready" && state.requests.length > 0 ? (
         <ul className="plan-requests-list">
           {state.requests.map((request) => (
             <li key={request.requestId}>
               <div>
                 <strong>{request.person.fullName}</strong> · {kindLabels[request.kind]}
-                {request.status === "approving" ? " · Being approved (approve again to finish)" : null}
+                {request.status === "approving"
+                  ? " · Being approved (approve again to finish)"
+                  : null}
                 <p className="admin-request-meta">
                   Born {new Date(request.person.dateOfBirth).toLocaleDateString("en-GB")} ·{" "}
-                  {request.person.trainingCenter} · {request.person.trainingTimePreferences.join(", ")} · sent{" "}
+                  {request.person.trainingCenter} ·{" "}
+                  {request.person.trainingTimePreferences.join(", ")} · sent{" "}
                   {new Date(request.createdAt).toLocaleDateString("en-GB")}
                 </p>
               </div>

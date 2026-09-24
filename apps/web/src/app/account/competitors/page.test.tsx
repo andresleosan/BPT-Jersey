@@ -5,7 +5,9 @@ vi.mock("../../../lib/client-auth", () => ({
   ClientAuthProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   ClientAuthGate: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
-vi.mock("../../../lib/family-plan-client", () => ({ listMyProfiles: vi.fn(() => new Promise(() => {})) }));
+vi.mock("../../../lib/family-plan-client", () => ({
+  listMyProfiles: vi.fn(() => new Promise(() => {})),
+}));
 
 import AccountCompetitorsPage from "./page";
 
