@@ -1,0 +1,76 @@
+/* Session detail (DESIGN.md §9): the dialog shell and rows come from competitors.css. */
+.session-card-open {
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: block;
+  font: inherit;
+  font-weight: 700;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.session-card-open:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 2px;
+}
+
+.session-detail-dialog h2 {
+  font-size: 1.3rem;
+  margin: 0 0 0.75rem;
+}
+
+.session-detail-section + .session-detail-section {
+  margin-top: 1.5rem;
+}
+
+.session-detail-title {
+  font-weight: 700;
+  margin: 0 0 0.4rem;
+  overflow-wrap: anywhere;
+}
+
+.session-detail-techniques {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.session-detail-details {
+  margin: 0.6rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.session-detail-you {
+  color: var(--bpt-purple);
+  flex: none;
+  font-weight: 700;
+}
+
+.session-detail-skeleton {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.session-detail-error {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+  margin-bottom: 1.5rem;
+}
+
+.session-detail-error p {
+  margin: 0;
+}
+
+.session-detail-dialog .competitor-row:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 2px;
+}
