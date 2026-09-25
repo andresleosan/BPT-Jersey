@@ -91,12 +91,17 @@ describe("listCloudFunctionExports", () => {
     // cambio de lado es lo que significa la fila. Mientras estuvo aqui, el unico escritor del
     // documento de personal que exige la puerta canonica no existia en produccion.
     expect(names).toContain("provisionAdminRole");
-    expect(skipped).toEqual([
+    // 2026-09-25: los cuatro helpers re-exportados salieron de index.ts. `skipped` no queda vacio
+    // porque el parser tampoco reconoce las callables declaradas con fabricas (`callable(...)` de
+    // cursos, `memberReviewCallable(...)`); eso ya pasaba antes y es un hueco aparte del parser.
+    for (const helper of [
       "assertAcademyScope",
       "bootstrapEmulatorOwner",
       "getRegyfitProjectionScope",
       "requireAdminActor",
-    ]);
+    ]) {
+      expect(skipped).not.toContain(helper);
+    }
   });
 });
 

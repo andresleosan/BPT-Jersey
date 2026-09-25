@@ -9,6 +9,7 @@ import {
   createEmulatorR2Client,
   createPrivateStorageR2Client,
   createR2Client,
+  createR2ClientFromEnvironment,
   isEmulatorPrivateStorageAllowed,
   MAX_MEMBER_IMPORT_PDF_BYTES,
   r2EndpointFor,
@@ -375,6 +376,21 @@ describe("private storage selection outside and inside the Functions Emulator", 
     await expect(
       client.createPdfDownloadUrl({ objectKey, expiresInSeconds: 601 }),
     ).rejects.toThrowError("Signed URL expiry is invalid");
+  });
+
+  it("reuses one client per R2 configuration instead of building one per call", () => {
+    vi.stubEnv("R2_ACCOUNT_ID", "synthetic-account");
+    vi.stubEnv("R2_BUCKET_NAME", "synthetic-bucket");
+    vi.stubEnv("R2_ACCESS_KEY_ID", "synthetic-access-key");
+    vi.stubEnv("R2_SECRET_ACCESS_KEY", "synthetic-secret-key");
+    const first = createPrivateStorageR2Client(process.env);
+    expect(createPrivateStorageR2Client(process.env)).toBe(first);
+    expect(createR2ClientFromEnvironment()).toBe(first);
+
+    vi.stubEnv("R2_BUCKET_NAME", "another-synthetic-bucket");
+    const other = createPrivateStorageR2Client(process.env);
+    expect(other).not.toBe(first);
+    expect(createPrivateStorageR2Client(process.env)).toBe(other);
   });
 
   it("prefers configured R2, then the emulator store, and otherwise fails closed", async () => {

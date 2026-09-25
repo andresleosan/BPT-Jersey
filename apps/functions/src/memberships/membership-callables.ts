@@ -297,29 +297,6 @@ export async function listMembershipsHandler(
   }
 }
 
-export async function getMembershipHandler(
-  request: CallableRequest<unknown>,
-  services: MembershipCallableServices,
-): Promise<MembershipProjection> {
-  const actor = await requireReader(request, services);
-  const membershipId = parseMembershipIdPayload(request.data);
-  try {
-    const baseScope = await readerScope(actor, services);
-    const scope = Object.freeze({ ...baseScope, membershipIds: Object.freeze([membershipId]) });
-    const record = await services.store.getMembership(scope, membershipId);
-    if (record === undefined) {
-      if (actor.role === "owner" || actor.role === "administrator") {
-        throw new HttpsError("failed-precondition", "Membership operation is not available");
-      }
-      permissionDenied();
-    }
-    if (!scopeContains(scope, record)) permissionDenied();
-    return projectMembership(record, actor.academyId);
-  } catch (error) {
-    return mapMembershipError(error);
-  }
-}
-
 export async function createMembershipHandler(
   request: CallableRequest<unknown>,
   services: MembershipCallableServices,
@@ -501,10 +478,6 @@ export const membershipCallableOptions = { enforceAppCheck: true };
 
 export const listMemberships = onCall(membershipCallableOptions, async (request) =>
   listMembershipsHandler(request, membershipCallableServices()),
-);
-
-export const getMembership = onCall(membershipCallableOptions, async (request) =>
-  getMembershipHandler(request, membershipCallableServices()),
 );
 
 export const createMembership = onCall(membershipCallableOptions, async (request) =>

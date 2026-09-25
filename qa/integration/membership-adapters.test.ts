@@ -10,7 +10,7 @@ import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
 
 import {
   createMembershipHandler,
-  getMembershipHandler,
+  listMembershipsHandler,
   transitionMembershipHandler,
   type MembershipCallableServices,
 } from "../../apps/functions/src/memberships/membership-callables.js";
@@ -572,22 +572,16 @@ describe("membership adapters against Auth/Firestore emulators", () => {
 
   it("denies cross-tenant, cross-family, and cross-student access", async () => {
     const membership = await createMembership(ownerA, familyA, minorStudentA, "active");
-    await expect(
-      getMembershipHandler(
-        await requestFor(guardianA, { membershipId: membership.membershipId }),
-        services(),
-      ),
-    ).resolves.toMatchObject({ membershipId: membership.membershipId });
+    const listedIds = async (uid: string) =>
+      (await listMembershipsHandler(await requestFor(uid, null), services())).map(
+        (record) => record.membershipId,
+      );
+    expect(await listedIds(guardianA)).toContain(membership.membershipId);
 
     await expect(
       createMembership(adultStudentA, adultFamilyA, minorStudentA, "trial"),
     ).rejects.toMatchObject({ code: "permission-denied" });
-    await expect(
-      getMembershipHandler(
-        await requestFor(ownerB, { membershipId: membership.membershipId }),
-        services(),
-      ),
-    ).rejects.toMatchObject({ code: "failed-precondition" });
+    expect(await listedIds(ownerB)).not.toContain(membership.membershipId);
 
     await firestore.doc(`academies/${academyA}/memberships/other-family-membership`).set({
       ...((
@@ -597,12 +591,7 @@ describe("membership adapters against Auth/Firestore emulators", () => {
       familyId: adultFamilyA,
       studentId: adultStudentRecordA,
     });
-    await expect(
-      getMembershipHandler(
-        await requestFor(guardianA, { membershipId: "other-family-membership" }),
-        services(),
-      ),
-    ).rejects.toMatchObject({ code: "permission-denied" });
+    expect(await listedIds(guardianA)).not.toContain("other-family-membership");
   });
 
   it("writes exact safe audit fields and no financial documents", async () => {

@@ -23,7 +23,7 @@ function amount(entry: MemberHistoryEntry): string | null {
 /**
  * Read-only history of the linked archive: every captured line with its source and whether the
  * office has confirmed it. Confirming or disputing a line stays in the reconciliation workflow.
- * ponytail: read-only v1; wire reviewMemberHistoryEntry here when the office asks to decide inline.
+ * ponytail: read-only v1; deciding a line inline needs a new review callable (the unused one was removed).
  */
 export function HistoryTab({ studentId, onUnavailable }: { studentId: string; onUnavailable?: () => void }) {
   const [state, setState] = useState<HistoryState>({ status: "loading" });

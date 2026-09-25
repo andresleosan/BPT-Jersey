@@ -227,23 +227,6 @@ export async function listManagedPlansHandler(
   }
 }
 
-export async function getPlanHandler(
-  request: CallableRequest<unknown>,
-  services: PlanCallableServices,
-): Promise<PlanPublicProjection> {
-  const actor = requireCatalogReader(request);
-  const planId = parsePlanIdPayload(request.data);
-  try {
-    const plan = await services.store.getPlan(actor.academyId, planId);
-    if (plan === undefined || !plan.active) {
-      throw new PlanStoreError("not-found", "Plan is not available");
-    }
-    return publicPlan(assertTenant(plan, actor.academyId));
-  } catch (error) {
-    return mapPlanError(error, "load");
-  }
-}
-
 export async function savePlanHandler(
   request: CallableRequest<unknown>,
   services: PlanCallableServices,
@@ -317,10 +300,6 @@ export const listPlans = onCall(planCallableOptions, async (request) =>
 
 export const listManagedPlans = onCall(planCallableOptions, async (request) =>
   listManagedPlansHandler(request, planCallableServices()),
-);
-
-export const getPlan = onCall(planCallableOptions, async (request) =>
-  getPlanHandler(request, planCallableServices()),
 );
 
 export const savePlan = onCall(planCallableOptions, async (request) =>

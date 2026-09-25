@@ -16,7 +16,6 @@ import type { StudentProfile } from "@bpt-jersey/domain/profiles";
 import {
   cancelMembershipHandler,
   createMembershipHandler,
-  getMembershipHandler,
   listMembershipsHandler,
   transitionMembershipHandler,
   type MembershipCallableServices,
@@ -585,33 +584,6 @@ describe("membership callables", () => {
     ).rejects.toMatchObject({ code: "permission-denied" });
   });
 
-  it("restricts guardian and adult get to their family and student scopes", async () => {
-    const guardianServices = services();
-    vi.mocked(guardianServices.store.getMembership).mockResolvedValueOnce(
-      membership({ familyId: "other-family", studentId: "other-student" }),
-    );
-    await expect(
-      getMembershipHandler(
-        request({ membershipId: "membership-1" }, "guardian", "guardian-1"),
-        guardianServices,
-      ),
-    ).rejects.toMatchObject({ code: "permission-denied" });
-
-    const adultServices = services();
-    vi.mocked(adultServices.familyStore!.getStaffFamily).mockResolvedValue(
-      staffFamilyProjection("adult-family-1"),
-    );
-    vi.mocked(adultServices.store.getMembership).mockResolvedValueOnce(
-      membership({ familyId: "adult-family-1", studentId: "other-student" }),
-    );
-    await expect(
-      getMembershipHandler(
-        request({ membershipId: "membership-1" }, "adultStudent", "adult-user-1"),
-        adultServices,
-      ),
-    ).rejects.toMatchObject({ code: "permission-denied" });
-  });
-
   it("requires exact payloads and rejects authority fields, hostile descriptors, dates, IDs, and statuses", async () => {
     const current = services();
     for (const payload of [
@@ -650,12 +622,6 @@ describe("membership callables", () => {
     ).rejects.toMatchObject({
       code: "invalid-argument",
     });
-    await expect(
-      getMembershipHandler(
-        request({ membershipId: "membership-1", extra: true }, "owner"),
-        current,
-      ),
-    ).rejects.toMatchObject({ code: "invalid-argument" });
     await expect(
       transitionMembershipHandler(request({ ...transitionPayload, academyId }, "owner"), current),
     ).rejects.toMatchObject({ code: "invalid-argument" });
@@ -730,10 +696,7 @@ describe("membership callables", () => {
       ),
     ).rejects.toMatchObject({ code: "permission-denied" });
 
-    const response = await getMembershipHandler(
-      request({ membershipId: "membership-1" }, "owner"),
-      current,
-    );
+    const [response] = await listMembershipsHandler(request(null, "owner"), current);
     expect(response).toEqual({
       membershipId: "membership-1",
       familyId,
@@ -761,12 +724,10 @@ describe("membership callables", () => {
 
   it("maps cross-tenant, missing relationship, inactive actor, store, and invalid transitions safely", async () => {
     const current = services();
-    vi.mocked(current.store.getMembership).mockResolvedValueOnce(
+    vi.mocked(current.store.listMemberships).mockResolvedValueOnce([
       membership({ academyId: "academy-2" }),
-    );
-    await expect(
-      getMembershipHandler(request({ membershipId: "membership-1" }, "owner"), current),
-    ).rejects.toMatchObject({
+    ]);
+    await expect(listMembershipsHandler(request(null, "owner"), current)).rejects.toMatchObject({
       code: "permission-denied",
       message: "Membership access is not permitted",
     });
