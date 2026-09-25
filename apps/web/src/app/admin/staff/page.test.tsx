@@ -12,7 +12,6 @@ const staffApi = vi.hoisted(() => ({
 }));
 
 const permissionsApi = vi.hoisted(() => ({
-  grantStaffPermission: vi.fn(),
   listStaffPermissionGrants: vi.fn(),
   revokeStaffPermission: vi.fn(),
   permissionGrantLabel: (permission: string) =>
@@ -69,7 +68,6 @@ describe("admin staff page", () => {
   afterEach(() => {
     cleanup();
     Object.values(staffApi).forEach((mock) => mock.mockReset());
-    permissionsApi.grantStaffPermission.mockReset();
     permissionsApi.listStaffPermissionGrants.mockReset();
     permissionsApi.revokeStaffPermission.mockReset();
   });
@@ -259,50 +257,17 @@ describe("admin staff page", () => {
   );
 
   describe("delegated permissions (T116)", () => {
-    it("says plainly that a grant does not change a role", async () => {
+    it("no longer offers new grants and explains why", async () => {
       staffApi.listStaffProfiles.mockResolvedValue([coach]);
       render(<StaffAdminPage />);
 
       expect(
-        await screen.findByRole("heading", {
-          name: "Give a coach an administrative permission",
-        }),
+        await screen.findByRole("heading", { name: "Existing permission grants" }),
       ).toBeVisible();
-      expect(screen.getByText(/never changes anyone's role/i)).toBeVisible();
+      expect(screen.getByText(/new grants are no longer offered/i)).toBeVisible();
       expect(screen.getByText("No permission has been delegated.")).toBeVisible();
-    });
-
-    it("offers only Manage classes now the no-show penalty is gone, never an escalating one", async () => {
-      staffApi.listStaffProfiles.mockResolvedValue([coach]);
-      render(<StaffAdminPage />);
-
-      const select = await screen.findByLabelText("Permission");
-      const options = within(select)
-        .getAllByRole("option")
-        .map((option) => option.textContent);
-      expect(options).toEqual(["Manage classes"]);
-    });
-
-    it("grants with the reason and expiry office typed, then reloads the list", async () => {
-      staffApi.listStaffProfiles.mockResolvedValue([coach]);
-      permissionsApi.grantStaffPermission.mockResolvedValue(activeGrant);
-      render(<StaffAdminPage />);
-
-      const user = userEvent.setup();
-      await user.type(await screen.findByLabelText("Coach user ID"), "coach-1");
-      await user.type(screen.getByLabelText("Reason"), "Covers the office desk");
-      await user.type(screen.getByLabelText("Expires on"), "2026-10-05");
-      await user.click(screen.getByRole("button", { name: "Grant permission" }));
-
-      await waitFor(() =>
-        expect(permissionsApi.grantStaffPermission).toHaveBeenCalledWith({
-          subjectUserId: "coach-1",
-          permission: "manageClasses",
-          reason: "Covers the office desk",
-          expiresAt: "2026-10-05T23:59:59.000Z",
-        }),
-      );
-      expect(permissionsApi.listStaffPermissionGrants).toHaveBeenCalledTimes(2);
+      expect(screen.queryByRole("button", { name: "Grant permission" })).toBeNull();
+      expect(screen.queryByLabelText("Coach user ID")).toBeNull();
     });
 
     it("shows a live grant with who gave it and lets office take it away", async () => {
