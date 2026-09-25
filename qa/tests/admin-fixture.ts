@@ -67,13 +67,22 @@ export async function installAdminFixture(
   // This fixture answers callables locally, including clients requesting single-use
   // App Check attestations. Keep reCAPTCHA offline instead of calling Google with
   // the synthetic CI site key before the callable interception can run.
+  // Like the real widget, execute() reports success through render()'s callback: App Check refuses
+  // a limited-use token (limitedUseAppCheckTokens) until that callback has run.
   await page.addInitScript(() => {
+    let succeeded: (() => void) | undefined;
     Object.defineProperty(globalThis, "grecaptcha", {
       value: {
         enterprise: {
           ready: (callback: () => void) => callback(),
-          render: () => 0,
-          execute: async () => "synthetic-fixture-recaptcha",
+          render: (_container: unknown, parameters?: { callback?: () => void }) => {
+            succeeded = parameters?.callback;
+            return 0;
+          },
+          execute: async () => {
+            succeeded?.();
+            return "synthetic-fixture-recaptcha";
+          },
         },
       },
     });
@@ -99,7 +108,10 @@ export async function installAdminFixture(
 
   await page.route("**/*", async (route: Route) => {
     const url = new URL(route.request().url());
-    if (url.hostname === "firebaseappcheck.googleapis.com") {
+    if (
+      url.hostname === "firebaseappcheck.googleapis.com" ||
+      url.hostname === "content-firebaseappcheck.googleapis.com"
+    ) {
       await route.fulfill({
         json: { token: "synthetic-fixture-app-check", ttl: "3600s" },
       });
