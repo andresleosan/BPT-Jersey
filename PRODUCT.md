@@ -153,3 +153,11 @@ a group stops future automatic registration and preserves existing bookings. PAY
 including self check-in and attendance corrections, requires settled payment for that class.
 Office records class payments using the existing payment form; coaches have no payment controls.
 Production activation requires coordinated Functions, recurring jobs and frontend deployment.
+
+## Transit Free is owner-only (2026-09-25)
+
+Transit Free is an internal, complimentary plan for people close to the owner. It is never
+advertised: the public landing price list, enrolment and member plan requests must not show or
+offer it (`administrativePlanIds` in `packages/domain/src/memberships/plan-contracts.ts`). Only
+the owner can assign it, from Members → profile; administrators and coaches cannot. Members see
+it only on their own account once the owner has assigned it to them; no other member sees it.

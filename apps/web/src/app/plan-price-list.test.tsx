@@ -13,6 +13,7 @@ describe("PlanPriceList", () => {
     expect(within(town).getByText("£135 per term")).toBeInTheDocument();
     expect(screen.getByText("£7.50 per class")).toBeInTheDocument();
     expect(screen.queryByText("Town Teens")).not.toBeInTheDocument();
+    expect(screen.queryByText("Transit Free")).not.toBeInTheDocument();
   });
 
   it("shows only plans that train at the chosen site", () => {

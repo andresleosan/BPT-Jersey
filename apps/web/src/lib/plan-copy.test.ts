@@ -22,11 +22,12 @@ describe("plan copy", () => {
     expect(describePlanAccess(byId(planId))).toBe(access);
   });
 
-  it("groups live public plans by site and hides retired ones", () => {
+  it("groups live public plans by site and hides retired and owner-only ones", () => {
     const groups = publicPlanGroups();
     expect(groups.map((group) => group.title)).toEqual(["Town & West", "BPT West", "BPT Town"]);
     const ids = groups.flatMap((group) => group.plans.map((plan) => plan.planId));
     expect(ids).not.toContain("town-teens");
+    expect(ids).not.toContain("transit-free");
     expect(ids).toHaveLength(10);
   });
 

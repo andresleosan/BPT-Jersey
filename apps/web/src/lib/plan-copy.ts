@@ -1,4 +1,5 @@
 import {
+  administrativePlanIds,
   PLAN_CATALOG,
   retiredPlanIds,
   type PlanDraft,
@@ -45,7 +46,11 @@ export function describePlanAccess(
 export type PlanGroup = Readonly<{ title: string; plans: readonly PlanDraft[] }>;
 
 export function publicPlanGroups(site?: Site): readonly PlanGroup[] {
-  const live = PLAN_CATALOG.filter((plan) => !retiredPlanIds.includes(plan.planId));
+  // Administrative plans (Transit Free) are owner-assigned only and never advertised publicly.
+  const live = PLAN_CATALOG.filter(
+    (plan) =>
+      !retiredPlanIds.includes(plan.planId) && !administrativePlanIds.includes(plan.planId),
+  );
   const only = (value: Site) =>
     live.filter((plan) => plan.classSites.length === 1 && plan.classSites[0] === value);
   const groups: PlanGroup[] = [
