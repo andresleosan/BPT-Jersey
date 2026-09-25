@@ -157,6 +157,8 @@ export type FinanceReadScope = Readonly<{
   academyId: string;
   familyIds?: readonly string[];
   studentIds?: readonly string[];
+  /** Office readers only: a payment's edit history names staff and their reasons. */
+  includeAuditHistory?: boolean;
 }>;
 
 export type InvoiceView = Readonly<{
@@ -506,10 +508,19 @@ function samePaymentRequest(
 function invoiceView(
   invoice: InvoiceRecord,
   payments: readonly ManualPaymentRecord[],
+  scope: FinanceReadScope,
 ): InvoiceView {
   return Object.freeze({
     invoice,
-    payments: Object.freeze([...payments]),
+    payments: Object.freeze(
+      scope.includeAuditHistory === true
+        ? [...payments]
+        : payments.map((payment) => {
+            const withoutHistory = { ...payment };
+            delete withoutHistory.auditHistory;
+            return Object.freeze(withoutHistory);
+          }),
+    ),
     balanceMinor: calculateInvoiceBalance(invoice, payments),
   });
 }
@@ -616,6 +627,7 @@ export async function readFinancialAccountInTransaction(input: {
     invoiceView(
       invoice,
       scopedPayments.filter((payment) => payment.invoiceId === invoice.invoiceId),
+      input.scope,
     ),
   );
   return Object.freeze({
@@ -1032,6 +1044,12 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
       if (invoice.status === "void") {
         throw new FinanceStoreError("precondition", "A payment on a void invoice cannot be edited");
       }
+      if (invoice.chargeKind === "payg_session") {
+        throw new FinanceStoreError(
+          "precondition",
+          "Class payments can't be edited. Void and reissue the invoice instead.",
+        );
+      }
       const payments = await paymentsFor(transaction, academy, invoice);
       const previousValues: Record<string, unknown> = {};
       if (requested.amountMinor !== undefined && requested.amountMinor !== payment.amountMinor) {
@@ -1219,7 +1237,7 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
       if (!(await matchesStudentScope(transaction, scope, invoice))) {
         throw new FinanceStoreError("not-found", "Invoice not found");
       }
-      return invoiceView(invoice, await paymentsFor(transaction, academy, invoice));
+      return invoiceView(invoice, await paymentsFor(transaction, academy, invoice), scope);
     });
   }
 

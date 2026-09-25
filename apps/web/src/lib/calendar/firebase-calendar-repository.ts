@@ -25,7 +25,6 @@ import type {
   CalendarMember,
   CalendarParticipant,
   CalendarRepository,
-  CalendarRole,
 } from "./calendar-repository";
 
 function firstName(fullName: string): string {

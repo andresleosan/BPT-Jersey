@@ -170,6 +170,12 @@ describe("billing client payment edits", () => {
     });
   });
 
+  it("shows the class payment refusal as the server words it", async () => {
+    const message = "Class payments can't be edited. Void and reissue the invoice instead.";
+    callable.mockRejectedValueOnce({ code: "functions/failed-precondition", message });
+    await expect(editManualPayment(edit)).resolves.toEqual({ ok: false, message });
+  });
+
   it("refuses a response for another payment", async () => {
     callable.mockResolvedValue({
       data: { paymentId: "payment-2", invoiceId: "invoice-1", invoiceStatus: "paid" },

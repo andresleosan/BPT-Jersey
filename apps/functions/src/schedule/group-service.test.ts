@@ -8,7 +8,11 @@ import { groupKey } from "./group-keys";
 import { createGroupService } from "./group-service";
 
 vi.mock("../auth/office-actor.js", () => ({
-  requireActiveOfficeActor: async () => ({ userId: "owner-1", role: "owner", academyId: "demo-academy" }),
+  requireActiveOfficeActor: async () => ({
+    userId: "owner-1",
+    role: "owner",
+    academyId: "demo-academy",
+  }),
 }));
 vi.mock("firebase-admin/firestore", async (original) => ({
   ...(await original<typeof import("firebase-admin/firestore")>()),
@@ -48,7 +52,8 @@ function createDb() {
   function query(path: string, filters: readonly Filter[]): Document {
     return {
       collectionPath: path,
-      where: (field: string, operator: string, value: unknown) => query(path, [...filters, { field, operator, value }]),
+      where: (field: string, operator: string, value: unknown) =>
+        query(path, [...filters, { field, operator, value }]),
       limit: () => query(path, filters),
       doc: (id?: string) => docRef(`${path}/${id ?? `generated-${(generated += 1)}`}`),
       get: async () => run(path, filters),
@@ -88,7 +93,8 @@ function createDb() {
           if (store.has(ref.path)) throw new Error(`${ref.path} already exists`);
           writes.push([ref.path, value, "set"]);
         },
-        update: (ref: { path: string }, value: Document) => void writes.push([ref.path, value, "update"]),
+        update: (ref: { path: string }, value: Document) =>
+          void writes.push([ref.path, value, "update"]),
       };
       const result = await update(tx);
       for (const [path, value, kind] of writes)
@@ -101,7 +107,9 @@ function createDb() {
     seed: (path: string, value: Document) => store.set(`${root}/${path}`, value),
     get: (path: string) => store.get(`${root}/${path}`),
     list: (collection: string) =>
-      [...store.entries()].filter(([key]) => parentOf(key) === `${root}/${collection}`).map(([, value]) => value),
+      [...store.entries()]
+        .filter(([key]) => parentOf(key) === `${root}/${collection}`)
+        .map(([, value]) => value),
   };
 }
 
@@ -171,13 +179,24 @@ function seedTrial(db: ReturnType<typeof createDb>, studentId: string, extra: Do
 }
 /** A parent account that is the primary contact of the child's family. */
 function seedFamily(db: ReturnType<typeof createDb>, parentId: string, childId: string) {
-  db.seed(`families/family-${childId}`, { familyId: `family-${childId}`, academyId, primaryContactUserId: `user-${parentId}` });
+  db.seed(`families/family-${childId}`, {
+    familyId: `family-${childId}`,
+    academyId,
+    primaryContactUserId: `user-${parentId}`,
+  });
 }
 
 const actor = { userId: "owner-1", role: "owner" as const };
 const save = (db: ReturnType<typeof createDb>, studentIds: string[], extra: Document = {}) =>
   createGroupService(db.db, academyId).save(
-    { groupId: "g1", name: "Competition team", site: "Town", studentIds, revision: 0, ...extra } as never,
+    {
+      groupId: "g1",
+      name: "Competition team",
+      site: "Town",
+      studentIds,
+      revision: 0,
+      ...extra,
+    } as never,
     actor,
   );
 
@@ -193,7 +212,11 @@ describe("saving a group", () => {
   it("stores the group's site", async () => {
     seedMembership(db, "kid");
     await save(db, ["kid"]);
-    expect(db.get("memberGroups/g1")).toMatchObject({ site: "Town", studentIds: ["kid"], revision: 1 });
+    expect(db.get("memberGroups/g1")).toMatchObject({
+      site: "Town",
+      studentIds: ["kid"],
+      revision: 1,
+    });
   });
 
   it("refuses a guardian whose child trains, naming them", async () => {
@@ -215,6 +238,20 @@ describe("saving a group", () => {
     seedMembership(db, "parent");
     await save(db, ["parent"]);
     expect(db.get("memberGroups/g1")).toMatchObject({ studentIds: ["parent"] });
+  });
+
+  it("accepts a parent on their own overdue plan whose child trains", async () => {
+    seedMembership(db, "kid");
+    seedMembership(db, "parent", { status: "overdue" });
+    await save(db, ["parent"]);
+    expect(db.get("memberGroups/g1")).toMatchObject({ studentIds: ["parent"] });
+  });
+
+  it("refuses a guardian whose child is on an overdue plan, as the Members list shows them", async () => {
+    seedMembership(db, "kid", { status: "overdue" });
+    await expect(save(db, ["parent"])).rejects.toMatchObject({
+      message: "Guardians can't be added to a group: Pat Parent",
+    });
   });
 
   it("accepts a guardian on their own active trial", async () => {
@@ -246,7 +283,12 @@ describe("saving a group", () => {
     await save(db, ["kid"]);
     seedStudent(db, "kid", { active: false, status: "inactive" });
     await save(db, ["kid"], { name: "Renamed team", site: "West", revision: 1 });
-    expect(db.get("memberGroups/g1")).toMatchObject({ name: "Renamed team", site: "West", studentIds: ["kid"], revision: 2 });
+    expect(db.get("memberGroups/g1")).toMatchObject({
+      name: "Renamed team",
+      site: "West",
+      studentIds: ["kid"],
+      revision: 2,
+    });
   });
 
   it("still refuses a guardian added to a group that already exists", async () => {
@@ -261,9 +303,20 @@ describe("saving a group", () => {
   it("lists each group's site and leaves older groups without one", async () => {
     seedMembership(db, "kid");
     await save(db, ["kid"]);
-    db.seed("memberGroups/g0", { groupId: "g0", academyId, name: "Before sites", studentIds: [], revision: 3, active: true, updatedAt: stamp });
+    db.seed("memberGroups/g0", {
+      groupId: "g0",
+      academyId,
+      name: "Before sites",
+      studentIds: [],
+      revision: 3,
+      active: true,
+      updatedAt: stamp,
+    });
     const groups = await createGroupService(db.db, academyId).list();
-    expect(groups.map((group) => [group.groupId, group.site])).toEqual([["g0", undefined], ["g1", "Town"]]);
+    expect(groups.map((group) => [group.groupId, group.site])).toEqual([
+      ["g0", undefined],
+      ["g1", "Town"],
+    ]);
   });
 });
 
@@ -312,7 +365,16 @@ describe("registering a group for a class", () => {
       updatedAt: stamp,
       updatedBy: "owner-1",
     });
-    db.seed("memberGroups/g1", { groupId: "g1", academyId, name: "Coaches", site: "West", studentIds: ["adult", "unpaid"], revision: 1, active: true, updatedAt: stamp });
+    db.seed("memberGroups/g1", {
+      groupId: "g1",
+      academyId,
+      name: "Coaches",
+      site: "West",
+      studentIds: ["adult", "unpaid"],
+      revision: 1,
+      active: true,
+      updatedAt: stamp,
+    });
   }
 
   it("books an adult into a class their age, centre and plan would not allow, and blocks an unpaid member", async () => {
@@ -324,30 +386,62 @@ describe("registering a group for a class", () => {
 
     await createGroupService(db.db, academyId).enrol("g1", "sess1", actor);
 
-    expect(db.list("bookings")).toEqual([expect.objectContaining({ studentId: "adult", status: "confirmed" })]);
-    expect(db.get(`groupRegistrationResults/${groupKey("g1", "sess1", "adult")}`)).toMatchObject({ state: "registered" });
-    expect(db.get(`groupRegistrationResults/${groupKey("g1", "sess1", "unpaid")}`)).toMatchObject({ state: "blocked", reason: "Missing Payment" });
+    expect(db.list("bookings")).toEqual([
+      expect.objectContaining({ studentId: "adult", status: "confirmed" }),
+    ]);
+    expect(db.get(`groupRegistrationResults/${groupKey("g1", "sess1", "adult")}`)).toMatchObject({
+      state: "registered",
+    });
+    expect(db.get(`groupRegistrationResults/${groupKey("g1", "sess1", "unpaid")}`)).toMatchObject({
+      state: "blocked",
+      reason: "Missing Payment",
+    });
   });
 });
 
 describe("groups offered for a class", () => {
   function seedSession(db: ReturnType<typeof createDb>, locationId: string) {
-    db.seed("sessions/sess1", { sessionId: "sess1", academyId, programId: "p1", locationId, startAt: inDays(3), status: "scheduled" });
-    for (const [groupId, site] of [["g-town", "Town"], ["g-west", "West"], ["g-old", undefined]] as const)
-      db.seed(`memberGroups/${groupId}`, { groupId, academyId, name: groupId, ...(site ? { site } : {}), studentIds: [], revision: 1, active: true, updatedAt: stamp });
+    db.seed("sessions/sess1", {
+      sessionId: "sess1",
+      academyId,
+      programId: "p1",
+      locationId,
+      startAt: inDays(3),
+      status: "scheduled",
+    });
+    for (const [groupId, site] of [
+      ["g-town", "Town"],
+      ["g-west", "West"],
+      ["g-old", undefined],
+    ] as const)
+      db.seed(`memberGroups/${groupId}`, {
+        groupId,
+        academyId,
+        name: groupId,
+        ...(site ? { site } : {}),
+        studentIds: [],
+        revision: 1,
+        active: true,
+        updatedAt: stamp,
+      });
   }
 
   it("offers the office only groups from the class's site and groups without a site", async () => {
     const db = createDb();
     seedSession(db, "west");
     const groups = await createGroupService(db.db, academyId).sessionGroups("sess1", true);
-    expect(groups.map((group) => [group.groupId, group.site])).toEqual([["g-old", undefined], ["g-west", "West"]]);
+    expect(groups.map((group) => [group.groupId, group.site])).toEqual([
+      ["g-old", undefined],
+      ["g-west", "West"],
+    ]);
   });
 
   it("refuses to register a group from the other site", async () => {
     const db = createDb();
     seedSession(db, "town");
-    await expect(createGroupService(db.db, academyId).enrol("g-west", "sess1", actor)).rejects.toMatchObject({
+    await expect(
+      createGroupService(db.db, academyId).enrol("g-west", "sess1", actor),
+    ).rejects.toMatchObject({
       code: "failed-precondition",
       message: "Choose a group from this class's site.",
     });
@@ -358,7 +452,9 @@ describe("groups offered for a class", () => {
 describe("saveMemberGroup callable", () => {
   it("refuses a group without a site", async () => {
     await expect(
-      saveMemberGroup.run({ data: { groupId: "g1", name: "Competition team", studentIds: [], revision: 0 } } as never),
+      saveMemberGroup.run({
+        data: { groupId: "g1", name: "Competition team", studentIds: [], revision: 0 },
+      } as never),
     ).rejects.toMatchObject({ code: "invalid-argument" });
   });
 });

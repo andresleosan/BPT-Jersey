@@ -122,7 +122,7 @@ export function MembersWorkspace() {
     };
   }, [reloadToken]);
 
-  const rows = state.status === "ready" ? state.overview.rows : [];
+  const rows = useMemo(() => (state.status === "ready" ? state.overview.rows : []), [state]);
   const visible = useMemo(() => filterRows(rows, { query, status, centre, band, source }), [rows, query, status, centre, band, source]);
   const counters = state.status === "ready" ? state.overview.counters : undefined;
   const reload = () => setReloadToken((token) => token + 1);

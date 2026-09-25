@@ -4,7 +4,7 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { buildBookingIdCandidates, type SessionRecord } from "@bpt-jersey/domain/schedule";
 import { parseMembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle";
 import type { GroupSessionView, GroupSite, MemberGroup, MemberGroupView, SaveMemberGroup } from "@bpt-jersey/domain/schedule/groups";
-import { isGuardianOnly } from "@bpt-jersey/domain/members/overview";
+import { hasCoveringMembership, isGuardianOnly } from "@bpt-jersey/domain/members/overview";
 import { trialAccessSchema, trialStatusAt } from "@bpt-jersey/domain/memberships/trial-access";
 import {
   BookingTransactionError, confirmBookingInTransaction, cancelBookingInTransaction,
@@ -70,8 +70,14 @@ export function createGroupService(db: Firestore, academy: string) {
       collection("memberships").where("studentId", "==", studentId).get(), collection("trialAccess").doc(studentId).get(),
     ]);
     const parsedTrial = trialAccessSchema.safeParse(trial.data());
+    // The Members list's rule (active, trial, paused or overdue), so both screens agree on who is a guardian.
+    const own = memberships.docs.flatMap((doc) => {
+      const parsed = parseMembershipRecord(doc.data());
+      return parsed.ok && parsed.value.academyId === academy && parsed.value.membershipId === doc.id && parsed.value.studentId === studentId
+        ? [parsed.value] : [];
+    });
     return {
-      hasOwnCoveringPlan: activeMemberships(memberships.docs, academy, studentId, at).length > 0,
+      hasOwnCoveringPlan: hasCoveringMembership(own, at),
       hasActiveTrial: parsedTrial.success && parsedTrial.data.academyId === academy && trialStatusAt(parsedTrial.data, at) === "active",
     };
   }

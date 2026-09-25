@@ -26,7 +26,8 @@ describe("groups client", () => {
   });
 
   it("returns each group's site and leaves older groups without one", async () => {
-    const { site: _site, ...older } = group;
+    const older: Record<string, unknown> = { ...group };
+    delete older.site;
     api.invoke.mockResolvedValue({ data: { groups: [group, { ...older, groupId: "g0" }] } });
     const groups = await listMemberGroups();
     expect(groups.map((row) => row.site)).toEqual(["West", undefined]);

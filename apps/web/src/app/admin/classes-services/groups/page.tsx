@@ -46,13 +46,16 @@ export default function GroupsPage() {
     });
     return () => { alive = false; };
   }, [allowed, reload]);
-  useEffect(() => { if (draft) nameInput.current?.focus(); }, [draft?.groupId]);
+  // Focus the name only when another group opens in the editor, not on every keystroke.
+  const draftId = draft?.groupId;
+  useEffect(() => { if (draftId) nameInput.current?.focus(); }, [draftId]);
   if (!allowed) return <p role="alert">Groups are managed by the office.</p>;
   const visible = groups.filter((group) => group.name.toLowerCase().includes(search.trim().toLowerCase()) && (siteFilter === "all" || group.site === siteFilter));
   const selected = new Set(draft?.studentIds ?? []);
   const current = groups.find((group) => group.groupId === draft?.groupId);
-  // Guardians and inactive members cannot join a group; the server refuses them as well.
-  const matchingMembers = members.filter((member) => member.rowKind === "member" && member.active && !selected.has(member.studentId) && member.fullName.toLowerCase().includes(memberSearch.trim().toLowerCase())).slice(0, 30);
+  // Guardians and deactivated members cannot join a group; the server refuses them as well. A lapsed
+  // plan does not stop a member joining (`active` means training on a plan; `recordActive` is the member).
+  const matchingMembers = members.filter((member) => member.rowKind === "member" && member.recordActive && !selected.has(member.studentId) && member.fullName.toLowerCase().includes(memberSearch.trim().toLowerCase())).slice(0, 30);
   function edit(group?: MemberGroupView) {
     setDeleting(null); setNotice(null); setMemberSearch(""); setSiteError(false);
     setDraft(group ? { groupId: group.groupId, name: group.name, ...(group.site ? { site: group.site } : {}), studentIds: [...group.studentIds], revision: group.revision } : { groupId: crypto.randomUUID(), name: "", studentIds: [], revision: 0 });
@@ -97,7 +100,7 @@ export default function GroupsPage() {
             {selected.size ? <ul className="groups-members">{draft.studentIds.map((id) => {
               const row = members.find((candidate) => candidate.studentId === id);
               const member = row ?? current?.members.find((candidate) => candidate.studentId === id);
-              const refusal = row?.rowKind === "guardian" ? "Guardian. Remove before saving." : row && !row.active ? "Inactive. Remove before saving." : null;
+              const refusal = row?.rowKind === "guardian" ? "Guardian. Remove before saving." : row && !row.recordActive ? "Inactive. Remove before saving." : null;
               return <li key={id}><div><strong>{member?.fullName ?? "Member no longer available"}</strong>{refusal ? <span className="groups-payment">{refusal}</span> : null}{current?.members.find((row) => row.studentId === id)?.missingPayment ? <span className="groups-payment">Missing Payment</span> : null}</div>
                 <button type="button" className="cs-button" aria-label={`Remove ${member?.fullName ?? "member"} from group`} onClick={() => setDraft({ ...draft, studentIds: draft.studentIds.filter((value) => value !== id) })}>Remove</button></li>;
             })}</ul> : <p className="groups-empty-inline">Search for members to build this group.</p>}
@@ -111,6 +114,7 @@ export default function GroupsPage() {
           </section>
         </div>
         <p className="groups-hint">Only members with an active subscription can be registered. A group books its members even where the class type or plan limits age, site or weekly classes. Editing the group does not cancel existing bookings.</p>
+        <p className="groups-hint">Members on a free trial are listed but register as Missing Payment until they have a paid plan.</p>
         <div className="groups-actions"><button className="cs-button groups-primary" type="submit">{busy ? "Saving group…" : "Save group"}</button><button className="cs-button" type="button" onClick={() => setDraft(null)}>Cancel</button></div>
       </fieldset></form>
     </section> : null}

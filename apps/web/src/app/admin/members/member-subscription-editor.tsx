@@ -536,7 +536,7 @@ function SubscriptionForm({
               checked={paymentConfirmed}
               onChange={(event) => setPaymentConfirmed(event.target.checked)}
             />
-            I have verified this member's previous payment, plan and paid period.
+            I have verified this member&apos;s previous payment, plan and paid period.
           </label>
         ) : null}
         {paymentLocked ? (

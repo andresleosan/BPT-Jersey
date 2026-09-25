@@ -223,6 +223,16 @@ describe("finance callables", () => {
     });
   });
 
+  it("gives only office readers the payment edit history", async () => {
+    const finance = services();
+    const store = finance.store as unknown as { listFinancialAccount: ReturnType<typeof vi.fn> };
+    await listFinancialAccountHandler(request(null, actor("owner")), finance);
+    expect(store.listFinancialAccount).toHaveBeenCalledWith({
+      academyId,
+      includeAuditHistory: true,
+    });
+  });
+
   it("limits adult reads to the resolved student family", async () => {
     const finance = services();
     const store = finance.store as unknown as { getInvoice: ReturnType<typeof vi.fn> };
@@ -381,6 +391,7 @@ describe("savePaymentInstructions (T010/T035 re-scope)", () => {
     expect(s.store.listFinancialAccount).toHaveBeenCalledWith({
       academyId,
       familyIds: ["family-9"],
+      includeAuditHistory: true,
     });
     await expect(
       getFamilyFinancialAccountHandler(request({ familyId: "family-9" }, actor("guardian")), s),
@@ -472,6 +483,15 @@ describe("savePaymentInstructions (T010/T035 re-scope)", () => {
         code: "failed-precondition",
         message: "This change would overpay the invoice",
       });
+    });
+
+    it("tells the office a class payment is voided and reissued, not edited", async () => {
+      const { finance, store } = editServices();
+      const message = "Class payments can't be edited. Void and reissue the invoice instead.";
+      store.editManualPayment.mockRejectedValue(new FinanceStoreError("precondition", message));
+      await expect(
+        editManualPaymentHandler(request(valid, actor("owner")), finance),
+      ).rejects.toMatchObject({ code: "failed-precondition", message });
     });
 
     it("uses the browser admin options with single-use App Check tokens", () => {

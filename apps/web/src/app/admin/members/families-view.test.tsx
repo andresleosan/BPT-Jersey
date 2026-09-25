@@ -13,6 +13,7 @@ it("labels a child on a free trial", () => {
     trainingCenter: "Town",
     centreConfirmed: true,
     active: true,
+    recordActive: true,
     source: "bpt",
     plan: {
       planId: "free-trial",

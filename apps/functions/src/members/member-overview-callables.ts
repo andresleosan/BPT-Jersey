@@ -103,7 +103,7 @@ export async function memberOverviewHandler(academyId: string, now: string) {
     const primary = document.get("primaryContactUserId");
     const contactName = document.get("guardianContact")?.fullName;
     const guardianName =
-      typeof primary === "string" ? guardianNames.get(primary) : typeof contactName === "string" ? contactName : undefined;
+      typeof primary === "string" ? guardianNames.get(primary) : nameOf(contactName) || undefined;
     familiesById.set(document.id, {
       familyId: document.id,
       ...(typeof primary === "string" ? { primaryContactUserId: primary } : {}),

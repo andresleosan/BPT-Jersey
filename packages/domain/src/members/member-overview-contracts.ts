@@ -29,7 +29,10 @@ export const memberOverviewRowSchema = z.strictObject({
   ageBand: z.enum(["kids", "teens", "adult"]).optional(),
   trainingCenter: z.enum(["Town", "West"]),
   centreConfirmed: z.boolean(),
+  /** Training on a live plan or trial. */
   active: z.boolean(),
+  /** The member record's own status; defaulted so a response from an older server still parses. */
+  recordActive: z.boolean().default(true),
   source: z.enum(["regyfit", "bpt"]),
   levelKey: z.string().max(80).optional(),
   plan: z
@@ -139,6 +142,20 @@ export function currentMembership(
     .sort((a, b) => ((b.endsAt as string) > (a.endsAt as string) ? 1 : -1))[0];
 }
 
+/**
+ * Whether the member's own plan covers `now` for the guardian decision: the current membership
+ * (active, trial, paused or overdue) has started and has not ended before today. It is not the
+ * booking rule, which still needs an active paid membership.
+ */
+export function hasCoveringMembership(
+  memberships: readonly OverviewMembershipSource[],
+  now: string,
+): boolean {
+  const membership = currentMembership(memberships, now);
+  const endsDate = membership?.endsAt?.slice(0, 10) ?? null;
+  return membership !== undefined && (endsDate === null || endsDate >= now.slice(0, 10)) && membership.startsAt <= now;
+}
+
 export function buildMemberOverview(input: {
   students: readonly OverviewStudentSource[];
   membershipsByStudent: ReadonlyMap<string, readonly OverviewMembershipSource[]>;
@@ -158,9 +175,10 @@ export function buildMemberOverview(input: {
   // First pass: each student's plan standing, so guardians can be judged against their children.
   const standings = new Map(
     input.students.map((student) => {
-      const membership = currentMembership(input.membershipsByStudent.get(student.studentId) ?? [], input.now);
+      const memberships = input.membershipsByStudent.get(student.studentId) ?? [];
+      const membership = currentMembership(memberships, input.now);
       const endsDate = membership?.endsAt?.slice(0, 10) ?? null;
-      const covering = membership !== undefined && (endsDate === null || endsDate >= today) && membership.startsAt <= input.now;
+      const covering = hasCoveringMembership(memberships, input.now);
       const trial = input.trialsByStudent.get(student.studentId);
       // trialStatusAt reads only status, expiry, allowance and counted attendance; a stored
       // "exhausted" or "expired" status also ends the trial, and a deactivated member has none.
@@ -233,6 +251,7 @@ export function buildMemberOverview(input: {
       trainingCenter: student.trainingCenter,
       centreConfirmed: student.trainingCenterStatus !== "unconfirmed",
       active: training,
+      recordActive: student.active,
       source: student.legacy ? "regyfit" : "bpt",
       ...(input.levelByStudent.has(student.studentId) ? { levelKey: input.levelByStudent.get(student.studentId) as string } : {}),
       ...(planState === "trial" && trial
@@ -270,6 +289,7 @@ export function buildMemberOverview(input: {
       trainingCenter: child.trainingCenter,
       centreConfirmed: child.trainingCenterStatus !== "unconfirmed",
       active: false,
+      recordActive: true,
       source: "bpt",
       planState: "none",
       ownAccount: true,
