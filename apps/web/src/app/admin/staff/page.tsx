@@ -2,8 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
-import type { DelegablePermission } from "@bpt-jersey/domain/staff/permission-grants";
-
 import {
   listStaffProfiles,
   replaceStaffAssignments,
@@ -14,7 +12,6 @@ import {
   type StaffProfileProjection,
 } from "../../../lib/staff-client";
 import {
-  grantStaffPermission,
   listStaffPermissionGrants,
   permissionGrantLabel,
   permissionGrantStatusLabel,
@@ -28,20 +25,11 @@ import { TeamDirectory } from "./team-directory";
 
 import "../admin.css";
 
-type Mutation = "active" | "availability" | "assignment" | "grant" | "revoke" | "";
+type Mutation = "active" | "availability" | "assignment" | "revoke" | "";
 type StaffRole = StaffProfileProjection["role"];
 type AssignmentType = StaffAssignmentInput["targetType"];
 type StaffField = "startLocal" | "endLocal" | "timezone" | "targetId";
 type StaffFieldElement = HTMLInputElement | HTMLSelectElement;
-
-/**
- * T116: the closed list office may delegate, mirrored from the domain so the form can never offer
- * something the backend would refuse. Adding an option here without adding it to
- * `delegablePermissions` produces a rejected call, which is the correct direction to fail.
- */
-const permissionOptions: readonly { value: DelegablePermission; label: string }[] = [
-  { value: "manageClasses", label: "Manage classes" },
-];
 
 const assignmentOptions: readonly { value: AssignmentType; label: string }[] = [
   { value: "location", label: "Location" },
@@ -91,10 +79,6 @@ export function StaffAdminPage() {
   const [status, setStatus] = useState("");
   const [grants, setGrants] = useState<readonly PermissionGrantView[]>([]);
   const [grantsError, setGrantsError] = useState("");
-  const [grantSubject, setGrantSubject] = useState("");
-  const [grantPermission, setGrantPermission] = useState<DelegablePermission>("manageClasses");
-  const [grantReason, setGrantReason] = useState("");
-  const [grantExpiry, setGrantExpiry] = useState("");
   const [invalidField, setInvalidField] = useState<StaffField>();
   const fieldRefs = useRef<Partial<Record<StaffField, StaffFieldElement | null>>>({});
   const rowActionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -116,32 +100,6 @@ export function StaffAdminPage() {
   useEffect(() => {
     void refreshGrants();
   }, [refreshGrants]);
-
-  async function handleGrant(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    if (busy) return;
-    setMutation("grant");
-    setError("");
-    setStatus("");
-    try {
-      // The expiry arrives from a date input as a plain day; the contract wants an instant.
-      const grant = await grantStaffPermission({
-        subjectUserId: grantSubject.trim(),
-        permission: grantPermission,
-        reason: grantReason.trim(),
-        expiresAt: new Date(`${grantExpiry}T23:59:59.000Z`).toISOString(),
-      });
-      setStatus(`Granted ${permissionGrantLabel(grant.permission)} to ${grant.subjectUserId}.`);
-      setGrantSubject("");
-      setGrantReason("");
-      setGrantExpiry("");
-      await refreshGrants();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to grant that permission.");
-    } finally {
-      setMutation("");
-    }
-  }
 
   async function handleRevoke(grantId: string): Promise<void> {
     if (busy) return;
@@ -514,64 +472,11 @@ export function StaffAdminPage() {
 
       <section className="staff-selected-panel" aria-labelledby="staff-permissions-title">
         <p className="admin-eyebrow">Delegated permissions</p>
-        <h3 id="staff-permissions-title">Give a coach an administrative permission</h3>
+        <h3 id="staff-permissions-title">Existing permission grants</h3>
         <p className="staff-hint">
-          A grant never changes anyone&apos;s role. The coach keeps signing in as a coach; the
-          permission lives here, it expires on its own, and revoking it takes effect immediately.
+          No screen uses delegated permissions any more, so new grants are no longer offered. You
+          can still revoke any grant that is active.
         </p>
-
-        <form
-          className="staff-card staff-operation-card"
-          onSubmit={(event) => void handleGrant(event)}
-        >
-          <div className="staff-field-row">
-            <label className="staff-field" htmlFor="staff-grant-subject">
-              Coach user ID
-              <input
-                id="staff-grant-subject"
-                onChange={(event) => setGrantSubject(event.target.value)}
-                required
-                value={grantSubject}
-              />
-            </label>
-            <label className="staff-field" htmlFor="staff-grant-permission">
-              Permission
-              <select
-                id="staff-grant-permission"
-                onChange={(event) => setGrantPermission(event.target.value as DelegablePermission)}
-                value={grantPermission}
-              >
-                {permissionOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="staff-field" htmlFor="staff-grant-expiry">
-              Expires on
-              <input
-                id="staff-grant-expiry"
-                onChange={(event) => setGrantExpiry(event.target.value)}
-                required
-                type="date"
-                value={grantExpiry}
-              />
-            </label>
-          </div>
-          <label className="staff-field" htmlFor="staff-grant-reason">
-            Reason
-            <input
-              id="staff-grant-reason"
-              onChange={(event) => setGrantReason(event.target.value)}
-              required
-              value={grantReason}
-            />
-          </label>
-          <button className="staff-secondary-button" disabled={busy} type="submit">
-            Grant permission
-          </button>
-        </form>
 
         {grantsError ? (
           <p className="staff-message staff-message-error" role="alert">
