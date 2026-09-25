@@ -8,12 +8,12 @@ import { SITE_URL, rootMetadata } from "./site-metadata";
 import sitemap from "./sitemap";
 
 /**
- * Cloudflare serves this export on bptjersey.pages.dev and www.bptjersey.com as well as the apex.
- * The export is static, so the only way to name one winner is to spell the apex into the metadata.
+ * Cloudflare answers on the apex and bptjersey.pages.dev too, but both redirect to www, so www is the
+ * one host spelled into the metadata.
  */
 describe("canonical host", () => {
-  it("is the apex, without a trailing slash to double up on", () => {
-    expect(SITE_URL).toBe("https://bptjersey.com");
+  it("is www, without a trailing slash to double up on", () => {
+    expect(SITE_URL).toBe("https://www.bptjersey.com");
   });
 
   it("anchors every relative metadata URL to that host", () => {

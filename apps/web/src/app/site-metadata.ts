@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 
 /**
- * The one host this site is allowed to rank as. Cloudflare serves the same export on
- * bptjersey.pages.dev and www.bptjersey.com, and a static export cannot tell those apart at request
- * time, so the winner has to be spelled out here and inherited by every URL in the metadata.
+ * The one host this site is allowed to rank as: www.bptjersey.com. Cloudflare redirects the apex and
+ * bptjersey.pages.dev to it, and a static export cannot tell hosts apart at request time, so the
+ * winner is spelled out here and inherited by every URL in the metadata.
  */
-export const SITE_URL = "https://bptjersey.com";
+export const SITE_URL = "https://www.bptjersey.com";
 
 /**
  * Lives apart from the root layout so that reading it does not pull in the Google font loader,
