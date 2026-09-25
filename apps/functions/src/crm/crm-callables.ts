@@ -3,7 +3,6 @@ import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/
 
 import {
   leadStatuses,
-  parseLeadDraft,
   type LeadRecord,
   type LeadStatus,
   type LeadTimelineEvent,
@@ -63,30 +62,6 @@ function parseFilter(value: unknown): LeadListFilter {
     filter.ownerId = data.ownerId.trim();
   }
   return filter;
-}
-
-export function createCreateLeadHandler({ store }: { store: CrmStore }) {
-  return async (
-    request: CallableRequest<unknown>,
-  ): Promise<{ lead: LeadRecord; event: LeadTimelineEvent }> => {
-    const actor = requireUserActor(request);
-    assertRole(actor.role, writeRoles, "Owner or administrator role required to create CRM leads");
-    const parsed = parseLeadDraft(request.data);
-    if (!parsed.ok) throw new HttpsError("invalid-argument", "Invalid CRM lead payload");
-    if (parsed.value.academyId !== actor.academyId) {
-      throw new HttpsError("permission-denied", "CRM lead tenant mismatch");
-    }
-    try {
-      const result = await store.createLead({
-        academyId: actor.academyId,
-        input: parsed.value,
-        createdBy: actor.userId,
-      });
-      return result;
-    } catch (error) {
-      return mapStoreError(error);
-    }
-  };
 }
 
 export function createListLeadsHandler({ store }: { store: CrmStore }) {
@@ -198,9 +173,6 @@ function getStore(): CrmStore {
   return defaultStore;
 }
 
-export const createCrmLead = onCall(browserAdminCallableOptions, async (request) =>
-  createCreateLeadHandler({ store: getStore() })(request),
-);
 export const listCrmLeads = onCall(browserAdminCallableOptions, async (request) =>
   createListLeadsHandler({ store: getStore() })(request),
 );

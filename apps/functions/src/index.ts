@@ -11,13 +11,8 @@ export {
   completeInitialStaffAccess,
 } from "./staff/staff-login-callables.js";
 
-export {
-  assertAcademyScope,
-  getRegyfitProjectionScope,
-  requireAdminActor,
-} from "./auth/admin-authorization.js";
 export type { AdminActor } from "./auth/admin-authorization.js";
-export { bootstrapEmulatorOwner, provisionAdminRole } from "./auth/admin-provisioning.js";
+export { provisionAdminRole } from "./auth/admin-provisioning.js";
 export { registerShopperAccount } from "./auth/shopper-callables.js";
 export { listRegyfitAccessRecords } from "./regyfit/access-records.js";
 export { getRegyfitMemberRecord, listRegyfitMemberRecords } from "./regyfit/member-records.js";
@@ -72,7 +67,6 @@ export {
 export {
   activatePlan,
   deactivatePlan,
-  getPlan,
   listManagedPlans,
   listPlans,
   savePlan,
@@ -80,7 +74,6 @@ export {
 export {
   cancelMembership,
   createMembership,
-  getMembership,
   listMemberships,
   transitionMembership,
 } from "./memberships/membership-callables.js";
@@ -190,17 +183,6 @@ export {
   listSessionWaitlist,
   listStudentWaitlist,
 } from "./schedule/advanced-booking-callables.js";
-export {
-  archiveAnnouncement,
-  createAnnouncement,
-  listAnnouncements,
-  listGuardianNotices,
-  markAnnouncementAsRead,
-  markNoticeAsRead,
-  publishAnnouncement,
-  sendMinorNotice,
-  updateAnnouncement,
-} from "./announcements/announcement-callables.js";
 export { listClientReminders } from "./reminders/reminder-callables.js";
 export { listRetentionAlerts } from "./retention/retention-alert-callables.js";
 export {
@@ -224,12 +206,6 @@ export {
   saveHealthReferenceLabel,
 } from "./health/health-callables.js";
 export {
-  createPrivateWaiverUpload,
-  finalizePrivateWaiverUpload,
-  getPrivateWaiverDownload,
-  revokePrivateWaiver,
-} from "./documents/private-document-callables.js";
-export {
   acceptWaiver,
   getCurrentWaiverAdmin,
   getWaiverEvidenceDownload,
@@ -239,7 +215,6 @@ export {
   withdrawCurrentWaiver,
 } from "./consents/consent-callables.js";
 export {
-  createCrmLead,
   listCrmLeads,
   updateCrmLead,
   transitionCrmLead,
@@ -341,21 +316,7 @@ export {
 } from "./memberships/intro-conversion-callables.js";
 export { introAttendanceCreated } from "./memberships/intro-conversion-trigger.js";
 
-export { getMemberInventoryPage } from "./members/member-inventory-callables.js";
-
-export {
-  getMemberReconciliationCase,
-  decideMemberReconciliation,
-  closeMemberReconciliation,
-  previewMemberIdentityAlias,
-  approveMemberIdentityAlias,
-} from "./members/member-reconciliation-callables.js";
-
-export {
-  getMemberHistory,
-  reviewMemberHistoryEntry,
-  saveMemberAttendanceBaseline,
-} from "./members/member-history-callables.js";
+export { getMemberHistory } from "./members/member-history-callables.js";
 
 export {
   getCourseSession,
@@ -400,8 +361,6 @@ export {
 } from "./courses/course-callables.js";
 export { coursePublic } from "./courses/course-public-http.js";
 export { courseScheduler, courseProofCleanup } from "./courses/course-scheduler.js";
-
-export { changeChildGuardian } from "./families/family-callables.js";
 
 export { listMyMemberProfiles } from "./members/member-access-callables.js";
 export * from "./family-plan/family-plan-callables.js";

@@ -6,7 +6,6 @@ import { PLAN_CATALOG, type PlanRecord } from "@bpt-jersey/domain/memberships";
 import {
   activatePlanHandler,
   deactivatePlanHandler,
-  getPlanHandler,
   listPlansHandler,
   savePlanHandler,
   type PlanCallableServices,
@@ -106,59 +105,6 @@ describe("membership plan callables", () => {
       record(PLAN_CATALOG[0]!),
     ]);
     await expect(listPlansHandler(request(null, "owner"), current)).resolves.toEqual([publicPlan]);
-
-    vi.mocked(current.store.getPlan).mockResolvedValueOnce(undefined);
-    await expect(
-      getPlanHandler(request({ planId: "payg" }, "guardian"), current),
-    ).rejects.toMatchObject({ code: "failed-precondition", message: "Plan is not available" });
-    vi.mocked(current.store.getPlan).mockResolvedValueOnce(record(undefined, { active: false }));
-    await expect(
-      getPlanHandler(request({ planId: "payg" }, "guardian"), current),
-    ).rejects.toMatchObject({ code: "failed-precondition", message: "Plan is not available" });
-  });
-
-  it("allows every authenticated role to get an active public plan with an exact ID payload", async () => {
-    for (const role of [
-      "owner",
-      "administrator",
-      "guardian",
-      "adultStudent",
-      // A teen's own sign-in loads the calendar, which reads the plan's sites and limits.
-      "teenStudent",
-      "headCoach",
-      "coach",
-    ]) {
-      const current = services();
-      await expect(getPlanHandler(request({ planId: "payg" }, role), current)).resolves.toEqual(
-        publicPlan,
-      );
-      expect(current.store.getPlan).toHaveBeenCalledWith("academy-1", "payg");
-    }
-  });
-
-  it("rejects unknown IDs and extra fields before get access", async () => {
-    const current = services();
-    for (const data of [
-      { planId: "unknown" },
-      { planId: "payg", academyId: "academy-2" },
-      { planId: "../payg" },
-      { planId: "payg", [Symbol("extra")]: true },
-    ]) {
-      await expect(getPlanHandler(request(data, "owner"), current)).rejects.toMatchObject({
-        code: "invalid-argument",
-      });
-    }
-    const getterPayload = {};
-    Object.defineProperty(getterPayload, "planId", {
-      enumerable: true,
-      get: () => {
-        throw new Error("hostile plan ID getter");
-      },
-    });
-    await expect(getPlanHandler(request(getterPayload, "owner"), current)).rejects.toMatchObject({
-      code: "invalid-argument",
-    });
-    expect(current.store.getPlan).not.toHaveBeenCalled();
   });
 
   it("allows only owner and administrator to save their derived tenant plan", async () => {
@@ -319,13 +265,6 @@ describe("membership plan callables", () => {
   it("maps tenant, invalid, missing, and internal store errors to safe public errors", async () => {
     const current = services();
     const { PlanStoreError } = await import("./plan-service.js");
-    vi.mocked(current.store.getPlan).mockRejectedValueOnce(
-      new PlanStoreError("tenant", "Firestore path academies/other/plans/payg"),
-    );
-    await expect(
-      getPlanHandler(request({ planId: "payg" }, "owner"), current),
-    ).rejects.toMatchObject({ code: "permission-denied", message: "Plan access is not permitted" });
-
     vi.mocked(current.store.savePlan).mockRejectedValueOnce(
       new PlanStoreError("invalid", "private stored path"),
     );

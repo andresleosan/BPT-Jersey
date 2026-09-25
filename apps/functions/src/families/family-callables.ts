@@ -5,7 +5,6 @@ import { defineSecret } from "firebase-functions/params";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
 import {
-  childGuardianChangeSchema,
   parseFamilyStudentDraft,
   type FamilyStudentDraft,
   type GuardianFamilyProjection,
@@ -399,14 +398,3 @@ export const getFamily = onCall(familyReadCallableOptions, async (request) =>
 export const updateFamily = onCall(familyWriterCallableOptions, async (request) =>
   updateFamilyHandler(request, familyCallableServices(true)),
 );
-
-export const changeChildGuardian = onCall(familyWriterCallableOptions, async (request) => {
-  const services = familyCallableServices(true);
-  const actor = await requireAdministrativeRole(request, services);
-  const parsed = childGuardianChangeSchema.safeParse(request.data);
-  if (!parsed.success) throw new HttpsError("invalid-argument", "Invalid child guardian decision");
-  try {
-    return await services.store.changeChildGuardian({ ...parsed.data, academyId: actor.academyId,
-      actorId: actor.userId, actorRole: actor.role, now: services.now?.() ?? new Date().toISOString() });
-  } catch (error) { return mapFamilyError(error, "write"); }
-});

@@ -5,7 +5,6 @@ import { signedGuardianState, guardianRelationshipVersion, prepareChildGuardianC
 import { randomUUID, timingSafeEqual } from "node:crypto";
 
 import {
-  childGuardianChangeSchema,
   type ChildGuardianChange,
   parseFamilyRecord,
   parseFamilyRelationship,
@@ -127,7 +126,6 @@ export type GetStaffFamilyInput = Readonly<{
 }>;
 
 export type FamilyStore = Readonly<{
-  changeChildGuardian: (input: ChildGuardianChange & Readonly<{ academyId: string; actorId: string; actorRole: "owner" | "administrator"; now: string }>) => Promise<StaffFamilyProjection>;
   createFamily: (input: CreateFamilyInput) => Promise<StaffFamilyProjection>;
   getStaffFamily: (
     academyId: string,
@@ -945,85 +943,6 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
   const generateAuditId = dependencies.generateAuditId ?? randomUUID;
 
   return Object.freeze({
-    async changeChildGuardian(input) {
-      const writer = requireCanonicalDependencies(canonicalDependencies);
-      const { academyId: rawAcademy, actorId: rawActor, actorRole, now: rawNow, ...raw } = input;
-      const value = childGuardianChangeSchema.parse(raw);
-      const academyId = pathSegment(rawAcademy, "academy"), actorId = pathSegment(rawActor, "actor");
-      const now = validNow(rawNow);
-      const bodyMac = createMemberDirectoryIntegrityMac({ domain: "bpt-child-guardian-request-v1",
-        values: [academyId, actorId, canonicalizeMemberDirectoryValue(value)], secretMaterial: writer.integritySecretMaterial });
-      const receiptReference = dependencies.firestore.doc(`academies/${academyId}/memberGuardianDecisions/${value.requestId}`);
-      const auditEventId = pathSegment(generateAuditId(), "audit event");
-      return dependencies.firestore.runTransaction(async (transaction) => {
-        await assertTransactionalAdministrativeActor(transaction, dependencies.firestore, { academyId, actorId, actorRole });
-        const receipt = readDocumentSnapshot(await transaction.get(receiptReference));
-        if (receipt.exists) {
-          const saved = receipt.data();
-          if (saved?.academyId !== academyId || saved.actorId !== actorId || typeof saved.bodyMac !== "string" || !constantTimeMacEquals(saved.bodyMac, bodyMac)) {
-            throw new FamilyStoreError("conflict", "This guardian decision ID has already been used");
-          }
-          const resultMac = createMemberDirectoryIntegrityMac({ domain: "bpt-child-guardian-result-v1",
-            values: [bodyMac, canonicalizeMemberDirectoryValue(saved.result)], secretMaterial: writer.integritySecretMaterial });
-          if (typeof saved.resultMac !== "string" || !constantTimeMacEquals(saved.resultMac, resultMac)) throw new FamilyStoreError("conflict", "Guardian decision result needs review");
-          return saved.result as StaffFamilyProjection;
-        }
-        const control = await readCanonicalControl(transaction, dependencies.firestore, academyId, writer);
-        const studentReference = dependencies.firestore.doc(studentPath(academyId, value.studentId));
-        const storedStudent = readDocumentSnapshot(await transaction.get(studentReference));
-        const parsedStudent = parseEffectiveStudentProfileAt(storedStudent.data(), dateKeyInJersey(new Date(now)));
-        if (!parsedStudent.ok || storedStudent.id !== value.studentId || parsedStudent.value.studentId !== value.studentId || parsedStudent.value.academyId !== academyId) throw new FamilyStoreError("conflict", "Child identity needs review");
-        const student = parsedStudent.value;
-        if (!student.active || student.status !== "active") throw new FamilyStoreError("precondition", "The member must be active before changing access");
-        if (value.proposedGuardianUserId) {
-          if (value.proposedGuardianUserId === student.userId) throw new FamilyStoreError("precondition", "A member cannot be their own guardian");
-          const authUser = await dependencies.auth.getUser(value.proposedGuardianUserId);
-          if (authUser.uid !== value.proposedGuardianUserId || authUser.disabled || authUser.emailVerified !== true || authUser.customClaims?.academyId !== academyId ||
-              !["guardian", "adultStudent", "teenStudent", "shopper"].includes(String(authUser.customClaims?.role))) throw new FamilyStoreError("precondition", "A verified member account is required for the guardian");
-          const tutor = parseStoredTutor(readDocumentSnapshot(await transaction.get(dependencies.firestore.doc(userPath(academyId, value.proposedGuardianUserId)))), academyId);
-          if (tutor.userId !== value.proposedGuardianUserId) throw new FamilyStoreError("conflict", "Guardian account identity mismatch");
-        }
-        const familyId = student.familyId ?? `office-${student.studentId}`;
-        const familyReference = dependencies.firestore.doc(familyPath(academyId, familyId));
-        const familyDoc = readDocumentSnapshot(await transaction.get(familyReference));
-        if (!student.familyId && familyDoc.exists) throw new FamilyStoreError("conflict", "The office family already belongs to another record");
-        const family: FamilyRecord = familyDoc.exists ? parseStoredFamily(familyDoc) : {
-          academyId, familyId, primaryContactUserId: null, billingContactUserId: null, active: true, status: "active",
-          schemaVersion: "1", createdAt: now, createdBy: actorId, updatedAt: now, updatedBy: actorId,
-        };
-        if (family.academyId !== academyId || !family.active || family.status !== "active") throw new FamilyStoreError("conflict", "The family needs office review");
-        const [students, relationships] = await Promise.all([readStudents(transaction, dependencies.firestore, academyId, familyId), readRelationships(transaction, dependencies.firestore, academyId, familyId)]);
-        const prepared = await prepareChildGuardianChange(guardianTransaction(transaction, dependencies.firestore), value, {
-          academyId, actorId, now, student, familyId, integritySecretMaterial: writer.integritySecretMaterial,
-        });
-        const { guardianStatus: _guardianStatus, ...withoutGuardianStatus } = student;
-        const participantType = deriveParticipantType(student.dateOfBirth!, now.slice(0, 10));
-        const nextStudent: StudentProfile = { ...withoutGuardianStatus, familyId, participantType,
-          ...(prepared.relationship && participantType === "minor" ? { guardianStatus: "assigned" as const } : {}), updatedAt: now, updatedBy: actorId };
-        const nextControl = advanceCanonicalControl(dependencies.firestore, control, writer, {
-          academyId, actorId, operationId: value.requestId, addedStudentCount: 0, now, transitionKind: "member-guardian-change",
-        });
-        const nextRelationships = relationships.map((link) => prepared.ended && prepared.ended.relationshipId === link.relationshipId ? prepared.ended : link);
-        if (prepared.relationship) nextRelationships.push(prepared.relationship);
-        const result = staffProjection(family, [...students.filter((item) => item.studentId !== student.studentId), nextStudent], nextRelationships);
-        const resultMac = createMemberDirectoryIntegrityMac({ domain: "bpt-child-guardian-result-v1", values: [bodyMac, canonicalizeMemberDirectoryValue(result)], secretMaterial: writer.integritySecretMaterial });
-        if (!familyDoc.exists) transaction.create(familyReference, family);
-        transaction.set(studentReference, nextStudent);
-        prepared.commit();
-        transaction.set(control.stateRef, nextControl.state);
-        transaction.set(control.guardRef, nextControl.guard);
-        transaction.create(nextControl.eventRef, nextControl.event);
-        transaction.create(receiptReference, { academyId, actorId, studentId: student.studentId, bodyMac, resultMac, result,
-          input: value, before: prepared.before, ended: prepared.ended, relationship: prepared.relationship, anchor: prepared.anchor,
-          endReason: prepared.reason, occurredAt: now, schemaVersion: "1" });
-        appendAuditEventInTransaction(transaction, dependencies.firestore.doc(auditPath(academyId, auditEventId)), {
-          academyId, actorId, action: "member.updated", targetRef: studentReference.path,
-          purpose: "member-record-maintenance", correlationId: `write-${bodyMac}`,
-        } as AuditEventDraft);
-        return result;
-      });
-    },
-
     async createFamily(input) {
       const writer = requireCanonicalDependencies(canonicalDependencies);
       const academyId = pathSegment(input.academyId, "academy");

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { createInMemoryCrmStore } from "./crm-service";
 import {
-  createCreateLeadHandler,
   createListLeadTimelineHandler,
   createListLeadsHandler,
   createTransitionLeadHandler,
@@ -21,17 +20,21 @@ function fakeRequest(
 const validDraft = {
   academyId: "demo-academy",
   contactReference: "lead-jamie-f",
-  source: "website-f",
+  source: "website-f" as const,
   ownerId: "coach-1",
-  status: "new_enquiry",
+  status: "new_enquiry" as const,
   nextActionAt: "2026-08-26T10:00:00Z",
-  consentState: "unknown",
+  consentState: "unknown" as const,
 };
 
 describe("CRM callables", () => {
-  it("creates, filters, updates, transitions and lists timeline", async () => {
+  it("filters, updates, transitions and lists timeline", async () => {
     const store = createInMemoryCrmStore();
-    const created = await createCreateLeadHandler({ store })(fakeRequest(validDraft));
+    const created = await store.createLead({
+      academyId: "demo-academy",
+      input: validDraft,
+      createdBy: "admin-1",
+    });
     expect(created.lead.academyId).toBe("demo-academy");
 
     const listed = await createListLeadsHandler({ store })(

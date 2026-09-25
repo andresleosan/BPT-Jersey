@@ -299,6 +299,9 @@ export function r2EndpointFor(accountId: string, jurisdiction?: string): string 
   return `https://${accountId}.${normalized}.r2.cloudflarestorage.com`;
 }
 
+/** One S3Client per configuration, reused across invocations of a warm instance. */
+const environmentR2Clients = new Map<string, R2Client>();
+
 export function createR2ClientFromEnvironment(): R2Client {
   const accountId = process.env.R2_ACCOUNT_ID;
   const bucket = process.env.R2_BUCKET_NAME;
@@ -307,11 +310,19 @@ export function createR2ClientFromEnvironment(): R2Client {
   if (!accountId || !bucket || !accessKeyId || !secretAccessKey) {
     throw new Error("Private file storage is not configured");
   }
-  return createR2Client({
+  const jurisdiction = process.env.R2_JURISDICTION;
+  const key = createHash("sha256")
+    .update(JSON.stringify([accountId, bucket, accessKeyId, secretAccessKey, jurisdiction ?? ""]))
+    .digest("hex");
+  const cached = environmentR2Clients.get(key);
+  if (cached) return cached;
+  const client = createR2Client({
     bucket,
-    endpoint: r2EndpointFor(accountId, process.env.R2_JURISDICTION),
+    endpoint: r2EndpointFor(accountId, jurisdiction),
     credentials: { accessKeyId, secretAccessKey },
   });
+  environmentR2Clients.set(key, client);
+  return client;
 }
 
 function isLoopbackEmulatorHost(host: string | undefined): boolean {

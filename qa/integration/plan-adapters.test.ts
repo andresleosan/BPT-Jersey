@@ -12,7 +12,6 @@ import { requireUserActor } from "../../apps/functions/src/auth/user-authorizati
 import {
   activatePlanHandler,
   deactivatePlanHandler,
-  getPlanHandler,
   listPlansHandler,
   savePlanHandler,
 } from "../../apps/functions/src/memberships/plan-callables.js";
@@ -193,17 +192,16 @@ describe("membership plan adapters against Auth/Firestore emulators", () => {
     expect(
       (await listPlansHandler(coachRequest, { store })).map((plan) => plan.planId),
     ).not.toContain("payg");
-    await expect(
-      getPlanHandler(await requestFor(coachA, { planId: "payg" }), { store }),
-    ).rejects.toMatchObject({ code: "failed-precondition" });
 
     const activated = await activatePlanHandler(
       await requestFor(administratorA, { planId: "payg" }),
       { store, now: () => later },
     );
     expect(activated).toMatchObject({ active: true, displayName: "Pay as you go corrected" });
-    const restored = await getPlanHandler(await requestFor(coachA, { planId: "payg" }), { store });
-    expect(restored.displayName).toBe("Pay as you go corrected");
+    const restored = (await listPlansHandler(coachRequest, { store })).find(
+      (plan) => plan.planId === "payg",
+    );
+    expect(restored?.displayName).toBe("Pay as you go corrected");
     expect((await firestore.doc(`academies/${academyA}/plans/payg`).get()).data()).toEqual(
       expect.objectContaining({
         createdAt: beforeCorrection?.createdAt,
@@ -223,10 +221,10 @@ describe("membership plan adapters against Auth/Firestore emulators", () => {
       draft: academyBPayg,
     });
 
-    const academyBPlan = await getPlanHandler(await requestFor(ownerB, { planId: "payg" }), {
-      store,
-    });
-    expect(academyBPlan.displayName).toBe("Academy B Pay as you go");
+    const academyBPlan = (await listPlansHandler(await requestFor(ownerB, null), { store })).find(
+      (plan) => plan.planId === "payg",
+    );
+    expect(academyBPlan?.displayName).toBe("Academy B Pay as you go");
     expect(
       (await listPlansHandler(await requestFor(ownerB, null), { store })).map(
         (plan) => plan.planId,
