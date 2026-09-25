@@ -5,16 +5,14 @@ import { upcomingBirthdayCallableOptions } from "../birthdays/upcoming-birthday-
 import { permissionGrantCallableOptions } from "../staff/permission-grant-callables.js";
 
 describe("browser origins", () => {
-  it("admits the apex and the Pages domain, and nothing else", () => {
-    // Leaving the apex out is not a cosmetic bug: the pages load from the static export and every
-    // callable then fails CORS, which is exactly what happened between the domain going live and
-    // this list being updated.
-    expect(browserOrigins).toEqual(["https://bptjersey.com", "https://bptjersey.pages.dev"]);
-  });
-
-  it("does not list www, which never reaches the browser as an origin", () => {
-    // A zone Redirect Rule answers www with a 301 to the apex.
-    expect(browserOrigins).not.toContain("https://www.bptjersey.com");
+  it("admits www first, plus the two hosts that now redirect to it, and nothing else", () => {
+    // Leaving the canonical host out is not a cosmetic bug: the pages load from the static export
+    // and every callable then fails CORS, as happened on 2026-09-18 when the apex went live.
+    expect(browserOrigins).toEqual([
+      "https://www.bptjersey.com",
+      "https://bptjersey.com",
+      "https://bptjersey.pages.dev",
+    ]);
   });
 });
 
