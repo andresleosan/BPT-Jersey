@@ -16,6 +16,7 @@ function row(overrides: Partial<MemberOverviewRow>): MemberOverviewRow {
     trainingCenter: "Town",
     centreConfirmed: true,
     active: false,
+    recordActive: true,
     source: "bpt",
     planState: "none",
     ownAccount: false,

@@ -341,6 +341,7 @@ const editRefusals = new Set([
   "This change would overpay the invoice",
   "That reference is already used by another payment.",
   "This edit was already sent with other details.",
+  "Class payments can't be edited. Void and reissue the invoice instead.",
 ]);
 const editResultSchema = z.strictObject({
   paymentId: z.string(),

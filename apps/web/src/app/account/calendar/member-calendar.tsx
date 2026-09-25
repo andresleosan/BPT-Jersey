@@ -30,7 +30,6 @@ import {
 import type {
   CalendarMember,
   CalendarRepository,
-  CalendarRole,
   CalendarWeekData,
 } from "../../../lib/calendar";
 import {

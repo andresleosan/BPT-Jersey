@@ -242,7 +242,7 @@ async function readerScope(
 ): Promise<FinanceReadScope> {
   const actor = await requireActiveActor(request, services);
   if (actor.role === "owner" || actor.role === "administrator") {
-    return Object.freeze({ academyId: actor.academyId });
+    return Object.freeze({ academyId: actor.academyId, includeAuditHistory: true });
   }
   if (["guardian", "adultStudent", "teenStudent"].includes(actor.role)) {
     await requireMemberAccountActor(request);
@@ -312,6 +312,8 @@ const editRefusals: Readonly<Record<string, string>> = Object.freeze({
   "This change would overpay the invoice": "This change would overpay the invoice",
   "Payment reference is already used": "That reference is already used by another payment.",
   "Request id was already used for another edit": "This edit was already sent with other details.",
+  "Class payments can't be edited. Void and reissue the invoice instead.":
+    "Class payments can't be edited. Void and reissue the invoice instead.",
 });
 
 export async function editManualPaymentHandler(
@@ -428,6 +430,7 @@ export async function getFamilyFinancialAccountHandler(
     return await services.store.listFinancialAccount({
       academyId: actor.academyId,
       familyIds: [familyId],
+      includeAuditHistory: true,
     });
   } catch (error) {
     return mapStoreError(error, "read");

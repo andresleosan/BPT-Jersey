@@ -190,13 +190,27 @@ describe("payment edit audit trail", () => {
   });
 
   it("rejects an audit entry with a reason that is too short", () => {
-    expect(parseManualPaymentRecord({ ...paymentBase, auditHistory: [{ ...entry, reason: "short" }] }).ok).toBe(false);
+    expect(
+      parseManualPaymentRecord({ ...paymentBase, auditHistory: [{ ...entry, reason: "short" }] })
+        .ok,
+    ).toBe(false);
   });
 
   it("requires a reason of 10 to 280 characters and at least one change to edit a payment", () => {
     const base = { paymentId: "payment-1", requestId: "3f1b0c5e-8a4e-4c2b-9f57-1d2e3c4b5a69" };
-    expect(editManualPaymentInputSchema.safeParse({ ...base, amountMinor: 300, reason: "Corrected amount" }).success).toBe(true);
-    expect(editManualPaymentInputSchema.safeParse({ ...base, amountMinor: 300, reason: "too short" }).success).toBe(false);
-    expect(editManualPaymentInputSchema.safeParse({ ...base, reason: "Nothing changed at all" }).success).toBe(false);
+    expect(
+      editManualPaymentInputSchema.safeParse({
+        ...base,
+        amountMinor: 300,
+        reason: "Corrected amount",
+      }).success,
+    ).toBe(true);
+    expect(
+      editManualPaymentInputSchema.safeParse({ ...base, amountMinor: 300, reason: "too short" })
+        .success,
+    ).toBe(false);
+    expect(
+      editManualPaymentInputSchema.safeParse({ ...base, reason: "Nothing changed at all" }).success,
+    ).toBe(false);
   });
 });

@@ -991,6 +991,43 @@ describe("editing a manual payment", () => {
     expect(h.records.get(h.invoicePath)).toMatchObject({ status: "partially_paid", paidAt: null });
   });
 
+  it("refuses to edit a payment on a class (PAYG) invoice and writes nothing", async () => {
+    const h = await paidInvoice();
+    h.records.set(h.invoicePath, {
+      ...h.records.get(h.invoicePath)!,
+      chargeKind: "payg_session",
+      sourceRef: `academies/${academyId}/sessions/session-1`,
+    });
+    const before = new Map(h.records);
+    await expect(
+      h.service.editManualPayment(edit(h.payment.paymentId, { amountMinor: 3000 })),
+    ).rejects.toMatchObject({
+      code: "precondition",
+      message: "Class payments can't be edited. Void and reissue the invoice instead.",
+    });
+    expect(h.records).toEqual(before);
+    expect(h.audits).toEqual([]);
+  });
+
+  it("keeps the edit history in office views and never sends it to a family reader", async () => {
+    const h = await paidInvoice();
+    await h.service.editManualPayment(edit(h.payment.paymentId, { amountMinor: 3000 }));
+    const family = { academyId, familyIds: [familyId] };
+    const office = { academyId, includeAuditHistory: true };
+    const memberInvoice = await h.service.getInvoice(family, h.invoice.invoiceId);
+    expect(memberInvoice.payments[0]).toMatchObject({ amountMinor: 3000 });
+    expect(Object.hasOwn(memberInvoice.payments[0]!, "auditHistory")).toBe(false);
+    const memberAccount = await h.service.listFinancialAccount(family);
+    expect(Object.hasOwn(memberAccount.invoices[0]!.payments[0]!, "auditHistory")).toBe(false);
+    const officeInvoice = await h.service.getInvoice(office, h.invoice.invoiceId);
+    expect(officeInvoice.payments[0]?.auditHistory).toHaveLength(1);
+    const officeAccount = await h.service.listFinancialAccount({
+      ...office,
+      familyIds: [familyId],
+    });
+    expect(officeAccount.invoices[0]!.payments[0]?.auditHistory).toHaveLength(1);
+  });
+
   it("refuses to replay a receipt whose stored result is not this payment's", async () => {
     const h = await paidInvoice();
     const input = edit(h.payment.paymentId, { amountMinor: 3000 });

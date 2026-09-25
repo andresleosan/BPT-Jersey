@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildMemberOverview,
+  hasCoveringMembership,
   isGuardianOnly,
   memberOverviewSchema,
   type OverviewStudentSource,
@@ -44,10 +45,24 @@ const baseInput = {
 const now = "2026-09-24T10:00:00.000Z";
 type Student = OverviewStudentSource;
 function student(studentId: string, fullName: string, extra: Partial<Student> = {}): Student {
-  return { studentId, fullName, dateOfBirth: "1990-01-01", trainingCenter: "West", active: true, legacy: false, ...extra };
+  return {
+    studentId,
+    fullName,
+    dateOfBirth: "1990-01-01",
+    trainingCenter: "West",
+    active: true,
+    legacy: false,
+    ...extra,
+  };
 }
 function liveMembership(studentId: string) {
-  return { studentId, planId: "adult-monthly", status: "active", startsAt: "2026-01-01T00:00:00.000Z", endsAt: null };
+  return {
+    studentId,
+    planId: "adult-monthly",
+    status: "active",
+    startsAt: "2026-01-01T00:00:00.000Z",
+    endsAt: null,
+  };
 }
 function trial(status: string, expiresAt: string) {
   return { status, expiresAt, allowance: 2, countedAttendanceIds: [] };
@@ -56,7 +71,12 @@ function overview(input: {
   students: Student[];
   memberships?: [string, ReturnType<typeof liveMembership>[]][];
   trials?: [string, ReturnType<typeof trial>][];
-  families?: { familyId: string; primaryContactUserId?: string; guardianName?: string; online: boolean }[];
+  families?: {
+    familyId: string;
+    primaryContactUserId?: string;
+    guardianName?: string;
+    online: boolean;
+  }[];
   guardianUsers?: { userId: string; fullName: string; familyIds: string[] }[];
 }) {
   return buildMemberOverview({
@@ -93,10 +113,17 @@ describe("buildMemberOverview", () => {
 
 describe("buildMemberOverview free trials", () => {
   it("shows an active trial without a membership as a training Free Trial", () => {
-    const result = overview({ students: [student("s-1", "Tia Trial")], trials: [["s-1", trial("active", "2026-10-10T00:00:00.000Z")]] });
+    const result = overview({
+      students: [student("s-1", "Tia Trial")],
+      trials: [["s-1", trial("active", "2026-10-10T00:00:00.000Z")]],
+    });
     const row = result.rows[0];
     expect(row?.planState).toBe("trial");
-    expect(row?.plan).toMatchObject({ planId: "free-trial", displayName: "Free Trial", endsAt: "2026-10-10T00:00:00.000Z" });
+    expect(row?.plan).toMatchObject({
+      planId: "free-trial",
+      displayName: "Free Trial",
+      endsAt: "2026-10-10T00:00:00.000Z",
+    });
     expect(row?.active).toBe(true);
     expect(result.counters.active).toBe(1);
     expect(result.counters.inactive).toBe(0);
@@ -136,8 +163,17 @@ describe("buildMemberOverview free trials", () => {
 });
 
 describe("buildMemberOverview guardians", () => {
-  const family = { familyId: "fam-1", primaryContactUserId: "user-g", guardianName: "Gina Guard", online: true };
-  const child = student("s-child", "Kid Guard", { dateOfBirth: "2016-01-01", familyId: "fam-1", trainingCenter: "Town" });
+  const family = {
+    familyId: "fam-1",
+    primaryContactUserId: "user-g",
+    guardianName: "Gina Guard",
+    online: true,
+  };
+  const child = student("s-child", "Kid Guard", {
+    dateOfBirth: "2016-01-01",
+    familyId: "fam-1",
+    trainingCenter: "Town",
+  });
 
   it("marks a guardian with a member record and no plan as a guardian row", () => {
     const result = overview({
@@ -156,7 +192,10 @@ describe("buildMemberOverview guardians", () => {
   it("keeps a guardian who trains on a live plan as a member", () => {
     const result = overview({
       students: [student("s-g", "Gina Guard", { userId: "user-g" }), child],
-      memberships: [["s-child", [liveMembership("s-child")]], ["s-g", [liveMembership("s-g")]]],
+      memberships: [
+        ["s-child", [liveMembership("s-child")]],
+        ["s-g", [liveMembership("s-g")]],
+      ],
       families: [family],
       guardianUsers: [{ userId: "user-g", fullName: "Gina Guard", familyIds: ["fam-1"] }],
     });
@@ -184,6 +223,7 @@ describe("buildMemberOverview guardians", () => {
       active: false,
       source: "bpt",
       planState: "none",
+      recordActive: true,
       ownAccount: true,
       flags: [],
     });
@@ -208,12 +248,100 @@ describe("buildMemberOverview guardians", () => {
   });
 });
 
+describe("buildMemberOverview record status", () => {
+  it("keeps the member's own active status apart from training on a plan", () => {
+    const result = overview({
+      students: [
+        student("s-lapsed", "Lapsed Member"),
+        student("s-off", "Deactivated Member", { active: false }),
+        student("s-live", "Live Member"),
+      ],
+      memberships: [["s-live", [liveMembership("s-live")]]],
+    });
+    const byId = new Map(result.rows.map((row) => [row.studentId, row]));
+    expect(byId.get("s-lapsed")).toMatchObject({ active: false, recordActive: true });
+    expect(byId.get("s-off")).toMatchObject({ active: false, recordActive: false });
+    expect(byId.get("s-live")).toMatchObject({ active: true, recordActive: true });
+  });
+
+  it("reads rows from a server that predates recordActive as active records", () => {
+    const row = { ...buildMemberOverview({ ...baseInput }).rows[0] } as Record<string, unknown>;
+    delete row.recordActive;
+    const counters = { total: 1, active: 1, expiring: 0, review: 0, inactive: 0, guardians: 0 };
+    expect(
+      memberOverviewSchema.parse({ rows: [row], counters, generatedAt: now }).rows[0]?.recordActive,
+    ).toBe(true);
+  });
+});
+
+describe("hasCoveringMembership", () => {
+  const plan = (status: string, endsAt: string | null = null) => ({
+    studentId: "s-1",
+    planId: "adult-monthly",
+    status,
+    startsAt: "2026-01-01T00:00:00.000Z",
+    endsAt,
+  });
+  it("counts a live active, trial, paused or overdue plan as covering", () => {
+    for (const status of ["active", "trial", "paused", "overdue"]) {
+      expect(hasCoveringMembership([plan(status)], now)).toBe(true);
+    }
+  });
+  it("does not count an ended, future or cancelled plan", () => {
+    expect(hasCoveringMembership([plan("active", "2026-09-01T00:00:00.000Z")], now)).toBe(false);
+    expect(
+      hasCoveringMembership([{ ...plan("active"), startsAt: "2026-10-01T00:00:00.000Z" }], now),
+    ).toBe(false);
+    expect(hasCoveringMembership([plan("cancelled")], now)).toBe(false);
+    expect(hasCoveringMembership([], now)).toBe(false);
+  });
+  it("keeps a parent on their own overdue plan a member, not a guardian", () => {
+    const family = { familyId: "fam-1", primaryContactUserId: "user-g", online: true };
+    const result = overview({
+      students: [
+        student("s-g", "Gina Guard", { userId: "user-g" }),
+        student("s-child", "Kid Guard", { dateOfBirth: "2016-01-01", familyId: "fam-1" }),
+      ],
+      memberships: [
+        ["s-child", [liveMembership("s-child")]],
+        ["s-g", [{ ...liveMembership("s-g"), status: "overdue" }]],
+      ],
+      families: [family],
+    });
+    expect(result.rows.find((row) => row.studentId === "s-g")?.rowKind).toBe("member");
+  });
+});
+
 describe("isGuardianOnly", () => {
   it("marks a guardian of an active member with no plan or trial of their own", () => {
-    expect(isGuardianOnly({ hasOwnCoveringPlan: false, hasActiveTrial: false, guardsActiveStudent: true })).toBe(true);
-    expect(isGuardianOnly({ hasOwnCoveringPlan: true, hasActiveTrial: false, guardsActiveStudent: true })).toBe(false);
-    expect(isGuardianOnly({ hasOwnCoveringPlan: false, hasActiveTrial: true, guardsActiveStudent: true })).toBe(false);
-    expect(isGuardianOnly({ hasOwnCoveringPlan: false, hasActiveTrial: false, guardsActiveStudent: false })).toBe(false);
+    expect(
+      isGuardianOnly({
+        hasOwnCoveringPlan: false,
+        hasActiveTrial: false,
+        guardsActiveStudent: true,
+      }),
+    ).toBe(true);
+    expect(
+      isGuardianOnly({
+        hasOwnCoveringPlan: true,
+        hasActiveTrial: false,
+        guardsActiveStudent: true,
+      }),
+    ).toBe(false);
+    expect(
+      isGuardianOnly({
+        hasOwnCoveringPlan: false,
+        hasActiveTrial: true,
+        guardsActiveStudent: true,
+      }),
+    ).toBe(false);
+    expect(
+      isGuardianOnly({
+        hasOwnCoveringPlan: false,
+        hasActiveTrial: false,
+        guardsActiveStudent: false,
+      }),
+    ).toBe(false);
   });
 });
 
@@ -229,7 +357,10 @@ describe("memberOverviewSchema", () => {
 
   it("accepts more than 500 rows so synthetic guardian rows fit", () => {
     const rowTemplate = buildMemberOverview({ ...baseInput }).rows[0];
-    const rows = Array.from({ length: 700 }, (_, index) => ({ ...rowTemplate, studentId: `s-${index}` }));
+    const rows = Array.from({ length: 700 }, (_, index) => ({
+      ...rowTemplate,
+      studentId: `s-${index}`,
+    }));
     const counters = { total: 700, active: 700, expiring: 0, review: 0, inactive: 0, guardians: 0 };
     expect(memberOverviewSchema.parse({ rows, counters, generatedAt: now }).rows).toHaveLength(700);
   });

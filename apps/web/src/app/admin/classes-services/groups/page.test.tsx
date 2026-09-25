@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../admin-gate", () => ({ useAdminOrStaffSession: mocks.useAdminOrStaffSession }));
-vi.mock("../../../../lib/member-overview-client", () => ({ getMemberOverview: mocks.getMemberOverview }));
+vi.mock("../../../../lib/member-overview-client", () => ({
+  getMemberOverview: mocks.getMemberOverview,
+}));
 vi.mock("../../../../lib/groups-client", () => ({
   listMemberGroups: mocks.listMemberGroups,
   saveMemberGroup: mocks.saveMemberGroup,
@@ -28,6 +30,7 @@ function row(studentId: string, fullName: string, extra: Record<string, unknown>
     trainingCenter: "Town",
     centreConfirmed: true,
     active: true,
+    recordActive: true,
     source: "bpt",
     planState: "current",
     ownAccount: true,
@@ -36,7 +39,16 @@ function row(studentId: string, fullName: string, extra: Record<string, unknown>
   };
 }
 function group(groupId: string, name: string, site?: "Town" | "West") {
-  return { groupId, name, ...(site ? { site } : {}), studentIds: [], revision: 1, active: true, updatedAt: stamp, members: [] };
+  return {
+    groupId,
+    name,
+    ...(site ? { site } : {}),
+    studentIds: [],
+    revision: 1,
+    active: true,
+    updatedAt: stamp,
+    members: [],
+  };
 }
 
 beforeEach(() => {
@@ -46,9 +58,10 @@ beforeEach(() => {
     rows: [
       row("s1", "Ana Coelho"),
       row("g1", "Pat Parent", { rowKind: "guardian" }),
-      row("s2", "Idle Member", { active: false }),
+      row("s2", "Idle Member", { active: false, recordActive: false }),
+      row("s3", "Lapsed Member", { active: false, planState: "expired" }),
     ],
-    counters: { total: 3, active: 1, expiring: 0, review: 0, inactive: 1, guardians: 1 },
+    counters: { total: 4, active: 1, expiring: 0, review: 0, inactive: 2, guardians: 1 },
     generatedAt: stamp,
   });
   mocks.listMemberGroups.mockResolvedValue([
@@ -65,8 +78,16 @@ describe("groups page", () => {
     render(<GroupsPage />);
     const town = await screen.findByRole("region", { name: "Town" });
     expect(within(town).getByRole("heading", { name: "Town Kids" })).toBeTruthy();
-    expect(within(screen.getByRole("region", { name: "West" })).getByRole("heading", { name: "West Adults" })).toBeTruthy();
-    expect(within(screen.getByRole("region", { name: "Unassigned site" })).getByRole("heading", { name: "Old Squad" })).toBeTruthy();
+    expect(
+      within(screen.getByRole("region", { name: "West" })).getByRole("heading", {
+        name: "West Adults",
+      }),
+    ).toBeTruthy();
+    expect(
+      within(screen.getByRole("region", { name: "Unassigned site" })).getByRole("heading", {
+        name: "Old Squad",
+      }),
+    ).toBeTruthy();
   });
 
   it("filters the list by site", async () => {
@@ -86,18 +107,40 @@ describe("groups page", () => {
     expect(screen.queryByRole("button", { name: "Add Idle Member to group" })).toBeNull();
   });
 
+  it("offers an active member whose plan has lapsed", async () => {
+    render(<GroupsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Create group" }));
+    expect(screen.getByRole("button", { name: "Add Lapsed Member to group" })).toBeTruthy();
+  });
+
+  it("explains that members on a free trial register as Missing Payment", async () => {
+    render(<GroupsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Create group" }));
+    expect(
+      screen.getByText(
+        "Members on a free trial are listed but register as Missing Payment until they have a paid plan.",
+      ),
+    ).toBeTruthy();
+  });
+
   it("requires a site before saving and sends the chosen one", async () => {
     render(<GroupsPage />);
     fireEvent.click(await screen.findByRole("button", { name: "Create group" }));
     const site = screen.getByRole("radiogroup", { name: "Site" });
-    fireEvent.change(screen.getByLabelText("Group name"), { target: { value: "Competition team" } });
+    fireEvent.change(screen.getByLabelText("Group name"), {
+      target: { value: "Competition team" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Save group" }));
     expect(await screen.findByText("Choose Town or West.")).toBeTruthy();
     expect(mocks.saveMemberGroup).not.toHaveBeenCalled();
 
     fireEvent.click(within(site).getByLabelText("West"));
     fireEvent.click(screen.getByRole("button", { name: "Save group" }));
-    await waitFor(() => expect(mocks.saveMemberGroup).toHaveBeenCalledWith(expect.objectContaining({ name: "Competition team", site: "West" })));
+    await waitFor(() =>
+      expect(mocks.saveMemberGroup).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "Competition team", site: "West" }),
+      ),
+    );
   });
 
   it("asks for a site when editing a group saved before sites existed", async () => {
@@ -111,15 +154,19 @@ describe("groups page", () => {
   });
 
   it("flags a member the office can no longer keep in an older group", async () => {
-    mocks.listMemberGroups.mockResolvedValue([{ ...group("o1", "Old Squad"), studentIds: ["s2", "g1", "s1"] }]);
+    mocks.listMemberGroups.mockResolvedValue([
+      { ...group("o1", "Old Squad"), studentIds: ["s2", "g1", "s1", "s3"] },
+    ]);
     render(<GroupsPage />);
     fireEvent.click(await screen.findByRole("button", { name: "Edit Old Squad" }));
-    expect(screen.getByText("Inactive. Remove before saving.")).toBeTruthy();
+    expect(screen.getAllByText("Inactive. Remove before saving.")).toHaveLength(1);
     expect(screen.getByText("Guardian. Remove before saving.")).toBeTruthy();
   });
 
   it("still lists groups when the member list cannot load, and says so in the picker", async () => {
-    mocks.getMemberOverview.mockRejectedValue(new Error("Unable to load the member directory. Please try again."));
+    mocks.getMemberOverview.mockRejectedValue(
+      new Error("Unable to load the member directory. Please try again."),
+    );
     render(<GroupsPage />);
     expect(await screen.findByRole("heading", { name: "Town Kids" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Create group" }));
@@ -130,7 +177,9 @@ describe("groups page", () => {
   });
 
   it("shows the office's refusal of a guardian in the red band", async () => {
-    mocks.saveMemberGroup.mockRejectedValue(new Error("Guardians can't be added to a group: Pat Parent"));
+    mocks.saveMemberGroup.mockRejectedValue(
+      new Error("Guardians can't be added to a group: Pat Parent"),
+    );
     render(<GroupsPage />);
     fireEvent.click(await screen.findByRole("button", { name: "Edit Town Kids" }));
     fireEvent.click(screen.getByRole("button", { name: "Save group" }));
