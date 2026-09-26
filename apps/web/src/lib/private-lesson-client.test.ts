@@ -136,7 +136,7 @@ describe("private lesson client", () => {
       .mockResolvedValueOnce({ data: { purchase: { ...purchaseFixture, source: "office" } } });
     await expect(listPrivateLessonPurchases("pending")).resolves.toHaveLength(1);
     await reviewPrivateLessonPurchase({ purchaseId: "private-lesson-1", decision: "reject", reason: "No transfer" });
-    await recordPrivateLessonPurchase({ studentId: "student-1", optionId: "pack-10", method: "cash", reference: null });
+    await recordPrivateLessonPurchase({ studentId: "student-1", requestId: "3f2a9c7d-1b4e-4d6a-8c0f-5e7b9a1d2c34", optionId: "pack-10", method: "cash", reference: null });
     expect(callableState.calls.map((call) => call.name)).toEqual([
       "listPrivateLessonPurchases",
       "reviewPrivateLessonPurchase",

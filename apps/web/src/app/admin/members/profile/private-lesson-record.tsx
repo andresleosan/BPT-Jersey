@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import {
   PRIVATE_LESSON_OPTIONS,
   privateLessonOptionIds,
@@ -22,19 +22,24 @@ export function PrivateLessonRecord({ studentId }: Readonly<{ studentId: string 
   const [reference, setReference] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Readonly<{ kind: "success" | "error"; text: string }>>();
+  // Kept across retries of the same purchase; cleared once it is saved.
+  const requestId = useRef<string | null>(null);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
     setBusy(true);
     setNotice(undefined);
+    requestId.current ??= crypto.randomUUID();
     try {
       await recordPrivateLessonPurchase({
         studentId,
+        requestId: requestId.current,
         optionId,
         method,
         reference: reference.trim().length >= 2 ? reference.trim() : null,
       });
+      requestId.current = null;
       setOpen(false);
       setReference("");
       setNotice({

@@ -100,6 +100,7 @@ export function getPrivateLessonProofUrl(purchaseId: string): Promise<PrivateLes
 
 export function recordPrivateLessonPurchase(input: {
   studentId: string;
+  requestId: string;
   optionId: PrivateLessonOptionId;
   method: "bank_transfer" | "cash" | "other";
   reference: string | null;

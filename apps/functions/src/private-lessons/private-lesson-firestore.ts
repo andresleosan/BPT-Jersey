@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type { Firestore, Transaction } from "firebase-admin/firestore";
 import {
   privateLessonPurchaseSchema,
@@ -130,7 +129,6 @@ export function createFirestorePrivateLessonStore(
     canAccessStudent: (userId, studentId) =>
       db.runTransaction((tx) => canAccess(tx)(userId, studentId)),
     verifyProof: (input) => assertIntroProof(storage(), { academyId, ...input }),
-    newId: () => randomUUID(),
     proofUrl: (input) => introProofUrl(storage(), { academyId, ...input }),
   };
 }
