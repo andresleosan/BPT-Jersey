@@ -85,15 +85,21 @@ state (consumed | restored), consumedAt, restoredAt | null`.
    evento de auditoría.
 3. **Oficina desde la ficha**: `recordPrivateLessonPurchase` (method cash | bank_transfer |
    other) crea la compra ya aprobada.
-4. **Reserva** (ADR-018: solo la oficina): una sesión cuyo programa tiene
-   `kind: "service"` es una private lesson. La oficina la crea (capacidad 1) y registra al
-   alumno desde el `session-panel` existente. En `confirmBookingInTransaction`, para
-   sesiones `service`, la comprobación de acceso por membresía se sustituye por "tiene
-   crédito vigente": se consume 1 crédito de la compra aprobada con `expiresAt` más próximo
-   (FIFO por caducidad) y se escribe `privateLessonCreditUses/{bookingId}`.
-5. **Cancelación por la oficina** → el crédito vuelve a su compra (`restored`) si no ha
+4. **Reserva** (ADR-018: solo la oficina): una sesión con
+   `accessMode: "private-lesson"` (nuevo valor de `classAccessModes`, junto a
+   `membership | intro`; mismo mecanismo que las reservas intro) es una private lesson. La
+   oficina la crea (capacidad 1) y registra al alumno desde el `session-panel` existente
+   con la callable `bookPrivateLesson`, modelada sobre `intro-booking-service.ts`. La
+   reserva es `PrivateLessonBookingRecord` (`schemaVersion "4"`, `membershipId: null`,
+   `source: { kind: "private-lesson", purchaseId }`). En la misma transacción se consume
+   1 crédito de la compra aprobada con `expiresAt` más próximo (FIFO por caducidad) y se
+   escribe `privateLessonCreditUses/{bookingId}`. `requestBooking` y el resto de rutas de
+   miembro rechazan sesiones `private-lesson`.
+   (Cambio frente a la versión aprobada: se usa `accessMode` en vez de `kind: "service"`
+   del programa, porque `accessMode` ya es lo que decide el acceso de cada reserva.)
+5. **Cancelación por la oficina** (`cancelPrivateLessonBooking`) → el crédito vuelve a su compra (`restored`) si no ha
    caducado. **No-show** → el crédito queda consumido.
-6. Los miembros no pueden reservar ni cancelar sesiones `service` (servidor lo rechaza; el
+6. Los miembros no pueden reservar ni cancelar sesiones `private-lesson` (servidor lo rechaza; el
    calendario de miembros las muestra como `locked` con "Arranged by the office").
 7. **Coach**: ve la sesión en calendario y asistencia; nunca créditos ni importes.
 
@@ -101,7 +107,7 @@ state (consumed | restored), consumedAt, restoredAt | null`.
 
 `submitPrivateLessonPurchase`, `listMyPrivateLessons` (créditos vigentes + historial),
 `listPrivateLessonPurchases` (admin), `reviewPrivateLessonPurchase`,
-`recordPrivateLessonPurchase`. Todas con `requireAdminActor`/`assertAcademyScope` o la
+`recordPrivateLessonPurchase`, `bookPrivateLesson`, `cancelPrivateLessonBooking`. Todas con `requireAdminActor`/`assertAcademyScope` o la
 sesión de cliente según corresponda, y zod en la entrada.
 
 ## T04 · Editor de cinturones versionado
@@ -216,7 +222,7 @@ Solo presentación: CSS propio (`attendance.css`) con la escala del sistema, sin
 - Tablet/escritorio: selector Week / Day (Week por defecto).
 - Jerarquía hora > clase > sede/coach > estado; nombres sin truncar.
 - `/account/courses/calendar` hereda todo sin perder etiquetas de curso y ausencia.
-- Sesiones `service` (T03): tarjeta `locked`, "Arranged by the office".
+- Sesiones `private-lesson` (T03): tarjeta `locked`, "Arranged by the office".
 
 ### Otros
 
