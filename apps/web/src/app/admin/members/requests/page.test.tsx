@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -138,6 +138,24 @@ const detail = {
   applicantAccount: { email: "alex@example.test", emailVerified: false, disabled: false },
 };
 
+const allStatuses = (
+  ["submitted", "returned", "approving", "approval-failed", "approved", "withdrawn"] as const
+).map((status, index) => ({
+  ...waiting,
+  enrolmentRequestId: `enrolment-status-${index}`,
+  applicantName: `Name ${status}`,
+  status,
+}));
+
+/** The status label of every request card on screen. */
+function badgeLabels(): string[] {
+  const list = screen.queryByRole("list", { name: "Enrolment requests" });
+  if (!list) return [];
+  return within(list)
+    .getAllByRole("listitem")
+    .map((item) => item.querySelector(".admin-status-badge")?.textContent ?? "");
+}
+
 /** The first matching button, asserted to exist so the queries stay readable under strict index checks. */
 function firstButton(name: RegExp): HTMLElement {
   const [button] = screen.getAllByRole("button", { name });
@@ -216,9 +234,71 @@ describe("enrolment request queue", () => {
     });
 
     render(<EnrolmentRequestQueuePage />);
+    await userEvent.selectOptions(screen.getByLabelText("Status"), "all");
 
     expect(await screen.findByText("Alex Adult")).toBeVisible();
     expect(screen.queryByRole("button", { name: /send back/i })).not.toBeInTheDocument();
+  });
+
+  it("shows only waiting and failed approvals by default", async () => {
+    enrolmentApi.listEnrolmentRequests.mockResolvedValue({
+      requests: allStatuses,
+      truncated: false,
+    });
+
+    render(<EnrolmentRequestQueuePage />);
+
+    await screen.findByText("Name submitted");
+    expect(badgeLabels().sort()).toEqual(["Approval stopped", "Waiting"]);
+    expect(screen.getByLabelText("Status")).toHaveValue("waiting");
+  });
+
+  it("keeps the history reachable from the status filter", async () => {
+    enrolmentApi.listEnrolmentRequests.mockResolvedValue({
+      requests: allStatuses,
+      truncated: false,
+    });
+    render(<EnrolmentRequestQueuePage />);
+    await screen.findByText("Name submitted");
+
+    await userEvent.selectOptions(screen.getByLabelText("Status"), "all");
+
+    expect(badgeLabels()).toHaveLength(6);
+  });
+
+  it("clears the filters back to the waiting view, not to the whole history", async () => {
+    enrolmentApi.listEnrolmentRequests.mockResolvedValue({
+      requests: allStatuses,
+      truncated: false,
+    });
+    render(<EnrolmentRequestQueuePage />);
+    await screen.findByText("Name submitted");
+
+    await userEvent.selectOptions(screen.getByLabelText("Status"), "all");
+    await userEvent.type(screen.getByLabelText("Search requests"), "nobody matches this");
+    await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    expect(screen.getByLabelText("Status")).toHaveValue("waiting");
+    expect(badgeLabels().sort()).toEqual(["Approval stopped", "Waiting"]);
+  });
+
+  it("drops an approved request from the default view without a page reload", async () => {
+    enrolmentApi.listEnrolmentRequests
+      .mockResolvedValueOnce({ requests: [waiting], truncated: false })
+      .mockResolvedValue({
+        requests: [{ ...waiting, status: "approved" as const }],
+        truncated: false,
+      });
+    render(<EnrolmentRequestQueuePage />);
+    await screen.findByText("Alex Adult");
+    await userEvent.click(firstButton(/review and enrol/i));
+    await waitFor(() => expect(firstButton(/^approve$/i)).toBeEnabled());
+    await userEvent.selectOptions(screen.getByLabelText("Initial level"), "yellow-2");
+
+    await userEvent.click(firstButton(/^approve$/i));
+
+    await waitFor(() => expect(screen.queryByText("Alex Adult")).not.toBeInTheDocument());
+    expect(screen.queryByRole("list", { name: "Enrolment requests" })).not.toBeInTheDocument();
   });
 
   it("offers a retry when the queue cannot be read", async () => {
