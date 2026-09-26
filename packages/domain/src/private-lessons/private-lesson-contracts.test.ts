@@ -23,6 +23,7 @@ const base = (over: Partial<PrivateLessonPurchase>): PrivateLessonPurchase => ({
   submittedAt: "2026-09-01T10:00:00Z",
   decidedAt: "2026-09-01T12:00:00Z",
   decidedBy: "admin1",
+  decisionReason: null,
   expiresAt: "2026-12-01T12:00:00Z",
   invoiceId: "inv1",
   schemaVersion: "1",
@@ -49,11 +50,16 @@ describe("private lesson catalogue", () => {
   });
 
   it("rejects a client-supplied price", () => {
-    const parsed = submitPrivateLessonPurchaseInputSchema.safeParse({
+    const valid = {
+      requestId: "8b0d6f5e-4c1a-4f7e-9a51-7c0f2b9d3e11",
       studentId: "s1",
       optionId: "single",
       proofId: "p",
       bankReference: "BPT1",
+    };
+    expect(submitPrivateLessonPurchaseInputSchema.safeParse(valid).success).toBe(true);
+    const parsed = submitPrivateLessonPurchaseInputSchema.safeParse({
+      ...valid,
       priceMinor: 1,
     });
     expect(parsed.success).toBe(false);
