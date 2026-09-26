@@ -5,7 +5,6 @@ export type MemberDestination =
   | "/account/profile"
   | "/account/guardian-profile"
   | "/account/family"
-  | "/account/classes"
   | "/account/billing"
   | "/account/membership"
   | "/account/waiver"
@@ -34,7 +33,6 @@ const memberDestinations = new Set<MemberDestination>([
   "/account/profile",
   "/account/guardian-profile",
   "/account/family",
-  "/account/classes",
   "/account/billing",
   "/account/membership",
   "/account/waiver",
@@ -57,7 +55,14 @@ const coachAdminPrefixes = [
   "/admin/waitlists",
 ] as const;
 
+// Retired pages whose old links still arrive as return paths, and where they now land.
+const retiredMemberDestinations: ReadonlyMap<string, MemberDestination> = new Map([
+  ["/account/classes", "/account"],
+]);
+
 export function sanitizeReturnPath(value: string | null): MemberDestination | undefined {
+  const retired = value ? retiredMemberDestinations.get(value) : undefined;
+  if (retired) return retired;
   if (!value || !memberDestinations.has(value as MemberDestination)) {
     return undefined;
   }
