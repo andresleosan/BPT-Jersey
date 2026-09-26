@@ -257,3 +257,8 @@
   background: var(--paper-edge);
   height: 8rem;
 }
+
+/* Holds the Versions panel's space while its code loads, so the page does not jump. */
+.levels-versions-loading {
+  min-height: 20rem;
+}

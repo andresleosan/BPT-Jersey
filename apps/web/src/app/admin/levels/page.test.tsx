@@ -58,10 +58,15 @@ const editorApi = vi.hoisted(() => ({
   activateLevelCatalog: vi.fn(),
 }));
 const gate = vi.hoisted(() => ({ useAdminOrStaffSession: vi.fn() }));
+const editorModule = vi.hoisted(() => ({ loads: 0 }));
 
 vi.mock("../../../lib/levels-client", () => levelsApi);
 vi.mock("../../../lib/level-editor-client", () => editorApi);
 vi.mock("../admin-gate", () => gate);
+vi.mock("./level-versions", async (importOriginal) => {
+  editorModule.loads += 1;
+  return importOriginal();
+});
 
 import AdminLevelsPage from "./page";
 
@@ -71,6 +76,24 @@ describe("Admin Levels Page", () => {
     Object.values(levelsApi).forEach((mock) => mock.mockReset());
     Object.values(editorApi).forEach((mock) => mock.mockReset());
     gate.useAdminOrStaffSession.mockReset();
+  });
+
+  // Runs first: the module counter is per file, so later tests may already have loaded it.
+  it("loads the version editor only when the office opens Versions", async () => {
+    gate.useAdminOrStaffSession.mockReturnValue({ role: "owner" });
+    levelsApi.getLevelCatalog.mockResolvedValue(mockProjection);
+    editorApi.listLevelCatalogVersions.mockResolvedValue({ versions: [] });
+
+    render(<AdminLevelsPage />);
+    expect(await screen.findByRole("heading", { name: "JIU-JITSU - IBJJF" })).toBeDefined();
+    expect(editorModule.loads).toBe(0);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Versions" }));
+    // The first dynamic import compiles the editor, which can take longer than the default wait.
+    expect(
+      await screen.findByRole("heading", { name: "Catalogue versions" }, { timeout: 4_000 }),
+    ).toBeDefined();
+    expect(editorModule.loads).toBe(1);
   });
 
   it("renders admin header and levels browser", async () => {
