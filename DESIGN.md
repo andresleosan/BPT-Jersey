@@ -64,17 +64,19 @@ Absolute rule: one brand purple, one brand lime, warm-grey neutrals. No blue, no
 
 - **Container:** `--content-width: 90rem` (1440 px) centered; horizontal padding `clamp(1.25rem, 4vw, 4.5rem)`; section rhythm `--section-space: clamp(4.5rem, 9vw, 8rem)`.
 - **Hero:** BPT Purple ground, CSS Grid `minmax(0, 1.15fr) minmax(18rem, 0.85fr)`, `min-height: 48rem`, top padding `clamp(9rem, 14vw, 12rem)` to clear the absolute-positioned white header. Left-aligned copy; the right column holds the location / schedule block. One primary CTA and one outline secondary, never a third.
-- **Client destination (`/account` family):** single column, `max-width: 58rem`, left-aligned, `min-height: 100vh`. Order is fixed: eyebrow → condensed H1 → intro paragraph → notice bands → stacked action buttons → identity panel → sign-out.
+- **Client destination (`/account` family):** single column, `max-width: 58rem`, left-aligned, `min-height: 100dvh`. Order is fixed: eyebrow → condensed H1 → intro paragraph → notice bands → stacked action buttons → identity panel → sign-out.
 - **Grid over flex math:** every multi-column area is CSS Grid with `minmax(0, …)`; `min-width: 0` is applied globally to prevent overflow. No `calc()` percentage hacks, no absolute-positioned content stacking (only the site header is absolute).
 - **Radius:** `0` everywhere. The two exceptions (`0.75rem`, `1rem`) are image masks only.
 
 ## 6. Responsive Rules
 
-- Breakpoints are content-driven in rem: `58rem`, `56rem`, `54rem`, `50rem`, `42rem`, `40rem`, `38rem`, `32rem`. Every grid collapses to one column by `50rem` at the latest; the hero collapses at `58rem`.
+- Breakpoints: phone below `48rem`; tablet `48rem–64rem` uses the desktop layout at two columns; desktop from `64rem`. Every grid collapses to one column below `48rem` (`max-width: 47.99rem`); grids with three or more desktop columns step down to two between `48rem` and `64rem`. Smaller content-driven steps (`42rem`, `38rem`, `32rem`) still tune individual components.
+- The hero collapses to one column below `48rem`; between `48rem` and `64rem` it keeps two compact columns.
+- Full-screen layouts use `100dvh`, never `100vh`, so iOS Safari toolbars do not hide content. Fixed and mobile headers and the admin navigation drawer pad with `env(safe-area-inset-*)`. Supported floor: iOS 16.
 - No horizontal scroll: `overflow-wrap: anywhere` on headings and paragraphs, `max-width: 100%` on media and buttons.
-- Headlines scale with `clamp()`; body never drops below `1rem`.
+- Headlines scale with `clamp()`; body never drops below `1rem`. Form controls (`input`, `select`, `textarea`) never drop below `16px`, so iOS Safari does not zoom into a field.
 - Touch targets: buttons are `3.15rem` tall; nav links and table actions keep ≥ `44px`.
-- Header wordmark stays single-line (`white-space: nowrap`); nav collapses to a stacked menu under `58rem`.
+- Header wordmark stays single-line (`white-space: nowrap`); under `58rem` the landing nav folds its section links behind a "Menu" button (`aria-expanded`, `aria-controls`, Escape closes and returns focus) into a stacked list with `44px` rows, while "Sign in" stays visible beside it.
 - `prefers-reduced-motion: reduce` disables all transforms and transitions (`transition: none`).
 
 ## 7. Motion & Interaction
@@ -107,9 +109,9 @@ Lime**); the calendar body sits on **Canvas** so the traffic light stays legible
 **1rem** (999px on pills/actions) — the only place the system rounds. Status is the **whole card
 background**: open `#FFE66D`, booked `#D7F0E2` + `#176B49` left rule, attended `#E7F6EE`
 muted, missed `#FFE1E6` + `#8D1C2F` left rule, closed/full/locked `#E8E7E3` muted. One action per
-card. Phone (< 48rem) shows one day chosen from the day strip; tablet and desktop show the week
-(seven columns Mon–Sun, today at `1.6fr`, including course sessions on Sundays) with a Week / Day
-switch.
+card. Phone (< 48rem) shows one day chosen from the day strip; tablet (`48rem–64rem`) and desktop
+(from `64rem`) show the week (seven columns Mon–Sun, today at `1.6fr`, including course sessions on
+Sundays) with a Week / Day switch. Full-height member screens use `100dvh`.
 Skeleton shimmer while loading; native `<dialog>` for the only confirmation (cancel).
 
 ## 10. Belt colours are data (Levels)

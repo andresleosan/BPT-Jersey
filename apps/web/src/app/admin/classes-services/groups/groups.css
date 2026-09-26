@@ -49,7 +49,7 @@
 .group-session-detail .groups-members p { margin: .25rem 0 0; }
 .group-session-state[data-state="blocked"] { color: #721626; }
 .group-session-state[data-state="registered"] { color: #176b49; }
-@media (max-width: 50rem) {
+@media (max-width: 47.99rem) {
   .groups-member-picker, .groups-filters { grid-template-columns: minmax(0, 1fr); }
   .groups-heading, .groups-row { align-items: stretch; flex-direction: column; }
   .groups-editor { padding: 1rem; }
