@@ -48,6 +48,36 @@ describe("shared staff workspace", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+  it("sends the syllabus to /admin/levels and keeps office modules out of the coach menu (T13)", () => {
+    for (const role of ["coach", "headCoach"] as const) {
+      render(
+        <AdminShell session={{ ...coach, role }}>
+          <p>Content</p>
+        </AdminShell>,
+      );
+      const navigation = screen.getByRole("navigation", { name: "Coach navigation" });
+      expect(screen.getByRole("link", { name: "Progression syllabus" })).toHaveAttribute(
+        "href",
+        "/admin/levels",
+      );
+      const hrefs = Array.from(navigation.querySelectorAll("a")).map((link) =>
+        link.getAttribute("href"),
+      );
+      expect(hrefs.filter((href) => href === "/admin/levels")).toHaveLength(1);
+      expect(hrefs).not.toContain("/coach/levels");
+      for (const name of [
+        "Waitlists",
+        "Billing",
+        "Financial dashboard",
+        "Shop",
+        "Staff",
+        "Memberships",
+      ]) {
+        expect(screen.queryByRole("link", { name })).not.toBeInTheDocument();
+      }
+      cleanup();
+    }
+  });
   it("preserves the owner navigation", () => {
     render(
       <AdminShell session={{ ...coach, role: "owner" }}>

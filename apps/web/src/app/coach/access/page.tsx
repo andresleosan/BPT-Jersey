@@ -8,6 +8,7 @@ import {
   linkStaffGoogle,
   staffAccessError,
 } from "../../../lib/staff-login-client";
+import { AdminSectionHeader } from "../../admin/admin-ui";
 
 export default function CoachAccessPage() {
   const [linked, setLinked] = useState(false);
@@ -40,9 +41,22 @@ export default function CoachAccessPage() {
     }
   }
   async function completeInitial(event: FormEvent) {
-    event.preventDefault(); setError("");
-    if (next.length < 12 || next.length > 128 || next !== confirmation) { setError("Your new password must have 12 to 128 characters and both copies must match."); return; }
-    setBusy(true); try { const token = await completeInitialStaffPassword(next); const role = token.claims.role; window.location.assign(role === "owner" || role === "administrator" ? "/admin" : "/coach"); } catch (cause) { setError(staffAccessError(cause)); } finally { setBusy(false); }
+    event.preventDefault();
+    setError("");
+    if (next.length < 12 || next.length > 128 || next !== confirmation) {
+      setError("Your new password must have 12 to 128 characters and both copies must match.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const token = await completeInitialStaffPassword(next);
+      const role = token.claims.role;
+      window.location.assign(role === "owner" || role === "administrator" ? "/admin" : "/coach");
+    } catch (cause) {
+      setError(staffAccessError(cause));
+    } finally {
+      setBusy(false);
+    }
   }
   async function changePassword(event: FormEvent) {
     event.preventDefault();
@@ -74,28 +88,62 @@ export default function CoachAccessPage() {
     }
   }
   return (
-    <section className="coach-access" aria-labelledby="access-title">
-      <header className="coach-header-section">
-        <div>
-          <p className="account-eyebrow">BPT Jersey / Coach</p>
-          <h1 id="access-title">My sign-in</h1>
-          <p>Keep your coach profile, classes and permissions together.</p>
-        </div>
-      </header>
+    <section className="coach-access" aria-label="My sign-in">
+      <AdminSectionHeader
+        eyebrow="Coach / Access"
+        title="My sign-in"
+        description="Keep your coach profile, classes and permissions together."
+      />
       {error && (
-        <p className="notification notification-error" role="alert">
+        <p className="admin-panel-card shop-admin-notice shop-admin-notice-error" role="alert">
           {error}
         </p>
       )}
       {message && (
-        <p className="notification notification-success" role="status">
+        <p className="admin-panel-card shop-admin-notice shop-admin-notice-success" role="status">
           {message}
         </p>
       )}
       <div className="coach-access-grid">
-        {initialRequired ? <section className="admin-panel-card coach-card" aria-labelledby="initial-password-title"><h2 id="initial-password-title">Replace your initial password</h2><p>Choose a private password before continuing, or link Google above.</p><form className="coach-access-form" onSubmit={(event) => void completeInitial(event)}><label htmlFor="initial-new">New password</label><input className="coach-input" id="initial-new" type="password" minLength={12} maxLength={128} value={next} onChange={(event) => setNext(event.target.value)} required /><label htmlFor="initial-confirm">Confirm new password</label><input className="coach-input" id="initial-confirm" type="password" minLength={12} maxLength={128} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required /><button className="admin-auth-button coach-button" disabled={busy} type="submit">Replace initial password</button></form></section> : null}
-        <section className="admin-panel-card coach-card" aria-labelledby="google-title">
-          <h2 id="google-title">Google account</h2>
+        {initialRequired ? (
+          <section className="admin-panel-card" aria-labelledby="initial-password-title">
+            <div className="admin-panel-card-heading">
+              <h3 id="initial-password-title">Replace your initial password</h3>
+            </div>
+            <p>Choose a private password before continuing, or link Google above.</p>
+            <form className="coach-access-form" onSubmit={(event) => void completeInitial(event)}>
+              <label htmlFor="initial-new">New password</label>
+              <input
+                className="coach-input"
+                id="initial-new"
+                type="password"
+                minLength={12}
+                maxLength={128}
+                value={next}
+                onChange={(event) => setNext(event.target.value)}
+                required
+              />
+              <label htmlFor="initial-confirm">Confirm new password</label>
+              <input
+                className="coach-input"
+                id="initial-confirm"
+                type="password"
+                minLength={12}
+                maxLength={128}
+                value={confirmation}
+                onChange={(event) => setConfirmation(event.target.value)}
+                required
+              />
+              <button className="admin-auth-button coach-button" disabled={busy} type="submit">
+                Replace initial password
+              </button>
+            </form>
+          </section>
+        ) : null}
+        <section className="admin-panel-card" aria-labelledby="google-title">
+          <div className="admin-panel-card-heading">
+            <h3 id="google-title">Google account</h3>
+          </div>
           <p>
             {linked
               ? "Google is linked to this coach profile."
@@ -110,8 +158,10 @@ export default function CoachAccessPage() {
             {linked ? "Google linked" : busy ? "Please wait…" : "Link Google account"}
           </button>
         </section>
-        <section className="admin-panel-card coach-card" aria-labelledby="password-title">
-          <h2 id="password-title">Change staff password</h2>
+        <section className="admin-panel-card" aria-labelledby="password-title">
+          <div className="admin-panel-card-heading">
+            <h3 id="password-title">Change staff password</h3>
+          </div>
           <p>
             Your numeric staff ID continues to work after linking Google. Use 12 to 128 characters
             for your new password.
