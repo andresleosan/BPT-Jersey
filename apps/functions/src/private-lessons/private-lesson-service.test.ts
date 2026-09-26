@@ -4,6 +4,7 @@ import type { LegacyInvoiceRecord, LegacyManualPaymentRecord } from "@bpt-jersey
 import type { PrivateLessonPurchase } from "@bpt-jersey/domain/private-lessons";
 
 import {
+  getPrivateLessonProofUrl,
   listMyPrivateLessons,
   recordPrivateLessonPurchase,
   reviewPrivateLessonPurchase,
@@ -29,6 +30,7 @@ function createStore(
   const payments: LegacyManualPaymentRecord[] = [];
   const audits: AuditEventDraft[] = [];
   const proofs: string[] = [];
+  const proofUrls: { userId: string; requestId: string; proofId: string }[] = [];
   let ids = 0;
   const canAccess = async (userId: string, studentId: string) =>
     links.has(`${userId}:${studentId}`);
@@ -63,8 +65,12 @@ function createStore(
       proofs.push(input.proofId);
     },
     newId: () => `generated-${++ids}`,
+    proofUrl: async (input) => {
+      proofUrls.push(input);
+      return { url: "https://r2.example/signed", expiresAt: now };
+    },
   };
-  return { store, purchases, invoices, payments, audits, proofs };
+  return { store, purchases, invoices, payments, audits, proofs, proofUrls };
 }
 
 function yearsBefore(iso: string, years: number, dayShift = 0): string {
@@ -325,6 +331,55 @@ describe("office-only operations", () => {
         now,
       ),
     ).rejects.toMatchObject({ code: "permission-denied" });
+  });
+});
+
+describe("getPrivateLessonProofUrl", () => {
+  it("refuses anyone outside the office before reading the purchase", async () => {
+    const fake = createStore({ students: [student()] });
+    for (const role of ["coach", "adultStudent", "staff"]) {
+      await expect(
+        getPrivateLessonProofUrl(
+          fake.store,
+          { academyId, userId: `${role}-uid`, role },
+          { purchaseId: `private-lesson-${requestId}` },
+        ),
+      ).rejects.toMatchObject({ code: "permission-denied" });
+    }
+    expect(fake.proofUrls).toEqual([]);
+  });
+
+  it("builds the proof reference from the stored purchase, never from the request", async () => {
+    const fake = createStore({ students: [student()], links: [["member-uid", "student-1"]] });
+    const purchase = await submitPrivateLessonPurchase(fake.store, member, submission(), now);
+    const result = await getPrivateLessonProofUrl(fake.store, office, {
+      purchaseId: purchase.purchaseId,
+    });
+    expect(result).toEqual({ url: "https://r2.example/signed", expiresAt: now });
+    expect(fake.proofUrls).toEqual([{ userId: "member-uid", requestId, proofId: "proof-1" }]);
+    await expect(
+      getPrivateLessonProofUrl(fake.store, office, {
+        purchaseId: purchase.purchaseId,
+        proofId: "someone-else",
+      }),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
+  });
+
+  it("has no proof for an office-recorded purchase or an unknown one", async () => {
+    const fake = createStore({ students: [student()] });
+    const recorded = await recordPrivateLessonPurchase(
+      fake.store,
+      office,
+      { studentId: "student-1", optionId: "single", method: "cash", reference: null },
+      now,
+    );
+    await expect(
+      getPrivateLessonProofUrl(fake.store, office, { purchaseId: recorded.purchaseId }),
+    ).rejects.toMatchObject({ code: "failed-precondition" });
+    await expect(
+      getPrivateLessonProofUrl(fake.store, office, { purchaseId: "private-lesson-missing" }),
+    ).rejects.toMatchObject({ code: "not-found" });
+    expect(fake.proofUrls).toEqual([]);
   });
 });
 

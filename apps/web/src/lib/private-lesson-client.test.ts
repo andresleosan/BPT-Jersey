@@ -18,6 +18,7 @@ vi.mock("./firebase-client", () => ({
 
 import {
   bookPrivateLesson,
+  getPrivateLessonProofUrl,
   cancelPrivateLessonBooking,
   listMyPrivateLessons,
   listPrivateLessonPurchases,
@@ -96,6 +97,25 @@ describe("private lesson client", () => {
         bankReference: "BPT 1",
       }),
     ).rejects.toThrow("We could not save the private lesson request. Try again.");
+  });
+
+  it("asks for a purchase's proof by id and accepts only an https URL", async () => {
+    callableState.call.mockResolvedValueOnce({
+      data: { url: "https://r2.example/signed", expiresAt: "2026-09-26T10:01:00.000Z" },
+    });
+    await expect(getPrivateLessonProofUrl("private-lesson-1")).resolves.toEqual({
+      url: "https://r2.example/signed",
+      expiresAt: "2026-09-26T10:01:00.000Z",
+    });
+    expect(callableState.calls).toEqual([
+      { name: "getPrivateLessonProofUrl", payload: { purchaseId: "private-lesson-1" } },
+    ]);
+    callableState.call.mockResolvedValueOnce({
+      data: { url: "http://r2.example/signed", expiresAt: "2026-09-26T10:01:00.000Z" },
+    });
+    await expect(getPrivateLessonProofUrl("private-lesson-1")).rejects.toThrow(
+      "Payment evidence is unavailable. Try again.",
+    );
   });
 
   it("reads the member's credits", async () => {

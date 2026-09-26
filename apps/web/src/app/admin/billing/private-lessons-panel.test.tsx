@@ -1,10 +1,11 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const api = vi.hoisted(() => ({ list: vi.fn(), review: vi.fn() }));
+const api = vi.hoisted(() => ({ list: vi.fn(), review: vi.fn(), proof: vi.fn() }));
 vi.mock("../../../lib/private-lesson-client", () => ({
   listPrivateLessonPurchases: api.list,
   reviewPrivateLessonPurchase: api.review,
+  getPrivateLessonProofUrl: api.proof,
 }));
 
 import { PrivateLessonsPanel } from "./private-lessons-panel";
@@ -65,6 +66,36 @@ describe("PrivateLessonsPanel", () => {
     expect(window.confirm).toHaveBeenCalled();
     await waitFor(() => expect(screen.queryByText("Ana Silva")).toBeNull());
     expect(screen.getByText("No private lesson purchases are waiting.")).toBeVisible();
+  });
+
+  it("opens the transfer proof of a pending purchase for the office", async () => {
+    api.proof.mockResolvedValueOnce({
+      url: "https://r2.example/signed",
+      expiresAt: "2026-09-26T10:01:00.000Z",
+    });
+    render(<PrivateLessonsPanel />);
+    fireEvent.click(await screen.findByRole("button", { name: "View proof for Ana Silva" }));
+    const link = await screen.findByRole("link", { name: "Open proof for Ana Silva" });
+    expect(link).toHaveAttribute("href", "https://r2.example/signed");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noreferrer");
+    expect(api.proof).toHaveBeenCalledWith("private-lesson-1");
+  });
+
+  it("has no proof button for a purchase without an uploaded proof", async () => {
+    api.list.mockResolvedValueOnce([{ ...pending, source: "office", proofId: null }]);
+    render(<PrivateLessonsPanel />);
+    await screen.findByText("Ana Silva");
+    expect(screen.queryByRole("button", { name: "View proof for Ana Silva" })).toBeNull();
+  });
+
+  it("says so when the proof cannot be opened", async () => {
+    api.proof.mockRejectedValueOnce(new Error("Payment evidence is unavailable. Try again."));
+    render(<PrivateLessonsPanel />);
+    fireEvent.click(await screen.findByRole("button", { name: "View proof for Ana Silva" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Payment evidence is unavailable. Try again.",
+    );
   });
 
   it("needs a reason to reject", async () => {

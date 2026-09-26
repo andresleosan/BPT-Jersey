@@ -402,6 +402,7 @@ export {
   reviewPrivateLessonPurchase,
   recordPrivateLessonPurchase,
 } from "./private-lessons/private-lesson-callables.js";
+export { getPrivateLessonProofUrl } from "./private-lessons/private-lesson-callables.js";
 export {
   bookPrivateLesson,
   cancelPrivateLessonBooking,
