@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { StrictMode } from "react";
 
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -23,6 +25,28 @@ const schedule = vi.hoisted(() => ({
 vi.mock("../../../lib/schedule-client", () => schedule);
 
 import { AttendancePage } from "./page";
+
+const attendanceCss = readFileSync(
+  resolve(process.cwd(), "apps/web/src/app/admin/attendance/attendance.css"),
+  "utf8",
+);
+
+/** Every block that opens with `marker`, joined (a media query may appear more than once). */
+function cssBlock(css: string, marker: string): string {
+  const blocks: string[] = [];
+  for (let start = css.indexOf(marker); start !== -1; start = css.indexOf(marker, start + 1)) {
+    let depth = 0;
+    for (let index = css.indexOf("{", start); index < css.length; index += 1) {
+      if (css[index] === "{") depth += 1;
+      if (css[index] === "}") depth -= 1;
+      if (depth === 0) {
+        blocks.push(css.slice(start, index + 1));
+        break;
+      }
+    }
+  }
+  return blocks.join("\n");
+}
 
 const session: SessionRecord = {
   sessionId: "session-connected-1",
@@ -502,5 +526,63 @@ describe("attendance page", () => {
 
     expect(await screen.findByText("Ana Ready")).toBeVisible();
     expect(screen.getByText("Ben Booked")).toBeVisible();
+  });
+  it("keeps every attendance control under the same accessible name", async () => {
+    const user = userEvent.setup();
+    render(<AttendancePage />);
+
+    expect(await screen.findByRole("button", { name: "Clock in Ben Booked" })).toBeEnabled();
+    await user.click(screen.getByText("Corrections and closeout"));
+    expect(await screen.findByRole("button", { name: "Check in student-pending" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Correct attendance for student-attended" }),
+    ).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Check out student-attended" })).toBeEnabled();
+  });
+
+  it("labels every correction cell so the table can stack into a list on phones", async () => {
+    const user = userEvent.setup();
+    render(<AttendancePage />);
+    await user.click(await screen.findByText("Corrections and closeout"));
+
+    const table = await screen.findByRole("table", { name: "Attendance roster" });
+    const headers = within(table)
+      .getAllByRole("columnheader")
+      .map((header) => header.textContent?.replace(/[↑↓↕]/gu, "").trim());
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      const cells = within(row).getAllByRole("cell");
+      expect(cells.map((cell) => cell.getAttribute("data-label"))).toEqual(headers);
+    }
+  });
+
+  it("styles attendance for phones: stacked corrections, 16px fields, 44px targets, dvh dialog", () => {
+    const phone = cssBlock(attendanceCss, "@media (max-width: 47.99rem)");
+    expect(phone).toMatch(
+      /\.attendance-corrections \.admin-data-table thead\s*\{[^}]*display: none;/u,
+    );
+    expect(phone).toMatch(
+      /\.attendance-corrections \.admin-data-table td::before\s*\{[^}]*content: attr\(data-label\);/u,
+    );
+    expect(attendanceCss).not.toMatch(/max-width: (?:700|720)px/u);
+    expect(attendanceCss).toMatch(/\.attendance-field textarea\s*\{[^}]*font-size: 1rem;/u);
+    expect(attendanceCss).toMatch(
+      /\.attendance-page \.admin-filter-control select\s*\{[^}]*font-size: 1rem;/u,
+    );
+    expect(attendanceCss).not.toMatch(/100vh/u);
+    expect(cssBlock(attendanceCss, ".attendance-dialog {")).toMatch(
+      /max-height: calc\(100dvh - 2rem\);/u,
+    );
+    expect(attendanceCss).not.toMatch(/min-width: 12rem/u);
+    expect(attendanceCss).not.toMatch(/minmax\(12rem/u);
+    expect(attendanceCss).not.toMatch(/box-shadow/u);
+    for (const [, selector, minHeight] of attendanceCss.matchAll(
+      /([^{}]+)\{[^}]*min-height: ([\d.]+)rem;/gu,
+    )) {
+      if (/button|clock-in|summary|input|select/u.test(selector ?? "")) {
+        expect(Number(minHeight), selector?.trim()).toBeGreaterThanOrEqual(2.75);
+      }
+    }
   });
 });
