@@ -22,4 +22,12 @@ describe("PlanPriceList", () => {
     expect(screen.getByText("£125 per month")).toBeInTheDocument();
     expect(screen.queryByText("£85 per month")).not.toBeInTheDocument();
   });
+
+  it("lists private lessons with their three prices", () => {
+    render(<PlanPriceList site="Town" />);
+    const lessons = screen.getByRole("region", { name: "Private lessons" });
+    expect(
+      within(lessons).getByText("£65.00 one lesson · £200.00 a month for 4 · £500.00 for 10"),
+    ).toBeInTheDocument();
+  });
 });

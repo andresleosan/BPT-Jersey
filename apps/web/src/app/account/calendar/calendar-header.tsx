@@ -18,6 +18,7 @@ type CalendarHeaderProps = Readonly<{
 
 const accountLinks = [
   { href: "/account/courses", label: "Courses & Seminars" },
+  { href: "/account/private-lessons", label: "Private lessons" },
   { href: "/account/progress", label: "Progress" },
   { href: "/account/competitors", label: "Competitors" },
   { href: "/account/settings", label: "Settings" },

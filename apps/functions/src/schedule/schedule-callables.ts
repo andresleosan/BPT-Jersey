@@ -63,6 +63,15 @@ import {
   scheduleReadCallableOptions,
 } from "./schedule-callable-options.js";
 import { createFirestoreScheduleStore, type ScheduleStore } from "./schedule-service.js";
+import {
+  cancelPrivateLessonBookingInputSchema,
+  privateLessonBookingInputSchema,
+} from "@bpt-jersey/domain/private-lessons";
+import { requireActiveOfficeActor } from "../auth/office-actor.js";
+import {
+  bookPrivateLesson as bookPrivateLessonTransaction,
+  cancelPrivateLessonBooking as cancelPrivateLessonBookingTransaction,
+} from "./private-lesson-booking-service.js";
 
 const staffRoles = Object.freeze(["owner", "administrator", "headCoach", "coach"] as const);
 const managerRoles = Object.freeze(["owner", "administrator", "headCoach"] as const);
@@ -1590,4 +1599,95 @@ export const deleteWeek = onCall(scheduleCallableOptions, async (request) =>
 
 export const deleteProgram = onCall(scheduleCallableOptions, async (request) =>
   createDeleteProgramHandler({ store: getStore() })(request),
+);
+
+type OfficeGuard = (
+  request: CallableRequest<unknown>,
+) => Promise<Readonly<{ academyId: string; userId: string; role: string }>>;
+
+/** Private lesson messages are written for the office, so they reach it as they are. */
+function mapPrivateLessonBookingError(error: unknown): never {
+  if (
+    error instanceof BookingTransactionError &&
+    (error.code === "ineligible" || error.code === "capacity" || error.code === "conflict")
+  ) {
+    throw new HttpsError("failed-precondition", error.message, { reason: error.code });
+  }
+  return mapBookingError(error);
+}
+
+export function createBookPrivateLessonHandler(
+  options: Readonly<{
+    requireOffice?: OfficeGuard;
+    book?: (
+      command: Parameters<typeof bookPrivateLessonTransaction>[1],
+    ) => ReturnType<typeof bookPrivateLessonTransaction>;
+  }> = {},
+) {
+  return async (request: CallableRequest<unknown>) => {
+    const actor = await (options.requireOffice ?? requireActiveOfficeActor)(request);
+    const input = privateLessonBookingInputSchema.safeParse(request.data);
+    if (!input.success) throw new HttpsError("invalid-argument", "Booking request is invalid");
+    try {
+      const book =
+        options.book ??
+        ((command) =>
+          bookPrivateLessonTransaction(getFirestore() as unknown as BookingFirestore, command));
+      const booking = await book({
+          academyId: actor.academyId,
+          actorId: actor.userId,
+          actorRole: actor.role as "owner" | "administrator",
+          actorIp: clientIpFromRequest(request),
+          studentId: input.data.studentId,
+          sessionId: input.data.sessionId,
+        now: new Date().toISOString(),
+      });
+      return { booking };
+    } catch (error) {
+      return mapPrivateLessonBookingError(error);
+    }
+  };
+}
+
+export function createCancelPrivateLessonBookingHandler(
+  options: Readonly<{
+    requireOffice?: OfficeGuard;
+    cancel?: (
+      command: Parameters<typeof cancelPrivateLessonBookingTransaction>[1],
+    ) => ReturnType<typeof cancelPrivateLessonBookingTransaction>;
+  }> = {},
+) {
+  return async (request: CallableRequest<unknown>) => {
+    const actor = await (options.requireOffice ?? requireActiveOfficeActor)(request);
+    const input = cancelPrivateLessonBookingInputSchema.safeParse(request.data);
+    if (!input.success) throw new HttpsError("invalid-argument", "Booking request is invalid");
+    try {
+      const cancel =
+        options.cancel ??
+        ((command) =>
+          cancelPrivateLessonBookingTransaction(
+            getFirestore() as unknown as BookingFirestore,
+            command,
+          ));
+      return await cancel({
+          academyId: actor.academyId,
+          actorId: actor.userId,
+          actorRole: actor.role as "owner" | "administrator",
+          actorIp: clientIpFromRequest(request),
+          bookingId: input.data.bookingId,
+        reason: input.data.reason,
+        now: new Date().toISOString(),
+      });
+    } catch (error) {
+      return mapPrivateLessonBookingError(error);
+    }
+  };
+}
+
+export const bookPrivateLesson = onCall(scheduleCallableOptions, async (request) =>
+  createBookPrivateLessonHandler()(request),
+);
+
+export const cancelPrivateLessonBooking = onCall(scheduleCallableOptions, async (request) =>
+  createCancelPrivateLessonBookingHandler()(request),
 );

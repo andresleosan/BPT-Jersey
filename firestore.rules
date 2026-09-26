@@ -38,6 +38,14 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /academies/{academyId}/privateLessonPurchases/{purchaseId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/privateLessonCreditUses/{bookingId} {
+      allow read, write: if false;
+    }
+
     match /academies/{academyId}/enrolmentRequests/{enrolmentRequestId} {
       allow read, write: if false;
     }

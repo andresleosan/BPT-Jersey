@@ -9,6 +9,7 @@ import type {
 import { getMemberSubscriptionBilling } from "../../../../lib/subscription-admin-client";
 import { SubscriptionBillingHistory } from "../member-subscription-editor";
 import { EditPaymentDialog, RecordMemberPaymentDialog } from "./payment-dialogs";
+import { PrivateLessonRecord } from "./private-lesson-record";
 
 import { MemberRecordLoadError } from "../../../../lib/member-profile-client";
 
@@ -16,9 +17,12 @@ type State = { status: "loading" | "error" } | { status: "ready"; billing: Subsc
 export function PaymentsTab({
   studentId,
   onUnavailable,
+  canRecordPrivateLessons = false,
 }: {
   studentId: string;
   onUnavailable: (error: MemberRecordLoadError) => void;
+  /** Owner and administrator only: coaches never handle money. */
+  canRecordPrivateLessons?: boolean;
 }) {
   const [state, setState] = useState<State>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -115,6 +119,7 @@ export function PaymentsTab({
             ))
         : null}
       <p>Earlier payments may still be in the imported archive.</p>
+      {canRecordPrivateLessons ? <PrivateLessonRecord studentId={studentId} /> : null}
       {state.status === "ready" && dialog?.kind === "record" ? (
         <RecordMemberPaymentDialog
           invoices={state.billing.flatMap((item) => item.invoices)}

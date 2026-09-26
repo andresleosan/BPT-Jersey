@@ -189,6 +189,37 @@ describe("SessionPanel", () => {
     );
   });
 
+  it("creates a private lesson session", async () => {
+    mocks.saveSession.mockResolvedValue({ ...sessionFixture, accessMode: "private-lesson" });
+    render(
+      <SessionPanel
+        mode="create"
+        catalog={catalog}
+        staff={staff}
+        timezone="Europe/Jersey"
+        defaults={{ date: "2026-09-14", startTime: "17:30" }}
+        canEdit
+        canReadMemberships
+        onSaved={vi.fn()}
+        onCancelled={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "coach-a" }));
+    fireEvent.change(screen.getByLabelText("Minimum participants"), { target: { value: "0" } });
+    fireEvent.change(screen.getByLabelText("Maximum capacity"), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("Class access"), {
+      target: { value: "private-lesson" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create session" }));
+
+    await waitFor(() =>
+      expect(mocks.saveSession).toHaveBeenCalledWith(
+        expect.objectContaining({ accessMode: "private-lesson" }),
+      ),
+    );
+  });
+
   it("loads and updates the access mode of an existing session", async () => {
     mocks.updateSession.mockResolvedValue({ ...sessionFixture, accessMode: "membership" });
     render(

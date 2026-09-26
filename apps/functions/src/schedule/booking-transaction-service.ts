@@ -334,7 +334,13 @@ function booking(snapshot: BookingDocumentSnapshot, academyId: string): BookingR
         value.membershipId === null &&
         typeof value.source === "object" &&
         value.source !== null &&
-        (value.source as { kind?: string }).kind === "intro")
+        (value.source as { kind?: string }).kind === "intro") ||
+      (value.schemaVersion === "4" &&
+        value.membershipId === null &&
+        typeof value.source === "object" &&
+        value.source !== null &&
+        (value.source as { kind?: string }).kind === "private-lesson" &&
+        typeof (value.source as { purchaseId?: string }).purchaseId === "string")
     ) ||
     !["requested", "confirmed", "cancelled"].includes(value.status as string) ||
     !validDate(value.requestedAt) ||
@@ -640,7 +646,7 @@ async function occupancy(input: {
  * One line of the class registrations log. The student always has a record here, so the name
  * column stays empty: only a Regyfit import, which has no record to point at, fills it in.
  */
-function classBookingDraft(
+export function classBookingDraft(
   input: Readonly<{
     academyId: string;
     actorId: string;
@@ -767,6 +773,9 @@ async function executeBookingInTransaction(
   const storedSession = session(sessionSnapshot, academyId, sessionId);
   if (sessionSnapshot.data()?.courseId)
     return invalid("ineligible", "Course sessions are included through a course enrolment");
+  // Private lessons spend a credit, so only the office's private lesson booking may fill them.
+  if (sessionSnapshot.data()?.accessMode === "private-lesson")
+    return invalid("ineligible", "Private lessons are arranged by the office.");
   const storedMembership = membership(
     membershipSnapshot,
     academyId,
@@ -1080,6 +1089,9 @@ export async function cancelBookingInTransaction(input: {
   }
   const existing = target.existing ?? invalid("not-found", "Booking not found");
   if (existing.status === "cancelled") return existing;
+  // The credit must follow the booking, which only the private lesson cancellation does.
+  if (existing.schemaVersion === "4")
+    return invalid("ineligible", "Private lessons are arranged by the office.");
   if (!input.isStaffOverride && !isWithinBookingCutoff(storedSession.startAt, input.now, 60)) {
     return invalid(
       "ineligible",

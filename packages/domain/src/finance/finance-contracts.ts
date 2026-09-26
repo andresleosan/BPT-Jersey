@@ -10,6 +10,7 @@ export const chargeKinds = Object.freeze([
   "membership",
   "payg_session",
   "manual_adjustment",
+  "private-lesson",
 ] as const);
 export type ChargeKind = (typeof chargeKinds)[number];
 
