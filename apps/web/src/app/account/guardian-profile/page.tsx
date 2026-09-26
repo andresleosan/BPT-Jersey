@@ -170,9 +170,12 @@ function GuardianProfileContent() {
 
       <section className="profile-card" aria-labelledby="guardian-form-title">
         <div className="profile-card-heading">
-          <p className="account-eyebrow">One trusted contact</p>
+          <p className="account-eyebrow">Guardian details</p>
           <h2 id="guardian-form-title">Your details</h2>
-          <p>Your signed-in email stays fixed. You can maintain only your name and phone number.</p>
+          <p>
+            Your sign-in email can&apos;t be changed here. You can update your name and phone
+            number.
+          </p>
         </div>
 
         {loadError ? (

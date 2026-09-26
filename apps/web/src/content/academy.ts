@@ -47,7 +47,7 @@ export const academyContent = {
     title: "Brazilian Jiu-Jitsu, MMA & Self-Defence",
     titleLines: ["Brazilian Jiu-", "Jitsu, MMA", "& Self-Defence"] as const,
     intro:
-      "Train with purpose in a welcoming Jersey academy built around skill, confidence, discipline, and community.",
+      "Gi and No-Gi classes in St Helier and the west of the island, from 6am sessions before work to evening classes. Your first class is free.",
   },
   locations: [
     {
@@ -120,7 +120,7 @@ export const academyContent = {
       days: "Tuesday and Thursday",
       time: "18:30-19:30",
       discipline: "Jiu-Jitsu",
-      level: "Published session",
+      level: "Beginners",
     },
   ] satisfies readonly ScheduleEntry[],
   programs: [
@@ -137,9 +137,9 @@ export const academyContent = {
     },
     {
       label: "Beginners",
-      title: "Start with confidence",
+      title: "Beginners",
       description:
-        "A clear entry point for people with no previous martial-arts experience or returning to training.",
+        "Beginner classes run at Town on Monday and Wednesday at 17:30 and on Tuesday and Thursday at 18:30, and at West on Tuesday and Thursday at 18:30. No experience needed.",
     },
   ] satisfies readonly ProgramItem[],
   instructors: [
@@ -157,14 +157,14 @@ export const academyContent = {
     {
       key: "gi",
       title: "GIs (kimonos)",
-      description: "Competition-ready BPT gis in blue, black and white with embroidered lettering.",
+      description: "BPT gis in blue, black and white with embroidered lettering.",
       image: "/shop/gis.jpg",
       imageAlt: "Blue BPT gi trousers hanging on a rail with Brazilian Power Team lettering.",
     },
     {
       key: "rashguard",
       title: "Rashguards",
-      description: "No-Gi rashguards with the BPT tiger, in team colours and limited runs.",
+      description: "No-Gi rashguards with the BPT tiger in team colours.",
       image: "/shop/rashguards.jpg",
       imageAlt: "Pink and black BPT rashguard sleeve showing the tiger emblem.",
     },
@@ -191,10 +191,8 @@ export const academyContent = {
     },
   ] satisfies readonly MerchandiseCategory[],
   notes: {
-    booking:
-      "Timetables and fees are published information. Confirm eligibility and current term availability when booking.",
-    contact:
-      "Book a free class and the academy team will help you choose the right starting point.",
+    booking: "Times can change between terms. Check the week in your account before you come.",
+    contact: "Book a free class and a coach will help you pick the right class to start with.",
     merchandise:
       "Sign in to your client account to see current prices, sizes and place an order. Orders are paid at the academy on collection.",
   },

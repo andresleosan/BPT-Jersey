@@ -43,7 +43,7 @@ describe("Account Settings Page", () => {
     listed();
     render(<AccountSettingsPage />);
     expect(screen.getByRole("heading", { name: "Account settings" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "← Back to Account" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "← Back to account" })).toHaveAttribute(
       "href",
       "/account",
     );

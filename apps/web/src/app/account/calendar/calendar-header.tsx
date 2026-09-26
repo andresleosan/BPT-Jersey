@@ -19,7 +19,7 @@ type CalendarHeaderProps = Readonly<{
 }>;
 
 const accountLinks = [
-  { href: "/account/courses", label: "Courses & Seminars" },
+  { href: "/account/courses", label: "Courses & seminars" },
   { href: "/account/progress", label: "Progress" },
   { href: "/account/competitors", label: "Competitors" },
   { href: "/account/settings", label: "Settings" },
