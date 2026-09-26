@@ -27,8 +27,16 @@ describe("public home branding", () => {
     expect(screen.getByRole("img", { name: "BPT Jersey logo" }).getAttribute("src")).toContain(
       "bpt-jersey-logo.png",
     );
-    expect(screen.getByText("BPT", { exact: true })).toBeVisible();
-    expect(screen.getByText("Jersey", { exact: true })).toBeVisible();
+    // Desktop (and the page without its script) keeps the logo as the plain link home.
+    const home = screen.getByRole("link", { name: "BPT Jersey home" });
+    expect(home).toHaveAttribute("href", "#top");
+    expect(within(home).getByText("BPT", { exact: true })).toBeVisible();
+    expect(within(home).getByText("Jersey", { exact: true })).toBeVisible();
+    // On phones the same logo, as a button, is the menu toggle.
+    expect(screen.getByRole("button", { name: "Open BPT Jersey menu" })).toHaveAttribute(
+      "aria-controls",
+      "primary-nav-links",
+    );
   });
 
   it("uses plain British section names and anchors", () => {

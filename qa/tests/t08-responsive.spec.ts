@@ -69,10 +69,11 @@ for (const width of [320, 390, 768, 1024, 1440]) {
   }
 }
 
-test("landing menu opens on phones", async ({ page }) => {
+test("landing menu opens from the logo on phones", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto("/");
-  const menu = page.getByRole("button", { name: "Menu" });
+  await expect(page.getByRole("link", { name: "BPT Jersey home" })).toBeHidden();
+  const menu = page.getByRole("button", { name: /BPT Jersey menu/u });
   const navigation = page.getByRole("navigation", { name: "Primary navigation" });
   await expect(navigation.getByRole("link", { name: "Classes" })).toBeHidden();
   await expect(navigation.getByRole("link", { name: "Sign in" })).toBeVisible();
@@ -94,7 +95,8 @@ test("landing menu opens on phones", async ({ page }) => {
 test("landing shows every link without a menu on desktop", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Menu" })).toBeHidden();
+  await expect(page.getByRole("button", { name: /BPT Jersey menu/u })).toBeHidden();
+  await expect(page.getByRole("link", { name: "BPT Jersey home" })).toHaveAttribute("href", "#top");
   const navigation = page.getByRole("navigation", { name: "Primary navigation" });
   await expect(navigation.getByRole("link", { name: "Classes" })).toBeVisible();
 });

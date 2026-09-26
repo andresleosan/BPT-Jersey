@@ -40,7 +40,10 @@ test.describe("admin shell @smoke", () => {
       await menuButton.click();
       const drawer = page.getByRole("dialog", { name: "Admin navigation" });
       await expect(drawer).toBeVisible();
-      await expect(drawer.getByRole("img", { name: "BPT Jersey mobile logo" })).toBeVisible();
+      await expect(page.locator(".admin-mobile-menu-button")).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
       await expect(page.locator(".admin-mobile-backdrop")).toBeVisible();
       await expect(drawer.getByRole("link", { name: "Members", exact: true })).toBeVisible();
       await page.keyboard.press("Escape");
@@ -50,7 +53,11 @@ test.describe("admin shell @smoke", () => {
       await expect(
         desktopNavigation.getByRole("link", { name: "Members", exact: true }),
       ).toBeVisible();
-      await expect(page.getByRole("button", { name: /admin navigation/i })).toBeHidden();
+      await expect(page.getByRole("button", { name: "Open admin navigation" })).toBeHidden();
+      // On desktop the sidebar logo hides and shows the sidebar instead of linking home.
+      const sidebarLogo = page.getByRole("button", { name: "Hide admin navigation" });
+      await expect(sidebarLogo).toHaveAttribute("aria-expanded", "true");
+      await expect(page.locator(".admin-sidebar").getByRole("link")).not.toHaveCount(0);
     }
 
     await expect(
