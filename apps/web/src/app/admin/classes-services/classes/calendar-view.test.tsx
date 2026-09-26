@@ -284,7 +284,7 @@ describe("CalendarView", () => {
     expect(screen.getAllByText("MON 14/9")).toHaveLength(1);
   });
 
-  it("paints the card Gi White with the type colour only as a rule and names the type", () => {
+  it("fills the card with the type colour, lightened for AA, and names a type the title does not", () => {
     render(
       <CalendarView
         view="week"
@@ -309,12 +309,57 @@ describe("CalendarView", () => {
       />,
     );
     const card = screen.getByRole("button", { name: /GI Fundamentals/ });
+    // The fill goes through the CSS custom property only, never a raw background declaration.
     expect(card.style.background).toBe("");
     expect(card.style.backgroundColor).toBe("");
-    expect(card.style.getPropertyValue("--type-colour")).toBe("#1A7F4B");
+    // #1A7F4B under Mat Ink is below 4.5:1, so the fill is that green mixed towards white.
+    expect(card.style.getPropertyValue("--type-colour")).toBe("#48996F");
     expect(card).toHaveClass("cs-event-typed");
     expect(card).toHaveTextContent("GI All Levels");
     expect(card).toHaveAttribute("title", "GI Fundamentals");
+  });
+
+  it("drops the type line when it repeats the title and shortens a shared hour to its start", () => {
+    const shared = {
+      ...base,
+      colour: "#FDEBC8",
+      startAt: "2026-09-14T06:00:00.000Z",
+      endAt: "2026-09-14T07:00:00.000Z",
+    };
+    render(
+      <CalendarView
+        view="week"
+        weekStart="2026-09-14"
+        sessions={[
+          {
+            ...shared,
+            sessionId: "a",
+            title: "GI Beginners Morning",
+            typeName: "GI Beginners Morning",
+          },
+          {
+            ...shared,
+            sessionId: "b",
+            title: "GI All Levels Morning",
+            typeName: "GI All Levels Morning",
+          },
+        ]}
+        timezone="Europe/Jersey"
+        window={window}
+        canEdit={false}
+        onOpen={noop}
+        onCreate={noop}
+        onSelectWeek={noop}
+      />,
+    );
+    const card = screen.getByRole("button", { name: /^GI Beginners Morning/ });
+    expect(card.style.getPropertyValue("--type-colour")).toBe("#FDEBC8");
+    expect(card.querySelector(".cs-event-type")).toBeNull();
+    expect(card.textContent).toBe("GI Beginners Morning07:002 / 40");
+    // The accessible name keeps the full time range and the type.
+    expect(card).toHaveAccessibleName(
+      "GI Beginners Morning, 07:00 – 08:00, 2 / 40 booked, GI Beginners Morning",
+    );
   });
 
   it.each(["red;background:url(x)", ""])(
