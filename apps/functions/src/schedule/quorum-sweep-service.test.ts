@@ -226,6 +226,24 @@ describe("session quorum sweep (T110)", () => {
     expect(fixture.documents.has(auditPath)).toBe(false);
   });
 
+  it("never cancels a private lesson, whatever its minimum", async () => {
+    const { fixture, service } = fixtureWith([
+      [sessionPath, session({ accessMode: "private-lesson", capacity: 1, minParticipants: 4 })],
+      [bookingPath("student-1"), booking("student-1")],
+    ]);
+
+    const result = await service.reconcileSessionQuorum({
+      academyId,
+      sessionId,
+      actorId: "owner-1",
+    });
+
+    expect(result).toMatchObject({ cancels: false, releasedBookings: 0 });
+    expect(fixture.documents.get(sessionPath)).toMatchObject({ status: "scheduled" });
+    expect(fixture.documents.get(bookingPath("student-1"))).toMatchObject({ status: "confirmed" });
+    expect(fixture.documents.has(auditPath)).toBe(false);
+  });
+
   it("waits until the one-hour cutoff has passed", async () => {
     const { fixture, service } = fixtureWith([
       // Three hours ahead: still open for booking, so nothing is decided yet.

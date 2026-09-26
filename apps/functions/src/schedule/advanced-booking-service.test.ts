@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { parseStoredWaitlist, WaitlistStoreError } from "./advanced-booking-service";
+import {
+  createFirestoreWaitlistStore,
+  parseStoredWaitlist,
+  WaitlistStoreError,
+} from "./advanced-booking-service";
 
 const record = (overrides: Record<string, unknown> = {}) => ({
   waitlistId: "session-1__student-1",
@@ -53,5 +57,58 @@ describe("advanced booking waitlist store boundary", () => {
         "academy-1",
       ),
     ).toThrowError(expect.objectContaining<Partial<WaitlistStoreError>>({ code: "invalid" }));
+  });
+});
+
+describe("joinWaitlist on a private lesson", () => {
+  it("refuses: private lessons are arranged by the office", async () => {
+    const writes: string[] = [];
+    const documents = new Map<string, Record<string, unknown>>([
+      [
+        "academies/academy-1/sessions/session-1",
+        {
+          sessionId: "session-1",
+          academyId: "academy-1",
+          accessMode: "private-lesson",
+          capacity: 1,
+          status: "scheduled",
+          startAt: "2099-01-05T18:00:00.000Z",
+        },
+      ],
+      ["academies/academy-1/memberships/membership-1", { membershipId: "membership-1" }],
+    ]);
+    const doc = (path: string) => ({ id: path.split("/").at(-1) ?? "", path });
+    const emptyQuery = { where: () => emptyQuery, limit: () => emptyQuery, kind: "query" };
+    const firestore = {
+      doc,
+      collection: () => emptyQuery,
+      runTransaction: async <T>(callback: (transaction: unknown) => Promise<T>) =>
+        callback({
+          get: async (target: { path?: string; kind?: string }) =>
+            target.kind === "query"
+              ? { docs: [], size: 0, empty: true }
+              : {
+                  id: target.path!.split("/").at(-1),
+                  exists: documents.has(target.path!),
+                  data: () => documents.get(target.path!),
+                },
+          set: (reference: { path: string }) => writes.push(reference.path),
+          create: (reference: { path: string }) => writes.push(reference.path),
+          update: (reference: { path: string }) => writes.push(reference.path),
+        }),
+    };
+    const store = createFirestoreWaitlistStore({ firestore: firestore as never });
+    await expect(
+      store.joinWaitlist({
+        academyId: "academy-1",
+        actorId: "office-1",
+        request: { sessionId: "session-1", studentId: "student-1", membershipId: "membership-1" },
+        now: "2099-01-01T00:00:00.000Z",
+      } as never),
+    ).rejects.toMatchObject({
+      code: "failed-precondition",
+      message: "Private lessons are arranged by the office.",
+    });
+    expect(writes).toEqual([]);
   });
 });
