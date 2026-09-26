@@ -59,9 +59,11 @@ describe("login-flow", () => {
       "/admin/staff",
     );
     expect(resolveStaffDestination({ academyId, role: "headCoach" })).toBe("/coach");
-    expect(resolveStaffDestination({ academyId, role: "coach" }, "/coach/levels")).toBe(
-      "/coach/levels",
+    expect(resolveStaffDestination({ academyId, role: "coach" }, "/coach/access")).toBe(
+      "/coach/access",
     );
+    // T13 retired /coach/levels; an old return link falls back to the coach home.
+    expect(resolveStaffDestination({ academyId, role: "coach" }, "/coach/levels")).toBe("/coach");
     expect(resolveStaffDestination({ academyId, role: "coach" }, "/admin/attendance")).toBe(
       "/admin/attendance",
     );

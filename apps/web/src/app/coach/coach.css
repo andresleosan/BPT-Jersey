@@ -1,27 +1,11 @@
-/* Coach pages share AdminShell, admin panels and controls. Brand tokens live in globals.css. */
+/* Coach pages are built from AdminShell, AdminSectionHeader, admin panel cards and the admin data
+ * table (T13). Only what the admin components do not cover lives here. */
 .coach-dashboard,
 .coach-access {
   display: grid;
   gap: 1.5rem;
   min-width: 0;
   color: var(--mat-ink);
-}
-.coach-header-section {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: end;
-  gap: 1rem;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 1.5rem;
-}
-.coach-title,
-.coach-access h1 {
-  margin: 0;
-}
-.coach-subtitle {
-  color: var(--muted);
-  margin: 0.5rem 0 0;
 }
 .coach-premises-selector {
   display: flex;
@@ -60,31 +44,9 @@
   gap: 1.5rem;
   min-width: 0;
 }
-.coach-card {
+.coach-dashboard .admin-panel-card,
+.coach-access .admin-panel-card {
   overflow-wrap: anywhere;
-}
-.coach-card > :last-child {
-  margin-bottom: 0;
-}
-.coach-card-title {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: center;
-  justify-content: space-between;
-  margin: 0 0 1rem;
-}
-.coach-card-title > span:not(:first-child) {
-  font:
-    600 0.875rem var(--font-body),
-    Arial,
-    sans-serif;
-  text-transform: none;
-  letter-spacing: normal;
-}
-.coach-card p {
-  line-height: 1.5;
-  color: var(--muted);
 }
 .coach-session-list {
   display: grid;
@@ -123,45 +85,22 @@
   font-weight: 700;
 }
 .coach-session-time {
-  font-size: 0.875rem;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
 .coach-session-meta {
   justify-content: flex-start;
   color: var(--muted);
-  font-size: 0.875rem;
 }
-.coach-quorum-badge,
-.coach-birthday-badge {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.875rem;
-  line-height: 1.4;
-  font-weight: 600;
-  background: var(--canvas);
+/* State is text plus a left rule, never a pill. */
+.coach-quorum {
+  border-left: 0.2rem solid var(--line);
+  padding-left: 0.5rem;
   color: var(--mat-ink);
+  font-weight: 600;
 }
 .coach-quorum-met {
-  background: var(--bpt-lime);
-}
-.coach-quorum-warning {
-  border: 1px solid var(--line);
-}
-.coach-roster-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 1.5rem 0;
-}
-.coach-roster-table th {
-  text-align: left;
-  background: var(--canvas);
-  font-size: 0.875rem;
-}
-.coach-roster-table th,
-.coach-roster-table td {
-  padding: 0.75rem 0.5rem;
-  border-bottom: 1px solid var(--line);
-  overflow-wrap: anywhere;
+  border-left-color: var(--bpt-purple);
 }
 .coach-button {
   font-family: var(--font-body), Arial, sans-serif;
@@ -174,6 +113,12 @@
 .coach-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+.coach-button.admin-home-link {
+  background: transparent;
+}
+.coach-button.admin-home-link:hover {
+  background: var(--bpt-purple);
 }
 .coach-dashboard :is(button, a, input, textarea, select):focus-visible,
 .coach-access :is(button, a, input, textarea):focus-visible {
@@ -231,7 +176,7 @@
   font-weight: 400;
   color: var(--muted);
 }
-.coach-birthday-item {
+.coach-list-item {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -240,19 +185,32 @@
   padding: 1rem 0;
   border-bottom: 1px solid var(--paper-edge);
 }
-.coach-birthday-item:last-child {
+.coach-list-item:last-child {
   border-bottom: 0;
 }
-.coach-birthday-name {
+.coach-list-name {
   font-weight: 700;
 }
-.coach-birthday-meta {
+.coach-list-meta {
   color: var(--muted);
-  font-size: 0.875rem;
   margin-top: 0.25rem;
 }
 .coach-loading {
   min-height: 5rem;
+}
+.coach-curriculum {
+  background: color-mix(in srgb, var(--bpt-lime) 14%, var(--gi-white));
+  border-left: 0.3rem solid var(--bpt-purple);
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+}
+.coach-curriculum h4,
+.coach-curriculum p {
+  margin: 0;
+}
+.coach-curriculum ul {
+  margin: 0.5rem 0;
+  padding-left: 1.2rem;
 }
 .coach-access-grid {
   display: grid;
@@ -266,7 +224,6 @@
   margin-top: 1.5rem;
 }
 .coach-access-form .coach-button {
-  font-family: var(--font-body), Arial, sans-serif;
   justify-self: start;
 }
 @media (max-width: 1200px) {
@@ -294,87 +251,4 @@
   .coach-inline-form > button {
     width: 100%;
   }
-}
-@media (max-width: 480px) {
-  .coach-roster-table thead {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
-  .coach-roster-table tbody {
-    display: grid;
-    gap: 1rem;
-  }
-  .coach-roster-table tr {
-    display: grid;
-    border: 1px solid var(--line);
-  }
-  .coach-roster-table td {
-    display: grid;
-    grid-template-columns: 5rem minmax(0, 1fr);
-    align-items: center;
-    gap: 0.5rem;
-    border-bottom: 1px solid var(--paper-edge);
-  }
-  .coach-roster-table td::before {
-    content: attr(data-label);
-    font-size: 0.875rem;
-    color: var(--muted);
-  }
-}
-
-.coach-title,
-.coach-access h1 {
-  font-family: var(--font-display), Impact, sans-serif;
-  font-size: clamp(2rem, 3vw, 3rem);
-  line-height: 1.05;
-  text-transform: uppercase;
-}
-.coach-card-title,
-.coach-access h2 {
-  font-family: var(--font-display), Impact, sans-serif;
-  font-size: 1.65rem;
-  line-height: 1.1;
-  text-transform: uppercase;
-}
-:is(.coach-dashboard, .coach-access) .notification {
-  padding: 1rem;
-  border: 1px solid var(--line);
-  border-left: 0.3rem solid var(--bpt-purple);
-  background: var(--gi-white);
-  overflow-wrap: anywhere;
-}
-:is(.coach-dashboard, .coach-access) .notification-success {
-  border-left-color: var(--bpt-purple);
-  background: var(--bpt-lime);
-}
-:is(.coach-dashboard, .coach-access) .notification-error {
-  border-left-color: #8d1c2f;
-  color: #8d1c2f;
-}
-
-.coach-button.admin-home-link {
-  background: transparent;
-}
-.coach-button.admin-home-link:hover {
-  background: var(--bpt-purple);
-}
-
-.coach-curriculum {
-  background: color-mix(in srgb, var(--bpt-lime) 14%, var(--gi-white));
-  border-left: 0.3rem solid var(--bpt-purple);
-  margin-bottom: 1rem;
-  padding: 0.85rem 1rem;
-}
-
-.coach-curriculum h3,
-.coach-curriculum p {
-  margin: 0;
-}
-
-.coach-curriculum ul {
-  margin: 0.5rem 0;
-  padding-left: 1.2rem;
 }
