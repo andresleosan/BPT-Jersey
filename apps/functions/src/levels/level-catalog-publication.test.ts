@@ -15,7 +15,11 @@ type StoredRecord = Record<string, unknown>;
  * like a real Firestore transaction. Any write outside a transaction fails loudly: the catalog
  * publication must never fall back to sequential writes.
  */
-type Reference = Readonly<{ path?: string }>;
+type Reference = Readonly<{
+  path?: string;
+  filters?: readonly Readonly<{ field: string; value: unknown }>[];
+  max?: number;
+}>;
 type FakeTransaction = Parameters<Parameters<GenericFirestore["runTransaction"]>[0]>[0];
 
 function pathOf(reference: Reference): string {
@@ -45,9 +49,15 @@ function createTransactionalFirestore(initial: Record<string, StoredRecord> = {}
     set: forbiddenWrite,
     delete: forbiddenWrite,
   });
-  const collectionDocs = (path: string) =>
+  /** Every read of a whole collection, so a test can prove a query was narrowed instead. */
+  const wholeCollectionReads: string[] = [];
+  const collectionDocs = (path: string, reference: Reference = {}) =>
     [...records.entries()]
       .filter(([key]) => key.startsWith(`${path}/`) && !key.slice(path.length + 1).includes("/"))
+      .filter(([, value]) =>
+        (reference.filters ?? []).every(({ field, value: expected }) => value[field] === expected),
+      )
+      .slice(0, reference.max ?? Infinity)
       .map(([key, value]) => ({
         id: key.split("/").at(-1) ?? "",
         data: () => structuredClone(value),
@@ -55,10 +65,19 @@ function createTransactionalFirestore(initial: Record<string, StoredRecord> = {}
       }));
   const firestore: GenericFirestore = {
     doc: docRef,
-    collection: (path) => ({
-      path,
-      get: async () => ({ docs: collectionDocs(path) }),
-    }),
+    collection: (path) => {
+      const query = (reference: Reference) => ({
+        ...reference,
+        get: async () => {
+          if (!reference.filters?.length) wholeCollectionReads.push(path);
+          return { docs: collectionDocs(path, reference) };
+        },
+        where: (field: string, _operator: "==", value: unknown) =>
+          query({ ...reference, filters: [...(reference.filters ?? []), { field, value }] }),
+        limit: (max: number) => query({ ...reference, max }),
+      });
+      return query({ path });
+    },
     batch: () => ({ set: forbiddenWrite, delete: forbiddenWrite, commit: forbiddenWrite }),
     runTransaction: async (callback) => {
       transactions += 1;
@@ -74,7 +93,8 @@ function createTransactionalFirestore(initial: Record<string, StoredRecord> = {}
               data: () => (data === undefined ? undefined : structuredClone(data)),
             };
           }
-          return { docs: collectionDocs(path) };
+          if (!reference.filters?.length) wholeCollectionReads.push(path);
+          return { docs: collectionDocs(path, reference) };
         },
         create: (reference: Reference, data: unknown) => {
           const path = pathOf(reference);
@@ -98,6 +118,7 @@ function createTransactionalFirestore(initial: Record<string, StoredRecord> = {}
   return {
     firestore,
     records,
+    wholeCollectionReads,
     transactionCount: () => transactions,
     snapshot: () => new Map([...records.entries()].map(([k, v]) => [k, JSON.stringify(v)])),
   };
@@ -339,6 +360,31 @@ describe("Level catalog publication integrity (T101)", () => {
     expect((await store.listPublished(academyId)).system.systemId).toBe("ibjjf-v3");
     expect(fake.records.has(`${prefix}/levelSystems/ibjjf-v2`)).toBe(true);
     await expect(store.activate(activation)).resolves.toMatchObject({ idempotent: true });
+  });
+
+  it("reads only the active catalogue's definitions and requirements", async () => {
+    const fake = createTransactionalFirestore();
+    const store = createLevelCatalogStore({ firestore: fake.firestore });
+    await store.seed({
+      academyId,
+      normalized: loadApprovedLevelCatalog({ systemId: "ibjjf-v2" }),
+      operationId: "seed-v2",
+    });
+    await store.seed({
+      academyId,
+      normalized: loadApprovedLevelCatalog({ systemId: "ibjjf-v3" }),
+      operationId: "seed-v3",
+    });
+    fake.wholeCollectionReads.length = 0;
+
+    const catalog = await store.listPublished(academyId);
+
+    expect(catalog.system.systemId).toBe("ibjjf-v2");
+    expect(catalog.definitions.length).toBeGreaterThan(0);
+    expect(catalog.definitions.every((item) => item.systemId === "ibjjf-v2")).toBe(true);
+    expect(catalog.requirements.every((item) => item.systemId === "ibjjf-v2")).toBe(true);
+    expect(fake.wholeCollectionReads).not.toContain(`${prefix}/levelDefinitions`);
+    expect(fake.wholeCollectionReads).not.toContain(`${prefix}/levelRequirements`);
   });
 
   it("refuses destructive rollback of either catalogue while v2 and v3 coexist", async () => {
