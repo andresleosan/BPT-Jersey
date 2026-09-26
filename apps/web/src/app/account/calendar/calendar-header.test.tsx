@@ -65,7 +65,7 @@ describe("CalendarHeader", () => {
   it("links to courses, progress, competitors and settings from the header", () => {
     renderHeader();
     const nav = within(screen.getByRole("navigation", { name: "Account" }));
-    expect(nav.getByRole("link", { name: "Courses & Seminars" })).toHaveAttribute(
+    expect(nav.getByRole("link", { name: "Courses & seminars" })).toHaveAttribute(
       "href",
       "/account/courses",
     );

@@ -458,7 +458,7 @@ export function createAccountSettingsService(deps: AccountSettingsDependencies) 
         if (code === "auth/email-already-exists" || code === "auth/invalid-email")
           throw new HttpsError("already-exists", teenEmailMessage);
         if (code === "auth/invalid-password")
-          throw new HttpsError("invalid-argument", "Choose a password of at least 10 characters.");
+          throw new HttpsError("invalid-argument", "Choose a password of at least 12 characters.");
         throw new HttpsError("unavailable", teenUnavailableMessage);
       }
       const at = now();

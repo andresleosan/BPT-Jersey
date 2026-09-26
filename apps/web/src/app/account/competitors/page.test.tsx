@@ -17,7 +17,7 @@ describe("Account Competitors Page", () => {
   it("renders its heading and the way back", () => {
     render(<AccountCompetitorsPage />);
     expect(screen.getByRole("heading", { name: "Competitors" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "← Back to Account" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "← Back to account" })).toHaveAttribute(
       "href",
       "/account",
     );

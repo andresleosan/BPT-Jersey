@@ -868,6 +868,44 @@ describe("free trial", () => {
     ).toBeVisible();
   });
 
+  it("counts the one free class left after an attended trial class", async () => {
+    stubViewport(false);
+    render(
+      <MemberCalendar
+        onSignOut={vi.fn()}
+        repository={trialRepository({ attendedCount: 1 })}
+        session={teen}
+      />,
+    );
+    expect(
+      await screen.findByText(
+        /1 free class left in your trial\. Choose a plan to keep training after it ends\./u,
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText(/Great first class/u)).not.toBeInTheDocument();
+  });
+
+  it("counts the free classes left after an attended trial class, in the plural", async () => {
+    stubViewport(false);
+    render(
+      <MemberCalendar
+        onSignOut={vi.fn()}
+        // Today's allowance is 1 or 2; a larger one must still read in the plural.
+        repository={trialRepository({
+          allowance: 3 as TrialAccessView["allowance"],
+          attendedCount: 1,
+        })}
+        session={teen}
+      />,
+    );
+    expect(
+      await screen.findByText(
+        /2 free classes left in your trial\. Choose a plan to keep training after it ends\./u,
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText(/Great first class/u)).not.toBeInTheDocument();
+  });
+
   it("asks an exhausted trial to choose a membership", async () => {
     stubViewport(false);
     render(

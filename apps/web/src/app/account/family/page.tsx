@@ -40,7 +40,7 @@ function FamilyContent() {
     return (
       <main className="client-destination family-client-page" aria-labelledby="family-title">
         <p className="account-eyebrow">
-          <Link href="/account">← Back to Account</Link>
+          <Link href="/account">← Back to account</Link>
         </p>
         <h1 id="family-title">Your family</h1>
         <p aria-live="assertive" className="family-message family-message-error" role="alert">
@@ -54,7 +54,7 @@ function FamilyContent() {
     return (
       <main className="client-destination family-client-page" aria-labelledby="family-title">
         <p className="account-eyebrow">
-          <Link href="/account">← Back to Account</Link>
+          <Link href="/account">← Back to account</Link>
         </p>
         <h1 id="family-title">Your family</h1>
         <p className="family-empty-state">No family has been linked to your account yet.</p>
@@ -65,7 +65,7 @@ function FamilyContent() {
   return (
     <main className="client-destination family-client-page" aria-labelledby="family-title">
       <p className="account-eyebrow">
-        <Link href="/account">← Back to Account</Link>
+        <Link href="/account">← Back to account</Link>
       </p>
       <h1 id="family-title">Your family</h1>
       <p className="client-destination-intro">
