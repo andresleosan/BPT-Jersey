@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 
-import type { CalendarDay } from "@bpt-jersey/domain/schedule/member-calendar";
+import { useRef } from "react";
+
+import type { CalendarDay, CalendarMode } from "@bpt-jersey/domain/schedule/member-calendar";
 
 import type { CalendarParticipant } from "../../../lib/calendar";
 
@@ -82,6 +84,9 @@ type DayStripProps = Readonly<{
   canNext: boolean;
   onPrev: () => void;
   onNext: () => void;
+  /** One-day view: the day on screen, and choosing another pill shows that day. */
+  selectedDateKey?: string | undefined;
+  onSelectDay?: (dateKey: string) => void;
 }>;
 
 /** The week toolbar at the head of the calendar: earlier, the visible days, later. */
@@ -98,16 +103,34 @@ export function DayStrip(props: DayStripProps) {
         ‹
       </button>
       <ol className="day-strip">
-        {props.days.map((day) => (
-          <li
-            aria-current={day.isToday ? "date" : undefined}
-            className={`day-pill${day.isToday ? " day-pill--today" : ""}`}
-            key={day.dateKey}
-          >
-            <span>{day.weekday}</span>
-            <span>{day.dayNumber}</span>
-          </li>
-        ))}
+        {props.days.map((day) => {
+          const className = `day-pill${day.isToday ? " day-pill--today" : ""}`;
+          const onSelectDay = props.onSelectDay;
+          return onSelectDay ? (
+            <li key={day.dateKey}>
+              <button
+                aria-current={day.isToday ? "date" : undefined}
+                aria-label={`${day.weekday} ${day.dayNumber}`}
+                aria-pressed={day.dateKey === props.selectedDateKey}
+                className={`${className} day-pill--button`}
+                onClick={() => onSelectDay(day.dateKey)}
+                type="button"
+              >
+                <span>{day.weekday}</span>
+                <span>{day.dayNumber}</span>
+              </button>
+            </li>
+          ) : (
+            <li
+              aria-current={day.isToday ? "date" : undefined}
+              className={className}
+              key={day.dateKey}
+            >
+              <span>{day.weekday}</span>
+              <span>{day.dayNumber}</span>
+            </li>
+          );
+        })}
       </ol>
       <button
         aria-label="Later"
@@ -118,6 +141,47 @@ export function DayStrip(props: DayStripProps) {
       >
         ›
       </button>
+    </div>
+  );
+}
+
+const modes: readonly { mode: CalendarMode; label: string }[] = [
+  { mode: "week", label: "Week" },
+  { mode: "day", label: "Day" },
+];
+
+/** Tablet and desktop: show the whole week or one day. A radio group, so arrows move the choice. */
+export function CalendarModeSwitch(
+  props: Readonly<{ mode: CalendarMode; onChange: (mode: CalendarMode) => void }>,
+) {
+  const group = useRef<HTMLDivElement>(null);
+  return (
+    <div aria-label="Calendar view" className="calendar-mode" ref={group} role="radiogroup">
+      {modes.map((option, index) => {
+        const checked = option.mode === props.mode;
+        return (
+          <button
+            aria-checked={checked}
+            className="calendar-mode-option"
+            key={option.mode}
+            onClick={() => props.onChange(option.mode)}
+            onKeyDown={(event) => {
+              if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+              event.preventDefault();
+              const other = modes[(index + 1) % modes.length]!;
+              props.onChange(other.mode);
+              group.current
+                ?.querySelectorAll<HTMLElement>("[role='radio']")
+                [(index + 1) % modes.length]?.focus();
+            }}
+            role="radio"
+            tabIndex={checked ? 0 : -1}
+            type="button"
+          >
+            {option.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

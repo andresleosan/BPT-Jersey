@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -174,4 +177,59 @@ describe("SessionCard", () => {
     expect(curriculum).toHaveTextContent("Hip escape");
     expect(curriculum).toHaveTextContent("Finish with positional rounds.");
   });
+
+  it("reads time first, then class, then site and coach, then the state", () => {
+    const { container } = renderCard({
+      entry: entry("open", { session: { ...session, instructorName: "Coach Silva" } }),
+    });
+    const card = container.querySelector(".session-card")!;
+    const order = [...card.children].map((child) => child.className.split(" ")[0]);
+    expect(order.slice(0, 3)).toEqual(["session-time", "session-title", "session-site"]);
+    expect(order.indexOf("session-action")).toBeGreaterThan(2);
+    expect(card.querySelector(".session-site")).toHaveTextContent("Town · Coach Silva");
+    expect(accountRule(".session-title")).not.toMatch(/ellipsis|nowrap/u);
+  });
+
+  it("keeps the whole-card status backgrounds of DESIGN §9", () => {
+    for (const [status, background] of [
+      ["open", "var(--status-open)"],
+      ["booked", "var(--status-booked)"],
+      ["attended", "var(--status-attended)"],
+      ["missed", "var(--status-missed)"],
+    ] as const) {
+      expect(accountRule(`.session-card--${status}`)).toContain(`background: ${background};`);
+    }
+    expect(accountRule(".session-card--booked")).toContain(
+      "box-shadow: inset 0.35rem 0 0 #176b49;",
+    );
+    expect(accountRule(".session-card--missed")).toContain(
+      "box-shadow: inset 0.35rem 0 0 #8d1c2f;",
+    );
+    expect(accountCss).toMatch(/--status-open: #ffe66d;/iu);
+    expect(accountCss).toMatch(/--status-booked: #d7f0e2;/iu);
+  });
+
+  it("keeps the course label and the absence toggle on a booked course session", () => {
+    const onCancelRequest = vi.fn();
+    renderCard({
+      onCancelRequest,
+      entry: entry("booked", {
+        session: { ...session, courseId: "course-1", courseOrdinal: 2, courseSessionCount: 8 },
+      }),
+    });
+    expect(screen.getByText("Course included · session 2/8")).toBeInTheDocument();
+    screen.getByRole("button", { name: "Included · Mark absent" }).click();
+    expect(onCancelRequest).toHaveBeenCalled();
+  });
 });
+
+const accountCss = readFileSync(
+  resolve(process.cwd(), "apps/web/src/app/account/account.css"),
+  "utf8",
+);
+
+function accountRule(selector: string): string {
+  const start = accountCss.indexOf(`\n${selector} {`);
+  expect(start).toBeGreaterThanOrEqual(0);
+  return accountCss.slice(start, accountCss.indexOf("}", start));
+}

@@ -164,6 +164,7 @@ export function SessionCard({
       )}
       <p className="session-site">
         {site}
+        {session.instructorName ? ` · ${session.instructorName}` : ""}
         {isIntro ? " · Free Intro Class" : ""}
       </p>
       {session.levelRange || session.ageRange ? (

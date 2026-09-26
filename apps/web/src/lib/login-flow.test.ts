@@ -17,7 +17,8 @@ describe("login-flow", () => {
     expect(sanitizeReturnPath("/account/family")).toBe("/account/family");
     expect(sanitizeReturnPath("/account/waiver")).toBe("/account/waiver");
     expect(sanitizeReturnPath("/account/waitlist")).toBe("/account/waitlist");
-    expect(sanitizeReturnPath("/account/classes")).toBe("/account/classes");
+    // The old class list is gone: its return path lands on the member calendar at /account.
+    expect(sanitizeReturnPath("/account/classes")).toBe("/account");
     expect(sanitizeReturnPath("/shop")).toBe("/shop");
     expect(sanitizeReturnPath("/checkout")).toBe("/checkout");
     expect(sanitizeReturnPath("/admin")).toBeUndefined();
