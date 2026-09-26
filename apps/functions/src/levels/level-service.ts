@@ -393,8 +393,13 @@ export type GenericQuerySnapshot = Readonly<{
   }[];
 }>;
 
+export type GenericQuery = Readonly<{
+  get: () => Promise<GenericQuerySnapshot>;
+}>;
+
 export type GenericCollectionReference = Readonly<{
   get: () => Promise<GenericQuerySnapshot>;
+  where: (field: string, operator: "==", value: unknown) => GenericQuery;
 }>;
 
 export type GenericTransaction = Readonly<{
@@ -1312,8 +1317,10 @@ export function createLevelCatalogStore({
       const systemId = publishedDoc.id;
       const sourceHash = String(systemData["sourceHash"] ?? "");
 
+      // Single-field equality: served by the automatic index, never a whole-collection read.
       const definitionsSnapshot = await firestore
         .collection(`academies/${academyId}/levelDefinitions`)
+        .where("systemId", "==", systemId)
         .get();
 
       const definitions: LevelDefinitionRecord[] = definitionsSnapshot.docs
@@ -1323,6 +1330,7 @@ export function createLevelCatalogStore({
 
       const requirementsSnapshot = await firestore
         .collection(`academies/${academyId}/levelRequirements`)
+        .where("systemId", "==", systemId)
         .get();
 
       const requirements: LevelRequirementRecord[] = requirementsSnapshot.docs

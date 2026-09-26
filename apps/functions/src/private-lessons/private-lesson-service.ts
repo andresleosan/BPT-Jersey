@@ -13,6 +13,7 @@ import {
   listMyPrivateLessonsInputSchema,
   listPrivateLessonPurchasesInputSchema,
   privateLessonExpiry,
+  privateLessonProofUrlInputSchema,
   privateLessonPurchaseSchema,
   recordPrivateLessonPurchaseInputSchema,
   reviewPrivateLessonPurchaseInputSchema,
@@ -20,6 +21,7 @@ import {
   summarisePrivateLessonCredits,
   type MyPrivateLessons,
   type PrivateLessonOptionId,
+  type PrivateLessonProofUrl,
   type PrivateLessonPurchase,
   type PrivateLessonPurchaseRow,
   type PrivateLessonPurchaseStatus,
@@ -56,7 +58,10 @@ export type PrivateLessonStore = Readonly<{
   verifyProof: (
     input: Readonly<{ userId: string; requestId: string; proofId: string }>,
   ) => Promise<void>;
-  newId: () => string;
+  /** Short-lived signed URL for the member's uploaded transfer proof. */
+  proofUrl: (
+    input: Readonly<{ userId: string; requestId: string; proofId: string }>,
+  ) => Promise<PrivateLessonProofUrl>;
 }>;
 
 const officeRoles = new Set(["owner", "administrator"]);
@@ -364,8 +369,13 @@ export async function recordPrivateLessonPurchase(
     raw,
     "Invalid private lesson purchase",
   );
-  const purchaseId = `private-lesson-${store.newId()}`;
+  const purchaseId = `private-lesson-${input.requestId}`;
   return store.runTransaction(async (tx) => {
+    const existing = await tx.readPurchase(purchaseId);
+    if (existing) {
+      if (existing.source === "office" && existing.studentId === input.studentId) return existing;
+      throw new HttpsError("already-exists", "This private lesson request was already used.");
+    }
     const student = assertEligibleStudent(await tx.readStudent(input.studentId), now);
     const purchases = await tx.readStudentPurchases(input.studentId);
     const pending = newPurchase({
@@ -380,5 +390,34 @@ export async function recordPrivateLessonPurchase(
       now,
     });
     return approve(tx, actor, pending, student, purchases, input.method, input.reference, now);
+  });
+}
+
+const memberPurchaseIdPattern =
+  /^private-lesson-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/u;
+
+/** The proof key is rebuilt from the stored purchase: its owner, its request id and its proof id. */
+export async function getPrivateLessonProofUrl(
+  store: PrivateLessonStore,
+  actor: PrivateLessonActor,
+  raw: unknown,
+): Promise<PrivateLessonProofUrl> {
+  assertOffice(actor);
+  const input = parse(privateLessonProofUrlInputSchema, raw, "Invalid private lesson request");
+  const purchase = await store.runTransaction((tx) => tx.readPurchase(input.purchaseId));
+  if (!purchase) throw new HttpsError("not-found", "Private lesson purchase is unavailable.");
+  const requestId = memberPurchaseIdPattern.exec(purchase.purchaseId)?.[1];
+  if (
+    purchase.source !== "member" ||
+    purchase.accountUid === null ||
+    purchase.proofId === null ||
+    requestId === undefined
+  ) {
+    throw new HttpsError("failed-precondition", "Payment evidence is unavailable.");
+  }
+  return store.proofUrl({
+    userId: purchase.accountUid,
+    requestId,
+    proofId: purchase.proofId,
   });
 }

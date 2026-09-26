@@ -79,7 +79,10 @@ describe("admin class waitlists by group", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date("2026-09-26T08:00:00.000Z"));
     window.history.replaceState(null, "", "/admin/waitlists");
-    waitlistState.listGroups.mockResolvedValue([adultGroup, kidsGroup]);
+    waitlistState.listGroups.mockResolvedValue({
+      groups: [adultGroup, kidsGroup],
+      truncated: false,
+    });
   });
 
   afterEach(() => {
@@ -141,20 +144,23 @@ describe("admin class waitlists by group", () => {
   });
 
   it("disables the offer on a date that already has an active offer", async () => {
-    waitlistState.listGroups.mockResolvedValue([
-      {
-        ...kidsGroup,
-        sessions: [
-          {
-            ...kidsGroup.sessions[0],
-            entries: [
-              offered("session-private-k", "student-private-4", 1),
-              waiting("session-private-k", "student-private-5", 2),
-            ],
-          },
-        ],
-      },
-    ]);
+    waitlistState.listGroups.mockResolvedValue({
+      truncated: false,
+      groups: [
+        {
+          ...kidsGroup,
+          sessions: [
+            {
+              ...kidsGroup.sessions[0],
+              entries: [
+                offered("session-private-k", "student-private-4", 1),
+                waiting("session-private-k", "student-private-5", 2),
+              ],
+            },
+          ],
+        },
+      ],
+    });
     render(<AdminWaitlistsPage />);
 
     const date = await screen.findByRole("region", { name: /Kids BJJ/iu });
@@ -171,10 +177,23 @@ describe("admin class waitlists by group", () => {
   });
 
   it("shows a safe empty state when nobody is waiting", async () => {
-    waitlistState.listGroups.mockResolvedValue([]);
+    waitlistState.listGroups.mockResolvedValue({ groups: [], truncated: false });
     render(<AdminWaitlistsPage />);
 
     expect(await screen.findByText("Nobody is waiting for a future class.")).toBeVisible();
+    expect(screen.queryByText(/Showing the first/iu)).toBeNull();
+  });
+
+  it("says when the list was cut short", async () => {
+    waitlistState.listGroups.mockResolvedValue({ groups: [adultGroup], truncated: true });
+    render(<AdminWaitlistsPage />);
+
+    expect(await screen.findByRole("heading", { name: "Adult Fundamentals" })).toBeVisible();
+    expect(
+      screen.getByText(
+        "Showing the first waitlists only. Some queues in the next 45 days are not listed.",
+      ),
+    ).toBeVisible();
   });
 
   it("shows a safe error when the groups cannot be loaded", async () => {

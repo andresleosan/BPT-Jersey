@@ -1,13 +1,20 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 
 import { LevelsBrowser } from "../../levels/levels-browser";
 import { useAdminOrStaffSession } from "../admin-gate";
 import { AdminSectionHeader } from "../admin-ui";
-import { LevelVersions } from "./level-versions";
 import "../admin.css";
 import "./levels-editor.css";
+
+// Only the office opens Versions, so everyone else never downloads the draft editor.
+const LevelVersions = dynamic(() => import("./level-versions").then((m) => m.LevelVersions), {
+  loading: () => (
+    <div aria-busy="true" aria-label="Loading versions" className="levels-versions-loading" />
+  ),
+});
 
 type LevelsTab = "active" | "versions";
 

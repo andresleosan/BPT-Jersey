@@ -31,3 +31,12 @@ export async function assertIntroProof(storage: R2Client, input: Omit<IntroProof
   const validMagic = bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) || (bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255);
   if (!validMagic) throw new HttpsError("failed-precondition", "Payment evidence is unavailable.");
 }
+
+/** Office viewer: a 60-second inline URL for a stored PNG/JPEG proof, typed from its magic bytes. */
+export async function introProofUrl(storage: R2Client, input: Readonly<{ academyId: string; userId: string; requestId: string; proofId: string }>): Promise<{ url: string; expiresAt: string }> {
+  const objectKey = introProofKey(input.academyId, input.userId, input.requestId, input.proofId);
+  const bytes = Buffer.from(await storage.readObject(objectKey));
+  const contentType = bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ? ("image/png" as const) : bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255 ? ("image/jpeg" as const) : null;
+  if (!contentType || !storage.createPrivateImageUrl) throw new HttpsError("failed-precondition", "Payment evidence is unavailable.");
+  return { url: await storage.createPrivateImageUrl({ objectKey, expiresInSeconds: 60, contentType }), expiresAt: new Date(Date.now() + 60_000).toISOString() };
+}

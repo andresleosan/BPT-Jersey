@@ -376,7 +376,10 @@ export function AdminNotificationPanel({ role }: { role?: string | null | undefi
         whether to extend each subscription.
       </p>
       {rangeError ? <p role="alert">{rangeError}</p> : null}
-      {loading ? <p role="status">Loading notifications…</p> : null}
+      {/* Always rendered with a reserved height, so the list below never jumps. */}
+      <p className="admin-notification-loading" role="status">
+        {loading ? "Loading notifications…" : ""}
+      </p>
       {error ? <p role="alert">{error}</p> : null}
       {message ? <p role="status">{message}</p> : null}
       {page && notices.length === 0 ? (

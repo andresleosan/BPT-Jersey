@@ -11,7 +11,11 @@ import { loadApprovedLevelCatalog } from "./level-seed";
 import { createLevelCatalogStore, type GenericFirestore } from "./level-service";
 
 type StoredRecord = Record<string, unknown>;
-type Reference = Readonly<{ path?: string; filter?: Readonly<{ field: string; value: unknown }> }>;
+type Reference = Readonly<{
+  path?: string;
+  filter?: Readonly<{ field: string; value: unknown }>;
+  max?: number;
+}>;
 
 function isDocumentPath(path: string): boolean {
   return path.split("/").length % 2 === 0;
@@ -37,10 +41,13 @@ function createFirestore() {
     set: forbidden,
     delete: forbidden,
   });
-  const collectionDocs = (path: string, filter?: Reference["filter"]) =>
+  /** Collections read inside a transaction without any filter, to prove a read was narrowed. */
+  const wholeCollectionReads: string[] = [];
+  const collectionDocs = (path: string, filter?: Reference["filter"], max = Infinity) =>
     [...records.entries()]
       .filter(([key]) => key.startsWith(`${path}/`) && !key.slice(path.length + 1).includes("/"))
       .filter(([, value]) => filter === undefined || value[filter.field] === filter.value)
+      .slice(0, max)
       .map(([key, value]) => ({
         id: key.split("/").at(-1) ?? "",
         data: () => structuredClone(value),
@@ -53,6 +60,12 @@ function createFirestore() {
       path,
       filter: { field, value },
       get: async () => ({ docs: collectionDocs(path, { field, value }) }),
+      limit: (max: number) => ({
+        path,
+        filter: { field, value },
+        max,
+        get: async () => ({ docs: collectionDocs(path, { field, value }, max) }),
+      }),
     }),
   });
   const firestore = {
@@ -68,7 +81,8 @@ function createFirestore() {
             const data = records.get(path);
             return { exists: data !== undefined, data: () => data && structuredClone(data) };
           }
-          return { docs: collectionDocs(path, reference.filter) };
+          if (reference.filter === undefined) wholeCollectionReads.push(path);
+          return { docs: collectionDocs(path, reference.filter, reference.max) };
         },
         create: (reference: Reference, data: unknown) => {
           if (records.has(reference.path!)) throw new Error(`Exists: ${reference.path}`);
@@ -91,7 +105,7 @@ function createFirestore() {
       return result;
     },
   };
-  return { firestore, records };
+  return { firestore, records, wholeCollectionReads };
 }
 
 const academyId = "demo-academy";
@@ -420,6 +434,31 @@ describe("activateLevelCatalog", () => {
       firestore: fake.firestore as unknown as GenericFirestore,
     }).listPublished(academyId);
     expect(catalog.system.systemId).toBe("ibjjf-v3");
+  });
+
+  it("reads only this academy's progress heads, capped just above the activation limit", async () => {
+    const draft = await draftFromV3();
+    await service().publishDraft({ academyId, systemId: draft.systemId, actorId: "owner-1" });
+    addHead("student-a", heldStripe);
+    fake.wholeCollectionReads.length = 0;
+
+    await service().activate({ academyId, systemId: draft.systemId, actorId: "owner-1" });
+
+    expect(fake.wholeCollectionReads).not.toContain(`${prefix}/studentLevelProgress`);
+  });
+
+  it("still refuses an activation above the progress-head cap", async () => {
+    const draft = await draftFromV3();
+    await service().publishDraft({ academyId, systemId: draft.systemId, actorId: "owner-1" });
+    for (let index = 0; index < 451; index += 1) addHead(`student-${index}`, heldStripe);
+
+    await expect(
+      service().activate({ academyId, systemId: draft.systemId, actorId: "owner-1" }),
+    ).rejects.toMatchObject({
+      code: "conflict",
+      message: "Too many progress records for one activation.",
+    });
+    expect(fake.records.get(`${prefix}/levelCatalogState/active`)?.activeSystemId).toBe("ibjjf-v3");
   });
 
   it("refuses a draft and the version already active", async () => {

@@ -125,8 +125,16 @@ describe("admin waitlist client", () => {
     };
     callableState.call.mockResolvedValueOnce({ data: { groups: [group] } });
 
-    await expect(listAdminWaitlistGroups()).resolves.toEqual([group]);
+    await expect(listAdminWaitlistGroups()).resolves.toEqual({ groups: [group], truncated: false });
     expect(callableState.calls).toEqual([{ name: "listAdminWaitlistGroups", payload: {} }]);
+
+    callableState.call.mockResolvedValueOnce({ data: { groups: [group], truncated: true } });
+    await expect(listAdminWaitlistGroups()).resolves.toEqual({ groups: [group], truncated: true });
+
+    callableState.call.mockResolvedValueOnce({ data: { groups: [group], truncated: "yes" } });
+    await expect(listAdminWaitlistGroups()).rejects.toThrow(
+      "Unable to load class waitlists. Please try again.",
+    );
   });
 
   it("rejects malformed waitlist groups with a safe message", async () => {

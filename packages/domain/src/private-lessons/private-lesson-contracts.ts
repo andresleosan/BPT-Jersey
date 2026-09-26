@@ -129,6 +129,8 @@ export type ReviewPrivateLessonPurchaseInput = z.infer<
 >;
 export const recordPrivateLessonPurchaseInputSchema = z.strictObject({
   studentId: id,
+  /** One per office form submission, so a retried save never records the purchase twice. */
+  requestId: z.uuid(),
   optionId,
   method,
   reference: reference.nullable(),
@@ -136,6 +138,13 @@ export const recordPrivateLessonPurchaseInputSchema = z.strictObject({
 export type RecordPrivateLessonPurchaseInput = z.infer<
   typeof recordPrivateLessonPurchaseInputSchema
 >;
+/** Office opens a member's transfer proof; the server finds the object from the stored purchase. */
+export const privateLessonProofUrlInputSchema = z.strictObject({ purchaseId: id });
+export const privateLessonProofUrlSchema = z.strictObject({
+  url: z.url().refine((value) => value.startsWith("https://")),
+  expiresAt: instant,
+});
+export type PrivateLessonProofUrl = z.infer<typeof privateLessonProofUrlSchema>;
 export const privateLessonBookingInputSchema = z.strictObject({ sessionId: id, studentId: id });
 export type PrivateLessonBookingInput = z.infer<typeof privateLessonBookingInputSchema>;
 export const cancelPrivateLessonBookingInputSchema = z.strictObject({

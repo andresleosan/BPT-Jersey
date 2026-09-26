@@ -1,10 +1,12 @@
 import { z } from "zod";
 import {
   myPrivateLessonsSchema,
+  privateLessonProofUrlSchema,
   privateLessonPurchaseRowSchema,
   privateLessonPurchaseSchema,
   type MyPrivateLessons,
   type PrivateLessonOptionId,
+  type PrivateLessonProofUrl,
   type PrivateLessonPurchase,
   type PrivateLessonPurchaseRow,
   type PrivateLessonPurchaseStatus,
@@ -16,6 +18,7 @@ import { getFirebaseFunctions } from "./firebase-client";
 const saveError = "We could not save the private lesson request. Try again.";
 const loadError = "Private lessons are unavailable. Try again.";
 const officeError = "We could not update the private lesson. Try again.";
+const proofError = "Payment evidence is unavailable. Try again.";
 
 /** Refusals the server writes for people; anything else is shown as the generic message. */
 const knownMessages = new Set([
@@ -90,8 +93,14 @@ export function reviewPrivateLessonPurchase(input: {
   );
 }
 
+/** Office only: a short-lived link to the member's transfer proof for one purchase. */
+export function getPrivateLessonProofUrl(purchaseId: string): Promise<PrivateLessonProofUrl> {
+  return call("getPrivateLessonProofUrl", { purchaseId }, privateLessonProofUrlSchema, proofError);
+}
+
 export function recordPrivateLessonPurchase(input: {
   studentId: string;
+  requestId: string;
   optionId: PrivateLessonOptionId;
   method: "bank_transfer" | "cash" | "other";
   reference: string | null;

@@ -10,7 +10,11 @@ import { scheduleCallableOptions } from "./schedule-callable-options.js";
 /** Same staff roles that may read a single session queue (`listSessionWaitlist`). */
 const staffRoles = new Set(["owner", "administrator", "headCoach", "coach"]);
 const horizonMs = 45 * 24 * 60 * 60 * 1000;
+const sessionLimit = 500;
 const entryLimit = 500;
+/** Firestore allows 30 disjunctions: session ids times the two live statuses. */
+const sessionChunk = 15;
+const liveStatuses = ["waiting", "offered"];
 
 export type WaitlistGroupSession = Readonly<{
   sessionId: string;
@@ -33,12 +37,17 @@ export type WaitlistGroup = Readonly<{
   }>[];
 }>;
 
+/** Each read is capped; `truncated` says a cap was hit so the page can say the list is partial. */
 export type WaitlistGroupsReader = Readonly<{
-  listActiveEntries: (academyId: string) => Promise<readonly WaitlistEntryRecord[]>;
-  getSessions: (
+  listUpcomingSessions: (
+    academyId: string,
+    from: string,
+    to: string,
+  ) => Promise<Readonly<{ sessions: readonly WaitlistGroupSession[]; truncated: boolean }>>;
+  listLiveEntries: (
     academyId: string,
     sessionIds: readonly string[],
-  ) => Promise<readonly WaitlistGroupSession[]>;
+  ) => Promise<Readonly<{ entries: readonly WaitlistEntryRecord[]; truncated: boolean }>>;
 }>;
 
 function staffItem(entry: WaitlistEntryRecord): StaffWaitlistItem {
@@ -154,7 +163,7 @@ export function createListAdminWaitlistGroupsHandler({
 }) {
   return async (
     request: CallableRequest<unknown>,
-  ): Promise<{ groups: readonly WaitlistGroup[] }> => {
+  ): Promise<{ groups: readonly WaitlistGroup[]; truncated: boolean }> => {
     const actor = requireUserActor(request);
     if (!staffRoles.has(actor.role)) {
       throw new HttpsError("permission-denied", "Staff waitlist access is not permitted");
@@ -163,11 +172,18 @@ export function createListAdminWaitlistGroupsHandler({
       throw new HttpsError("invalid-argument", "Waitlist groups query is invalid");
     }
     try {
-      const entries = await reader.listActiveEntries(actor.academyId);
-      const sessionIds = [...new Set(entries.map((entry) => entry.sessionId))];
-      const sessions =
-        sessionIds.length === 0 ? [] : await reader.getSessions(actor.academyId, sessionIds);
-      return { groups: groupWaitlistEntries(entries, sessions, now()) };
+      const at = now();
+      const to = new Date(Date.parse(at) + horizonMs).toISOString();
+      const upcoming = await reader.listUpcomingSessions(actor.academyId, at, to);
+      const sessionIds = [...new Set(upcoming.sessions.map((item) => item.sessionId))];
+      const live =
+        sessionIds.length === 0
+          ? { entries: [], truncated: false }
+          : await reader.listLiveEntries(actor.academyId, sessionIds);
+      return {
+        groups: groupWaitlistEntries(live.entries, upcoming.sessions, at),
+        truncated: upcoming.truncated || live.truncated,
+      };
     } catch {
       throw new HttpsError("internal", "Waitlist is not available");
     }
@@ -178,42 +194,55 @@ function text(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
+function readSession(id: string, data: Record<string, unknown>): WaitlistGroupSession | null {
+  const title = text(data.title);
+  const locationId = text(data.locationId);
+  const startAt = text(data.startAt);
+  const status = text(data.status);
+  if (!title || !locationId || !startAt || !status) return null;
+  return { sessionId: id, classId: text(data.classId) ?? null, title, locationId, startAt, status };
+}
+
 export function createFirestoreWaitlistGroupsReader(firestore: Firestore): WaitlistGroupsReader {
   return {
-    async listActiveEntries(academyId) {
-      // Single-field `in` filter only: no composite index needed; order is applied in memory.
+    async listUpcomingSessions(academyId, from, to) {
+      // Uses the existing (status, startAt) composite index on sessions.
       const snapshot = await firestore
-        .collection("academies/" + academyId + "/waitlistEntries")
-        .where("status", "in", ["waiting", "offered"])
-        .limit(entryLimit)
+        .collection("academies/" + academyId + "/sessions")
+        .where("status", "==", "scheduled")
+        .where("startAt", ">=", from)
+        .where("startAt", "<=", to)
+        .limit(sessionLimit + 1)
         .get();
-      return snapshot.docs.map((item) => parseStoredWaitlist(item.data(), academyId, item.id));
+      const sessions = snapshot.docs.slice(0, sessionLimit).flatMap((item) => {
+        const session = readSession(item.id, item.data());
+        return session ? [session] : [];
+      });
+      return { sessions, truncated: snapshot.docs.length > sessionLimit };
     },
-    async getSessions(academyId, sessionIds) {
-      const snapshots = await firestore.getAll(
-        ...sessionIds.map((sessionId) =>
-          firestore.doc("academies/" + academyId + "/sessions/" + sessionId),
+    async listLiveEntries(academyId, sessionIds) {
+      const chunks: string[][] = [];
+      for (let index = 0; index < sessionIds.length; index += sessionChunk) {
+        chunks.push(sessionIds.slice(index, index + sessionChunk));
+      }
+      const snapshots = await Promise.all(
+        chunks.map((chunk) =>
+          firestore
+            .collection("academies/" + academyId + "/waitlistEntries")
+            .where("sessionId", "in", chunk)
+            .where("status", "in", liveStatuses)
+            .limit(entryLimit + 1)
+            .get(),
         ),
       );
-      const sessions: WaitlistGroupSession[] = [];
-      for (const snapshot of snapshots) {
-        const data = snapshot.data();
-        if (data === undefined) continue;
-        const title = text(data.title);
-        const locationId = text(data.locationId);
-        const startAt = text(data.startAt);
-        const status = text(data.status);
-        if (!title || !locationId || !startAt || !status) continue;
-        sessions.push({
-          sessionId: snapshot.id,
-          classId: text(data.classId) ?? null,
-          title,
-          locationId,
-          startAt,
-          status,
-        });
-      }
-      return sessions;
+      return {
+        entries: snapshots.flatMap((snapshot) =>
+          snapshot.docs
+            .slice(0, entryLimit)
+            .map((item) => parseStoredWaitlist(item.data(), academyId, item.id)),
+        ),
+        truncated: snapshots.some((snapshot) => snapshot.docs.length > entryLimit),
+      };
     },
   };
 }
