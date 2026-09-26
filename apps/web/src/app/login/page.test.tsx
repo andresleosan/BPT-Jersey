@@ -24,6 +24,13 @@ describe("member login page", () => {
     expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
   });
 
+  it("introduces the academy as a Brazilian Jiu-Jitsu Academy", () => {
+    render(<LoginPage />);
+
+    expect(screen.getByText("Brazilian Jiu-Jitsu Academy")).toBeInTheDocument();
+    expect(screen.queryByText("One academy. One clear system.")).not.toBeInTheDocument();
+  });
+
   it("is the member surface only and never mentions the staff entrance", () => {
     render(<LoginPage />);
 

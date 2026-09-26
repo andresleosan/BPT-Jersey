@@ -76,7 +76,6 @@ describe("deploy runtime import preparation", () => {
       outputPath,
       [
         'import "@bpt-jersey/domain/audit";',
-        'import "@bpt-jersey/domain/levels/lesson-planning";',
         'import "@bpt-jersey/domain/schedule";',
         'import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";',
         "export { SELF_CHECK_IN_MAXIMUM_DISTANCE_METRES } from '@bpt-jersey/domain/schedule/self-check-in';",
@@ -107,7 +106,6 @@ describe("deploy runtime import preparation", () => {
 
     const prepared = await readFile(outputPath, "utf8");
     expect(prepared).toContain("../../domain/audit/audit-event.js");
-    expect(prepared).toContain("../../domain/levels/lesson-planning-contracts.js");
     expect(prepared).toContain("../../domain/schedule/schedule-contracts.js");
     expect(prepared).toContain("../../domain/schedule/member-calendar-contracts.js");
     expect(prepared).toContain("../../domain/schedule/self-check-in-contracts.js");
