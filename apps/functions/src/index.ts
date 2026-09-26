@@ -182,6 +182,7 @@ export {
   listSessionWaitlist,
   listStudentWaitlist,
 } from "./schedule/advanced-booking-callables.js";
+export { listAdminWaitlistGroups } from "./schedule/admin-waitlist-groups.js";
 export { listClientReminders } from "./reminders/reminder-callables.js";
 export { listRetentionAlerts } from "./retention/retention-alert-callables.js";
 export {

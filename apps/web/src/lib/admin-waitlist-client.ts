@@ -25,6 +25,7 @@ export type AdminWaitlistItem = ClientWaitlistItem &
 
 const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const loadError = "Unable to load this class waitlist. Please try again.";
+const groupsError = "Unable to load class waitlists. Please try again.";
 const mutationError = "Unable to offer the next place. Please try again.";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -125,6 +126,66 @@ function parseEntryResponse(value: unknown): AdminWaitlistItem {
   }
 }
 
+export type AdminWaitlistGroup = Readonly<{
+  groupId: string;
+  title: string;
+  location: string;
+  count: number;
+  sessions: readonly Readonly<{
+    sessionId: string;
+    startAt: string;
+    entries: readonly AdminWaitlistItem[];
+  }>[];
+}>;
+
+const groupIdPattern = /^(?:session:)?[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
+
+function isText(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= 200;
+}
+
+function parseGroupSession(value: unknown): AdminWaitlistGroup["sessions"][number] {
+  if (
+    !isRecord(value) ||
+    !hasExactFields(value, ["sessionId", "startAt", "entries"]) ||
+    !isIdentifier(value.sessionId) ||
+    typeof value.startAt !== "string" ||
+    Number.isNaN(Date.parse(value.startAt)) ||
+    !Array.isArray(value.entries)
+  ) {
+    throw new Error(groupsError);
+  }
+  return Object.freeze({
+    sessionId: value.sessionId,
+    startAt: value.startAt,
+    entries: Object.freeze(value.entries.map(parseAdminWaitlistItem)),
+  });
+}
+
+function parseGroup(value: unknown): AdminWaitlistGroup {
+  if (
+    !isRecord(value) ||
+    !hasExactFields(value, ["groupId", "title", "location", "count", "sessions"]) ||
+    typeof value.groupId !== "string" ||
+    !groupIdPattern.test(value.groupId) ||
+    !isText(value.title) ||
+    !isText(value.location) ||
+    !Number.isSafeInteger(value.count) ||
+    (value.count as number) < 0 ||
+    !Array.isArray(value.sessions) ||
+    value.sessions.length === 0
+  ) {
+    throw new Error(groupsError);
+  }
+  return Object.freeze({
+    groupId: value.groupId,
+    title: value.title,
+    location: value.location,
+    count: value.count as number,
+    sessions: Object.freeze(value.sessions.map(parseGroupSession)),
+  });
+}
+
 function errorCode(error: unknown): string | undefined {
   if (typeof error !== "object" || error === null) return undefined;
   try {
@@ -181,5 +242,22 @@ export async function issueNextAdminWaitlistOffer(
     return parseEntryResponse(result.data);
   } catch (error) {
     throw new Error(safeMutationMessage(error));
+  }
+}
+
+export async function listAdminWaitlistGroups(): Promise<readonly AdminWaitlistGroup[]> {
+  try {
+    const callable = httpsCallable<Record<string, never>, unknown>(
+      getFirebaseFunctions(),
+      "listAdminWaitlistGroups",
+    );
+    const result = await callable({});
+    const data: unknown = result.data;
+    if (!isRecord(data) || !hasExactFields(data, ["groups"]) || !Array.isArray(data.groups)) {
+      throw new Error(groupsError);
+    }
+    return Object.freeze(data.groups.map(parseGroup));
+  } catch {
+    throw new Error(groupsError);
   }
 }
