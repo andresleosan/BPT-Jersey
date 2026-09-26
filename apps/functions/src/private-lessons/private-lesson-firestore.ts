@@ -104,7 +104,12 @@ export function createFirestorePrivateLessonStore(
         return update(port);
       }),
     async listByStatus(status) {
-      const snapshot = await purchases.where("status", "==", status).limit(maxPurchaseRows).get();
+      // Newest first before the cap, so the office always sees the latest requests.
+      const snapshot = await purchases
+        .where("status", "==", status)
+        .orderBy("submittedAt", "desc")
+        .limit(maxPurchaseRows)
+        .get();
       return toPurchases(snapshot.docs);
     },
     async listForStudent(studentId) {
