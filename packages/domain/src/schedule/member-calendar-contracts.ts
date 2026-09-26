@@ -20,7 +20,8 @@ export const calendarTimeZone = "Europe/Jersey";
 export const calendarMaxOffsetDays = 14;
 export const calendarCutoffMinutes = 60;
 
-export type CalendarViewport = "phone" | "desktop";
+/** "day" shows one day and steps by days; "week" shows Monday to Saturday (or Sunday) by weeks. */
+export type CalendarMode = "day" | "week";
 
 export type CalendarDay = Readonly<{
   dateKey: string; // YYYY-MM-DD in Jersey
@@ -145,12 +146,12 @@ function mondayOfWeek(anchor: Date): Date {
   return new Date(anchor.getTime() - (index - 1) * dayMs);
 }
 
-/** Monday the desktop view starts from at offset 0: this week's, or next week's on a Sunday. */
+/** Monday the week view starts from at offset 0: this week's, or next week's on a Sunday. */
 function baseMonday(today: Date): Date {
   return isSunday(today) ? new Date(today.getTime() + dayMs) : mondayOfWeek(today);
 }
 
-function desktopMaxOffset(now: Date): number {
+function weekMaxOffset(now: Date): number {
   const today = todayAnchor(now);
   const monday = baseMonday(today);
   const cap = today.getTime() + calendarMaxOffsetDays * dayMs;
@@ -159,30 +160,26 @@ function desktopMaxOffset(now: Date): number {
   return offset;
 }
 
-export function clampOffset(viewport: CalendarViewport, offset: number, now: Date): number {
-  const max = viewport === "phone" ? calendarMaxOffsetDays : desktopMaxOffset(now);
+export function clampOffset(mode: CalendarMode, offset: number, now: Date): number {
+  const max = mode === "day" ? calendarMaxOffsetDays : weekMaxOffset(now);
   if (!Number.isFinite(offset) || offset < 0) return 0;
   return Math.min(Math.trunc(offset), max);
 }
 
 export function visibleDays(input: {
   now: Date;
-  viewport: CalendarViewport;
+  mode: CalendarMode;
   offset: number;
   includeSunday?: boolean;
 }): readonly CalendarDay[] {
   const todayKey = dateKeyInJersey(input.now);
   const today = todayAnchor(input.now);
-  const offset = clampOffset(input.viewport, input.offset, input.now);
+  const offset = clampOffset(input.mode, input.offset, input.now);
 
-  if (input.viewport === "phone") {
-    const days: CalendarDay[] = [];
+  if (input.mode === "day") {
     let cursor = new Date(today.getTime() + offset * dayMs);
-    while (days.length < 2) {
-      if (input.includeSunday || !isSunday(cursor)) days.push(dayFromAnchor(cursor, todayKey));
-      cursor = new Date(cursor.getTime() + dayMs);
-    }
-    return Object.freeze(days);
+    if (!input.includeSunday && isSunday(cursor)) cursor = new Date(cursor.getTime() + dayMs);
+    return Object.freeze([dayFromAnchor(cursor, todayKey)]);
   }
 
   const monday = new Date((input.includeSunday ? mondayOfWeek(today) : baseMonday(today)).getTime() + offset * 7 * dayMs);
@@ -193,10 +190,10 @@ export function visibleDays(input: {
   );
 }
 
-export function nextOffset(viewport: CalendarViewport, offset: number, now: Date, includeSunday = false): number | null {
-  if (viewport === "desktop") {
+export function nextOffset(mode: CalendarMode, offset: number, now: Date, includeSunday = false): number | null {
+  if (mode === "week") {
     const next = offset + 1;
-    return next <= desktopMaxOffset(now) ? next : null;
+    return next <= weekMaxOffset(now) ? next : null;
   }
   const today = todayAnchor(now);
   let next = offset + 1;
@@ -204,9 +201,9 @@ export function nextOffset(viewport: CalendarViewport, offset: number, now: Date
   return next <= calendarMaxOffsetDays ? next : null;
 }
 
-export function prevOffset(viewport: CalendarViewport, offset: number, now: Date, includeSunday = false): number | null {
+export function prevOffset(mode: CalendarMode, offset: number, now: Date, includeSunday = false): number | null {
   if (offset <= 0) return null;
-  if (viewport === "desktop") return offset - 1;
+  if (mode === "week") return offset - 1;
   const today = todayAnchor(now);
   let prev = offset - 1;
   if (!includeSunday && isSunday(new Date(today.getTime() + prev * dayMs))) prev -= 1;
