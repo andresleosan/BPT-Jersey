@@ -244,15 +244,13 @@ button:focus-visible {
   padding-bottom: 0;
 }
 
-.location-list address,
-.contact-details {
+.location-list address {
   display: grid;
   font-style: normal;
   gap: 0.35rem;
 }
 
-.location-list address strong,
-.contact-details strong {
+.location-list address strong {
   font-family: var(--font-display), Impact, sans-serif;
   font-size: clamp(1.6rem, 2.6vw, 2.2rem);
   line-height: 1;
@@ -264,8 +262,7 @@ button:focus-visible {
   margin-bottom: 0.15rem;
 }
 
-.location-list address span,
-.contact-details span {
+.location-list address span {
   color: var(--muted);
   display: block;
 }
@@ -733,23 +730,8 @@ button:focus-visible {
   color: var(--gi-white);
 }
 
-.contact-section .section-heading > p,
-.contact-details span {
+.contact-section .section-heading > p {
   color: #e8e7e3;
-}
-
-.contact-locations {
-  display: grid;
-  gap: 2rem;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.contact-details {
-  border-top: 1px solid var(--line);
-  gap: 0.5rem;
-  padding-top: 1rem;
 }
 
 .site-footer {
@@ -810,12 +792,7 @@ button:focus-visible {
 
   .contact-section {
     grid-template-columns: 1fr;
-  }
-
-  .contact-locations {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
+  }}
 
 @media (max-width: 38rem) {
   .site-header {
@@ -984,10 +961,6 @@ button:focus-visible {
   }
 
   .instructor-list {
-    grid-template-columns: 1fr;
-  }
-
-  .contact-locations {
     grid-template-columns: 1fr;
   }
 
