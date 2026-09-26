@@ -19,6 +19,8 @@ const now = "2026-09-26T10:00:00.000Z";
 const member: PrivateLessonActor = { academyId, userId: "member-uid", role: "adultStudent" };
 const office: PrivateLessonActor = { academyId, userId: "office-uid", role: "administrator" };
 const requestId = "8b0d6f5e-4c1a-4f7e-9a51-7c0f2b9d3e11";
+const officeRequestId = "3f2a9c7d-1b4e-4d6a-8c0f-5e7b9a1d2c34";
+const officeRecord = { studentId: "student-1", requestId: officeRequestId } as const;
 
 function createStore(
   options: { students?: PrivateLessonStudent[]; links?: [string, string][] } = {},
@@ -31,7 +33,6 @@ function createStore(
   const audits: AuditEventDraft[] = [];
   const proofs: string[] = [];
   const proofUrls: { userId: string; requestId: string; proofId: string }[] = [];
-  let ids = 0;
   const canAccess = async (userId: string, studentId: string) =>
     links.has(`${userId}:${studentId}`);
   const store: PrivateLessonStore = {
@@ -64,7 +65,6 @@ function createStore(
     verifyProof: async (input) => {
       proofs.push(input.proofId);
     },
-    newId: () => `generated-${++ids}`,
     proofUrl: async (input) => {
       proofUrls.push(input);
       return { url: "https://r2.example/signed", expiresAt: now };
@@ -282,7 +282,7 @@ describe("recordPrivateLessonPurchase", () => {
     const result = await recordPrivateLessonPurchase(
       fake.store,
       office,
-      { studentId: "student-1", optionId: "single", method: "cash", reference: null },
+      { ...officeRecord, optionId: "single", method: "cash", reference: null },
       now,
     );
     expect(result).toMatchObject({
@@ -298,13 +298,52 @@ describe("recordPrivateLessonPurchase", () => {
     expect(fake.audits).toHaveLength(1);
   });
 
+  it("uses the request id as the purchase id and returns the same purchase on a replay", async () => {
+    const fake = createStore({ students: [student()] });
+    const input = { ...officeRecord, optionId: "single", method: "cash", reference: null };
+    const first = await recordPrivateLessonPurchase(fake.store, office, input, now);
+    const replay = await recordPrivateLessonPurchase(fake.store, office, input, now);
+
+    expect(first.purchaseId).toBe(`private-lesson-${officeRequestId}`);
+    expect(replay).toEqual(first);
+    expect(fake.purchases.size).toBe(1);
+    expect(fake.payments).toHaveLength(1);
+    expect(fake.audits).toHaveLength(1);
+  });
+
+  it("refuses a request id already used for another purchase", async () => {
+    const fake = createStore({ students: [student()], links: [["member-uid", "student-1"]] });
+    const memberPurchase = await submitPrivateLessonPurchase(fake.store, member, submission(), now);
+    await expect(
+      recordPrivateLessonPurchase(
+        fake.store,
+        office,
+        { ...officeRecord, requestId, optionId: "single", method: "cash", reference: null },
+        now,
+      ),
+    ).rejects.toMatchObject({ code: "already-exists" });
+    expect(fake.purchases.get(memberPurchase.purchaseId)).toEqual(memberPurchase);
+  });
+
+  it("requires a request id", async () => {
+    const fake = createStore({ students: [student()] });
+    await expect(
+      recordPrivateLessonPurchase(
+        fake.store,
+        office,
+        { studentId: "student-1", optionId: "single", method: "cash", reference: null },
+        now,
+      ),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
+  });
+
   it("refuses members under 16 from the office too", async () => {
     const fake = createStore({ students: [student({ dateOfBirth: yearsBefore(now, 15) })] });
     await expect(
       recordPrivateLessonPurchase(
         fake.store,
         office,
-        { studentId: "student-1", optionId: "single", method: "cash", reference: null },
+        { ...officeRecord, optionId: "single", method: "cash", reference: null },
         now,
       ),
     ).rejects.toThrow("Private lessons are for members aged 16 or over.");
@@ -319,7 +358,7 @@ describe("office-only operations", () => {
       recordPrivateLessonPurchase(
         fake.store,
         coach,
-        { studentId: "student-1", optionId: "single", method: "cash", reference: null },
+        { ...officeRecord, optionId: "single", method: "cash", reference: null },
         now,
       ),
     ).rejects.toMatchObject({ code: "permission-denied" });
@@ -370,7 +409,7 @@ describe("getPrivateLessonProofUrl", () => {
     const recorded = await recordPrivateLessonPurchase(
       fake.store,
       office,
-      { studentId: "student-1", optionId: "single", method: "cash", reference: null },
+      { ...officeRecord, optionId: "single", method: "cash", reference: null },
       now,
     );
     await expect(

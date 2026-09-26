@@ -58,7 +58,6 @@ export type PrivateLessonStore = Readonly<{
   verifyProof: (
     input: Readonly<{ userId: string; requestId: string; proofId: string }>,
   ) => Promise<void>;
-  newId: () => string;
   /** Short-lived signed URL for the member's uploaded transfer proof. */
   proofUrl: (
     input: Readonly<{ userId: string; requestId: string; proofId: string }>,
@@ -370,8 +369,13 @@ export async function recordPrivateLessonPurchase(
     raw,
     "Invalid private lesson purchase",
   );
-  const purchaseId = `private-lesson-${store.newId()}`;
+  const purchaseId = `private-lesson-${input.requestId}`;
   return store.runTransaction(async (tx) => {
+    const existing = await tx.readPurchase(purchaseId);
+    if (existing) {
+      if (existing.source === "office" && existing.studentId === input.studentId) return existing;
+      throw new HttpsError("already-exists", "This private lesson request was already used.");
+    }
     const student = assertEligibleStudent(await tx.readStudent(input.studentId), now);
     const purchases = await tx.readStudentPurchases(input.studentId);
     const pending = newPurchase({

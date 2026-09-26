@@ -129,6 +129,8 @@ export type ReviewPrivateLessonPurchaseInput = z.infer<
 >;
 export const recordPrivateLessonPurchaseInputSchema = z.strictObject({
   studentId: id,
+  /** One per office form submission, so a retried save never records the purchase twice. */
+  requestId: z.uuid(),
   optionId,
   method,
   reference: reference.nullable(),
