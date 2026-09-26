@@ -2,7 +2,7 @@
   background: var(--canvas);
   display: grid;
   grid-template-columns: minmax(15rem, 18rem) minmax(0, 1fr);
-  min-height: 100vh;
+  min-height: 100dvh;
   overflow-x: clip;
 }
 
@@ -703,7 +703,7 @@ a.admin-birthday-badge:focus-visible,
   isolation: isolate;
   margin: 0 auto;
   max-width: 42rem;
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: clamp(3rem, 10vw, 8rem) clamp(1.25rem, 4vw, 4.5rem);
   position: relative;
 }
@@ -792,7 +792,7 @@ a.admin-birthday-badge:focus-visible,
 }
 
 .admin-auth-loading {
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .admin-sidebar {
@@ -1043,6 +1043,7 @@ a.admin-birthday-badge:focus-visible,
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.04em;
+  min-height: 2.75rem;
   padding: 0.65rem 0.8rem;
   text-transform: uppercase;
 }
@@ -1624,7 +1625,14 @@ a.admin-birthday-badge:focus-visible,
   }
 }
 
-@media (max-width: 48rem) {
+/* Tablets keep the sidebar, so the header actions drop below the title instead of squeezing it. */
+@media (min-width: 48rem) and (max-width: 63.99rem) {
+  .admin-header {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 47.99rem) {
   .admin-shell {
     display: block;
   }
@@ -1638,7 +1646,8 @@ a.admin-birthday-badge:focus-visible,
     flex-direction: row;
     flex-wrap: wrap;
     min-height: 4.5rem;
-    padding: 0.85rem 1rem;
+    padding: max(0.85rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) 0.85rem
+      max(1rem, env(safe-area-inset-left));
   }
 
   .admin-header-title {
@@ -1682,9 +1691,10 @@ a.admin-birthday-badge:focus-visible,
     color: var(--gi-white);
     display: block;
     left: 0;
-    max-height: calc(100vh - 4.5rem);
+    max-height: calc(100dvh - 4.5rem);
     overflow-y: auto;
-    padding: 1rem;
+    padding: 1rem max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
+      max(1rem, env(safe-area-inset-left));
     position: fixed;
     right: 0;
     top: 4.5rem;
@@ -1809,7 +1819,7 @@ a.admin-birthday-badge:focus-visible,
   }
 }
 
-@media (max-width: 48rem) {
+@media (max-width: 47.99rem) {
   .regyfit-table-wrap {
     overflow: visible;
   }
@@ -3924,7 +3934,7 @@ a.admin-birthday-badge:focus-visible,
   min-height: 2.75rem;
 }
 
-@media (max-width: 50rem) {
+@media (max-width: 47.99rem) {
   .member-migration .admin-data-table thead {
     display: none;
   }
@@ -4150,7 +4160,7 @@ a.admin-birthday-badge:focus-visible,
   gap: 0.5rem;
 }
 
-@media (max-width: 50rem) {
+@media (max-width: 47.99rem) {
   .member-record-form fieldset {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -4796,7 +4806,7 @@ a.admin-birthday-badge:focus-visible,
   color: var(--gi-white);
 }
 
-@media (max-width: 50rem) {
+@media (max-width: 47.99rem) {
   .ibjjf-progress {
     grid-template-columns: minmax(0, 1fr) auto;
   }

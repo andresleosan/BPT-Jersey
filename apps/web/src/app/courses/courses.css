@@ -1,6 +1,6 @@
 .course-page {
   width: min(100%, var(--content-width));
-  min-height: 100vh;
+  min-height: 100dvh;
   margin: 0 auto;
   padding: clamp(1.25rem, 4vw, 4.5rem);
   color: var(--mat-ink);
@@ -803,7 +803,7 @@
   }
 }
 
-@media (max-width: 50rem) {
+@media (max-width: 47.99rem) {
   .course-section-heading,
   .course-row,
   .course-row article,
@@ -1205,13 +1205,13 @@
   opacity: 1;
 }
 
-@media (min-width: 50rem) {
+@media (min-width: 48rem) {
   .course-button {
     white-space: nowrap;
   }
 }
 
-@media (max-width: 50rem) {
+@media (max-width: 47.99rem) {
   .course-queue-heading {
     align-items: stretch;
   }
@@ -1262,7 +1262,7 @@
   font-weight: 600;
   margin: 1rem 0 1.5rem;
 }
-@media (max-width: 50rem) {
+@media (max-width: 47.99rem) {
   .course-weekly-slot-fields { grid-template-columns: minmax(0, 1fr); }
   .course-weekly-slot-fields .course-link { justify-self: start; }
 }

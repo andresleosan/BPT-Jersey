@@ -7,6 +7,7 @@ import { CourseCatalogue } from "./courses/course-catalogue";
 import { CoursePromotionBar } from "./courses/course-promotion-bar";
 
 import { PlanPriceList } from "./plan-price-list";
+import { PrimaryNavigation } from "./primary-navigation";
 
 export const metadata: Metadata = {
   alternates: { canonical: "/" },
@@ -42,18 +43,7 @@ export default function HomePage() {
           <span>Jersey</span>
         </a>
 
-        <nav className="primary-nav" aria-label="Primary navigation">
-          <a href="#top">Home</a>
-          <a href="#classes">Classes</a>
-          <a href="#programmes">Programmes</a>
-          <a href="/courses">Courses</a>
-          <a href="#shop">Shop</a>
-          <a href="#locations">Locations</a>
-          <a href="#contact">Contact</a>
-          <a className="nav-cta" href="/login">
-            Sign in
-          </a>
-        </nav>
+        <PrimaryNavigation />
       </header>
 
       <main id="main-content" tabIndex={-1}>
