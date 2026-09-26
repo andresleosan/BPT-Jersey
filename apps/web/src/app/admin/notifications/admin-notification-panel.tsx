@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type {
   AdminInboxPage,
   AdminInboxQuery,
   AdminNotification,
+  AdminNotificationKind,
   SubscriptionEdit,
 } from "@bpt-jersey/domain/memberships/admin";
 import {
@@ -17,8 +18,60 @@ import {
 import { MemberSubscriptionAction } from "../members/member-subscription-editor";
 import "./admin-notifications.css";
 
+type ReadState = AdminInboxQuery["readState"];
+type Filters = {
+  kind: AdminNotificationKind | null;
+  readState: ReadState;
+  from: string;
+  to: string;
+};
+
+const kindLabels: Record<AdminNotificationKind, string> = {
+  "subscription-expiring": "Subscription ending",
+  membership: "Membership",
+  registration: "Registration",
+  payment: "Payment",
+  class: "Class",
+};
+const noFilters: Filters = { kind: null, readState: "all", from: "", to: "" };
+const mobileQuery = "(max-width: 47.99rem)";
+
+function subscribeMobile(callback: () => void): () => void {
+  const media = window.matchMedia?.(mobileQuery);
+  media?.addEventListener("change", callback);
+  return () => media?.removeEventListener("change", callback);
+}
+function useMobileLayout(): boolean {
+  return useSyncExternalStore(
+    subscribeMobile,
+    () => window.matchMedia?.(mobileQuery).matches ?? false,
+    () => false,
+  );
+}
+function localDate(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+function toQuery(filters: Filters): AdminInboxQuery {
+  return {
+    kind: filters.kind,
+    readState: filters.readState,
+    from: filters.from ? new Date(`${filters.from}T00:00:00`).toISOString() : null,
+    to: filters.to ? new Date(`${filters.to}T23:59:59.999`).toISOString() : null,
+    cursor: null,
+  };
+}
+function activeCount(filters: Filters): number {
+  return [filters.kind !== null, filters.readState !== "all", filters.from, filters.to].filter(
+    Boolean,
+  ).length;
+}
+
 export function AdminNotificationPanel({ role }: { role?: string | null | undefined } = {}) {
-  const [filter, setFilter] = useState<"all" | "unread">("all");
+  const [filters, setFilters] = useState<Filters>(noFilters);
+  const [rangeError, setRangeError] = useState("");
+  const mobile = useMobileLayout();
   const [page, setPage] = useState<AdminInboxPage | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -29,7 +82,7 @@ export function AdminNotificationPanel({ role }: { role?: string | null | undefi
   const pending = useRef(new Map<string, SubscriptionEdit>());
   const actionLock = useRef(false);
   const mounted = useRef(false);
-  const query = useRef<AdminInboxQuery>({ filter: "all", cursor: null });
+  const query = useRef<AdminInboxQuery>(toQuery(noFilters));
 
   const load = useCallback(async (input: AdminInboxQuery) => {
     const sequence = ++requestSequence.current;
@@ -132,6 +185,163 @@ export function AdminNotificationPanel({ role }: { role?: string | null | undefi
     setPage(null);
     void load(input);
   }
+  function applyFilters(next: Filters) {
+    setFilters(next);
+    if (next.from && next.to && next.from > next.to) {
+      setRangeError("From must be on or before To.");
+      return;
+    }
+    setRangeError("");
+    changeQuery(toQuery(next));
+  }
+  function lastDays(days: number) {
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (days - 1));
+    applyFilters({ ...filters, from: localDate(start), to: localDate(today) });
+  }
+  const latest = () => changeQuery({ ...query.current, cursor: null });
+
+  const filterFields = (
+    <div className="admin-notification-filters">
+      <label>
+        <span>Type</span>
+        <select
+          value={filters.kind ?? ""}
+          disabled={busy !== null}
+          onChange={(event) => {
+            const value = event.target.value;
+            applyFilters({
+              ...filters,
+              kind: value in kindLabels ? (value as AdminNotificationKind) : null,
+            });
+          }}
+        >
+          <option value="">All types</option>
+          {Object.entries(kindLabels).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        <span>Status</span>
+        <select
+          value={filters.readState}
+          disabled={busy !== null}
+          onChange={(event) => {
+            const value = event.target.value;
+            applyFilters({
+              ...filters,
+              readState: value === "unread" || value === "read" ? value : "all",
+            });
+          }}
+        >
+          <option value="all">All</option>
+          <option value="unread">Unread</option>
+          <option value="read">Read</option>
+        </select>
+      </label>
+      <label>
+        <span>From</span>
+        <input
+          type="date"
+          value={filters.from}
+          disabled={busy !== null}
+          onChange={(event) => applyFilters({ ...filters, from: event.target.value })}
+        />
+      </label>
+      <label>
+        <span>To</span>
+        <input
+          type="date"
+          value={filters.to}
+          disabled={busy !== null}
+          onChange={(event) => applyFilters({ ...filters, to: event.target.value })}
+        />
+      </label>
+      <div className="admin-notification-shortcuts">
+        <button
+          className="admin-auth-button"
+          type="button"
+          disabled={busy !== null}
+          onClick={() => lastDays(7)}
+        >
+          Last 7 days
+        </button>
+        <button
+          className="admin-auth-button"
+          type="button"
+          disabled={busy !== null}
+          onClick={() => lastDays(30)}
+        >
+          Last 30 days
+        </button>
+      </div>
+    </div>
+  );
+
+  function actions(notice: AdminNotification) {
+    return (
+      <>
+        <div className="admin-notification-actions">
+          {notice.kind === "subscription-expiring" && !notice.resolvedAt ? (
+            <>
+              <button
+                className="admin-auth-button"
+                type="button"
+                disabled={busy !== null}
+                onClick={() => void act(notice, "extend")}
+              >
+                {busy === notice.notificationId ? "Updating…" : "Extend 1 month"}
+              </button>
+              <button
+                className="admin-auth-button"
+                type="button"
+                disabled={busy !== null}
+                onClick={() => void act(notice, "leave")}
+              >
+                Keep end date
+              </button>
+            </>
+          ) : null}
+          {notice.resolvedAt ? <span>Resolved</span> : null}
+          {!notice.readAt ? (
+            <button
+              className="admin-auth-button"
+              type="button"
+              disabled={busy !== null}
+              onClick={() => void act(notice, "read")}
+            >
+              Mark read
+            </button>
+          ) : null}
+          <Link className="admin-text-link" href={notice.href}>
+            View details
+          </Link>
+        </div>
+        {notice.studentId ? (
+          <MemberSubscriptionAction studentId={notice.studentId} role={role} />
+        ) : null}
+      </>
+    );
+  }
+  const statusText = (notice: AdminNotification) => (notice.readAt ? "Read" : "Unread");
+  const rowClass = (notice: AdminNotification) =>
+    notice.readAt ? undefined : "admin-notification-unread";
+  const receivedAt = (notice: AdminNotification) => (
+    <time dateTime={notice.createdAt}>{new Date(notice.createdAt).toLocaleString("en-GB")}</time>
+  );
+  const body = (notice: AdminNotification) => (
+    <>
+      <strong>{notice.title}</strong>
+      <p>{notice.message}</p>
+      {notice.endsAt ? <p>End date: {new Date(notice.endsAt).toLocaleString("en-GB")}</p> : null}
+    </>
+  );
+  const notices = page?.notifications ?? [];
+  const count = activeCount(filters);
+
   return (
     <section
       className="admin-panel-card admin-notifications"
@@ -148,100 +358,75 @@ export function AdminNotificationPanel({ role }: { role?: string | null | undefi
           className="admin-auth-button"
           type="button"
           disabled={loading || busy !== null}
-          onClick={() => changeQuery({ filter, cursor: null })}
+          onClick={latest}
         >
           Refresh
         </button>
       </div>
-      <div className="admin-filter-bar">
-        <label htmlFor="notification-filter">Show</label>
-        <select
-          id="notification-filter"
-          value={filter}
-          disabled={busy !== null}
-          onChange={(event) => {
-            const value = event.target.value === "unread" ? "unread" : "all";
-            setFilter(value);
-            changeQuery({ filter: value, cursor: null });
-          }}
-        >
-          <option value="all">All notifications</option>
-          <option value="unread">Unread</option>
-        </select>
-      </div>
+      {mobile ? (
+        <details className="admin-notification-filter-fold">
+          <summary>{`Filters · ${count} active`}</summary>
+          {filterFields}
+        </details>
+      ) : (
+        filterFields
+      )}
       <p className="admin-notification-help">
         Shared administrator inbox. Subscription reminders appear when there is one day left. Choose
         whether to extend each subscription.
       </p>
+      {rangeError ? <p role="alert">{rangeError}</p> : null}
       {loading ? <p role="status">Loading notifications…</p> : null}
       {error ? <p role="alert">{error}</p> : null}
       {message ? <p role="status">{message}</p> : null}
-      {page?.notifications.length === 0 ? (
-        <p>{filter === "unread" ? "No unread notifications." : "No notifications yet."}</p>
+      {page && notices.length === 0 ? (
+        <p>{count > 0 ? "No notifications match these filters." : "No notifications yet."}</p>
       ) : null}
-      <ol className="admin-notification-list">
-        {page?.notifications.map((notice) => (
-          <li
-            key={notice.notificationId}
-            className={notice.readAt ? "" : "admin-notification-unread"}
-          >
-            <div className="admin-notification-heading">
-              <strong>{notice.title}</strong>
-              <time dateTime={notice.createdAt}>
-                {new Date(notice.createdAt).toLocaleString("en-GB")}
-              </time>
-            </div>
-            <p>{notice.message}</p>
-            {notice.endsAt ? (
-              <p>End date: {new Date(notice.endsAt).toLocaleString("en-GB")}</p>
-            ) : null}
-            <div className="admin-notification-actions">
-              {notice.kind === "subscription-expiring" && !notice.resolvedAt ? (
-                <>
-                  <button
-                    className="admin-auth-button"
-                    type="button"
-                    disabled={busy !== null}
-                    onClick={() => void act(notice, "extend")}
-                  >
-                    {busy === notice.notificationId ? "Updating…" : "Extend 1 month"}
-                  </button>
-                  <button
-                    className="admin-auth-button"
-                    type="button"
-                    disabled={busy !== null}
-                    onClick={() => void act(notice, "leave")}
-                  >
-                    Keep end date
-                  </button>
-                </>
-              ) : null}
-              {notice.resolvedAt ? <span>Resolved</span> : null}
-              {!notice.readAt ? (
-                <button
-                  className="admin-auth-button"
-                  type="button"
-                  disabled={busy !== null}
-                  onClick={() => void act(notice, "read")}
-                >
-                  Mark read
-                </button>
-              ) : null}
-              <Link className="admin-text-link" href={notice.href}>
-                View details
-              </Link>
-            </div>
-            {notice.studentId ? <MemberSubscriptionAction studentId={notice.studentId} role={role} /> : null}
-          </li>
-        ))}
-      </ol>
+      {notices.length === 0 ? null : mobile ? (
+        <ol className="admin-notification-list" role="list" aria-label="Notifications">
+          {notices.map((notice) => (
+            <li key={notice.notificationId} className={rowClass(notice)}>
+              <div className="admin-notification-heading">
+                <span className="admin-notification-status">{statusText(notice)}</span>
+                <span>{kindLabels[notice.kind]}</span>
+                {receivedAt(notice)}
+              </div>
+              {body(notice)}
+              {actions(notice)}
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <table className="admin-notification-table" aria-label="Notifications">
+          <thead>
+            <tr>
+              <th scope="col">Status</th>
+              <th scope="col">Type</th>
+              <th scope="col">Notification</th>
+              <th scope="col">Received</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {notices.map((notice) => (
+              <tr key={notice.notificationId} className={rowClass(notice)}>
+                <td className="admin-notification-status">{statusText(notice)}</td>
+                <td>{kindLabels[notice.kind]}</td>
+                <td>{body(notice)}</td>
+                <td>{receivedAt(notice)}</td>
+                <td>{actions(notice)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
       <div className="admin-notification-actions">
         {olderPage ? (
           <button
             type="button"
             className="admin-auth-button"
             disabled={loading || busy !== null}
-            onClick={() => changeQuery({ filter, cursor: null })}
+            onClick={latest}
           >
             Latest notifications
           </button>
@@ -251,7 +436,7 @@ export function AdminNotificationPanel({ role }: { role?: string | null | undefi
             type="button"
             className="admin-auth-button"
             disabled={loading || busy !== null}
-            onClick={() => changeQuery({ filter, cursor: page.nextCursor })}
+            onClick={() => changeQuery({ ...query.current, cursor: page.nextCursor })}
           >
             Older notifications
           </button>
