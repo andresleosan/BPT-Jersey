@@ -199,23 +199,14 @@ button:focus-visible {
   position: relative;
 }
 
-.hero-copy,
-.hero-location {
-  transition:
-    opacity 200ms ease,
-    transform 200ms ease;
-}
-
 .hero-copy {
   align-self: center;
-  animation: hero-reveal 360ms ease-out both;
   position: relative;
   z-index: 1;
 }
 
 .hero-location {
   align-self: end;
-  animation: hero-reveal 360ms 80ms ease-out both;
   background: var(--gi-white);
   border: 1px solid var(--gi-white);
   border-top: 0.35rem solid var(--bpt-purple-dark);
@@ -231,7 +222,7 @@ button:focus-visible {
   font-family: var(--font-display), Impact, sans-serif;
   font-size: clamp(2rem, 3.4vw, 3rem);
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.035em;
   line-height: 0.9;
   margin: 0;
   text-transform: uppercase;
@@ -565,23 +556,21 @@ button:focus-visible {
 }
 
 .program-list {
+  border-top: 2px solid var(--mat-ink);
   display: grid;
   list-style: none;
   margin: 3rem 0 0;
   padding: 0;
 }
 
-.program-list.program-grid {
-  background: var(--line);
-  border: 1px solid var(--line);
-  gap: 1px;
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-}
-
 .program-card {
-  background: var(--gi-white);
+  align-items: baseline;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 0.75rem 2rem;
+  grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
   min-width: 0;
-  padding: 1.5rem 1.25rem 2rem;
+  padding: 1.5rem 0;
 }
 
 .program-card h3 {
@@ -593,7 +582,8 @@ button:focus-visible {
 }
 
 .program-card > p:last-child {
-  margin: 1rem 0 0;
+  margin: 0;
+  max-width: 36rem;
 }
 
 .plan-price-list {
@@ -698,12 +688,7 @@ button:focus-visible {
 .merch-image {
   height: 100%;
   object-fit: cover;
-  transition: transform 220ms ease;
   width: 100%;
-}
-
-.merch-card:hover .merch-image {
-  transform: scale(1.03);
 }
 
 .merch-card h3 {
@@ -732,16 +717,6 @@ button:focus-visible {
 .merch-section .button-secondary:hover {
   background: var(--gi-white);
   color: var(--mat-ink);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .merch-image {
-    transition: none;
-  }
-
-  .merch-card:hover .merch-image {
-    transform: none;
-  }
 }
 
 .contact-section {
@@ -811,18 +786,6 @@ button:focus-visible {
   color: var(--gi-white);
 }
 
-@keyframes hero-reveal {
-  from {
-    opacity: 0;
-    transform: translateY(0.75rem);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 @media (max-width: 56rem) {
   .primary-nav > a:not(.nav-cta) {
     display: none;
@@ -837,8 +800,8 @@ button:focus-visible {
     justify-self: start;
   }
 
-  .program-list.program-grid {
-    grid-template-columns: 1fr;
+  .program-card {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .merch-grid {
