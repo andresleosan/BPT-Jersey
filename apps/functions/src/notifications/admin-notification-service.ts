@@ -1,4 +1,9 @@
-import { FieldPath, type DocumentReference, type Firestore } from "firebase-admin/firestore";
+import {
+  FieldPath,
+  type DocumentReference,
+  type Firestore,
+  type Query,
+} from "firebase-admin/firestore";
 import { HttpsError } from "firebase-functions/v2/https";
 import {
   adminNotificationSchema,
@@ -89,35 +94,74 @@ export async function syncSubscriptionNotice(
   });
 }
 
+const pageSize = 30;
+const readScanPages = 10;
+
+function parseNotice(doc: { id: string; data: () => unknown }): AdminNotification {
+  const result = adminNotificationSchema.parse(doc.data());
+  if (result.notificationId !== doc.id)
+    throw new HttpsError("internal", "Notifications unavailable.");
+  return result;
+}
+
+const positionOf = (notice: AdminNotification) => ({
+  createdAt: notice.createdAt,
+  notificationId: notice.notificationId,
+});
+
 export async function getAdminInbox(
   db: Firestore,
   academyId: string,
   input: AdminInboxQuery,
 ): Promise<AdminInboxPage> {
   const collection = db.collection(`academies/${academyId}/adminNotifications`);
-  let query = (input.filter === "unread" ? collection.where("readAt", "==", null) : collection)
-    .orderBy("createdAt", "desc")
-    .orderBy(FieldPath.documentId(), "desc");
-  if (input.cursor) query = query.startAfter(input.cursor.createdAt, input.cursor.notificationId);
-  const [page, unread] = await Promise.all([
-    query.limit(31).get(),
-    collection.where("readAt", "==", null).count().get(),
-  ]);
-  const notifications = page.docs.slice(0, 30).map((doc) => {
-    const result = adminNotificationSchema.parse(doc.data());
-    if (result.notificationId !== doc.id)
-      throw new HttpsError("internal", "Notifications unavailable.");
-    return result;
-  });
-  const last = notifications.at(-1);
-  return {
-    notifications,
-    unreadCount: unread.data().count,
-    nextCursor:
-      page.size > 30 && last
-        ? { createdAt: last.createdAt, notificationId: last.notificationId }
-        : null,
-  };
+  let base: Query = collection;
+  if (input.kind) base = base.where("kind", "==", input.kind);
+  if (input.readState === "unread") base = base.where("readAt", "==", null);
+  // Stored timestamps are toISOString(); normalise so string ranges compare correctly.
+  if (input.from) base = base.where("createdAt", ">=", new Date(input.from).toISOString());
+  if (input.to) base = base.where("createdAt", "<=", new Date(input.to).toISOString());
+  base = base.orderBy("createdAt", "desc").orderBy(FieldPath.documentId(), "desc");
+  const unread = () => collection.where("readAt", "==", null).count().get();
+
+  if (input.readState !== "read") {
+    const query = input.cursor
+      ? base.startAfter(input.cursor.createdAt, input.cursor.notificationId)
+      : base;
+    const [page, count] = await Promise.all([query.limit(pageSize + 1).get(), unread()]);
+    const notifications = page.docs.slice(0, pageSize).map(parseNotice);
+    const last = notifications.at(-1);
+    return {
+      notifications,
+      unreadCount: count.data().count,
+      nextCursor: page.size > pageSize && last ? positionOf(last) : null,
+    };
+  }
+
+  // ponytail: bounded scan; add a readState field if read-filter gets slow
+  const notifications: AdminNotification[] = [];
+  let cursor = input.cursor;
+  let nextCursor: AdminInboxPage["nextCursor"] = null;
+  for (let scanned = 0; scanned < readScanPages; scanned += 1) {
+    const query = cursor ? base.startAfter(cursor.createdAt, cursor.notificationId) : base;
+    const page = await query.limit(pageSize + 1).get();
+    for (const doc of page.docs) {
+      const notice = parseNotice(doc);
+      if (notice.readAt === null) {
+        cursor = positionOf(notice);
+        continue;
+      }
+      if (notifications.length === pageSize) {
+        nextCursor = positionOf(notifications.at(-1)!);
+        break;
+      }
+      notifications.push(notice);
+      cursor = positionOf(notice);
+    }
+    if (nextCursor || page.size <= pageSize) break;
+    if (scanned === readScanPages - 1) nextCursor = cursor;
+  }
+  return { notifications, unreadCount: (await unread()).data().count, nextCursor };
 }
 
 export async function actOnAdminNotification(

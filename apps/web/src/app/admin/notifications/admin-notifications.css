@@ -1,6 +1,83 @@
 .admin-notifications {
   margin-block: 1.25rem;
 }
+.admin-notification-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  align-items: end;
+  gap: 0.75rem 1rem;
+  margin-block: 1rem;
+}
+.admin-notification-filters label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+.admin-notification-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.admin-notifications select,
+.admin-notifications input[type="date"] {
+  min-height: 3rem;
+  padding: 0.65rem;
+  border: 1px solid #8a8880;
+  border-radius: 0;
+  background: #fff;
+  color: #1a1a18;
+  font: inherit;
+}
+.admin-notifications select:focus-visible,
+.admin-notifications input:focus-visible,
+.admin-notification-filter-fold > summary:focus-visible {
+  outline: 3px solid #2f2483;
+  outline-offset: 2px;
+}
+.admin-notification-filter-fold {
+  margin-block: 1rem;
+  border-top: 1px solid #8a8880;
+  border-bottom: 1px solid #8a8880;
+}
+.admin-notification-filter-fold > summary {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  cursor: pointer;
+  font-weight: 700;
+}
+.admin-notification-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.admin-notification-table th {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid #8a8880;
+  color: #2f2483;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.admin-notification-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #d9d8d2;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+.admin-notification-table td:first-child {
+  border-left: 0.35rem solid transparent;
+}
+.admin-notification-table td p {
+  margin-block: 0.35rem 0;
+}
+.admin-notification-table time {
+  font-variant-numeric: tabular-nums;
+}
+.admin-notification-table .admin-notification-actions {
+  margin-block: 0;
+}
 .admin-notification-list {
   display: grid;
   gap: 0.75rem;
@@ -9,14 +86,20 @@
 }
 .admin-notification-list > li {
   padding: 1rem;
-  border: 1px solid #d8dce2;
-  border-left: 4px solid #d8dce2;
-  border-radius: 0.5rem;
+  border: 1px solid #d9d8d2;
+  border-left: 0.35rem solid #d9d8d2;
+  border-radius: 0;
   overflow-wrap: anywhere;
 }
-.admin-notification-list > .admin-notification-unread {
-  border-left-color: #a94b17;
-  background: #fffaf4;
+.admin-notification-list > .admin-notification-unread,
+.admin-notification-table .admin-notification-unread td:first-child {
+  border-left-color: #2f2483;
+}
+.admin-notification-status {
+  font-weight: 700;
+}
+.admin-notification-unread .admin-notification-status {
+  color: #2f2483;
 }
 .admin-notification-heading,
 .admin-notification-actions {
@@ -25,22 +108,20 @@
   flex-wrap: wrap;
   gap: 0.75rem;
 }
-.admin-notification-heading {
-  justify-content: space-between;
-}
 .admin-notification-heading time,
 .admin-notification-help {
-  color: #4d5865;
+  color: #65635d;
   font-size: 0.9rem;
 }
 .admin-notification-actions {
   margin-block: 0.75rem;
 }
-.admin-notifications select {
-  padding: 0.65rem;
-  border: 1px solid #8b949e;
-  border-radius: 0.4rem;
-  background: #fff;
-  color: #17202a;
-  font: inherit;
+.admin-notification-actions .admin-auth-button,
+.admin-notification-shortcuts .admin-auth-button,
+.admin-notification-actions .admin-text-link {
+  min-height: 2.75rem;
+}
+.admin-notification-actions .admin-text-link {
+  display: inline-flex;
+  align-items: center;
 }
