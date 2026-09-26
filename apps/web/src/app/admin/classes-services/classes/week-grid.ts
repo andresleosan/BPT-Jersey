@@ -6,6 +6,8 @@ export type GridSession = Readonly<{
   startAt: string;
   endAt: string;
   colour: string;
+  /** The class type's name, shown in text next to its colour rule. */
+  typeName?: string;
   booked: number | null;
   capacity: number | null;
   status: SessionStatus;
@@ -22,6 +24,11 @@ export type DayLayout = Readonly<{
   classes: number;
   registrations: number | null;
 }>;
+
+export type WeekLayout = Readonly<{ days: readonly DayLayout[]; hours: readonly number[] }>;
+export type RowBand =
+  | Readonly<{ kind: "rows"; startRow: number; endRow: number }>
+  | Readonly<{ kind: "gap"; startRow: number; endRow: number; label: string }>;
 
 const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
@@ -82,7 +89,7 @@ export function layoutWeek(
   weekStart: string,
   timezone: string,
   window: { fromHour: number; toHour: number },
-): { days: readonly DayLayout[]; hours: readonly number[] } {
+): WeekLayout {
   const rows = (window.toHour - window.fromHour) * 2;
   const hours = Array.from(
     { length: window.toHour - window.fromHour + 1 },
@@ -135,6 +142,66 @@ export function layoutWeek(
     });
   });
   return Object.freeze({ days: Object.freeze(days), hours: Object.freeze(hours) });
+}
+
+function hhmm(hour: number): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(Math.floor(hour))}:${pad(Math.round((hour % 1) * 60))}`;
+}
+
+/**
+ * Splits the half-hour rows into bands: whole hours with no class on any day of the layout fold
+ * into one labelled "gap" band; hours holding any part of a class stay as rows.
+ */
+export function compressEmptyRows(layout: WeekLayout): readonly RowBand[] {
+  const fromHour = layout.hours[0] ?? 0;
+  const rows = (layout.hours.length - 1) * 2;
+  const busy = new Array<boolean>(rows).fill(false);
+  for (const day of layout.days)
+    for (const session of day.sessions)
+      for (let row = session.rowStart; row < session.rowStart + session.rowSpan; row += 1)
+        busy[row] = true;
+  const bands: RowBand[] = [];
+  for (let start = 0; start < rows; start += 2) {
+    const end = Math.min(start + 2, rows);
+    const empty = busy.slice(start, end).every((value) => !value);
+    const last = bands.at(-1);
+    if (last && (last.kind === "gap") === empty) {
+      bands[bands.length - 1] = { ...last, endRow: end };
+    } else {
+      bands.push(
+        empty
+          ? { kind: "gap", startRow: start, endRow: end, label: "" }
+          : { kind: "rows", startRow: start, endRow: end },
+      );
+    }
+  }
+  return Object.freeze(
+    bands.map((band) =>
+      band.kind === "gap"
+        ? {
+            ...band,
+            label: `${hhmm(fromHour + band.startRow / 2)} – ${hhmm(fromHour + band.endRow / 2)} · no classes`,
+          }
+        : band,
+    ),
+  );
+}
+
+/** The band holding the now line (`top` as a 0–1 share of the rows) and its share of that band. */
+export function markerBand(
+  bands: readonly RowBand[],
+  top: number,
+): { band: number; share: number } | null {
+  const rows = bands.at(-1)?.endRow ?? 0;
+  const at = top * rows;
+  const band = bands.findIndex(
+    (candidate, index) =>
+      at >= candidate.startRow && (at < candidate.endRow || index === bands.length - 1),
+  );
+  if (band === -1) return null;
+  const { startRow, endRow } = bands[band]!;
+  return { band, share: (at - startRow) / (endRow - startRow) };
 }
 
 /**

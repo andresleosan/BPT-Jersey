@@ -4,12 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactElement } from "react";
 import type { LocationRecord } from "@bpt-jersey/domain/schedule";
 import { useCompactCalendar } from "./use-compact-calendar";
+import { safeTypeColour } from "./type-colour";
 import {
+  compressEmptyRows,
   countSessionDays,
   dayLabel,
   weekDays,
   layoutWeek,
   localParts,
+  markerBand,
   mondayOf,
   nowMarker,
 } from "./week-grid";
@@ -70,97 +73,107 @@ function useNow(): string {
   return now;
 }
 
+function occupancyLabel(session: GridSession): string {
+  return session.capacity === null
+    ? "Set capacity"
+    : `${session.booked ?? "—"} / ${session.capacity}`;
+}
+
 function EventButton({
   session,
+  firstRow,
   timezone,
   onOpen,
 }: {
   session: PlacedSession;
+  firstRow: number;
   timezone: string;
   onOpen: (sessionId: string) => void;
 }): ReactElement {
   const cancelled = session.status === "cancelled";
-  const style: CSSProperties = {
-    gridRow: `${session.rowStart + 1} / span ${session.rowSpan}`,
+  // Only a validated hex reaches the style attribute; anything else leaves the card without a rule.
+  const colour = cancelled ? null : safeTypeColour(session.colour);
+  const time = `${timeLabel(session.startAt, timezone)} – ${timeLabel(session.endAt, timezone)}`;
+  const occupancy = occupancyLabel(session);
+  const style = {
+    gridRow: `${session.rowStart - firstRow + 1} / span ${session.rowSpan}`,
     gridColumn: session.columns > 1 ? `${session.column + 1}` : "1 / -1",
-    ...(cancelled ? {} : { background: session.colour }),
-  };
+    ...(colour === null ? {} : { "--type-colour": colour }),
+  } as CSSProperties;
+  const name = [
+    session.title,
+    time,
+    session.capacity === null ? occupancy : `${occupancy} booked`,
+    session.typeName,
+    cancelled ? "Cancelled" : undefined,
+  ]
+    .filter((part) => part !== undefined && part !== "")
+    .join(", ");
   return (
     <button
       type="button"
-      className="cs-event"
+      className={colour === null ? "cs-event" : "cs-event cs-event-typed"}
       data-status={cancelled ? "cancelled" : undefined}
       style={style}
+      title={session.title}
+      aria-label={name}
       onClick={() => onOpen(session.sessionId)}
     >
       <span className="cs-event-title">{session.title}</span>
-      <span className="cs-event-time">
-        {timeLabel(session.startAt, timezone)} - {timeLabel(session.endAt, timezone)}
-      </span>
-      <span className="cs-event-chip">
-        {session.capacity === null
-          ? "Set capacity"
-          : `${session.booked ?? "—"} / ${session.capacity}`}
-      </span>
-      {/* `data-status` only paints; the state has to reach a screen reader as words too. */}
-      {cancelled ? <span className="visually-hidden">Cancelled</span> : null}
+      <span className="cs-event-time">{time}</span>
+      {session.typeName ? <span className="cs-event-type">{session.typeName}</span> : null}
+      <span className="cs-event-chip">{occupancy}</span>
     </button>
   );
 }
 
-function DayColumn({
+type BandRows = Readonly<{ startRow: number; endRow: number }>;
+
+function DayRows({
   date,
   label,
+  band,
+  fromHour,
   sessions,
-  classes,
-  registrations,
-  hours,
+  columns,
   timezone,
   canEdit,
   today,
-  nowTop,
+  nowShare,
   onOpen,
   onCreate,
 }: {
   date: string;
   label: string;
+  band: BandRows;
+  fromHour: number;
   sessions: readonly PlacedSession[];
-  classes: number;
-  registrations: number | null;
-  hours: readonly number[];
+  columns: number;
   timezone: string;
   canEdit: boolean;
   today: boolean;
-  nowTop: number | null;
+  nowShare: number | null;
   onOpen: (sessionId: string) => void;
   onCreate: (date: string, startTime: string) => void;
 }): ReactElement {
-  const columns = Math.max(1, ...sessions.map((session) => session.columns));
-  const halfHours = (hours.length - 1) * 2;
+  const rows = band.endRow - band.startRow;
   return (
     <div className="cs-day" data-today={today ? "true" : undefined}>
-      <div className="cs-day-header" aria-current={today ? "date" : undefined}>
-        <span>{label}</span>
-        <span className="cs-day-counts">
-          {classes} classes &middot; {registrations ?? "—"} registrations
-        </span>
-      </div>
       <div
         className="cs-day-grid"
         style={
           {
             display: "grid",
-            gridTemplateRows: `repeat(${halfHours}, 1.6rem)`,
+            gridTemplateRows: `repeat(${rows}, 1.6rem)`,
             gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
             // The now line is painted by the grid background (see `.cs-day-grid[style*="--now"]`).
-            ...(nowTop === null ? {} : { "--now": String(nowTop) }),
+            ...(nowShare === null ? {} : { "--now": String(nowShare) }),
           } as CSSProperties
         }
       >
-        {Array.from({ length: halfHours }, (_, row) => {
-          const hour = hours[0]! + row / 2;
-          const time = hhmm(hour);
-          const style: CSSProperties = { gridRow: `${row + 1} / span 1`, gridColumn: "1 / -1" };
+        {Array.from({ length: rows }, (_, index) => {
+          const time = hhmm(fromHour + (band.startRow + index) / 2);
+          const style: CSSProperties = { gridRow: `${index + 1} / span 1`, gridColumn: "1 / -1" };
           return canEdit ? (
             <button
               key={time}
@@ -175,14 +188,37 @@ function DayColumn({
             <span key={time} className="cs-slot" aria-hidden="true" style={style} />
           );
         })}
-        {sessions.map((session) => (
-          <EventButton
-            key={session.sessionId}
-            session={session}
-            timezone={timezone}
-            onOpen={onOpen}
-          />
-        ))}
+        {sessions
+          .filter((session) => session.rowStart >= band.startRow && session.rowStart < band.endRow)
+          .map((session) => (
+            <EventButton
+              key={session.sessionId}
+              session={session}
+              firstRow={band.startRow}
+              timezone={timezone}
+              onOpen={onOpen}
+            />
+          ))}
+      </div>
+    </div>
+  );
+}
+
+function HourLabels({ band, fromHour }: { band: BandRows; fromHour: number }): ReactElement {
+  const rows = band.endRow - band.startRow;
+  return (
+    <div className="cs-hours">
+      <div
+        className="cs-hours-labels"
+        style={{ display: "grid", gridTemplateRows: `repeat(${rows}, 1.6rem)` }}
+      >
+        {Array.from({ length: rows }, (_, index) => band.startRow + index)
+          .filter((row) => row % 2 === 0)
+          .map((row) => (
+            <span key={row} style={{ gridRow: `${row - band.startRow + 1} / span 2` }}>
+              {hhmm(fromHour + row / 2)}
+            </span>
+          ))}
       </div>
     </div>
   );
@@ -211,8 +247,24 @@ function WeekOrDay({
     () => layoutWeek(sessions, mondayOf(weekStart), timezone, window),
     [sessions, weekStart, timezone, window],
   );
-  const marker = nowMarker(useNow(), mondayOf(weekStart), timezone, window);
   const days = onlyDate ? layout.days.filter((d) => d.date === onlyDate) : layout.days;
+  const bands = useMemo(
+    () => compressEmptyRows({ days, hours: layout.hours }),
+    [days, layout.hours],
+  );
+  const [expanded, setExpanded] = useState<ReadonlySet<number>>(() => new Set());
+  const marker = nowMarker(useNow(), mondayOf(weekStart), timezone, window);
+  const now = marker?.top == null ? null : markerBand(bands, marker.top);
+  const fromHour = layout.hours[0] ?? window.fromHour;
+  const columnsOf = (day: (typeof days)[number]) =>
+    Math.max(1, ...day.sessions.map((session) => session.columns));
+  const toggle = (startRow: number) =>
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(startRow)) next.delete(startRow);
+      else next.add(startRow);
+      return next;
+    });
   return (
     <div
       className="cs-week"
@@ -220,34 +272,66 @@ function WeekOrDay({
         gridTemplateColumns: `3.5rem ${days.map((day) => `minmax(${Math.max(8, ...day.sessions.map((session) => session.columns * 5))}rem, 1fr)`).join(" ")}`,
       }}
     >
-      <div className="cs-hours">
-        <div className="cs-day-header" aria-hidden="true" />
-        <div
-          className="cs-hours-labels"
-          style={{ display: "grid", gridTemplateRows: `repeat(${layout.hours.length}, 3.2rem)` }}
-        >
-          {layout.hours.map((h) => (
-            <span key={h}>{pad(h)}:00</span>
-          ))}
-        </div>
-      </div>
-      {days.map((day) => (
-        <DayColumn
-          key={day.date}
-          date={day.date}
-          label={day.label}
-          sessions={day.sessions}
-          classes={day.classes}
-          registrations={day.registrations}
-          hours={layout.hours}
-          timezone={timezone}
-          canEdit={canEdit}
-          today={marker?.date === day.date}
-          nowTop={marker?.date === day.date ? marker.top : null}
-          onOpen={onOpen}
-          onCreate={onCreate}
-        />
-      ))}
+      <div className="cs-day-header" aria-hidden="true" />
+      {days.map((day) => {
+        const today = marker?.date === day.date;
+        return (
+          <div key={day.date} className="cs-day" data-today={today ? "true" : undefined}>
+            <div className="cs-day-header" aria-current={today ? "date" : undefined}>
+              <span>{day.label}</span>
+              <span className="cs-day-counts">
+                {day.classes} classes &middot; {day.registrations ?? "—"} registrations
+              </span>
+            </div>
+          </div>
+        );
+      })}
+      {bands.map((band, index) => {
+        const open = band.kind === "rows" || expanded.has(band.startRow);
+        const nowShare = now?.band === index ? now.share : null;
+        const toggleButton =
+          band.kind === "gap" ? (
+            <button
+              key={`gap-${band.startRow}`}
+              type="button"
+              className="cs-gap"
+              aria-expanded={open}
+              style={
+                {
+                  gridColumn: "1 / -1",
+                  ...(!open && nowShare !== null && marker?.date
+                    ? { "--now": String(nowShare) }
+                    : {}),
+                } as CSSProperties
+              }
+              onClick={() => toggle(band.startRow)}
+            >
+              {band.label}
+            </button>
+          ) : null;
+        if (!open) return toggleButton;
+        return [
+          toggleButton,
+          <HourLabels key={`hours-${band.startRow}`} band={band} fromHour={fromHour} />,
+          ...days.map((day) => (
+            <DayRows
+              key={`${day.date}-${band.startRow}`}
+              date={day.date}
+              label={day.label}
+              band={band}
+              fromHour={fromHour}
+              sessions={day.sessions}
+              columns={columnsOf(day)}
+              timezone={timezone}
+              canEdit={canEdit}
+              today={marker?.date === day.date}
+              nowShare={marker?.date === day.date ? nowShare : null}
+              onOpen={onOpen}
+              onCreate={onCreate}
+            />
+          )),
+        ];
+      })}
     </div>
   );
 }
@@ -481,6 +565,7 @@ export function CalendarView({
   const onlyDate: string | undefined = view === "day" ? weekStart : undefined;
   return (
     <WeekOrDay
+      key={`${mondayOf(weekStart)}-${onlyDate ?? "week"}`}
       weekStart={weekStart}
       sessions={sessions}
       timezone={timezone}
