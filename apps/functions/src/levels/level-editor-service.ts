@@ -465,12 +465,12 @@ export function createLevelEditorService({
         const next = (taken.length === 0 ? 0 : Math.max(...taken)) + 1;
         if (next > 999) throw new LevelEditorError("conflict", "Too many drafts today.");
         const systemId = `bpt-${day}-${next}`;
-        const definitions = source.definitions.map((document) => ({
+        const definitions: StoredData[] = source.definitions.map((document) => ({
           ...document.data(),
           systemId,
           academyId,
         }));
-        const requirements = source.requirements.map((document) => ({
+        const requirements: StoredData[] = source.requirements.map((document) => ({
           ...document.data(),
           systemId,
           academyId,
