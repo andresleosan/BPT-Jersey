@@ -309,7 +309,7 @@ function EnrolmentRequestQueueContent() {
   const [membershipRequestsLoaded, setMembershipRequestsLoaded] = useState(false);
   const membershipRequestsRef = useRef<HTMLElement>(null);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState("waiting");
 
   useEffect(() => {
     if (!office || membershipRequestsLoaded) return;
@@ -541,9 +541,11 @@ function EnrolmentRequestQueueContent() {
       ? state.requests.filter(
           (request) =>
             (filter === "all" ||
-              (filter === "action"
-                ? isReturnableEnrolmentRequest(request.status)
-                : request.status === filter)) &&
+              (filter === "waiting"
+                ? request.status === "submitted" || request.status === "approval-failed"
+                : filter === "action"
+                  ? isReturnableEnrolmentRequest(request.status)
+                  : request.status === filter)) &&
             `${request.applicantName} ${request.trainingCenter}`
               .toLowerCase()
               .includes(search.trim().toLowerCase()),
@@ -590,11 +592,13 @@ function EnrolmentRequestQueueContent() {
           <label className="shop-admin-field">
             Status
             <select value={filter} onChange={(event) => setFilter(event.target.value)}>
+              <option value="waiting">Waiting</option>
               <option value="all">All requests</option>
               <option value="action">Needs review</option>
               {Object.entries(statusLabels).map(([value, label]) => (
                 <option key={value} value={value}>
-                  {label}
+                  {/* "Waiting" above also includes stopped approvals; this one is submitted only. */}
+                  {value === "submitted" ? "Waiting only" : label}
                 </option>
               ))}
             </select>
@@ -669,7 +673,7 @@ function EnrolmentRequestQueueContent() {
               type="button"
               onClick={() => {
                 setSearch("");
-                setFilter("all");
+                setFilter("waiting");
               }}
             >
               Clear filters
@@ -817,7 +821,8 @@ function EnrolmentRequestQueueContent() {
                                   ? ageOnDate(dateOfBirth, new Date().toISOString().slice(0, 10))
                                   : 16;
                                 const kindKey = `${request.enrolmentRequestId}:${index}`;
-                                const trialKind = trialKinds[kindKey] ?? (age >= 16 ? "adults" : "kids");
+                                const trialKind =
+                                  trialKinds[kindKey] ?? (age >= 16 ? "adults" : "kids");
                                 // The applicant's own choice stays fixed; the office may still switch it to a trial.
                                 const plans =
                                   chosen && chosen !== trialPlanChoice
@@ -829,7 +834,11 @@ function EnrolmentRequestQueueContent() {
                                   <label className="shop-admin-field">
                                     Subscription plan
                                     <select
-                                      value={student.planId === trialPlanChoice ? `trial:${trialKind}` : student.planId}
+                                      value={
+                                        student.planId === trialPlanChoice
+                                          ? `trial:${trialKind}`
+                                          : student.planId
+                                      }
                                       onChange={(event) => {
                                         const value = event.target.value;
                                         if (value.startsWith("trial:")) {
@@ -846,7 +855,9 @@ function EnrolmentRequestQueueContent() {
                                           endsOn:
                                             PLAN_CATALOG.find((plan) => plan.planId === planId)
                                               ?.billingPeriod === "monthly"
-                                              ? addSubscriptionMonth(`${student.startsOn}T00:00:00.000Z`).slice(0, 10)
+                                              ? addSubscriptionMonth(
+                                                  `${student.startsOn}T00:00:00.000Z`,
+                                                ).slice(0, 10)
                                               : null,
                                         });
                                       }}
@@ -893,9 +904,9 @@ function EnrolmentRequestQueueContent() {
                               ) : null}
                               {student.planId === trialPlanChoice ? (
                                 <p>
-                                  Trial — no plan, dates or payment: 2 free classes for a beginner, 1 for
-                                  a declared belt, within 30 days. Adults book Introduction Classes only.
-                                  Confirm the initial level.
+                                  Trial — no plan, dates or payment: 2 free classes for a beginner,
+                                  1 for a declared belt, within 30 days. Adults book Introduction
+                                  Classes only. Confirm the initial level.
                                 </p>
                               ) : (
                                 <>
