@@ -1,5 +1,5 @@
 .waiver-page {
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: clamp(1.5rem, 4vw, 4rem);
   background: var(--canvas);
   color: #17152a;

@@ -139,7 +139,7 @@
   padding: 0 0.9rem;
 }
 
-@media (max-width: 50rem) {
+@media (max-width: 47.99rem) {
   .billing-dialog {
     max-width: none;
     min-height: 100%;

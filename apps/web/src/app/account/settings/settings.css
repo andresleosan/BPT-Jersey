@@ -333,7 +333,7 @@
   min-height: 3.15rem;
 }
 
-@media (max-width: 50rem) {
+@media (max-width: 47.99rem) {
   .settings-section .settings-actions .button {
     width: 100%;
   }
