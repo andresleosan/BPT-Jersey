@@ -468,23 +468,6 @@ export type {
 } from "./levels/achievement-contracts";
 
 export {
-  approveLessonPlan,
-  lessonActivityKinds,
-  lessonPlanStatuses,
-  parseLessonPlanRecord,
-  parseTechniqueLibraryVersion,
-} from "./levels/lesson-planning-contracts";
-export type {
-  ApproveLessonPlanInput,
-  LessonActivityKind,
-  LessonPlanActivity,
-  LessonPlanRecord,
-  LessonPlanStatus,
-  TechniqueDefinition,
-  TechniqueLibraryVersion,
-} from "./levels/lesson-planning-contracts";
-
-export {
   offlineAttendanceKinds,
   parseOfflineAttendanceEvent,
   reconcileOfflineAttendance,

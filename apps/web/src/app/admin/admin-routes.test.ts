@@ -49,9 +49,14 @@ describe("staff routes", () => {
 
   it("keeps the off-menu routes staff could already open", () => {
     expect(isStaffRouteAllowed("/admin/waitlists/x", "coach")).toBe(true);
-    expect(isStaffRouteAllowed("/admin/lesson-plans", "headCoach")).toBe(true);
     // The legacy /admin/classes page only redirects now, so the mat still has to be let in.
     expect(isStaffRouteAllowed("/admin/classes", "coach")).toBe(true);
+  });
+
+  it("has no lesson plans route for any staff role", () => {
+    for (const role of ["coach", "headCoach"] as const) {
+      expect(isStaffRouteAllowed("/admin/lesson-plans", role)).toBe(false);
+    }
   });
 
   it("opens the member record and name search to the mat, not the office directory (ADR-010, 2026-09-17)", () => {
