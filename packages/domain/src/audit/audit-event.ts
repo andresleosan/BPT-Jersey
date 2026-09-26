@@ -36,7 +36,6 @@ export const auditActions = Object.freeze([
   "retention.alerts.generated",
   "report.export.prepared",
   "family.achievements.generated",
-  "lesson.plan.approved",
   "membership.subscription.updated",
   "membership.created",
   "membership.status.changed",
@@ -403,13 +402,6 @@ export type AuditEventDraft = CommonAuditEventDraft &
         candidateCount: number;
         generatedAt: string;
       }>
-    | Readonly<{
-        action: "lesson.plan.approved";
-        planId: string;
-        libraryId: string;
-        libraryVersion: number;
-        approvedAt: string;
-      }>
   );
 
 const commonFields = Object.freeze([
@@ -593,14 +585,6 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
     "memberCount",
     "candidateCount",
     "generatedAt",
-  ]),
-
-  "lesson.plan.approved": Object.freeze([
-    ...commonFields,
-    "planId",
-    "libraryId",
-    "libraryVersion",
-    "approvedAt",
   ]),
 });
 const sha256Pattern = /^[a-f0-9]{64}$/u;
@@ -1112,36 +1096,6 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
         issues.push(issue([], "AUDIT_FAMILY_ACHIEVEMENT_SCOPE_INVALID"));
       }
     }
-    if (parsedAction === "lesson.plan.approved") {
-      const expectedTarget =
-        "academies/" +
-        (snapshot.academyId as string) +
-        "/lessonPlans/" +
-        (snapshot.planId as string);
-      const expectedCorrelation =
-        "lesson-plan:" +
-        (snapshot.academyId as string) +
-        ":" +
-        (snapshot.planId as string) +
-        ":" +
-        (snapshot.approvedAt as string);
-      if (
-        !isBoundedString(snapshot.planId, 128) ||
-        !safeAuditIdentifierPattern.test(snapshot.planId as string) ||
-        !isBoundedString(snapshot.libraryId, 128) ||
-        !safeAuditIdentifierPattern.test(snapshot.libraryId as string) ||
-        !Number.isSafeInteger(snapshot.libraryVersion) ||
-        (snapshot.libraryVersion as number) < 1 ||
-        snapshot.targetRef !== expectedTarget ||
-        snapshot.purpose !== "lesson plan approval" ||
-        snapshot.correlationId !== expectedCorrelation ||
-        !isBoundedString(snapshot.approvedAt, 64) ||
-        !dateTimePattern.test(snapshot.approvedAt as string) ||
-        Number.isNaN(Date.parse(snapshot.approvedAt as string))
-      ) {
-        issues.push(issue([], "AUDIT_LESSON_PLAN_SCOPE_INVALID"));
-      }
-    }
     if (parsedAction === "report.export.prepared") {
       if (snapshot.scope !== "operational_and_progress_aggregates") {
         issues.push(issue(["scope"], "AUDIT_EXPORT_SCOPE_INVALID"));
@@ -1364,18 +1318,6 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
           memberCount: snapshot.memberCount as number,
           candidateCount: snapshot.candidateCount as number,
           generatedAt: snapshot.generatedAt as string,
-        }),
-      );
-    }
-    if (parsedAction === "lesson.plan.approved") {
-      return ok(
-        Object.freeze({
-          ...base,
-          action: parsedAction,
-          planId: snapshot.planId as string,
-          libraryId: snapshot.libraryId as string,
-          libraryVersion: snapshot.libraryVersion as number,
-          approvedAt: snapshot.approvedAt as string,
         }),
       );
     }

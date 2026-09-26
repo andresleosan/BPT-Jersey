@@ -41,7 +41,6 @@ const offNavigationRoutes = [
   "/admin/waitlists",
   "/admin/crm",
   "/admin/retention",
-  "/admin/lesson-plans",
   "/admin/finance",
   "/admin/families",
   "/admin/activities",

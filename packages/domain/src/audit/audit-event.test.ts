@@ -15,18 +15,6 @@ const common = {
   correlationId: "correlation-1",
 } as const;
 
-const lessonPlanApproved = {
-  ...common,
-  action: "lesson.plan.approved",
-  actorId: "head-coach-1",
-  targetRef: "academies/academy-1/lessonPlans/plan-1",
-  purpose: "lesson plan approval",
-  correlationId: "lesson-plan:academy-1:plan-1:2026-08-31T11:00:00.000Z",
-  planId: "plan-1",
-  libraryId: "library-1",
-  libraryVersion: 1,
-  approvedAt: "2026-08-31T11:00:00.000Z",
-} as const;
 const memberImport = {
   ...common,
   action: "member.import.confirmed",
@@ -624,22 +612,6 @@ it("accepts staff lifecycle actions without payload or PII", () => {
   }
 });
 
-it("accepts exact lesson plan approval evidence and rejects unsafe variants", () => {
-  expect(parseAuditEventDraft(lessonPlanApproved)).toEqual({
-    ok: true,
-    value: lessonPlanApproved,
-  });
-
-  for (const candidate of [
-    { ...lessonPlanApproved, planId: "plan/unsafe" },
-    { ...lessonPlanApproved, libraryVersion: 0 },
-    { ...lessonPlanApproved, approvedAt: "tomorrow" },
-    { ...lessonPlanApproved, targetRef: "academies/academy-2/lessonPlans/plan-1" },
-    { ...lessonPlanApproved, email: "person@example.test" },
-  ]) {
-    expect(parseAuditEventDraft(candidate).ok).toBe(false);
-  }
-});
 it("accepts waiver and consent lifecycle actions without payload or PII", () => {
   for (const action of [
     "waiver.version.published",
