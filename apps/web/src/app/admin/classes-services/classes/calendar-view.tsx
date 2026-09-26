@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { CSSProperties, ReactElement } from "react";
 import type { LocationRecord } from "@bpt-jersey/domain/schedule";
 import { useCompactCalendar } from "./use-compact-calendar";
+import { DayView, useNow } from "./day-view";
 import { safeTypeColour } from "./type-colour";
 import {
   compressEmptyRows,
@@ -23,6 +24,8 @@ export type CalendarViewProps = Readonly<{
   loading?: boolean;
   selectedDate?: string | undefined;
   onSelectDate?: ((date: string) => void) | undefined;
+  /** Phone day range: the sticky header's previous/next day. */
+  onSelectDay?: ((date: string) => void) | undefined;
   locations?: readonly LocationRecord[];
   weekStart: string;
   sessions: readonly GridSession[];
@@ -37,6 +40,13 @@ export type CalendarViewProps = Readonly<{
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
+}
+
+/** Calendar arithmetic on a plain date, never an instant. */
+function addDays(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T00:00:00.000Z`) + days * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
 }
 
 function hhmm(hour: number): string {
@@ -62,16 +72,6 @@ const monthNames = [
   "November",
   "December",
 ];
-
-/** The current instant, refreshed every minute so the now line moves while the page is open. */
-function useNow(): string {
-  const [now, setNow] = useState(() => new Date().toISOString());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date().toISOString()), 60_000);
-    return () => clearInterval(timer);
-  }, []);
-  return now;
-}
 
 function occupancyLabel(session: GridSession): string {
   return session.capacity === null
@@ -224,7 +224,7 @@ function HourLabels({ band, fromHour }: { band: BandRows; fromHour: number }): R
   );
 }
 
-function WeekOrDay({
+function Week({
   weekStart,
   sessions,
   timezone,
@@ -232,7 +232,6 @@ function WeekOrDay({
   canEdit,
   onOpen,
   onCreate,
-  onlyDate,
 }: {
   weekStart: string;
   sessions: readonly GridSession[];
@@ -241,17 +240,13 @@ function WeekOrDay({
   canEdit: boolean;
   onOpen: (sessionId: string) => void;
   onCreate: (date: string, startTime: string) => void;
-  onlyDate: string | undefined;
 }): ReactElement {
   const layout = useMemo(
     () => layoutWeek(sessions, mondayOf(weekStart), timezone, window),
     [sessions, weekStart, timezone, window],
   );
-  const days = onlyDate ? layout.days.filter((d) => d.date === onlyDate) : layout.days;
-  const bands = useMemo(
-    () => compressEmptyRows({ days, hours: layout.hours }),
-    [days, layout.hours],
-  );
+  const days = layout.days;
+  const bands = useMemo(() => compressEmptyRows(layout), [layout]);
   const [expanded, setExpanded] = useState<ReadonlySet<number>>(() => new Set());
   const marker = nowMarker(useNow(), mondayOf(weekStart), timezone, window);
   const now = marker?.top == null ? null : markerBand(bands, marker.top);
@@ -339,6 +334,7 @@ function WeekOrDay({
 function DayAgenda({
   selectedDate,
   onSelectDate,
+  onSelectDay,
   weekStart,
   sessions,
   timezone,
@@ -367,18 +363,47 @@ function DayAgenda({
     return grouped;
   }, [sessions, timezone]);
   const own = byDate.get(date) ?? [];
+  const byHour = new Map<string, GridSession[]>();
+  for (const row of own) {
+    const hour = `${pad(Math.floor(localParts(row.startAt, timezone).hour))}:00`;
+    byHour.set(hour, [...(byHour.get(hour) ?? []), row]);
+  }
+  function choose(next: string): void {
+    setSelected(next);
+    onSelectDate?.(next);
+  }
+  // A day range steps the page itself; a week keeps the agenda inside the week on screen.
+  function stepDay(direction: 1 | -1): void {
+    const next = addDays(date, direction);
+    if (view === "day") onSelectDay?.(next);
+    else if (dates.includes(next)) choose(next);
+  }
+  const index = dates.indexOf(date);
   return (
     <div className="cs-agenda">
+      <div className="cs-agenda-header" aria-current={date === today ? "date" : undefined}>
+        <button
+          type="button"
+          className="cs-button"
+          disabled={view === "week" && index === 0}
+          onClick={() => stepDay(-1)}
+        >
+          Previous day
+        </button>
+        <h3>{dayLabel(date)}</h3>
+        <button
+          type="button"
+          className="cs-button"
+          disabled={view === "week" && index === dates.length - 1}
+          onClick={() => stepDay(1)}
+        >
+          Next day
+        </button>
+      </div>
       {view === "week" ? (
         <label className="cs-field">
           <span>Day to show</span>
-          <select
-            value={date}
-            onChange={(event) => {
-              setSelected(event.target.value);
-              onSelectDate?.(event.target.value);
-            }}
-          >
+          <select value={date} onChange={(event) => choose(event.target.value)}>
             {dates.map((day) => (
               <option key={day} value={day}>
                 {dayLabel(day)}
@@ -387,9 +412,7 @@ function DayAgenda({
             ))}
           </select>
         </label>
-      ) : (
-        <h3>{dayLabel(date)}</h3>
-      )}
+      ) : null}
       {canEdit ? (
         <button type="button" className="cs-button" onClick={() => onCreate(date, "17:00")}>
           Add a class
@@ -402,29 +425,39 @@ function DayAgenda({
           <div />
         </div>
       ) : null}
-      {own.map((row) => (
-        <button
-          key={row.sessionId}
-          type="button"
-          className="cs-event cs-agenda-event"
-          data-status={row.status === "cancelled" ? "cancelled" : undefined}
-          onClick={() => onOpen(row.sessionId)}
-        >
-          <span className="cs-event-time">
-            {timeLabel(row.startAt, timezone)} – {timeLabel(row.endAt, timezone)}
-          </span>
-          <span className="cs-event-title">{row.title}</span>
-          <span>
-            {locations.find((location) => location.locationId === row.locationId)?.name ??
-              "Location loading…"}
-          </span>
-          <span>
-            {row.capacity === null
-              ? "Set capacity"
-              : `${row.booked ?? "—"} / ${row.capacity} registered`}
-          </span>
-          {row.status === "cancelled" ? <span>Cancelled</span> : null}
-        </button>
+      {[...byHour].map(([hour, rows]) => (
+        <section key={hour} className="cs-agenda-hour" aria-label={hour}>
+          <h4>{hour}</h4>
+          {rows.map((row) => (
+            <button
+              key={row.sessionId}
+              type="button"
+              className="cs-event cs-agenda-event"
+              data-status={row.status === "cancelled" ? "cancelled" : undefined}
+              onClick={() => onOpen(row.sessionId)}
+            >
+              <span className="cs-event-time">
+                {timeLabel(row.startAt, timezone)} – {timeLabel(row.endAt, timezone)}
+              </span>
+              <span className="cs-event-title">{row.title}</span>
+              <span>
+                {row.locationName ??
+                  locations.find((location) => location.locationId === row.locationId)?.name ??
+                  "Location loading…"}
+                {row.coachNames && row.coachNames.length > 0
+                  ? ` · ${row.coachNames.join(", ")}`
+                  : ""}
+              </span>
+              <span className="cs-agenda-occupancy">
+                {row.capacity === null
+                  ? "Set capacity"
+                  : `${row.booked ?? "—"} / ${row.capacity} registered`}
+              </span>
+              {row.typeName ? <span>{row.typeName}</span> : null}
+              {row.status === "cancelled" ? <span>Cancelled</span> : null}
+            </button>
+          ))}
+        </section>
       ))}
       {!loading && own.length === 0 ? (
         <p className="cs-placeholder">No classes match this day and these filters.</p>
@@ -521,6 +554,7 @@ function MonthView({
 export function CalendarView({
   selectedDate,
   onSelectDate,
+  onSelectDay,
   loading = false,
   locations = [],
   view,
@@ -549,6 +583,7 @@ export function CalendarView({
       <DayAgenda
         selectedDate={selectedDate}
         onSelectDate={onSelectDate}
+        onSelectDay={onSelectDay}
         view={view}
         weekStart={weekStart}
         sessions={sessions}
@@ -562,10 +597,20 @@ export function CalendarView({
         locations={locations}
       />
     );
-  const onlyDate: string | undefined = view === "day" ? weekStart : undefined;
+  if (view === "day")
+    return (
+      <DayView
+        sessions={sessions}
+        date={weekStart}
+        timezone={timezone}
+        canEdit={canEdit}
+        onOpen={onOpen}
+        onCreate={onCreate}
+      />
+    );
   return (
-    <WeekOrDay
-      key={`${mondayOf(weekStart)}-${onlyDate ?? "week"}`}
+    <Week
+      key={mondayOf(weekStart)}
       weekStart={weekStart}
       sessions={sessions}
       timezone={timezone}
@@ -573,7 +618,6 @@ export function CalendarView({
       canEdit={canEdit}
       onOpen={onOpen}
       onCreate={onCreate}
-      onlyDate={onlyDate}
     />
   );
 }

@@ -8,6 +8,9 @@ export type GridSession = Readonly<{
   colour: string;
   /** The class type's name, shown in text next to its colour rule. */
   typeName?: string;
+  /** Display names resolved by the page, for the day views. */
+  locationName?: string;
+  coachNames?: readonly string[];
   booked: number | null;
   capacity: number | null;
   status: SessionStatus;
