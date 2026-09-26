@@ -111,6 +111,20 @@ cada tarea: fija el qué; este plan fija el cómo y el orden.
    pide credenciales, parar y avisar; nunca reintentar en bucle; nunca `--force`.
 6. Tras integrar cada oleada: `corepack pnpm typecheck` completo, porque varias tareas tocan
    exports compartidos.
+7. **Política de push (decisión del operador, opción A):** cada push a `main` publica la web
+   en Cloudflare Pages. Por eso:
+   - **Se integran en `main` y se publican** las tareas que no necesitan functions, reglas ni
+     índices nuevos: T11, T12, T05, T01, T07, T09, T14, T15, T10, T13 y T08.
+   - **Se retienen** T02, T03, T04 y T06 en la rama local `integration/functions`, que es
+     `main` + esas tareas. Cada vez que `main` avanza, el líder hace
+     `git rebase main integration/functions` (sin push, es una rama local).
+   - Las tareas publicables no pueden depender de las retenidas. En concreto: la tarjeta
+     "Arranged by the office" vive en T3.4, no en T9.3, y la pestaña "Versions" y su test de
+     coach viven en T4.3, no en T13.
+   - Al final del ciclo, el líder entrega al operador la lista de deploy (callables, reglas,
+     índices) construida desde `integration/functions`. Solo después de que el operador
+     confirme el deploy: `git checkout main && git merge --ff-only integration/functions`
+     (o `--no-ff` si hace falta), push y verificación de SHA.
 
 ---
 
@@ -1318,8 +1332,6 @@ git commit -m "fix(T15): align shop prices on desktop"
 2. El menú de coach no contiene "Waitlists", "Billing", "Financial dashboard", "Shop",
    "Staff" ni "Memberships".
 3. "Progression syllabus" enlaza a `/admin/levels`; `/coach/levels` no es ruta permitida.
-4. `/admin/levels` con rol coach no muestra la pestaña "Versions".
-
 - [ ] **Step 2–4: fallar, implementar, pasar**
 
 Run: `corepack pnpm vitest run --project web apps/web/src/app/coach apps/web/src/app/admin/admin-routes.test.ts apps/web/src/app/admin/admin-shell.test.tsx`
