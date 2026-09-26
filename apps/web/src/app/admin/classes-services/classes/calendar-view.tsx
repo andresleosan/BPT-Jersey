@@ -5,7 +5,7 @@ import type { CSSProperties, ReactElement } from "react";
 import type { LocationRecord } from "@bpt-jersey/domain/schedule";
 import { useCompactCalendar } from "./use-compact-calendar";
 import { DayView, useNow } from "./day-view";
-import { safeTypeColour } from "./type-colour";
+import { readableTypeFill } from "./type-colour";
 import {
   compressEmptyRows,
   countSessionDays,
@@ -49,6 +49,9 @@ function addDays(date: string, days: number): string {
     .slice(0, 10);
 }
 
+/** Height of one half-hour row of the week grid: a one-hour card fits two title lines. */
+const rowHeight = "2.5rem";
+
 function hhmm(hour: number): string {
   return `${pad(Math.floor(hour))}:${pad(Math.round((hour % 1) * 60))}`;
 }
@@ -91,9 +94,15 @@ function EventButton({
   onOpen: (sessionId: string) => void;
 }): ReactElement {
   const cancelled = session.status === "cancelled";
-  // Only a validated hex reaches the style attribute; anything else leaves the card without a rule.
-  const colour = cancelled ? null : safeTypeColour(session.colour);
-  const time = `${timeLabel(session.startAt, timezone)} – ${timeLabel(session.endAt, timezone)}`;
+  // Only a validated hex reaches the style attribute; anything else leaves the card Gi White.
+  const colour = cancelled ? null : readableTypeFill(session.colour);
+  const start = timeLabel(session.startAt, timezone);
+  const time = `${start} – ${timeLabel(session.endAt, timezone)}`;
+  // Imported classes are named after their type; the type line only shows when it adds something.
+  const typeLine =
+    session.typeName && session.typeName.trim().toLowerCase() !== session.title.trim().toLowerCase()
+      ? session.typeName
+      : null;
   const occupancy = occupancyLabel(session);
   const style = {
     gridRow: `${session.rowStart - firstRow + 1} / span ${session.rowSpan}`,
@@ -120,8 +129,9 @@ function EventButton({
       onClick={() => onOpen(session.sessionId)}
     >
       <span className="cs-event-title">{session.title}</span>
-      <span className="cs-event-time">{time}</span>
-      {session.typeName ? <span className="cs-event-type">{session.typeName}</span> : null}
+      {/* A card sharing its hour with another is half as wide: the start time is enough there. */}
+      <span className="cs-event-time">{session.columns > 1 ? start : time}</span>
+      {typeLine ? <span className="cs-event-type">{typeLine}</span> : null}
       <span className="cs-event-chip">{occupancy}</span>
     </button>
   );
@@ -164,7 +174,7 @@ function DayRows({
         style={
           {
             display: "grid",
-            gridTemplateRows: `repeat(${rows}, 1.6rem)`,
+            gridTemplateRows: `repeat(${rows}, ${rowHeight})`,
             gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
             // The now line is painted by the grid background (see `.cs-day-grid[style*="--now"]`).
             ...(nowShare === null ? {} : { "--now": String(nowShare) }),
@@ -179,6 +189,7 @@ function DayRows({
               key={time}
               type="button"
               className="cs-slot"
+              data-time={time}
               tabIndex={-1}
               style={style}
               aria-label={`Create a class on ${label} at ${time}`}
@@ -210,7 +221,7 @@ function HourLabels({ band, fromHour }: { band: BandRows; fromHour: number }): R
     <div className="cs-hours">
       <div
         className="cs-hours-labels"
-        style={{ display: "grid", gridTemplateRows: `repeat(${rows}, 1.6rem)` }}
+        style={{ display: "grid", gridTemplateRows: `repeat(${rows}, ${rowHeight})` }}
       >
         {Array.from({ length: rows }, (_, index) => band.startRow + index)
           .filter((row) => row % 2 === 0)
@@ -261,72 +272,78 @@ function Week({
       return next;
     });
   return (
-    <div
-      className="cs-week"
-      style={{
-        gridTemplateColumns: `3.5rem ${days.map((day) => `minmax(${Math.max(8, ...day.sessions.map((session) => session.columns * 5))}rem, 1fr)`).join(" ")}`,
-      }}
-    >
-      <div className="cs-day-header" aria-hidden="true" />
-      {days.map((day) => {
-        const today = marker?.date === day.date;
-        return (
-          <div key={day.date} className="cs-day" data-today={today ? "true" : undefined}>
-            <div className="cs-day-header" aria-current={today ? "date" : undefined}>
-              <span>{day.label}</span>
-              <span className="cs-day-counts">
-                {day.classes} classes &middot; {day.registrations ?? "—"} registrations
-              </span>
+    // The frame is the size container: a wide enough week fits all seven days (see the CSS); a
+    // narrow one keeps these minimum widths and scrolls sideways.
+    <div className="cs-week-frame">
+      <div
+        className="cs-week"
+        style={
+          {
+            "--week-columns": `3.5rem ${days.map((day) => `minmax(${Math.max(8, ...day.sessions.map((session) => session.columns * 5))}rem, 1fr)`).join(" ")}`,
+          } as CSSProperties
+        }
+      >
+        <div className="cs-day-header" aria-hidden="true" />
+        {days.map((day) => {
+          const today = marker?.date === day.date;
+          return (
+            <div key={day.date} className="cs-day" data-today={today ? "true" : undefined}>
+              <div className="cs-day-header" aria-current={today ? "date" : undefined}>
+                <span>{day.label}</span>
+                <span className="cs-day-counts">
+                  {day.classes} classes &middot; {day.registrations ?? "—"} registrations
+                </span>
+              </div>
             </div>
-          </div>
-        );
-      })}
-      {bands.map((band, index) => {
-        const open = band.kind === "rows" || expanded.has(band.startRow);
-        const nowShare = now?.band === index ? now.share : null;
-        const toggleButton =
-          band.kind === "gap" ? (
-            <button
-              key={`gap-${band.startRow}`}
-              type="button"
-              className="cs-gap"
-              aria-expanded={open}
-              style={
-                {
-                  gridColumn: "1 / -1",
-                  ...(!open && nowShare !== null && marker?.date
-                    ? { "--now": String(nowShare) }
-                    : {}),
-                } as CSSProperties
-              }
-              onClick={() => toggle(band.startRow)}
-            >
-              {band.label}
-            </button>
-          ) : null;
-        if (!open) return toggleButton;
-        return [
-          toggleButton,
-          <HourLabels key={`hours-${band.startRow}`} band={band} fromHour={fromHour} />,
-          ...days.map((day) => (
-            <DayRows
-              key={`${day.date}-${band.startRow}`}
-              date={day.date}
-              label={day.label}
-              band={band}
-              fromHour={fromHour}
-              sessions={day.sessions}
-              columns={columnsOf(day)}
-              timezone={timezone}
-              canEdit={canEdit}
-              today={marker?.date === day.date}
-              nowShare={marker?.date === day.date ? nowShare : null}
-              onOpen={onOpen}
-              onCreate={onCreate}
-            />
-          )),
-        ];
-      })}
+          );
+        })}
+        {bands.map((band, index) => {
+          const open = band.kind === "rows" || expanded.has(band.startRow);
+          const nowShare = now?.band === index ? now.share : null;
+          const toggleButton =
+            band.kind === "gap" ? (
+              <button
+                key={`gap-${band.startRow}`}
+                type="button"
+                className="cs-gap"
+                aria-expanded={open}
+                style={
+                  {
+                    gridColumn: "1 / -1",
+                    ...(!open && nowShare !== null && marker?.date
+                      ? { "--now": String(nowShare) }
+                      : {}),
+                  } as CSSProperties
+                }
+                onClick={() => toggle(band.startRow)}
+              >
+                {band.label}
+              </button>
+            ) : null;
+          if (!open) return toggleButton;
+          return [
+            toggleButton,
+            <HourLabels key={`hours-${band.startRow}`} band={band} fromHour={fromHour} />,
+            ...days.map((day) => (
+              <DayRows
+                key={`${day.date}-${band.startRow}`}
+                date={day.date}
+                label={day.label}
+                band={band}
+                fromHour={fromHour}
+                sessions={day.sessions}
+                columns={columnsOf(day)}
+                timezone={timezone}
+                canEdit={canEdit}
+                today={marker?.date === day.date}
+                nowShare={marker?.date === day.date ? nowShare : null}
+                onOpen={onOpen}
+                onCreate={onCreate}
+              />
+            )),
+          ];
+        })}
+      </div>
     </div>
   );
 }
