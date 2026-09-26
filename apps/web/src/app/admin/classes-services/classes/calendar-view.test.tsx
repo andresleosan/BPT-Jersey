@@ -69,7 +69,16 @@ describe("CalendarView", () => {
     try {
       const props = {
         view: "week" as const,
-        sessions: [],
+        sessions: [
+          {
+            ...base,
+            sessionId: "noon",
+            title: "Noon class",
+            // 12:00–14:00 local, so 13:00 sits half way down its band of rows.
+            startAt: "2026-09-16T11:00:00.000Z",
+            endAt: "2026-09-16T13:00:00.000Z",
+          },
+        ],
         timezone: "Europe/Jersey",
         window,
         canEdit: false,
@@ -116,7 +125,7 @@ describe("CalendarView", () => {
       />,
     );
     const btn = screen.getByRole("button", { name: /GI Fundamentals/ });
-    expect(btn).toHaveTextContent("17:30 - 18:30");
+    expect(btn).toHaveTextContent("17:30 – 18:30");
     fireEvent.click(btn);
     expect(onOpen).toHaveBeenCalledWith("a");
   });
@@ -137,6 +146,7 @@ describe("CalendarView", () => {
         onSelectWeek={noop}
       />,
     );
+    fireEvent.click(screen.getByRole("button", { name: /06:00 – 20:00 · no classes/ }));
     expect(screen.queryByLabelText("Create a class on MON 14/9 at 06:30")).not.toBeInTheDocument();
     expect(screen.queryAllByRole("button", { name: /Create a class/ })).toHaveLength(0);
     expect(container.querySelectorAll(".cs-slot").length).toBeGreaterThan(0);
@@ -272,5 +282,183 @@ describe("CalendarView", () => {
       />,
     );
     expect(screen.getAllByText("MON 14/9")).toHaveLength(1);
+  });
+
+  it("paints the card Gi White with the type colour only as a rule and names the type", () => {
+    render(
+      <CalendarView
+        view="week"
+        weekStart="2026-09-14"
+        sessions={[
+          {
+            ...base,
+            colour: "#1A7F4B",
+            typeName: "GI All Levels",
+            sessionId: "a",
+            title: "GI Fundamentals",
+            startAt: "2026-09-14T16:30:00.000Z",
+            endAt: "2026-09-14T17:30:00.000Z",
+          },
+        ]}
+        timezone="Europe/Jersey"
+        window={window}
+        canEdit={false}
+        onOpen={noop}
+        onCreate={noop}
+        onSelectWeek={noop}
+      />,
+    );
+    const card = screen.getByRole("button", { name: /GI Fundamentals/ });
+    expect(card.style.background).toBe("");
+    expect(card.style.backgroundColor).toBe("");
+    expect(card.style.getPropertyValue("--type-colour")).toBe("#1A7F4B");
+    expect(card).toHaveClass("cs-event-typed");
+    expect(card).toHaveTextContent("GI All Levels");
+    expect(card).toHaveAttribute("title", "GI Fundamentals");
+  });
+
+  it.each(["red;background:url(x)", ""])(
+    "draws no rule and no fill for an unsafe type colour %j",
+    (colour) => {
+      render(
+        <CalendarView
+          view="week"
+          weekStart="2026-09-14"
+          sessions={[
+            {
+              ...base,
+              colour,
+              sessionId: "a",
+              title: "GI Fundamentals",
+              startAt: "2026-09-14T16:30:00.000Z",
+              endAt: "2026-09-14T17:30:00.000Z",
+            },
+          ]}
+          timezone="Europe/Jersey"
+          window={window}
+          canEdit={false}
+          onOpen={noop}
+          onCreate={noop}
+          onSelectWeek={noop}
+        />,
+      );
+      const card = screen.getByRole("button", { name: /GI Fundamentals/ });
+      expect(card.style.getPropertyValue("--type-colour")).toBe("");
+      expect(card.style.background).toBe("");
+      expect(card.style.backgroundImage).toBe("");
+      expect(card.getAttribute("style") ?? "").not.toMatch(/url|background|red/u);
+      expect(card).not.toHaveClass("cs-event-typed");
+      // The grid placement survives, so the rest of the card's style is intact.
+      expect(card.style.gridRow).not.toBe("");
+    },
+  );
+
+  it("gives each card the full name, time and occupancy as its accessible name", () => {
+    render(
+      <CalendarView
+        view="week"
+        weekStart="2026-09-14"
+        sessions={[
+          {
+            ...base,
+            booked: 12,
+            capacity: 20,
+            sessionId: "a",
+            title: "Brazilian Jiu Jitsu Fundamentals for Adults and Teenagers",
+            startAt: "2026-09-14T16:30:00.000Z",
+            endAt: "2026-09-14T17:30:00.000Z",
+          },
+        ]}
+        timezone="Europe/Jersey"
+        window={window}
+        canEdit={false}
+        onOpen={noop}
+        onCreate={noop}
+        onSelectWeek={noop}
+      />,
+    );
+    expect(
+      screen.getByRole("button", {
+        name: "Brazilian Jiu Jitsu Fundamentals for Adults and Teenagers, 17:30 – 18:30, 12 / 20 booked",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("folds empty hours into a band that expands on click", () => {
+    const onCreate = vi.fn();
+    render(
+      <CalendarView
+        view="week"
+        weekStart="2026-09-14"
+        sessions={[
+          {
+            ...base,
+            sessionId: "a",
+            title: "Morning",
+            // 07:00–08:00 local.
+            startAt: "2026-09-14T06:00:00.000Z",
+            endAt: "2026-09-14T07:00:00.000Z",
+          },
+        ]}
+        timezone="Europe/Jersey"
+        window={window}
+        canEdit={true}
+        onOpen={noop}
+        onCreate={onCreate}
+        onSelectWeek={noop}
+      />,
+    );
+    const band = screen.getByRole("button", { name: "08:00 – 20:00 · no classes" });
+    expect(band).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByLabelText("Create a class on TUE 15/9 at 13:00")).not.toBeInTheDocument();
+    fireEvent.click(band);
+    expect(screen.getByRole("button", { name: "08:00 – 20:00 · no classes" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    fireEvent.click(screen.getByLabelText("Create a class on TUE 15/9 at 13:00"));
+    expect(onCreate).toHaveBeenCalledWith("2026-09-15", "13:00");
+  });
+
+  it("draws the now line over a folded band when the current time falls in it", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-16T12:00:00.000Z"));
+    try {
+      const { container } = render(
+        <CalendarView
+          view="week"
+          weekStart="2026-09-14"
+          sessions={[]}
+          timezone="Europe/Jersey"
+          window={window}
+          canEdit={false}
+          onOpen={noop}
+          onCreate={noop}
+          onSelectWeek={noop}
+        />,
+      );
+      const band = container.querySelector<HTMLElement>(".cs-gap");
+      expect(band?.style.getPropertyValue("--now")).toBe("0.5");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("offers a coach no editing action, even inside an expanded band", () => {
+    render(
+      <CalendarView
+        view="week"
+        weekStart="2026-09-14"
+        sessions={[]}
+        timezone="Europe/Jersey"
+        window={window}
+        canEdit={false}
+        onOpen={noop}
+        onCreate={noop}
+        onSelectWeek={noop}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /no classes/ }));
+    expect(screen.queryAllByRole("button", { name: /Create|Add|Delete|Copy/ })).toHaveLength(0);
   });
 });

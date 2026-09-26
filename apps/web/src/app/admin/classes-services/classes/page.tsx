@@ -386,20 +386,23 @@ function ClassesContent(): ReactElement {
 
   const grid: readonly GridSession[] = useMemo(
     () =>
-      sessions.map((row) => ({
-        sessionId: row.sessionId,
-        title: row.title,
-        startAt: row.startAt,
-        endAt: row.endAt,
-        colour:
-          programs.find((program) => program.programId === row.programId)?.colour ?? fallbackColour,
-        booked: countsStatus === "ready" ? (booked[row.sessionId] ?? 0) : null,
-        capacity: row.capacity,
-        status: row.status,
-        locationId: row.locationId,
-        programId: row.programId,
-        instructorIds: row.instructorIds ?? [row.instructorId],
-      })),
+      sessions.map((row) => {
+        const program = programs.find((candidate) => candidate.programId === row.programId);
+        return {
+          sessionId: row.sessionId,
+          title: row.title,
+          startAt: row.startAt,
+          endAt: row.endAt,
+          colour: program?.colour ?? fallbackColour,
+          ...(program ? { typeName: program.name } : {}),
+          booked: countsStatus === "ready" ? (booked[row.sessionId] ?? 0) : null,
+          capacity: row.capacity,
+          status: row.status,
+          locationId: row.locationId,
+          programId: row.programId,
+          instructorIds: row.instructorIds ?? [row.instructorId],
+        };
+      }),
     [sessions, programs, booked, countsStatus],
   );
 

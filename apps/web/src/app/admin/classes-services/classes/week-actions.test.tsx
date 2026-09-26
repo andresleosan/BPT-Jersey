@@ -107,4 +107,19 @@ describe("WeekActions", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(opener).toHaveFocus();
   });
+
+  it("keeps Delete week apart, last and destructive, and still asks for a reason", async () => {
+    mocks.previewWeek.mockResolvedValue({ count: 2, sample: [] });
+    const { container } = render(<WeekActions weekStart="2026-09-14" onChanged={vi.fn()} />);
+    const remove = screen.getByRole("button", { name: "Delete week" });
+    const group = remove.closest(".cs-week-actions-danger");
+    expect(group).not.toBeNull();
+    expect(group).not.toContainElement(screen.getByRole("button", { name: "Copy week" }));
+    expect(container.querySelector(".cs-week-actions")?.lastElementChild).toBe(group);
+    expect(remove).toHaveClass("cs-button-danger");
+    fireEvent.click(remove);
+    const dialog = await screen.findByRole("dialog", { name: "Delete week" });
+    await within(dialog).findByText("2 classes will be cancelled.");
+    expect(within(dialog).getByRole("button", { name: "Delete" })).toBeDisabled();
+  });
 });
