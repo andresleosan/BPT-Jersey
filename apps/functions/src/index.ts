@@ -395,3 +395,14 @@ export {
   preparePaygClassPayment,
   uploadPaygClassProof,
 } from "./schedule/payg-class-payment.js";
+export {
+  submitPrivateLessonPurchase,
+  listMyPrivateLessons,
+  listPrivateLessonPurchases,
+  reviewPrivateLessonPurchase,
+  recordPrivateLessonPurchase,
+} from "./private-lessons/private-lesson-callables.js";
+export {
+  bookPrivateLesson,
+  cancelPrivateLessonBooking,
+} from "./schedule/schedule-callables.js";

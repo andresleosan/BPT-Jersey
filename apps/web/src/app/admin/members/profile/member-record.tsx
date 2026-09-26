@@ -404,6 +404,7 @@ function MemberRecordSession({
     if (activeTab === "payments" && profile.view === "full")
       return (
         <PaymentsTab
+          canRecordPrivateLessons={office}
           key={profile.header.studentId}
           studentId={profile.header.studentId}
           onUnavailable={onUnavailable}

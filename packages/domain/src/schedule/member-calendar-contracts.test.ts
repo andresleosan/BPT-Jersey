@@ -252,6 +252,16 @@ describe("deriveSessionStatus", () => {
     expect(deriveSessionStatus(base)).toEqual({ status: "open" });
   });
 
+  it("locks a private lesson as arranged by the office unless the member is booked on it", () => {
+    const privateLesson = { ...base, session: { ...session, accessMode: "private-lesson" as const } };
+    expect(deriveSessionStatus(privateLesson)).toEqual({
+      status: "locked",
+      lockedReason: "office_arranged",
+    });
+    expect(deriveSessionStatus({ ...privateLesson, booking }).status).toBe("booked");
+    expect(lockedReasonLabel("office_arranged", "Town", "adult")).toBe("Arranged by the office");
+  });
+
   it("is booked when a booking is confirmed or requested", () => {
     expect(deriveSessionStatus({ ...base, booking }).status).toBe("booked");
     expect(

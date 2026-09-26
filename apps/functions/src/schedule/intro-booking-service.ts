@@ -317,6 +317,9 @@ export async function requestIntroBooking(
       replayTarget(firestore, transaction, academyId, sessionId, ids),
     ]);
     const session = storedSession(sessionSnapshot.data(), academyId, sessionId);
+    if (sessionSnapshot.data()?.accessMode === "private-lesson") {
+      return fail("ineligible", "Private lessons are arranged by the office.");
+    }
     const student = studentSnapshot.data();
     if (
       !studentSnapshot.exists ||

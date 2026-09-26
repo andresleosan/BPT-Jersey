@@ -29,6 +29,7 @@ import { IssueInvoiceDialog } from "./issue-invoice-dialog";
 import { InvoiceRowActions, MemberAccountPanel } from "./member-account-panel";
 import { MemberPicker } from "./member-picker";
 import { PaymentInstructionsPanel } from "./payment-instructions-panel";
+import { PrivateLessonsPanel } from "./private-lessons-panel";
 import { RecordPaymentDialog } from "./record-payment-dialog";
 
 import "../admin.css";
@@ -479,6 +480,11 @@ export function BillingPage() {
             ) : null}
           </>
         ) : null}
+      </details>
+
+      <details className="billing-details" aria-label="Private lessons" open>
+        <summary>Private lessons</summary>
+        <PrivateLessonsPanel />
       </details>
 
       <details className="billing-details" aria-label="Payment instructions">
