@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { countSessionDays, dayLabel, layoutWeek, mondayOf, nowMarker, weekDays } from "./week-grid";
+import {
+  compressEmptyRows,
+  countSessionDays,
+  dayLabel,
+  layoutWeek,
+  markerBand,
+  mondayOf,
+  nowMarker,
+  weekDays,
+} from "./week-grid";
 
 const base = {
   colour: "#F0EFFF",
@@ -209,4 +218,71 @@ it("counts monthly classes once using local dates and excludes cancelled history
   expect([...countSessionDays(rows, "Europe/Jersey")]).toEqual([
     ["2026-09-15", { classes: 1, registrations: 3 }],
   ]);
+});
+
+describe("compressEmptyRows", () => {
+  const window = { fromHour: 7, toHour: 21 };
+  const split = [
+    // 07:00–09:00 local (BST) on Monday and 18:00–21:00 local on Wednesday.
+    {
+      ...base,
+      sessionId: "morning",
+      title: "Morning",
+      startAt: "2026-09-14T06:00:00.000Z",
+      endAt: "2026-09-14T08:00:00.000Z",
+    },
+    {
+      ...base,
+      sessionId: "evening",
+      title: "Evening",
+      startAt: "2026-09-16T17:00:00.000Z",
+      endAt: "2026-09-16T20:00:00.000Z",
+    },
+  ];
+
+  it("folds the hours with no class on any day into one labelled band", () => {
+    const bands = compressEmptyRows(layoutWeek(split, "2026-09-14", "Europe/Jersey", window));
+    expect(bands).toEqual([
+      { kind: "rows", startRow: 0, endRow: 4 },
+      { kind: "gap", startRow: 4, endRow: 22, label: "09:00 – 18:00 · no classes" },
+      { kind: "rows", startRow: 22, endRow: 28 },
+    ]);
+  });
+
+  it("never folds part of an hour that holds a class on any day", () => {
+    const bands = compressEmptyRows(
+      layoutWeek(
+        [
+          {
+            ...base,
+            sessionId: "tue",
+            title: "Tuesday",
+            // 13:30–14:30 local (BST).
+            startAt: "2026-09-15T12:30:00.000Z",
+            endAt: "2026-09-15T13:30:00.000Z",
+          },
+        ],
+        "2026-09-14",
+        "Europe/Jersey",
+        window,
+      ),
+    );
+    expect(bands).toEqual([
+      { kind: "gap", startRow: 0, endRow: 12, label: "07:00 – 13:00 · no classes" },
+      { kind: "rows", startRow: 12, endRow: 16 },
+      { kind: "gap", startRow: 16, endRow: 28, label: "15:00 – 21:00 · no classes" },
+    ]);
+  });
+
+  it("assigns a now line that falls in a folded band to that band", () => {
+    const bands = compressEmptyRows(layoutWeek(split, "2026-09-14", "Europe/Jersey", window));
+    // 12:00 local on Monday, inside the 09:00 – 18:00 band.
+    const marker = nowMarker("2026-09-14T11:00:00.000Z", "2026-09-14", "Europe/Jersey", window);
+    expect(markerBand(bands, marker!.top!)).toEqual({ band: 1, share: (10 - 4) / 18 });
+    // 08:00 local: inside the first band of rows, half way down.
+    const early = nowMarker("2026-09-14T07:00:00.000Z", "2026-09-14", "Europe/Jersey", window);
+    expect(markerBand(bands, early!.top!)).toEqual({ band: 0, share: 0.5 });
+    // The very end of the window belongs to the last band.
+    expect(markerBand(bands, 1)).toEqual({ band: 2, share: 1 });
+  });
 });

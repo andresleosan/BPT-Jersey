@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 
 import { weekRangeFor } from "@bpt-jersey/domain/schedule/classes-services";
 import {
+  calendarMaxOffsetDays,
   calendarTimeZone,
   canViewMemberSession,
   deriveSessionStatus,
@@ -12,7 +13,7 @@ import {
   prevOffset,
   visibleDays,
   type CalendarDay,
-  type CalendarViewport,
+  type CalendarMode,
 } from "@bpt-jersey/domain/schedule/member-calendar";
 import {
   sessionAccessMode,
@@ -43,14 +44,15 @@ import {
   bookingFailureMessage,
   cancellationFailureMessage,
 } from "../../../lib/calendar/booking-messages";
-import { CalendarHeader, DayStrip } from "./calendar-header";
+import { CalendarHeader, CalendarModeSwitch, DayStrip } from "./calendar-header";
 import { CancelDialog } from "./cancel-dialog";
 import { DayColumn } from "./day-column";
 import { PaygPaymentDialog } from "./payg-payment-dialog";
 import { ReadyForJiuJitsu } from "./ready-for-jiu-jitsu";
 import type { CalendarEntry } from "./session-card";
 
-const desktopQuery = "(min-width: 58rem)";
+const desktopQuery = "(min-width: 48rem)";
+const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const bookedNote = "Booked.";
 const noteLifetimeMs = 4000;
 const pollIntervalMs = 60_000;
@@ -92,8 +94,10 @@ function sameWeekScope(left: WeekScope | undefined, right: WeekScope | undefined
   );
 }
 
-function useViewport(): CalendarViewport {
-  const [viewport, setViewport] = useState<CalendarViewport>("phone");
+type Viewport = "phone" | "desktop";
+
+function useViewport(): Viewport {
+  const [viewport, setViewport] = useState<Viewport>("phone");
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
     const media = window.matchMedia(desktopQuery);
@@ -147,6 +151,9 @@ export function MemberCalendar({
   const viewport = useViewport();
   const now = useMinuteClock();
   const [offset, setOffset] = useState(0);
+  const [chosenMode, setChosenMode] = useState<CalendarMode>("week");
+  // A phone always shows one day; tablets and desktops choose (Week first).
+  const mode: CalendarMode = viewport === "phone" ? "day" : chosenMode;
   const [member, setMember] = useState<CalendarMember>();
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [memberState, setMemberState] = useState<LoadState>("loading");
@@ -173,7 +180,19 @@ export function MemberCalendar({
     }>
   >({ studentId: "", names: [] });
 
-  const days = useMemo(() => visibleDays({ now, viewport, offset, includeSunday: true }), [now, viewport, offset]);
+  const days = useMemo(() => visibleDays({ now, mode, offset, includeSunday: true }), [now, mode, offset]);
+  // One day on screen: the strip lists that day's Monday–Sunday, as far as the booking window reaches.
+  const strip = useMemo(() => {
+    const shown = days[0];
+    if (mode === "week" || !shown) return undefined;
+    const first = offset - weekdays.indexOf(shown.weekday);
+    const pills: { offset: number; day: CalendarDay }[] = [];
+    for (let step = Math.max(0, first); step <= Math.min(calendarMaxOffsetDays, first + 6); step += 1) {
+      const [day] = visibleDays({ now, mode: "day", offset: step, includeSunday: true });
+      if (day) pills.push({ offset: step, day });
+    }
+    return pills;
+  }, [days, mode, offset, now]);
   const firstDay = days[0];
   const lastDay = days[days.length - 1];
   const loadFrom = firstDay
@@ -188,7 +207,7 @@ export function MemberCalendar({
 
   useEffect(() => {
     setOffset(0);
-  }, [viewport]);
+  }, [mode]);
 
   useEffect(() => {
     let active = true;
@@ -590,9 +609,10 @@ export function MemberCalendar({
     [participant, repository, applyBooking, restoreBooking, flashNote],
   );
 
-  const next = nextOffset(viewport, offset, now, true);
-  const prev = prevOffset(viewport, offset, now, true);
-  const weekColumns = days.map((day) => (day.isToday ? "1.6fr" : "1fr")).join(" ");
+  const next = nextOffset(mode, offset, now, true);
+  const prev = prevOffset(mode, offset, now, true);
+  const weekColumns =
+    mode === "day" ? "minmax(0, 1fr)" : days.map((day) => (day.isToday ? "1.6fr" : "1fr")).join(" ");
   const weekStyle = { "--week-columns": weekColumns } as React.CSSProperties;
   const failed = memberState === "error" || weekState === "error";
   // No active/trial membership on a known plan: the week effect never runs, so say so plainly.
@@ -662,12 +682,22 @@ export function MemberCalendar({
         </p>
       ) : null}
       <section aria-label="Calendar" className="member-body">
+        {viewport === "desktop" ? (
+          <CalendarModeSwitch mode={chosenMode} onChange={setChosenMode} />
+        ) : null}
         <DayStrip
           canNext={!failed && next !== null}
           canPrev={!failed && prev !== null}
-          days={days}
+          days={strip ? strip.map((pill) => pill.day) : days}
           onNext={() => handleOffset(next)}
           onPrev={() => handleOffset(prev)}
+          {...(strip
+            ? {
+                selectedDateKey: days[0]?.dateKey,
+                onSelectDay: (dateKey: string) =>
+                  handleOffset(strip.find((pill) => pill.day.dateKey === dateKey)?.offset ?? null),
+              }
+            : {})}
         />
         {blocked ? (
           blocked
@@ -690,7 +720,7 @@ export function MemberCalendar({
             </p>
           </div>
         ) : (
-          <div className="member-week" style={weekStyle}>
+          <div className={`member-week${mode === "day" ? " member-week--day" : ""}`} style={weekStyle}>
             {days.map((day) => (
               <DayColumn
                 busyKey={busyKey}

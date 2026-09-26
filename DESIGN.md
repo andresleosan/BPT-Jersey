@@ -106,7 +106,9 @@ Lime**); the calendar body sits on **Canvas** so the traffic light stays legible
 **1rem** (999px on pills/actions) — the only place the system rounds. Status is the **whole card
 background**: open `#FFE66D`, booked `#D7F0E2` + `#176B49` left rule, attended `#E7F6EE`
 muted, missed `#FFE1E6` + `#8D1C2F` left rule, closed/full/locked `#E8E7E3` muted. One action per
-card. Phone (< 58rem) stacks two days; desktop shows seven columns Mon–Sun with today at `1.6fr`, including course sessions on Sundays.
+card. Phone (< 48rem) shows one day chosen from the day strip; tablet and desktop show the week
+(seven columns Mon–Sun, today at `1.6fr`, including course sessions on Sundays) with a Week / Day
+switch.
 Skeleton shimmer while loading; native `<dialog>` for the only confirmation (cancel).
 
 ## 10. Belt colours are data (Levels)
@@ -129,6 +131,15 @@ pulgar **BPT Lime** con aro Mat Ink. Incluye una línea de metadatos (clase · h
 línea para la ventana y una línea de estado. Una negativa es una banda con regla izquierda roja y
 una frase sencilla. Tras el registro, la tarjeta sustituye el control por "YOU'RE IN" y la hora.
 No hay indicadores giratorios ni animación fuera del relleno de 220 ms.
+
+## 12. Timetable colours are data
+
+- A class type's timetable colour (Types → "Timetable colour") is catalogue data, validated
+  as `#RRGGBB` before it reaches CSS.
+- It may appear only as the `0.35rem` left rule of a session card in the admin/coach
+  timetable and as the swatch in Types. Never as a card fill, tint, text colour, border
+  elsewhere, or anywhere in the member app.
+- The type is always named in text; colour is never the only carrier of information.
 
 ## Course catalogue and enrolment surfaces
 

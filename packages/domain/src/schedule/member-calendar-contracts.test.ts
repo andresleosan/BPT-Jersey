@@ -40,42 +40,42 @@ describe("dateKeyInJersey", () => {
   });
 });
 
-describe("visibleDays / phone", () => {
-  it("shows today and tomorrow on a weekday", () => {
-    const days = visibleDays({ now: wednesday, viewport: "phone", offset: 0 });
-    expect(days.map((d) => d.dateKey)).toEqual(["2026-09-16", "2026-09-17"]);
+describe("visibleDays / day", () => {
+  it("shows today alone", () => {
+    const days = visibleDays({ now: wednesday, mode: "day", offset: 0 });
+    expect(days.map((d) => d.dateKey)).toEqual(["2026-09-16"]);
     expect(days[0]?.isToday).toBe(true);
     expect(days[0]?.weekday).toBe("Wed");
     expect(days[0]?.dayNumber).toBe(16);
   });
 
-  it("skips Sunday: Saturday shows Sat + Mon", () => {
-    const days = visibleDays({ now: saturday, viewport: "phone", offset: 0 });
-    expect(days.map((d) => d.dateKey)).toEqual(["2026-09-19", "2026-09-21"]);
+  it("shows the single day offset days from today", () => {
+    const days = visibleDays({ now: wednesday, mode: "day", offset: 3 });
+    expect(days.map((d) => d.dateKey)).toEqual(["2026-09-19"]);
   });
 
-  it("skips Sunday: Sunday shows Mon + Tue", () => {
-    const days = visibleDays({ now: sunday, viewport: "phone", offset: 0 });
-    expect(days.map((d) => d.dateKey)).toEqual(["2026-09-21", "2026-09-22"]);
-    expect(days.every((d) => !d.isToday)).toBe(true);
-  });
-
-  it("advances by offset days and never lands on Sunday", () => {
-    const days = visibleDays({ now: wednesday, viewport: "phone", offset: 4 });
-    // Wed + 4 = Sunday 20th → skipped → Mon 21, Tue 22
-    expect(days.map((d) => d.dateKey)).toEqual(["2026-09-21", "2026-09-22"]);
+  it("skips Sunday unless it is included", () => {
+    expect(visibleDays({ now: sunday, mode: "day", offset: 0 }).map((d) => d.dateKey)).toEqual([
+      "2026-09-21",
+    ]);
+    expect(visibleDays({ now: wednesday, mode: "day", offset: 4 }).map((d) => d.dateKey)).toEqual([
+      "2026-09-21",
+    ]);
+    expect(
+      visibleDays({ now: wednesday, mode: "day", offset: 4, includeSunday: true }).map((d) => d.dateKey),
+    ).toEqual(["2026-09-20"]);
   });
 
   it("gives each day UTC bounds covering the Jersey day", () => {
-    const [day] = visibleDays({ now: wednesday, viewport: "phone", offset: 0 });
+    const [day] = visibleDays({ now: wednesday, mode: "day", offset: 0 });
     expect(day?.startAt).toBe("2026-09-15T23:00:00.000Z"); // 00:00 BST
     expect(day?.endAt).toBe("2026-09-16T23:00:00.000Z");
   });
 });
 
-describe("visibleDays / desktop", () => {
+describe("visibleDays / week", () => {
   it("shows Monday to Saturday of the current week", () => {
-    const days = visibleDays({ now: wednesday, viewport: "desktop", offset: 0 });
+    const days = visibleDays({ now: wednesday, mode: "week", offset: 0 });
     expect(days.map((d) => d.dateKey)).toEqual([
       "2026-09-14",
       "2026-09-15",
@@ -87,40 +87,54 @@ describe("visibleDays / desktop", () => {
     expect(days[2]?.isToday).toBe(true);
   });
 
+  it("shows Monday to Sunday when Sunday is included", () => {
+    const days = visibleDays({ now: wednesday, mode: "week", offset: 0, includeSunday: true });
+    expect(days.map((d) => d.dateKey)).toHaveLength(7);
+    expect(days[6]?.dateKey).toBe("2026-09-20");
+  });
+
   it("on Sunday shows the coming week", () => {
-    const days = visibleDays({ now: sunday, viewport: "desktop", offset: 0 });
+    const days = visibleDays({ now: sunday, mode: "week", offset: 0 });
     expect(days[0]?.dateKey).toBe("2026-09-21");
   });
 
   it("shifts by whole weeks", () => {
-    const days = visibleDays({ now: wednesday, viewport: "desktop", offset: 1 });
+    const days = visibleDays({ now: wednesday, mode: "week", offset: 1 });
     expect(days[0]?.dateKey).toBe("2026-09-21");
   });
 });
 
 describe("offset navigation", () => {
-  it("phone: next skips Sunday and stops at the cap", () => {
-    expect(nextOffset("phone", 3, wednesday)).toBe(5); // Wed+4 = Sun → 5
-    expect(nextOffset("phone", calendarMaxOffsetDays, wednesday)).toBeNull();
-    expect(nextOffset("phone", calendarMaxOffsetDays - 1, wednesday)).toBe(14);
+  it("day: next moves one day, skips Sunday and stops at the cap", () => {
+    expect(nextOffset("day", 0, wednesday, true)).toBe(1);
+    expect(nextOffset("day", 3, wednesday)).toBe(5); // Wed+4 = Sun → 5
+    expect(nextOffset("day", 3, wednesday, true)).toBe(4);
+    expect(nextOffset("day", calendarMaxOffsetDays, wednesday)).toBeNull();
+    expect(nextOffset("day", calendarMaxOffsetDays - 1, wednesday)).toBe(14);
   });
 
-  it("phone: prev stops at zero", () => {
-    expect(prevOffset("phone", 0, wednesday)).toBeNull();
-    expect(prevOffset("phone", 5, wednesday)).toBe(3); // 4 would be Sunday
+  it("day: from Saturday the next day shown is Monday unless Sunday is included", () => {
+    expect(nextOffset("day", 0, saturday)).toBe(2);
+    expect(nextOffset("day", 0, saturday, true)).toBe(1);
   });
 
-  it("desktop: next/prev move one week, capped so Monday ≤ today+14", () => {
-    expect(nextOffset("desktop", 0, wednesday)).toBe(1);
-    expect(nextOffset("desktop", 1, wednesday)).toBe(2); // Mon 28 Sep = today+12 ✓
-    expect(nextOffset("desktop", 2, wednesday)).toBeNull(); // Mon 5 Oct = today+19 ✗
-    expect(prevOffset("desktop", 0, wednesday)).toBeNull();
+  it("day: prev stops at zero", () => {
+    expect(prevOffset("day", 0, wednesday)).toBeNull();
+    expect(prevOffset("day", 5, wednesday)).toBe(3); // 4 would be Sunday
+    expect(prevOffset("day", 5, wednesday, true)).toBe(4);
+  });
+
+  it("week: next/prev move one week, capped so Monday ≤ today+14", () => {
+    expect(nextOffset("week", 0, wednesday)).toBe(1);
+    expect(nextOffset("week", 1, wednesday)).toBe(2); // Mon 28 Sep = today+12 ✓
+    expect(nextOffset("week", 2, wednesday)).toBeNull(); // Mon 5 Oct = today+19 ✗
+    expect(prevOffset("week", 0, wednesday)).toBeNull();
   });
 
   it("clampOffset keeps values inside [0, cap]", () => {
-    expect(clampOffset("phone", -3, wednesday)).toBe(0);
-    expect(clampOffset("phone", 40, wednesday)).toBe(14);
-    expect(clampOffset("desktop", 9, wednesday)).toBe(2);
+    expect(clampOffset("day", -3, wednesday)).toBe(0);
+    expect(clampOffset("day", 40, wednesday)).toBe(14);
+    expect(clampOffset("week", 9, wednesday)).toBe(2);
   });
 });
 
