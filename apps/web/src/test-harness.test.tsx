@@ -10,19 +10,19 @@ describe("web test harness", () => {
     expect(screen.getByRole("main")).toHaveAttribute("tabindex", "-1");
     const heroTitle = screen.getByRole("heading", {
       level: 1,
-      name: "Brazilian Jiu-Jitsu, MMA & Self-Defence",
+      name: "Brazilian Jiu-Jitsu & Self-Defence",
     });
 
     expect(heroTitle).toBeVisible();
     expect(heroTitle.querySelectorAll(".hero-title-line")).toHaveLength(3);
     expect(
       [...heroTitle.querySelectorAll(".hero-title-line")].map((line) => line.textContent),
-    ).toEqual(["Brazilian Jiu-", "Jitsu, MMA", "& Self-Defence"]);
+    ).toEqual(["Brazilian", "Jiu-Jitsu &", "Self-Defence"]);
     expect(screen.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Classes in Jersey" })).toBeVisible();
-    // Both training centres appear in the hero location block and again in the contact section.
-    expect(screen.getAllByText("Office 9, 13 Library Place")).toHaveLength(2);
-    expect(screen.getAllByText("L'Avenue de la Reine Elizabeth II")).toHaveLength(2);
+    // Both training centres appear once, in the hero location block (T10 removed the contact copy).
+    expect(screen.getAllByText("Office 9, 13 Library Place")).toHaveLength(1);
+    expect(screen.getAllByText("L'Avenue de la Reine Elizabeth II")).toHaveLength(1);
     expect(screen.getByText("£85 per month")).toBeVisible();
 
     const bookingLinks = screen.getAllByRole("link", { name: "Book a free class" });

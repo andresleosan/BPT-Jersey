@@ -15,6 +15,12 @@ beforeEach(() => {
   api.changeStaffPassword.mockResolvedValue(undefined);
 });
 describe("coach account controls", () => {
+  it("uses the admin section header and panel cards (T13)", () => {
+    const { container } = render(<CoachAccessPage />);
+    expect(container.querySelector(".admin-section-header h2")?.textContent).toBe("My sign-in");
+    expect(container.querySelectorAll("section.admin-panel-card").length).toBeGreaterThan(0);
+    expect(container.querySelector("[class*='coach-card']")).toBeNull();
+  });
   it("links Google to the existing profile and confirms completion", async () => {
     render(<CoachAccessPage />);
     fireEvent.click(screen.getByRole("button", { name: "Link Google account" }));

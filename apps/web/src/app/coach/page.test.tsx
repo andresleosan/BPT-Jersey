@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -316,6 +320,24 @@ describe("CoachDashboardPage", () => {
     // Birthdays widget: real members now, so with none seeded it says so (T112)
     expect(screen.getByText("Upcoming birthdays")).toBeInTheDocument();
     expect(await screen.findByText("No birthdays at Town this week.")).toBeInTheDocument();
+  });
+
+  it("is built from the admin section header, panel cards and data table (T13)", async () => {
+    const { container } = render(<CoachDashboardPage />);
+
+    const header = container.querySelector(".admin-section-header");
+    expect(header?.querySelector("h2")?.textContent).toBe("Today on the mat");
+    await screen.findByRole("table", { name: "Class attendees roster" });
+    expect(container.querySelector(".admin-data-table")).not.toBeNull();
+    expect(container.querySelectorAll("section.admin-panel-card").length).toBeGreaterThan(0);
+    expect(container.querySelector("[class*='coach-card']")).toBeNull();
+    expect(container.querySelector("a[href='/coach/levels']")).toBeNull();
+  });
+
+  it("keeps reading text at the body size in coach.css (T13)", () => {
+    const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "coach.css"), "utf8");
+    expect(css).not.toMatch(/0\.875rem/u);
+    expect(css).not.toMatch(/coach-card/u);
   });
 
   it("says a session's capacity is not set instead of printing a broken ratio", async () => {
@@ -672,7 +694,7 @@ describe("CoachDashboardPage", () => {
 
       const name = await screen.findByText("Ana Coelho");
       expect(screen.getByText("Minor · Town")).toBeInTheDocument();
-      const widget = name.closest(".coach-card")?.textContent ?? "";
+      const widget = name.closest(".admin-panel-card")?.textContent ?? "";
       expect(widget).not.toMatch(/\byrs?\b/u);
       expect(widget).not.toMatch(/\b(19|20)\d{2}\b/u);
     });

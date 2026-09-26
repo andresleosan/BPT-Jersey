@@ -4,16 +4,14 @@ import { academyContent } from "./academy";
 
 describe("public academy content", () => {
   it("contains the published identity, location, programs, instructors, and contact", () => {
-    expect(academyContent.lastVerified).toBe("2026-08-07");
-    expect(academyContent.identity.title).toBe("Brazilian Jiu-Jitsu, MMA & Self-Defence");
+    expect(academyContent.lastVerified).toBe("2026-09-26");
+    expect(academyContent.identity.title).toBe("Brazilian Jiu-Jitsu & Self-Defence");
     expect(academyContent.identity.titleLines).toEqual([
-      "Brazilian Jiu-",
-      "Jitsu, MMA",
-      "& Self-Defence",
+      "Brazilian",
+      "Jiu-Jitsu &",
+      "Self-Defence",
     ]);
-    expect(
-      `${academyContent.identity.titleLines[0]}${academyContent.identity.titleLines[1]} ${academyContent.identity.titleLines[2]}`,
-    ).toBe(academyContent.identity.title);
+    expect(academyContent.identity.titleLines.join(" ")).toBe(academyContent.identity.title);
     expect(academyContent.identity.intro).toBe(
       "Gi and No-Gi classes in St Helier and the west of the island, from 6am sessions before work to evening classes. Your first class is free.",
     );
@@ -49,7 +47,7 @@ describe("public academy content", () => {
         label: "Beginners",
         title: "Beginners",
         description:
-          "Beginner classes run at Town on Monday and Wednesday at 17:30 and on Tuesday and Thursday at 18:30, and at West on Tuesday and Thursday at 18:30. No experience needed.",
+          "At Town, beginner classes run on Monday and Wednesday at 07:00 and 17:30, and on Tuesday and Thursday at 12:00 and 18:30. No experience needed.",
       },
     ]);
     expect(academyContent.instructors).toEqual([
@@ -133,7 +131,7 @@ describe("public academy content", () => {
         days: "Tuesday and Thursday",
         time: "18:30-19:30",
         discipline: "Jiu-Jitsu",
-        level: "Beginners",
+        level: "All levels",
       },
     ]);
   });

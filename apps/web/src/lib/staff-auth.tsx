@@ -109,7 +109,7 @@ export function useStaffSession(): StaffSessionContextValue {
 
 export function StaffAuthGate({
   children,
-  returnPath = "/coach/levels",
+  returnPath = "/coach",
 }: Readonly<{
   children: ReactNode;
   returnPath?: string;
