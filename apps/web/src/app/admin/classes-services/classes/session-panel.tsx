@@ -584,12 +584,16 @@ export function SessionPanel({
                   title={locked ? lockedHint : undefined}
                   onChange={(event) =>
                     patch({
-                      accessMode: event.target.value === "intro" ? "intro" : "membership",
+                      accessMode:
+                        event.target.value === "intro" || event.target.value === "private-lesson"
+                          ? event.target.value
+                          : "membership",
                     })
                   }
                 >
                   <option value="membership">Membership required</option>
                   <option value="intro">Free Intro Class</option>
+                  <option value="private-lesson">Private lesson (office books with a credit)</option>
                 </select>
               </label>
             </div>

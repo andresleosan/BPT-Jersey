@@ -198,3 +198,49 @@
   color: var(--muted);
   display: block;
 }
+
+.billing-private-lesson-list {
+  display: grid;
+  gap: 0.75rem;
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+}
+
+.billing-private-lesson-list li {
+  border-left: 0.25rem solid var(--bpt-purple);
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr);
+  padding: 0.75rem 1rem;
+}
+
+.billing-private-lesson-list li > div:first-child {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.billing-private-lesson-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.billing-private-lesson-actions input {
+  border: 1px solid var(--line);
+  border-radius: 0;
+  flex: 1 1 14rem;
+  min-height: 2.75rem;
+  padding: 0.5rem;
+}
+
+.billing-private-lesson-actions button {
+  min-height: 2.75rem;
+}
+
+@media (min-width: 64rem) {
+  .billing-private-lesson-list li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}

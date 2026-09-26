@@ -233,7 +233,8 @@ export type LockedReason =
   | "weekly_limit"
   | "paid_period"
   | "trial_ended"
-  | "trial_intro_only";
+  | "trial_intro_only"
+  | "office_arranged";
 
 export type CalendarMemberContext = Readonly<{
   studentId: string;
@@ -383,6 +384,9 @@ export function deriveSessionStatus(input: {
   const booked =
     input.booking !== undefined &&
     (input.booking.status === "confirmed" || input.booking.status === "requested");
+  // ADR-018: the office books private lessons; a member only ever sees their own as booked.
+  if (input.session.accessMode === "private-lesson" && !attended && !booked)
+    return Object.freeze({ status: "locked", lockedReason: "office_arranged" });
   const lockedReason = lockedReasonFor(input.session, input.program, input.member);
   if (lockedReason && !attended && !booked) return Object.freeze({ status: "locked", lockedReason });
 
@@ -477,6 +481,7 @@ export function lockedReasonLabel(
   if (reason === "trial_ended") return "Your trial has ended. Choose a membership to keep training.";
   if (reason === "trial_intro_only")
     return "During your trial you can book Introduction Classes only.";
+  if (reason === "office_arranged") return "Arranged by the office";
   return `Open Mats at ${site} aren't in your plan`;
 }
 

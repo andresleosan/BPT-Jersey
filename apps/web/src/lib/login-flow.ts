@@ -13,6 +13,7 @@ export type MemberDestination =
   | "/account/competitors"
   | "/account/settings"
   | "/account/waitlist"
+  | "/account/private-lessons"
   | "/shop"
   | "/enrol"
   | "/checkout";
@@ -41,6 +42,7 @@ const memberDestinations = new Set<MemberDestination>([
   "/account/competitors",
   "/account/settings",
   "/account/waitlist",
+  "/account/private-lessons",
   "/shop",
   "/enrol",
   "/checkout",

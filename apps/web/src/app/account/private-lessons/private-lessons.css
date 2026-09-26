@@ -1,0 +1,169 @@
+.private-lessons-page {
+  max-width: 66rem;
+}
+
+.private-lessons-back {
+  display: inline-flex;
+  font-weight: 800;
+  gap: 0.45rem;
+  margin-bottom: 2rem;
+  min-height: 2.75rem;
+  align-items: center;
+}
+
+.private-lessons-panel,
+.private-lessons-form {
+  background: var(--gi-white);
+  border-top: 0.35rem solid var(--bpt-purple);
+  margin-top: 2rem;
+  padding: 1.25rem;
+}
+
+.private-lessons-panel h2 {
+  font-family: var(--font-display), Impact, sans-serif;
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+
+.private-lessons-credits {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.75rem, 4vw, 2.75rem);
+  line-height: 1;
+  margin: 0.5rem 0;
+  text-transform: uppercase;
+}
+
+.private-lessons-history {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+}
+
+/* Status is text plus a left rule, never a pill. */
+.private-lessons-history li {
+  border-left: 0.25rem solid var(--line);
+  display: grid;
+  gap: 0.25rem 1rem;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  padding: 0.5rem 0.75rem;
+}
+
+.private-lessons-history li[data-status="approved"] {
+  border-left-color: var(--bpt-purple);
+}
+
+.private-lessons-history li[data-status="rejected"] {
+  border-left-color: var(--mat-ink);
+}
+
+.private-lessons-people,
+.private-lessons-options,
+.private-lessons-payment {
+  border: 0;
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+}
+
+.private-lessons-people {
+  margin-top: 2rem;
+}
+
+.private-lessons-people label {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+}
+
+.private-lessons-people legend,
+.private-lessons-options legend,
+.private-lessons-payment legend {
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+}
+
+.private-lessons-option {
+  align-items: center;
+  border: 1px solid var(--line);
+  column-gap: 0.75rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 2.75rem;
+  padding: 0.75rem;
+}
+
+.private-lessons-option:has(input:checked) {
+  border-left: 0.35rem solid var(--bpt-purple);
+}
+
+.private-lessons-option-name {
+  font-weight: 800;
+}
+
+.private-lessons-option-price {
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.private-lessons-option-note {
+  color: var(--muted);
+  grid-column: 2 / -1;
+}
+
+.private-lessons-payment {
+  border-top: 1px solid var(--line);
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+}
+
+.private-lessons-payment input:not([type="file"]) {
+  border: 1px solid var(--line);
+  border-radius: 0;
+  min-height: 2.75rem;
+  padding: 0.6rem;
+}
+
+.private-lessons-page :focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 2px;
+}
+
+.private-lessons-notice {
+  border-left: 0.35rem solid var(--bpt-purple);
+  margin-top: 1.5rem;
+  padding: 0.75rem 1rem;
+}
+
+.private-lessons-notice-error {
+  border-left-color: var(--mat-ink);
+  font-weight: 800;
+}
+
+.private-lessons-skeleton {
+  display: grid;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.private-lessons-skeleton div {
+  background: var(--paper-edge);
+  height: 6rem;
+}
+
+@media (max-width: 47.99rem) {
+  .private-lessons-option {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .private-lessons-option-price {
+    grid-column: 2;
+  }
+
+  .private-lessons-history li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -95,6 +95,23 @@ describe("SessionCard", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
+  it("shows a private lesson as arranged by the office, never bookable or cancellable", () => {
+    const privateLesson = { ...session, accessMode: "private-lesson" as const };
+    const { unmount } = renderCard({
+      entry: entry("locked", {
+        session: privateLesson,
+        derived: { status: "locked", lockedReason: "office_arranged" },
+      }),
+    });
+    expect(screen.getByText("Arranged by the office")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Book/u })).not.toBeInTheDocument();
+    unmount();
+    renderCard({ entry: entry("booked", { session: privateLesson }) });
+    expect(screen.getByText("Booked")).toBeInTheDocument();
+    expect(screen.getByText("Arranged by the office")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Cancel/u })).not.toBeInTheDocument();
+  });
+
   it("renders static labels for missed, attended, closed and full", () => {
     for (const [status, label] of [
       ["missed", "Missed"],
