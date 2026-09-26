@@ -15,6 +15,11 @@ const levelCollections = Object.freeze([
   "levelSystems",
   "levelDefinitions",
   "levelRequirements",
+  // T04: custom versions add manifests, the active pointer and activation receipts; all stay
+  // callable-only.
+  "levelCatalogManifests",
+  "levelCatalogState",
+  "levelCatalogActivations",
 ] as const);
 
 const actorCases = Object.freeze([

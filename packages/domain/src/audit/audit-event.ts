@@ -22,6 +22,7 @@ export const auditActions = Object.freeze([
   "family.student.added",
   "level.catalog.published",
   "level.catalog.rolled_back",
+  "level.catalog.activated",
   "level.assessment.recorded",
   "level.medical-leave.recorded",
   "level.promotion.approved",
@@ -347,6 +348,12 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "member.directory.initialized";
       }>
     | Readonly<{
+        // T04: the active belt catalogue moved; the before and after versions are the record.
+        action: "level.catalog.activated";
+        fromSystemId: string;
+        toSystemId: string;
+      }>
+    | Readonly<{
         action: "invoice.created" | "invoice.voided" | "invoice.status.changed";
         amountMinor: number;
         currency: "GBP";
@@ -472,6 +479,7 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "family.student.added": commonFields,
   "level.catalog.published": commonFields,
   "level.catalog.rolled_back": commonFields,
+  "level.catalog.activated": Object.freeze([...commonFields, "fromSystemId", "toSystemId"]),
   "level.assessment.recorded": commonFields,
   "level.medical-leave.recorded": commonFields,
   "level.promotion.approved": commonFields,
@@ -871,6 +879,23 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
       }
     }
 
+    if (parsedAction === "level.catalog.activated") {
+      if (
+        typeof snapshot.fromSystemId !== "string" ||
+        typeof snapshot.toSystemId !== "string" ||
+        !safeAuditIdentifierPattern.test(snapshot.fromSystemId) ||
+        !safeAuditIdentifierPattern.test(snapshot.toSystemId) ||
+        snapshot.fromSystemId === snapshot.toSystemId ||
+        snapshot.targetRef !==
+          `academies/${snapshot.academyId as string}/levelSystems/${snapshot.toSystemId}` ||
+        snapshot.purpose !== "level-catalog-maintenance" ||
+        typeof snapshot.correlationId !== "string" ||
+        !safeAuditCorrelationPattern.test(snapshot.correlationId)
+      ) {
+        issues.push(issue([], "AUDIT_LEVEL_CATALOG_SCOPE_INVALID"));
+      }
+    }
+
     if (
       parsedAction === "level.assessment.recorded" ||
       parsedAction === "level.medical-leave.recorded" ||
@@ -1256,6 +1281,16 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
           sourceRoute: snapshot.sourceRoute as string,
           recordCount: snapshot.recordCount as number,
           contentSha256: snapshot.contentSha256 as string,
+        }),
+      );
+    }
+    if (parsedAction === "level.catalog.activated") {
+      return ok(
+        Object.freeze({
+          ...base,
+          action: parsedAction,
+          fromSystemId: snapshot.fromSystemId as string,
+          toSystemId: snapshot.toSystemId as string,
         }),
       );
     }

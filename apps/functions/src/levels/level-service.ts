@@ -428,7 +428,7 @@ const levelCatalogReferenceCollections = Object.freeze([
   "recognitions",
 ] as const);
 
-function activeLevelCatalogSystemId(
+export function activeLevelCatalogSystemId(
   academyId: string,
   systems: readonly Readonly<{ id: string; data: Readonly<Record<string, unknown>> }>[],
   state: Readonly<Record<string, unknown>> | undefined,
