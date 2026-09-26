@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { WaitlistEntryRecord } from "@bpt-jersey/domain/schedule/advanced-booking";
 import {
+  createFirestoreWaitlistGroupsReader,
   createListAdminWaitlistGroupsHandler,
   groupWaitlistEntries,
   type WaitlistGroupSession,
@@ -153,19 +154,24 @@ describe("groupWaitlistEntries", () => {
 function reader(
   entries: readonly WaitlistEntryRecord[],
   sessions: readonly WaitlistGroupSession[],
+  truncated: { sessions?: boolean; entries?: boolean } = {},
 ) {
   const calls: Array<{ academyId: string; sessionIds: readonly string[] }> = [];
+  const ranges: Array<{ academyId: string; from: string; to: string }> = [];
   const value: WaitlistGroupsReader = {
-    async listActiveEntries(academyId) {
-      expect(academyId).toBe("academy-1");
-      return entries;
+    async listUpcomingSessions(academyId, from, to) {
+      ranges.push({ academyId, from, to });
+      return { sessions, truncated: truncated.sessions ?? false };
     },
-    async getSessions(academyId, sessionIds) {
+    async listLiveEntries(academyId, sessionIds) {
       calls.push({ academyId, sessionIds });
-      return sessions.filter((item) => sessionIds.includes(item.sessionId));
+      return {
+        entries: entries.filter((item) => sessionIds.includes(item.sessionId)),
+        truncated: truncated.entries ?? false,
+      };
     },
   };
-  return { value, calls };
+  return { value, calls, ranges };
 }
 
 function request(data: unknown, role: string, academyId = "academy-1") {
@@ -174,13 +180,15 @@ function request(data: unknown, role: string, academyId = "academy-1") {
 
 describe("listAdminWaitlistGroups handler", () => {
   it("lets a coach read the grouped queues without membership or tenant fields", async () => {
-    const { value, calls } = reader([entry("session-a", "student-1", 1)], [earlierAdult]);
+    const { value, calls, ranges } = reader([entry("session-a", "student-1", 1)], [earlierAdult]);
     const response = await createListAdminWaitlistGroupsHandler({
       reader: value,
       now: () => now,
     })(request({}, "coach"));
 
+    expect(ranges).toEqual([{ academyId: "academy-1", from: now, to: "2026-11-10T08:00:00.000Z" }]);
     expect(calls).toEqual([{ academyId: "academy-1", sessionIds: ["session-a"] }]);
+    expect(response.truncated).toBe(false);
     expect(response.groups).toHaveLength(1);
     const listed = response.groups[0]?.sessions[0]?.entries[0];
     expect(listed).toMatchObject({ studentReference: "student-1", position: 1 });
@@ -188,6 +196,28 @@ describe("listAdminWaitlistGroups handler", () => {
     expect(listed).not.toHaveProperty("academyId");
     expect(listed).not.toHaveProperty("studentId");
     expect(JSON.stringify(response)).not.toMatch(/membership|price|amount|pence/iu);
+  });
+
+  it("reports a truncated read when either cap is hit", async () => {
+    for (const truncated of [{ sessions: true }, { entries: true }]) {
+      const { value } = reader([entry("session-a", "student-1", 1)], [earlierAdult], truncated);
+      const response = await createListAdminWaitlistGroupsHandler({
+        reader: value,
+        now: () => now,
+      })(request({}, "owner"));
+      expect(response.truncated).toBe(true);
+      expect(response.groups).toHaveLength(1);
+    }
+  });
+
+  it("reads no entries when no session is upcoming", async () => {
+    const { value, calls } = reader([entry("session-a", "student-1", 1)], []);
+    const response = await createListAdminWaitlistGroupsHandler({
+      reader: value,
+      now: () => now,
+    })(request({}, "owner"));
+    expect(calls).toEqual([]);
+    expect(response).toEqual({ groups: [], truncated: false });
   });
 
   it.each(["guardian", "adultStudent", "teenStudent", "reception"])("rejects %s", async (role) => {
@@ -204,5 +234,114 @@ describe("listAdminWaitlistGroups handler", () => {
         request({ academyId: "academy-2" }, "owner"),
       ),
     ).rejects.toMatchObject({ code: "invalid-argument" });
+  });
+});
+
+describe("Firestore waitlist groups reader", () => {
+  type Filter = { field: string; op: string; value: unknown };
+  function fakeFirestore(rows: Record<string, Record<string, unknown>[]>) {
+    const queries: Array<{ path: string; filters: Filter[]; limit: number }> = [];
+    const query = (path: string, filters: Filter[], limit = Infinity) => ({
+      where: (field: string, op: string, value: unknown) =>
+        query(path, [...filters, { field, op, value }], limit),
+      limit: (count: number) => query(path, filters, count),
+      get: async () => {
+        queries.push({ path, filters, limit });
+        const matches = (rows[path] ?? []).filter((row) =>
+          filters.every(({ field, op, value }) =>
+            op === "in"
+              ? (value as unknown[]).includes(row[field])
+              : op === ">="
+                ? String(row[field]) >= String(value)
+                : op === "<="
+                  ? String(row[field]) <= String(value)
+                  : row[field] === value,
+          ),
+        );
+        return {
+          docs: matches
+            .slice(0, limit)
+            .map((row) => ({ id: String(row.waitlistId ?? row.sessionId), data: () => row })),
+        };
+      },
+    });
+    return {
+      queries,
+      firestore: { collection: (path: string) => query(path, []) } as never,
+    };
+  }
+
+  const sessionRow = (index: number) => ({
+    sessionId: `s-${String(index).padStart(3, "0")}`,
+    classId: "class-adult",
+    title: "Adult Fundamentals",
+    locationId: "town",
+    startAt: "2026-09-27T17:30:00.000Z",
+    status: "scheduled",
+  });
+
+  it("reads scheduled sessions in the window, then live entries per chunk of sessions", async () => {
+    const sessions = Array.from({ length: 20 }, (_, index) => sessionRow(index));
+    const stale = Array.from({ length: 600 }, (_, index) =>
+      entry("s-old", `old-${index}`, index + 1),
+    );
+    const live = [entry("s-019", "student-1", 1)];
+    const fake = fakeFirestore({
+      "academies/academy-1/sessions": sessions,
+      "academies/academy-1/waitlistEntries": [...stale, ...live],
+    });
+    const reader = createFirestoreWaitlistGroupsReader(fake.firestore);
+
+    const upcoming = await reader.listUpcomingSessions(
+      "academy-1",
+      now,
+      "2026-11-10T08:00:00.000Z",
+    );
+    expect(upcoming.truncated).toBe(false);
+    expect(upcoming.sessions).toHaveLength(20);
+    expect(fake.queries[0]?.filters).toEqual([
+      { field: "status", op: "==", value: "scheduled" },
+      { field: "startAt", op: ">=", value: now },
+      { field: "startAt", op: "<=", value: "2026-11-10T08:00:00.000Z" },
+    ]);
+
+    const result = await reader.listLiveEntries(
+      "academy-1",
+      upcoming.sessions.map((item) => item.sessionId),
+    );
+    expect(result).toEqual({ entries: live, truncated: false });
+    const entryQueries = fake.queries.slice(1);
+    expect(entryQueries).toHaveLength(2);
+    for (const item of entryQueries) {
+      const sessionFilter = item.filters.find((filter) => filter.field === "sessionId");
+      expect(sessionFilter?.op).toBe("in");
+      // Two statuses times the session ids must stay within Firestore's 30 disjunctions.
+      expect((sessionFilter?.value as unknown[]).length * 2).toBeLessThanOrEqual(30);
+      expect(item.filters).toContainEqual({
+        field: "status",
+        op: "in",
+        value: ["waiting", "offered"],
+      });
+    }
+  });
+
+  it("flags truncation instead of silently dropping rows", async () => {
+    const fake = fakeFirestore({
+      "academies/academy-1/sessions": Array.from({ length: 501 }, (_, index) => sessionRow(index)),
+      "academies/academy-1/waitlistEntries": Array.from({ length: 501 }, (_, index) =>
+        entry("s-000", `student-${index}`, index + 1),
+      ),
+    });
+    const reader = createFirestoreWaitlistGroupsReader(fake.firestore);
+    const upcoming = await reader.listUpcomingSessions(
+      "academy-1",
+      now,
+      "2026-11-10T08:00:00.000Z",
+    );
+    expect(upcoming).toMatchObject({ truncated: true });
+    expect(upcoming.sessions).toHaveLength(500);
+    const result = await reader.listLiveEntries("academy-1", ["s-000"]);
+    expect(result.truncated).toBe(true);
+    expect(result.entries).toHaveLength(500);
   });
 });
