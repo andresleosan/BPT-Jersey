@@ -171,17 +171,16 @@ button:focus-visible {
   padding: 0;
 }
 
+/* On phones the logo itself opens the menu; it borrows the .wordmark look so the swap is seamless. */
 .nav-menu-button {
-  align-items: center;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.75);
+  border: 0;
   color: var(--gi-white);
   cursor: pointer;
   display: none;
-  font: inherit;
-  letter-spacing: inherit;
+  margin-right: auto;
   min-height: 2.75rem;
-  padding: 0 1rem;
+  padding: 0;
 }
 
 .primary-nav a {
@@ -815,8 +814,16 @@ button:focus-visible {
     gap: 0.5rem;
   }
 
+  .primary-nav {
+    flex: 1 1 auto;
+  }
+
   .nav-menu-button {
     display: inline-flex;
+  }
+
+  .site-header:has(.nav-menu-button) > .wordmark {
+    display: none;
   }
 
   .primary-nav-links[data-open="false"] {
@@ -875,7 +882,8 @@ button:focus-visible {
 
   .contact-section {
     grid-template-columns: 1fr;
-  }}
+  }
+}
 
 @media (max-width: 38rem) {
   .site-header {
@@ -897,8 +905,7 @@ button:focus-visible {
     font-size: 0.68rem;
   }
 
-  .primary-nav .nav-cta,
-  .nav-menu-button {
+  .primary-nav .nav-cta {
     font-size: 0.78rem;
     padding-inline: 0.7rem;
   }
@@ -1060,7 +1067,7 @@ button:focus-visible {
   }
 }
 
-/* The smallest phones (320px): logo, Menu and Sign in share one header row. */
+/* The smallest phones (320px): the logo menu button and Sign in share one header row. */
 @media (max-width: 22.49rem) {
   .site-header {
     gap: 0.5rem;
@@ -1071,8 +1078,7 @@ button:focus-visible {
     width: 3.5rem;
   }
 
-  .primary-nav .nav-cta,
-  .nav-menu-button {
+  .primary-nav .nav-cta {
     padding-inline: 0.55rem;
   }
 }
@@ -3669,7 +3675,6 @@ button:focus-visible {
   display: grid;
   gap: 1rem;
 }
-
 
 /* /account back buttons: every way back inside the member area leads to /account and reads as one
    control (DESIGN.md §9 pill). Ink outline on canvas, white outline on purple. */

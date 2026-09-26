@@ -80,12 +80,12 @@ describe("administrative shell", () => {
     expect(screen.getByRole("navigation", { name: "Admin navigation" })).toBeVisible();
     expect(screen.getByRole("main")).toHaveAttribute("id", "admin-main-content");
     expect(screen.getByRole("main")).toHaveAttribute("tabindex", "-1");
-    expect(screen.getByRole("img", { name: "BPT Jersey logo" }).getAttribute("src")).toContain(
-      "bpt-jersey-logo.png",
-    );
-    const brand = screen.getByRole("link", { name: "BPT Jersey home" });
-    expect(within(brand).getByText("BPT", { exact: true })).toBeVisible();
-    expect(within(brand).getByText("Jersey", { exact: true })).toBeVisible();
+    // The sidebar logo hides and shows the sidebar; the header's Home link leaves the workspace.
+    const logo = screen.getByRole("button", { name: "Hide admin navigation" });
+    expect(logo.querySelector("img")?.getAttribute("src")).toContain("bpt-jersey-logo.png");
+    expect(screen.queryByRole("link", { name: "BPT Jersey home" })).not.toBeInTheDocument();
+    expect(screen.getByText("BPT", { exact: true })).toBeVisible();
+    expect(screen.getByText("Jersey", { exact: true })).toBeVisible();
     expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Attendance" })).toHaveAttribute(
       "href",
@@ -133,7 +133,7 @@ describe("administrative shell", () => {
 
     const drawer = screen.getByRole("dialog", { name: "Admin navigation" });
     expect(drawer).toBeVisible();
-    expect(screen.getByRole("img", { name: "BPT Jersey mobile logo" })).toBeVisible();
+    expect(menuButton).toHaveAttribute("aria-expanded", "true");
     expect(within(drawer).getByRole("button", { name: "Close admin navigation" })).toHaveAttribute(
       "aria-expanded",
       "true",
@@ -172,7 +172,7 @@ describe("administrative shell", () => {
     await user.tab();
     expect(skipLink).toHaveFocus();
     await user.tab();
-    expect(screen.getByRole("link", { name: "BPT Jersey home" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Hide admin navigation" })).toHaveFocus();
     await user.tab();
     expect(screen.getByRole("link", { name: "Overview" })).toHaveFocus();
     await user.tab();

@@ -825,6 +825,52 @@ a.admin-birthday-badge:focus-visible,
   width: 4rem;
 }
 
+/* The round logo opens and closes the sidebar; the header's Home link leaves the workspace. */
+.admin-logo-button {
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  padding: 0;
+}
+
+.admin-logo-button:focus-visible {
+  outline: 3px solid var(--gi-white);
+  outline-offset: 3px;
+}
+
+.admin-sidebar-panel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.admin-sidebar-panel[hidden] {
+  display: none;
+}
+
+/* Closed: only the logo stays, in a slim strip that keeps it in reach while the page scrolls. */
+.admin-shell[data-sidebar="collapsed"] {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.admin-shell[data-sidebar="collapsed"] .admin-sidebar {
+  padding: 1.5rem 1rem;
+}
+
+.admin-shell[data-sidebar="collapsed"] .admin-brand {
+  position: sticky;
+  top: 1.5rem;
+}
+
+.admin-shell[data-sidebar="collapsed"] .admin-brand-mark,
+.admin-shell[data-sidebar="collapsed"] .admin-brand-name {
+  display: none;
+}
+
 .admin-brand-mark,
 .admin-brand-name,
 .admin-sidebar-title,
@@ -1656,18 +1702,27 @@ a.admin-birthday-badge:focus-visible,
 
   .admin-mobile-menu-button {
     align-items: center;
-    background: var(--bpt-purple);
+    background: transparent;
     border: 0;
-    color: var(--gi-white);
+    border-radius: 50%;
     cursor: pointer;
     display: inline-flex;
     flex: 0 0 auto;
     justify-content: center;
-    min-height: 2.75rem;
-    min-width: 2.75rem;
+    padding: 0;
   }
 
-  .admin-mobile-menu-button:focus-visible,
+  .admin-mobile-menu-button img {
+    height: 3rem;
+    object-fit: contain;
+    width: 3rem;
+  }
+
+  .admin-mobile-menu-button:focus-visible {
+    outline: 3px solid var(--bpt-purple);
+    outline-offset: 3px;
+  }
+
   .admin-mobile-close-button:focus-visible {
     outline: 3px solid var(--gi-white);
     outline-offset: 3px;
@@ -1707,12 +1762,6 @@ a.admin-birthday-badge:focus-visible,
     display: flex;
     gap: 0.75rem;
     padding-bottom: 1rem;
-  }
-
-  .admin-mobile-navigation-header img {
-    height: 3rem;
-    object-fit: contain;
-    width: 3rem;
   }
 
   .admin-mobile-navigation-header div {
@@ -5003,7 +5052,7 @@ a.admin-birthday-badge:focus-visible,
   gap: 0.9rem;
   min-height: 3.5rem;
   padding-block: 0.75rem;
-  border-bottom: 1px solid var(--paper-edge, #E8E7E3);
+  border-bottom: 1px solid var(--paper-edge, #e8e7e3);
   cursor: pointer;
 }
 
