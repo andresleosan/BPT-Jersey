@@ -53,6 +53,14 @@ describe("staff routes", () => {
     expect(isStaffRouteAllowed("/admin/classes", "coach")).toBe(true);
   });
 
+  it("lets staff open the coach dashboard and sign-in page, and no longer /coach/levels (T13)", () => {
+    for (const role of ["coach", "headCoach"] as const) {
+      expect(isStaffRouteAllowed("/coach", role)).toBe(true);
+      expect(isStaffRouteAllowed("/coach/access", role)).toBe(true);
+      expect(isStaffRouteAllowed("/coach/levels", role)).toBe(false);
+    }
+  });
+
   it("has no lesson plans route for any staff role", () => {
     for (const role of ["coach", "headCoach"] as const) {
       expect(isStaffRouteAllowed("/admin/lesson-plans", role)).toBe(false);

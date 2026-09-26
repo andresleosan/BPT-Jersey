@@ -202,7 +202,7 @@ describe("LoginForm", () => {
   });
 
   it("routes a coach to the coach portal, honouring a coach return path", async () => {
-    window.history.replaceState({}, "", "/staff/login?returnTo=%2Fcoach%2Flevels");
+    window.history.replaceState({}, "", "/staff/login?returnTo=%2Fcoach%2Faccess");
     authOperations.signInWithGoogle.mockResolvedValue({ user: signedInUser });
     authOperations.refreshAuthToken.mockResolvedValue({
       claims: { academyId: "demo-academy", role: "coach" },
@@ -212,7 +212,7 @@ describe("LoginForm", () => {
 
     await user.click(screen.getByRole("button", { name: "Continue with Google" }));
 
-    await waitFor(() => expect(navigation.navigateTo).toHaveBeenCalledWith("/coach/levels"));
+    await waitFor(() => expect(navigation.navigateTo).toHaveBeenCalledWith("/coach/access"));
   });
 
   it("signs a non-staff account straight back out of the staff page", async () => {

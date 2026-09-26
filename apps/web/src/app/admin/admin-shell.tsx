@@ -69,6 +69,13 @@ const navigationGroups: readonly NavigationGroup[] = [
   },
 ];
 
+/** The mat's own pages. The syllabus is the read-only /admin/levels (T13). */
+const coachNavigationItems: readonly NavigationItem[] = [
+  { label: "Dashboard", href: "/coach" },
+  { label: "Progression syllabus", href: "/admin/levels" },
+  { label: "My sign-in", href: "/coach/access" },
+];
+
 function isStaffRole(
   role: AdminSession["role"] | StaffSession["role"],
 ): role is StaffSession["role"] {
@@ -109,19 +116,14 @@ export function AdminShell({
         (item) =>
           (!item.ownerOnly || session.role === "owner") &&
           (!item.staffOnly || allowedRoutes !== undefined) &&
-          (allowedRoutes === undefined || allowedRoutes.includes(item.href)),
+          (allowedRoutes === undefined || allowedRoutes.includes(item.href)) &&
+          // The coach group already names these pages, so no other group repeats them (T13).
+          !(coachWorkspace && coachNavigationItems.some((coach) => coach.href === item.href)),
       ),
     }))
     .filter((group) => group.items.length > 0);
   if (coachWorkspace) {
-    visibleGroups.unshift({
-      label: "Coach",
-      items: [
-        { label: "Dashboard", href: "/coach" },
-        { label: "Progression syllabus", href: "/coach/levels" },
-        { label: "My sign-in", href: "/coach/access" },
-      ],
-    });
+    visibleGroups.unshift({ label: "Coach", items: [...coachNavigationItems] });
   }
   const navigationLabel = coachWorkspace ? "Coach navigation" : "Admin navigation";
   const visibleNavigationItems = visibleGroups.flatMap((group) => group.items);
