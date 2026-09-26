@@ -57,7 +57,7 @@ export function CourseCatalogue({ onChoose }: Readonly<{ onChoose?: (courseId: s
     <section className="course-catalogue" aria-labelledby="course-catalogue-title">
       <header className="course-section-heading">
         <h2 id="course-catalogue-title">Courses &amp; seminars</h2>
-        <p>Choose the dates and focus that fit your training.</p>
+        <p>Short courses and seminars with fixed dates.</p>
       </header>
 
       {error ? (

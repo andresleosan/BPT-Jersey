@@ -14,6 +14,9 @@ describe("public academy content", () => {
     expect(
       `${academyContent.identity.titleLines[0]}${academyContent.identity.titleLines[1]} ${academyContent.identity.titleLines[2]}`,
     ).toBe(academyContent.identity.title);
+    expect(academyContent.identity.intro).toBe(
+      "Gi and No-Gi classes in St Helier and the west of the island, from 6am sessions before work to evening classes. Your first class is free.",
+    );
     expect(academyContent.locations).toEqual([
       {
         key: "town",
@@ -44,9 +47,9 @@ describe("public academy content", () => {
       },
       {
         label: "Beginners",
-        title: "Start with confidence",
+        title: "Beginners",
         description:
-          "A clear entry point for people with no previous martial-arts experience or returning to training.",
+          "Beginner classes run at Town on Monday and Wednesday at 17:30 and on Tuesday and Thursday at 18:30, and at West on Tuesday and Thursday at 18:30. No experience needed.",
       },
     ]);
     expect(academyContent.instructors).toEqual([
@@ -61,10 +64,10 @@ describe("public academy content", () => {
       { id: "coach-catalina", name: "Catalina Bruma", credential: "Brown belt" },
     ]);
     expect(academyContent.notes.booking).toBe(
-      "Timetables and fees are published information. Confirm eligibility and current term availability when booking.",
+      "Times can change between terms. Check the week in your account before you come.",
     );
     expect(academyContent.notes.contact).toBe(
-      "Book a free class and the academy team will help you choose the right starting point.",
+      "Book a free class and a coach will help you pick the right class to start with.",
     );
     expect(academyContent.sources).toEqual([
       "https://bptjersey.com/",
@@ -130,9 +133,17 @@ describe("public academy content", () => {
         days: "Tuesday and Thursday",
         time: "18:30-19:30",
         discipline: "Jiu-Jitsu",
-        level: "Published session",
+        level: "Beginners",
       },
     ]);
+  });
+
+  it("describes the merchandise without unverified claims", () => {
+    const descriptions = academyContent.merchandise.map((category) => category.description);
+
+    expect(descriptions[0]).toBe("BPT gis in blue, black and white with embroidered lettering.");
+    expect(descriptions[1]).toBe("No-Gi rashguards with the BPT tiger in team colours.");
+    expect(JSON.stringify(academyContent)).not.toMatch(/Competition-ready|limited runs/u);
   });
 
   it("keeps public program and contact content free of account artifacts", () => {

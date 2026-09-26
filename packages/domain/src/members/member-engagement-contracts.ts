@@ -29,7 +29,7 @@ export type ProgressBar = Readonly<{
   target: number;
   progress: number;
   remaining: number;
-  /** Exactly one attendance short: the bar deepens its tone and prints the "Just x1 missing" line. */
+  /** Exactly one attendance short: the bar deepens its tone and prints the "One more class" line. */
   almost: boolean;
   complete: boolean;
 }>;
@@ -298,7 +298,7 @@ export const uploadProfilePhotoInputSchema = z.strictObject({
 export const teenAccessInputSchema = z.strictObject({
   studentId: id,
   email: z.email().max(254),
-  password: z.string().min(10).max(128),
+  password: z.string().min(12).max(128),
 });
 /** A member (or their guardian) edits the emergency contact from account settings. */
 export const ownEmergencyContactInputSchema = z.strictObject({

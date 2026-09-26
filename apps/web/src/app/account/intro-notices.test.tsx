@@ -13,7 +13,7 @@ describe("IntroNotices", () => {
   it("shows only an internal plan action after an attended intro", async () => {
     render(<IntroNotices />);
     expect(await screen.findByRole("heading", { name: "Your next step" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Get a membership" })).toHaveAttribute("href", "/account/membership?from=intro");
+    expect(screen.getByRole("link", { name: "Choose a plan" })).toHaveAttribute("href", "/account/membership?from=intro");
   });
   it("dismisses the notice only after the server accepts the read", async () => {
     render(<IntroNotices />);

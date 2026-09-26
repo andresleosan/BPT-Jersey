@@ -238,7 +238,7 @@ function CompetitorsContent() {
   return (
     <main className="client-destination competitors-page" aria-labelledby="competitors-title">
       <p className="account-eyebrow">
-        <Link href="/account">← Back to Account</Link>
+        <Link href="/account">← Back to account</Link>
       </p>
       <h1 className="member-title-compact" id="competitors-title">
         Competitors

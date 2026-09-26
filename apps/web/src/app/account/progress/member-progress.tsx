@@ -352,7 +352,7 @@ export function MemberProgress({
     <main className="rank-shell" aria-labelledby="progress-title">
       <header className="rank-header">
         <Link className="rank-back" href="/account">
-          ← Back to Account
+          ← Back to account
         </Link>
         <h1 id="progress-title">Progress</h1>
         {people && people.length > 1 ? (
