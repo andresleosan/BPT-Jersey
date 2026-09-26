@@ -562,7 +562,7 @@ export function MemberCalendar({
               },
         );
         applyBooking(booking);
-        if (isIntro) flashNote(entry.session.sessionId, "Intro Class booked.");
+        if (isIntro) flashNote(entry.session.sessionId, "Intro class booked.");
       } catch (error) {
         if (!isIntro) restoreBooking(entry.session.sessionId, entry.booking);
         flashNote(entry.session.sessionId, bookingFailureMessage(error));
@@ -658,9 +658,9 @@ export function MemberCalendar({
           {participant.trial.status === "active" && participant.trial.attendedCount > 0 ? (
             <>
               {trialClassesLeft(participant.trial) > 0
-                ? `Great first class! ${trialClassesLeft(participant.trial)} free class left.`
+                ? `${trialClassesLeft(participant.trial)} free ${trialClassesLeft(participant.trial) === 1 ? "class" : "classes"} left in your trial.`
                 : "Your last free class is booked."}{" "}
-              Choose a plan now to keep training without a break.{" "}
+              Choose a plan to keep training after it ends.{" "}
               {planLink}
             </>
           ) : participant.trial.status === "active" &&

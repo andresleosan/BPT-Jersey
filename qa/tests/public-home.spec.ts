@@ -84,9 +84,7 @@ test.describe("public homepage @smoke", () => {
     const contactCta = contactSection.getByRole("link", { name: "Book a free class" });
     await expect(contactCta).toBeVisible();
     await expect(contactCta).toHaveAttribute("href", "/enrol");
-    await expect(
-      page.getByText("Public information last verified 2026-08-07.", { exact: true }),
-    ).toBeVisible();
+    await expect(page.getByText("Timetable checked 7 August 2026.", { exact: true })).toBeVisible();
     await expect(page.locator('a[href="https://bptjersey.com/"]')).toHaveCount(0);
 
     const hasHorizontalOverflow = await page.evaluate(

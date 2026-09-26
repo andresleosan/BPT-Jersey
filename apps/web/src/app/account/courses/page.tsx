@@ -145,7 +145,7 @@ function MyCourses({ session }: { session: CourseSession }) {
           {page?.items.length === 0 && (
             <div className="course-panel course-empty">
               <h3>No course enrolments yet</h3>
-              <p>Explore the catalogue to find your next programme.</p>
+              <p>Courses you enrol in appear here.</p>
               <a className="course-button" href="#course-catalogue-title">
                 Browse courses
               </a>
@@ -198,10 +198,10 @@ export default function AccountCoursesPage() {
         Skip to main content
       </a>
       <p className="account-eyebrow">
-        <Link href="/account">← Back to Account</Link>
+        <Link href="/account">← Back to account</Link>
       </p>
       <header className="course-page-hero" id="main-content">
-        <h1>Courses &amp; Seminars</h1>
+        <h1>Courses &amp; seminars</h1>
         <p className="course-intro">
           Find a course, enrol, and follow your places, payments and updates in one place.
         </p>

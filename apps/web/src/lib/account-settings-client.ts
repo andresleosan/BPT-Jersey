@@ -27,7 +27,7 @@ export async function getAdultClaimStatus(): Promise<AdultClaimStatus> {
 }
 
 export const adultClaimMessages = Object.freeze({
-  shortPassword: "Choose a new password of at least 10 characters.",
+  shortPassword: "Choose a new password of at least 12 characters.",
   samePassword: "Choose a new password that is different from the current one.",
   wrongPassword: "That current password is not right. Try again.",
   failed: "We couldn't hand the account over. Try again.",
@@ -42,7 +42,7 @@ function authCode(cause: unknown): string {
  * new password, then record the claim. Throws only the fixed messages above.
  */
 export async function claimAdultAccount(input: Readonly<{ studentId: string; currentPassword: string; newPassword: string }>): Promise<void> {
-  if (input.newPassword.length < 10) throw new Error(adultClaimMessages.shortPassword);
+  if (input.newPassword.length < 12) throw new Error(adultClaimMessages.shortPassword);
   if (input.newPassword === input.currentPassword) throw new Error(adultClaimMessages.samePassword);
   const user = getFirebaseAuth().currentUser;
   if (!user?.email) throw new Error(adultClaimMessages.failed);
@@ -84,7 +84,7 @@ export const settingsMessages = Object.freeze({
   removeFailed: "We couldn't remove the photo. Try again.",
   approveFailed: "We couldn't approve the photo. Try again.",
   visibilityFailed: "We couldn't change your visibility. Try again.",
-  teenPassword: "Choose a password of at least 10 characters.",
+  teenPassword: "Choose a password of at least 12 characters.",
   teenPasswordLong: "Choose a password of 128 characters or fewer.",
   teenEmail: "Enter a valid email address.",
   createFailed: "Own access could not be set up. Try again.",
@@ -97,7 +97,7 @@ const knownServerMessages = new Set([
   "We couldn't create access with that email. Try a different one.",
   "This member already has their own access.",
   "Add a phone number to your profile first.",
-  "Choose a password of at least 10 characters.",
+  "Choose a password of at least 12 characters.",
   "This account now belongs to the member.",
   "This member has no own access to remove.",
   "There is no proposed photo to approve.",
@@ -151,7 +151,7 @@ export const setMemberVisibility = (studentId: string, showToMembers: boolean) =
   call("setMemberVisibility", { studentId, showToMembers }, empty, settingsMessages.visibilityFailed).then(() => undefined);
 
 export function createTeenAccess(input: Readonly<{ studentId: string; email: string; password: string }>) {
-  if (input.password.length < 10) return Promise.reject(new Error(settingsMessages.teenPassword));
+  if (input.password.length < 12) return Promise.reject(new Error(settingsMessages.teenPassword));
   if (input.password.length > 128) return Promise.reject(new Error(settingsMessages.teenPasswordLong));
   const parsed = teenAccessInputSchema.safeParse({ ...input, email: input.email.trim() });
   if (!parsed.success) return Promise.reject(new Error(settingsMessages.teenEmail));

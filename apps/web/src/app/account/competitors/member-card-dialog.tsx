@@ -94,7 +94,7 @@ function TechniqueList({
     <section className="competitor-techniques">
       <h3>{title}</h3>
       {keys.length === 0 ? (
-        <p className="competitor-muted">Nothing here.</p>
+        <p className="competitor-muted">No techniques to compare.</p>
       ) : (
         <ul>
           {shown.map((key) => (

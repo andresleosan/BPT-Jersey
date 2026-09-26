@@ -15,6 +15,7 @@ import {
   rankNeighbours,
   seasonStartFor,
   sessionStreak,
+  teenAccessInputSchema,
 } from "./member-engagement-contracts";
 
 const now = "2026-09-16T10:00:00.000Z";
@@ -236,5 +237,18 @@ describe("beltScore", () => {
   it("orders by ladder position first, then promotion percent", () => {
     expect(beltScore(5, 90)).toBeLessThan(beltScore(6, 0));
     expect(beltScore(5, 10)).toBeLessThan(beltScore(5, 20));
+  });
+});
+
+describe("teenAccessInputSchema", () => {
+  const base = { studentId: "student-1", email: "teen@example.test" };
+
+  it("refuses an own-access password of 11 characters and accepts 12", () => {
+    expect(teenAccessInputSchema.safeParse({ ...base, password: "a".repeat(11) }).success).toBe(
+      false,
+    );
+    expect(teenAccessInputSchema.safeParse({ ...base, password: "a".repeat(12) }).success).toBe(
+      true,
+    );
   });
 });

@@ -29,10 +29,14 @@ vi.mock("./callable", () => ({
 
 import {
   accountMessages,
+  adultClaimMessages,
   changePassword,
+  claimAdultAccount,
+  createTeenAccess,
   getOwnEmergencyContact,
   requestEmailChange,
   saveOwnEmergencyContact,
+  settingsMessages,
   syncOwnAccountEmail,
 } from "./account-settings-client";
 
@@ -207,5 +211,38 @@ describe("account callables", () => {
       ok: false,
       message: accountMessages.contactFailed,
     });
+  });
+});
+
+describe("member password minimum", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("refuses an 11-character own-access password before calling the server, and sends 12", async () => {
+    await expect(
+      createTeenAccess({ studentId: "student-1", email: "teen@example.test", password: "a".repeat(11) }),
+    ).rejects.toThrow(settingsMessages.teenPassword);
+    expect(settingsMessages.teenPassword).toBe("Choose a password of at least 12 characters.");
+    expect(mocks.callable).not.toHaveBeenCalled();
+
+    mocks.callable.mockResolvedValueOnce({ data: { email: "teen@example.test" } });
+    await expect(
+      createTeenAccess({ studentId: "student-1", email: "teen@example.test", password: "a".repeat(12) }),
+    ).resolves.toEqual({ email: "teen@example.test" });
+  });
+
+  it("refuses an 11-character password when an adult takes over the account", async () => {
+    await expect(
+      claimAdultAccount({
+        studentId: "student-1",
+        currentPassword: "current-password",
+        newPassword: "a".repeat(11),
+      }),
+    ).rejects.toThrow("Choose a new password of at least 12 characters.");
+    expect(adultClaimMessages.shortPassword).toBe(
+      "Choose a new password of at least 12 characters.",
+    );
+    expect(mocks.reauthenticateWithCredential).not.toHaveBeenCalled();
   });
 });
