@@ -36,7 +36,7 @@ export type MerchandiseCategory = {
 };
 
 export const academyContent = {
-  lastVerified: "2026-08-07",
+  lastVerified: "2026-09-26",
   sources: [
     "https://bptjersey.com/",
     "https://bptjersey.com/classes",
@@ -44,8 +44,8 @@ export const academyContent = {
     "https://bptjersey.com/club-merchandise",
   ],
   identity: {
-    title: "Brazilian Jiu-Jitsu, MMA & Self-Defence",
-    titleLines: ["Brazilian Jiu-", "Jitsu, MMA", "& Self-Defence"] as const,
+    title: "Brazilian Jiu-Jitsu & Self-Defence",
+    titleLines: ["Brazilian", "Jiu-Jitsu &", "Self-Defence"] as const,
     intro:
       "Gi and No-Gi classes in St Helier and the west of the island, from 6am sessions before work to evening classes. Your first class is free.",
   },
@@ -120,7 +120,7 @@ export const academyContent = {
       days: "Tuesday and Thursday",
       time: "18:30-19:30",
       discipline: "Jiu-Jitsu",
-      level: "Beginners",
+      level: "All levels",
     },
   ] satisfies readonly ScheduleEntry[],
   programs: [
@@ -139,7 +139,7 @@ export const academyContent = {
       label: "Beginners",
       title: "Beginners",
       description:
-        "Beginner classes run at Town on Monday and Wednesday at 17:30 and on Tuesday and Thursday at 18:30, and at West on Tuesday and Thursday at 18:30. No experience needed.",
+        "At Town, beginner classes run on Monday and Wednesday at 07:00 and 17:30, and on Tuesday and Thursday at 12:00 and 18:30. No experience needed.",
     },
   ] satisfies readonly ProgramItem[],
   instructors: [
