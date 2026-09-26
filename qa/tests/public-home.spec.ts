@@ -19,15 +19,15 @@ test.describe("public homepage @smoke", () => {
     const initialUrl = new URL(page.url());
     await expect(page).toHaveTitle(/BPT Jersey/);
     const heroTitle = page.getByRole("heading", {
-      name: "Brazilian Jiu-Jitsu, MMA & Self-Defence",
+      name: "Brazilian Jiu-Jitsu & Self-Defence",
       level: 1,
     });
 
     await expect(heroTitle).toBeVisible();
     await expect(heroTitle.locator(".hero-title-line")).toHaveText([
-      "Brazilian Jiu-",
-      "Jitsu, MMA",
-      "& Self-Defence",
+      "Brazilian",
+      "Jiu-Jitsu &",
+      "Self-Defence",
     ]);
     const titleLines = heroTitle.locator(".hero-title-line");
     await expect(titleLines).toHaveCount(3);
@@ -84,7 +84,7 @@ test.describe("public homepage @smoke", () => {
     const contactCta = contactSection.getByRole("link", { name: "Book a free class" });
     await expect(contactCta).toBeVisible();
     await expect(contactCta).toHaveAttribute("href", "/enrol");
-    await expect(page.getByText("Timetable checked 7 August 2026.", { exact: true })).toBeVisible();
+    await expect(page.getByText("Timetable checked 26 September 2026.", { exact: true })).toBeVisible();
     await expect(page.locator('a[href="https://bptjersey.com/"]')).toHaveCount(0);
 
     const hasHorizontalOverflow = await page.evaluate(

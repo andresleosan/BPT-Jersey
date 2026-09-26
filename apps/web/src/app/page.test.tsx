@@ -44,7 +44,7 @@ describe("public home branding", () => {
     expect(screen.getByRole("heading", { name: "Memberships and prices" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Club shop" })).toBeVisible();
     expect(screen.getByRole("table", { name: "Weekly timetable" })).toBeVisible();
-    expect(screen.getByText("Timetable checked 7 August 2026.")).toBeVisible();
+    expect(screen.getByText("Timetable checked 26 September 2026.")).toBeVisible();
   });
 
   it("lists the addresses once and keeps the contact section to the free class", () => {
