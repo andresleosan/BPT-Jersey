@@ -9,7 +9,8 @@ export async function isClassPaymentSettled(
 ): Promise<boolean> {
   const booking = bookings.find((doc) => doc.exists && doc.data()?.status === "confirmed")?.data();
   if (!booking) return false;
-  if (booking.schemaVersion === "2" || booking.schemaVersion === "3") return true;
+  // Course, intro and private lesson (paid by a credit) bookings carry no per-class invoice.
+  if (booking.schemaVersion === "2" || booking.schemaVersion === "3" || booking.schemaVersion === "4") return true;
   const root = `academies/${academyId}`;
   if (typeof booking.membershipId !== "string" || booking.membershipId.includes("/")) return false;
   const membership = (await tx.get(db.doc(`${root}/memberships/${booking.membershipId}`))).data();
