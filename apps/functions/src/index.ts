@@ -393,3 +393,7 @@ export {
   reviewPrivateLessonPurchase,
   recordPrivateLessonPurchase,
 } from "./private-lessons/private-lesson-callables.js";
+export {
+  bookPrivateLesson,
+  cancelPrivateLessonBooking,
+} from "./schedule/schedule-callables.js";
