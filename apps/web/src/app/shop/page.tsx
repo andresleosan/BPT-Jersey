@@ -20,6 +20,7 @@ import {
   listShopCatalog,
   placeShopOrder,
 } from "../../lib/shop-client";
+import "./shop.css";
 
 type LoadState =
   | Readonly<{ status: "loading" }>

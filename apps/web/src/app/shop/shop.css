@@ -1,0 +1,56 @@
+/*
+ * T15: shop catalogue on tablet and desktop. Phones (< 48rem) keep the single column from
+ * globals.css untouched. From 48rem each card becomes a subgrid row set, so the category, name,
+ * price and stock rows line up across the cards of a row whatever the length of each name, and the
+ * order controls sit on the card's last row.
+ */
+/* The shared secondary button is white-on-dark; on the white product card it must be dark ink. */
+.shop-page .shop-signin-link {
+  border-color: var(--bpt-purple);
+  color: var(--bpt-purple);
+}
+
+.shop-page .shop-signin-link:hover {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+@media (min-width: 48rem) {
+  .shop-page .shop-product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .shop-page .shop-product-card {
+    display: grid;
+    grid-row: span 7;
+    grid-template-rows: subgrid;
+    padding-bottom: 1.5rem;
+    row-gap: 0.6rem;
+  }
+
+  .shop-page .shop-product-figure {
+    margin-bottom: 0.55rem;
+  }
+
+  .shop-page .shop-product-body {
+    display: contents;
+  }
+
+  .shop-page .shop-product-body > * {
+    margin-inline: 1.25rem;
+  }
+
+  .shop-page .shop-product-body > :last-child {
+    grid-row: 7;
+  }
+
+  .shop-page .shop-product-price {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (min-width: 64rem) {
+  .shop-page .shop-product-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { PublicCourse } from "@bpt-jersey/domain/courses";
 
 import { courseDate, courseMoney, publicCourses } from "../../lib/courses/course-public-client";
@@ -12,9 +12,31 @@ function promotionText(course: PublicCourse): string {
   return `${course.title} | ${course.sessionCount} sessions | ${courseMoney(course.priceMinor)} | ${date} | ${action}`;
 }
 
+const reducedMotionQuery = "(prefers-reduced-motion: reduce)";
+
+function subscribeReducedMotion(onChange: () => void): () => void {
+  if (typeof window.matchMedia !== "function") return () => {};
+  const query = window.matchMedia(reducedMotionQuery);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+function prefersReducedMotion(): boolean {
+  return typeof window.matchMedia === "function" && window.matchMedia(reducedMotionQuery).matches;
+}
+
+/**
+ * The only perpetual motion allowed on the site (DESIGN.md §7). Under reduced motion the band
+ * is a static wrapped list: no duplicate track and no Pause control.
+ */
 export function CoursePromotionBar() {
   const [courses, setCourses] = useState<PublicCourse[]>([]);
   const [paused, setPaused] = useState(false);
+  const reducedMotion = useSyncExternalStore(
+    subscribeReducedMotion,
+    prefersReducedMotion,
+    () => false,
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -39,16 +61,20 @@ export function CoursePromotionBar() {
               </a>
             ))}
           </div>
-          <div className="course-promo-group" aria-hidden="true" inert>
-            {courses.map((course) => (
-              <span key={course.courseId}>{promotionText(course)}</span>
-            ))}
-          </div>
+          {reducedMotion ? null : (
+            <div className="course-promo-group" aria-hidden="true" inert>
+              {courses.map((course) => (
+                <span key={course.courseId}>{promotionText(course)}</span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
-      <button type="button" aria-pressed={paused} onClick={() => setPaused((value) => !value)}>
-        {paused ? "Play" : "Pause"}
-      </button>
+      {reducedMotion ? null : (
+        <button type="button" aria-pressed={paused} onClick={() => setPaused((value) => !value)}>
+          {paused ? "Play" : "Pause"}
+        </button>
+      )}
     </aside>
   );
 }

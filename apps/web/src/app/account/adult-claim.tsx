@@ -87,13 +87,13 @@ export function AdultClaimGate({ children }: Readonly<{ children: React.ReactNod
             autoComplete="new-password"
             disabled={busy}
             id="adult-claim-new"
-            minLength={10}
+            minLength={12}
             onChange={(event) => setNewPassword(event.target.value)}
             required
             type="password"
             value={newPassword}
           />
-          <small id="adult-claim-new-hint">At least 10 characters.</small>
+          <small id="adult-claim-new-hint">At least 12 characters.</small>
         </label>
         <button className="button button-primary" disabled={busy} type="submit">
           {busy ? "Saving..." : "Set new password"}

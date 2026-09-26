@@ -29,7 +29,7 @@ export function RecoveredMemberHistory({ studentId }: { studentId?: string }) {
   return (
     <section aria-labelledby="recovered-history-title">
       <h2 id="recovered-history-title">Confirmed previous history</h2>
-      <p>Reviewed payments, attendance and progress from the available historical records. The office reviews missing or uncertain details separately.</p>
+      <p>The office checked these records against the previous system. Anything missing or uncertain is reviewed separately.</p>
       {!history && <button className="button button-secondary" disabled={busy} onClick={() => void load()}>
         {busy ? "Loading history…" : "View previous history"}
       </button>}

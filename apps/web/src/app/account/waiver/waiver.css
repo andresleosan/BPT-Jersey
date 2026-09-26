@@ -1,19 +1,14 @@
 .waiver-page {
   min-height: 100vh;
   padding: clamp(1.5rem, 4vw, 4rem);
-  background: linear-gradient(
-    135deg,
-    rgba(47, 36, 131, 0.96),
-    rgba(20, 18, 48, 0.98) 44%,
-    #f3efe8 44%
-  );
+  background: var(--canvas);
   color: #17152a;
 }
 
 .waiver-hero {
   max-width: 46rem;
   margin-bottom: 2.5rem;
-  color: #fff;
+  color: var(--mat-ink);
 }
 
 .waiver-hero h1,
@@ -36,7 +31,7 @@
 }
 
 .waiver-back-link {
-  color: #fff;
+  color: var(--bpt-purple);
   font-weight: 700;
   text-underline-offset: 0.25rem;
 }
@@ -57,9 +52,10 @@
 .waiver-publish-form,
 .waiver-legal-warning {
   border: 1px solid rgba(47, 36, 131, 0.16);
-  border-radius: 0.35rem;
+  border-top: 0.35rem solid var(--bpt-purple);
+  border-radius: 0;
   background: #fff;
-  box-shadow: 0 1rem 3rem rgba(18, 15, 48, 0.12);
+  box-shadow: none;
 }
 
 .waiver-subject-card {
@@ -123,7 +119,7 @@
 
 .waiver-document-heading {
   border-bottom: 1px solid #dfdbe8;
-  background: linear-gradient(115deg, #fff, #f5f2fb);
+  background: var(--gi-white);
 }
 
 .waiver-document-heading h2 {
@@ -177,7 +173,7 @@
   align-items: center;
   gap: 0.55rem;
   border: 1px solid #cbc5db;
-  border-radius: 999px;
+  border-radius: 0;
   padding: 0.55rem 0.85rem;
   font-weight: 700;
 }
@@ -225,9 +221,10 @@
   grid-column: 2;
   overflow: hidden;
   border: 1px solid rgba(47, 36, 131, 0.16);
-  border-radius: 0.35rem;
+  border-top: 0.35rem solid var(--bpt-purple);
+  border-radius: 0;
   background: #fff;
-  box-shadow: 0 1rem 3rem rgba(18, 15, 48, 0.12);
+  box-shadow: none;
 }
 .waiver-official-source-heading {
   padding: clamp(1.25rem, 3vw, 2rem);
@@ -358,14 +355,11 @@
 
 .waiver-page :focus-visible,
 .waiver-admin :focus-visible {
-  outline: 0.2rem solid #efc232;
+  outline: 0.2rem solid var(--bpt-purple);
   outline-offset: 0.18rem;
 }
 
 @media (max-width: 800px) {
-  .waiver-page {
-    background: linear-gradient(165deg, #2f2483 0 24rem, #f3efe8 24rem);
-  }
   .waiver-layout,
   .waiver-admin-grid {
     grid-template-columns: 1fr;
