@@ -143,10 +143,14 @@ No hay indicadores giratorios ni animación fuera del relleno de 220 ms.
 
 - A class type's timetable colour (Types → "Timetable colour") is catalogue data, validated
   as `#RRGGBB` before it reaches CSS.
-- It may appear only as the `0.35rem` left rule of a session card in the admin/coach
-  timetable and as the swatch in Types. Never as a card fill, tint, text colour, border
-  elsewhere, or anywhere in the member app.
-- The type is always named in text; colour is never the only carrier of information.
+- In the admin/coach **week** timetable it fills the whole session card (operator decision,
+  2026-09-26: the cards keep the pastel type colours of the original timetable), with Mat Ink
+  text and a boxed occupancy chip at the bottom right. A colour too dark for Mat Ink to reach
+  WCAG AA (4.5:1) is mixed towards white until it does; a cancelled card drops the fill (Paper
+  Edge, struck through). The single-day agenda keeps the `0.35rem` left rule, and Types shows
+  the swatch. Never a text colour, never elsewhere, never in the member app.
+- The type is always named in text; colour is never the only carrier of information. A week
+  card whose title already is the type's name does not repeat it on a second line.
 
 ## Course catalogue and enrolment surfaces
 
