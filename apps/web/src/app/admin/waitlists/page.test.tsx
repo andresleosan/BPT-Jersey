@@ -1,156 +1,188 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const waitlistState = vi.hoisted(() => ({
-  list: vi.fn(),
+  listGroups: vi.fn(),
   issue: vi.fn(),
 }));
-const scheduleState = vi.hoisted(() => ({ listSessions: vi.fn() }));
 
 vi.mock("../../../lib/admin-waitlist-client", () => ({
-  listAdminSessionWaitlist: waitlistState.list,
+  listAdminWaitlistGroups: waitlistState.listGroups,
   issueNextAdminWaitlistOffer: waitlistState.issue,
-}));
-vi.mock("../../../lib/schedule-client", () => ({
-  listSessions: scheduleState.listSessions,
 }));
 
 import { AdminWaitlistsPage } from "./page";
 
-const session = {
-  sessionId: "session-private-1",
-  academyId: "academy-private-1",
-  classId: "class-1",
-  programId: "program-1",
-  locationId: "town",
-  instructorId: "coach-1",
+function waiting(sessionId: string, studentReference: string, position: number) {
+  return {
+    sessionId,
+    studentReference,
+    position,
+    status: "waiting",
+    requestedAt: "2026-09-20T09:00:00.000Z",
+    offeredAt: null,
+    offerExpiresAt: null,
+    acceptedAt: null,
+    cancelledAt: null,
+  } as const;
+}
+
+function offered(sessionId: string, studentReference: string, position: number) {
+  return {
+    ...waiting(sessionId, studentReference, position),
+    status: "offered",
+    offeredAt: "2026-09-26T07:50:00.000Z",
+    offerExpiresAt: "2026-09-26T08:20:00.000Z",
+  } as const;
+}
+
+const adultGroup = {
+  groupId: "class-adult",
   title: "Adult Fundamentals",
-  startAt: "2026-09-10T17:30:00.000Z",
-  endAt: "2026-09-10T18:30:00.000Z",
-  capacity: 12,
-  minParticipants: 2,
-  status: "scheduled",
-  isSeminar: false,
-  cancellationReason: null,
-  schemaVersion: "1",
-  createdAt: "2026-08-01T10:00:00.000Z",
-  createdBy: "admin-1",
-  updatedAt: "2026-08-01T10:00:00.000Z",
-  updatedBy: "admin-1",
+  location: "town",
+  count: 3,
+  sessions: [
+    {
+      sessionId: "session-private-a",
+      startAt: "2026-09-27T17:30:00.000Z",
+      entries: [
+        waiting("session-private-a", "student-private-1", 1),
+        waiting("session-private-a", "student-private-2", 2),
+      ],
+    },
+    {
+      sessionId: "session-private-b",
+      startAt: "2026-09-29T17:30:00.000Z",
+      entries: [waiting("session-private-b", "student-private-3", 1)],
+    },
+  ],
 } as const;
 
-const waitingEntry = {
-  sessionId: session.sessionId,
-  studentReference: "student-private-1",
-  position: 1,
-  status: "waiting",
-  requestedAt: "2026-09-01T09:00:00.000Z",
-  offeredAt: null,
-  offerExpiresAt: null,
-  acceptedAt: null,
-  cancelledAt: null,
+const kidsGroup = {
+  groupId: "class-kids",
+  title: "Kids BJJ",
+  location: "west",
+  count: 1,
+  sessions: [
+    {
+      sessionId: "session-private-k",
+      startAt: "2026-09-28T16:00:00.000Z",
+      entries: [waiting("session-private-k", "student-private-4", 1)],
+    },
+  ],
 } as const;
 
-const offeredEntry = {
-  ...waitingEntry,
-  status: "offered",
-  offeredAt: "2026-09-01T09:10:00.000Z",
-  offerExpiresAt: "2026-09-01T09:40:00.000Z",
-} as const;
-
-describe("admin class waitlists", () => {
+describe("admin class waitlists by group", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    vi.setSystemTime(new Date("2026-09-01T08:00:00.000Z"));
-    scheduleState.listSessions.mockResolvedValue([session]);
-    waitlistState.list.mockResolvedValue([waitingEntry]);
+    vi.setSystemTime(new Date("2026-09-26T08:00:00.000Z"));
+    window.history.replaceState(null, "", "/admin/waitlists");
+    waitlistState.listGroups.mockResolvedValue([adultGroup, kidsGroup]);
   });
 
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
-  it("offers one FIFO action without a student selector or visible internal identifiers", async () => {
+  it("shows every group by default with its waiting count and no internal identifiers", async () => {
     render(<AdminWaitlistsPage />);
 
-    expect(await screen.findByRole("heading", { name: "Class waitlists" })).toBeVisible();
-    expect(screen.getByRole("combobox", { name: "Class" })).toHaveTextContent("Adult Fundamentals");
-    expect(screen.queryByRole("combobox", { name: /student|participant/i })).toBeNull();
-    expect(await screen.findByLabelText("Queue position 1")).toHaveTextContent("01");
-    expect(screen.getByRole("button", { name: "Offer next place" })).toBeEnabled();
-    expect(screen.getByText("Waiting")).toBeVisible();
-    expect(document.body).not.toHaveTextContent(
-      /student-private|session-private|academy-private|class-1|program-1/i,
-    );
+    expect(await screen.findByRole("heading", { name: "Adult Fundamentals" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Kids BJJ" })).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Group" })).toHaveValue("all");
+    expect(screen.getByText("3 waiting")).toBeVisible();
+    expect(screen.getByText("1 waiting")).toBeVisible();
+    expect(screen.getAllByRole("button", { name: "Offer next place" })).toHaveLength(3);
+    expect(document.body).not.toHaveTextContent(/student-private|session-private|class-adult/iu);
   });
 
-  it("shows the queue read-only without exposing the offer action", async () => {
-    render(<AdminWaitlistsPage canIssue={false} />);
-
-    expect(await screen.findByLabelText("Queue position 1")).toHaveTextContent("01");
-    expect(screen.getByRole("combobox", { name: "Class" })).toHaveTextContent("Adult Fundamentals");
-    expect(screen.getByText("Read-only staff access.")).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Offer next place" })).not.toBeInTheDocument();
-    expect(waitlistState.issue).not.toHaveBeenCalled();
-  });
-
-  it("keeps the in-flight queue result when the selected class is chosen again", async () => {
-    let resolveQueue: ((entries: readonly [typeof waitingEntry]) => void) | undefined;
-    waitlistState.list.mockReturnValue(
-      new Promise((resolve) => {
-        resolveQueue = resolve;
-      }),
-    );
+  it("filters to one group and records it in the URL", async () => {
+    const replaceState = vi.spyOn(window.history, "replaceState");
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<AdminWaitlistsPage />);
 
-    const selector = await screen.findByRole("combobox", { name: "Class" });
-    await user.selectOptions(selector, session.sessionId);
-    resolveQueue?.([waitingEntry]);
+    await user.selectOptions(await screen.findByRole("combobox", { name: "Group" }), "class-kids");
 
-    expect(await screen.findByLabelText("Queue position 1")).toHaveTextContent("01");
-    expect(waitlistState.list).toHaveBeenCalledOnce();
+    expect(screen.getByRole("heading", { name: "Kids BJJ" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Adult Fundamentals" })).toBeNull();
+    expect(replaceState).toHaveBeenCalled();
+    expect(window.location.search).toBe("?group=class-kids");
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Group" }), "all");
+    expect(window.location.search).toBe("");
+    expect(screen.getByRole("heading", { name: "Adult Fundamentals" })).toBeVisible();
   });
 
-  it("issues the next offer once and preserves feedback after refreshing", async () => {
-    waitlistState.list.mockResolvedValueOnce([waitingEntry]).mockResolvedValueOnce([offeredEntry]);
-    waitlistState.issue.mockResolvedValue(offeredEntry);
+  it("preselects the group named in the URL", async () => {
+    window.history.replaceState(null, "", "/admin/waitlists?group=class-adult");
+    render(<AdminWaitlistsPage />);
+
+    expect(await screen.findByRole("heading", { name: "Adult Fundamentals" })).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Group" })).toHaveValue("class-adult");
+    expect(screen.queryByRole("heading", { name: "Kids BJJ" })).toBeNull();
+  });
+
+  it("offers the next place for the chosen date and refreshes the groups", async () => {
+    waitlistState.issue.mockResolvedValue(offered("session-private-b", "student-private-3", 1));
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<AdminWaitlistsPage />);
 
-    const action = await screen.findByRole("button", { name: "Offer next place" });
-    await waitFor(() => expect(action).toBeEnabled());
-    await user.click(action);
+    const date = await screen.findByRole("region", { name: /Adult Fundamentals, Tue 29 Sept/iu });
+    await user.click(within(date).getByRole("button", { name: "Offer next place" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Offer sent to the next eligible participant.",
-    );
-    expect(await screen.findByText("Offered")).toBeVisible();
     expect(waitlistState.issue).toHaveBeenCalledOnce();
-    expect(waitlistState.issue).toHaveBeenCalledWith(session.sessionId);
-    expect(waitlistState.list).toHaveBeenCalledTimes(2);
+    expect(waitlistState.issue).toHaveBeenCalledWith("session-private-b");
+    expect(await screen.findByText("Offer sent to the next eligible participant.")).toBeVisible();
+    await waitFor(() => expect(waitlistState.listGroups).toHaveBeenCalledTimes(2));
   });
 
-  it("shows a safe empty state and disables the only action when nobody is waiting", async () => {
-    waitlistState.list.mockResolvedValue([]);
-    render(<AdminWaitlistsPage />);
-
-    expect(await screen.findByText("Nobody is waiting for this class.")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Offer next place" })).toBeDisabled();
-  });
-
-  it("does not offer another place while the class already has an active offer", async () => {
-    waitlistState.list.mockResolvedValue([
-      offeredEntry,
-      { ...waitingEntry, studentReference: "student-private-2", position: 2 },
+  it("disables the offer on a date that already has an active offer", async () => {
+    waitlistState.listGroups.mockResolvedValue([
+      {
+        ...kidsGroup,
+        sessions: [
+          {
+            ...kidsGroup.sessions[0],
+            entries: [
+              offered("session-private-k", "student-private-4", 1),
+              waiting("session-private-k", "student-private-5", 2),
+            ],
+          },
+        ],
+      },
     ]);
     render(<AdminWaitlistsPage />);
 
-    expect(await screen.findByText("An offer is already active for this class.")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Offer next place" })).toBeDisabled();
+    const date = await screen.findByRole("region", { name: /Kids BJJ/iu });
+    expect(within(date).getByText("An offer is already active for this date.")).toBeVisible();
+    expect(within(date).getByRole("button", { name: "Offer next place" })).toBeDisabled();
+  });
+
+  it("shows the queues read-only without the offer action", async () => {
+    render(<AdminWaitlistsPage canIssue={false} />);
+
+    expect(await screen.findByRole("heading", { name: "Adult Fundamentals" })).toBeVisible();
+    expect(screen.getByText("Read-only staff access.")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Offer next place" })).toBeNull();
+  });
+
+  it("shows a safe empty state when nobody is waiting", async () => {
+    waitlistState.listGroups.mockResolvedValue([]);
+    render(<AdminWaitlistsPage />);
+
+    expect(await screen.findByText("Nobody is waiting for a future class.")).toBeVisible();
+  });
+
+  it("shows a safe error when the groups cannot be loaded", async () => {
+    waitlistState.listGroups.mockRejectedValue(new Error("raw"));
+    render(<AdminWaitlistsPage />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Class waitlists could not be loaded. Please try again later.",
+    );
   });
 });

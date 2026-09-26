@@ -19,6 +19,7 @@ vi.mock("./firebase-client", () => ({
 import {
   issueNextAdminWaitlistOffer,
   listAdminSessionWaitlist,
+  listAdminWaitlistGroups,
 } from "./admin-waitlist-client";
 
 const waitingEntry = {
@@ -111,5 +112,52 @@ describe("admin waitlist client", () => {
       "Unable to load this class waitlist. Please try again.",
     );
     expect(callableState.call).not.toHaveBeenCalled();
+  });
+  it("lists waitlist groups with their per-date queues", async () => {
+    const group = {
+      groupId: "class-adult",
+      title: "Adult Fundamentals",
+      location: "town",
+      count: 1,
+      sessions: [
+        { sessionId: "session-1", startAt: "2026-09-27T17:30:00.000Z", entries: [waitingEntry] },
+      ],
+    };
+    callableState.call.mockResolvedValueOnce({ data: { groups: [group] } });
+
+    await expect(listAdminWaitlistGroups()).resolves.toEqual([group]);
+    expect(callableState.calls).toEqual([{ name: "listAdminWaitlistGroups", payload: {} }]);
+  });
+
+  it("rejects malformed waitlist groups with a safe message", async () => {
+    const group = {
+      groupId: "class-adult",
+      title: "Adult Fundamentals",
+      location: "town",
+      count: 1,
+      sessions: [
+        {
+          sessionId: "session-1",
+          startAt: "2026-09-27T17:30:00.000Z",
+          entries: [{ ...waitingEntry, membershipId: "membership-1" }],
+        },
+      ],
+    };
+    callableState.call.mockResolvedValueOnce({ data: { groups: [group] } });
+    await expect(listAdminWaitlistGroups()).rejects.toThrow(
+      "Unable to load class waitlists. Please try again.",
+    );
+
+    callableState.call.mockResolvedValueOnce({
+      data: { groups: [{ ...group, sessions: [], count: -1 }] },
+    });
+    await expect(listAdminWaitlistGroups()).rejects.toThrow(
+      "Unable to load class waitlists. Please try again.",
+    );
+
+    callableState.call.mockRejectedValueOnce({ code: "functions/internal", message: "raw" });
+    await expect(listAdminWaitlistGroups()).rejects.toThrow(
+      "Unable to load class waitlists. Please try again.",
+    );
   });
 });
