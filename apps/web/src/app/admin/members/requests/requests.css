@@ -284,7 +284,7 @@
   max-width: 100%;
   justify-content: center;
 }
-@media (max-width: 50rem) {
+@media (max-width: 47.99rem) {
   .enrolment-toolbar {
     grid-template-columns: minmax(0, 1fr);
   }

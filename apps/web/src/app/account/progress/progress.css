@@ -398,7 +398,7 @@
   padding: 1.25rem;
 }
 
-@media (min-width: 50rem) {
+@media (min-width: 48rem) {
   .rank-card,
   .rank-hero,
   .graduation,
