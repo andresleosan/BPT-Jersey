@@ -76,6 +76,25 @@ const coachNavigationItems: readonly NavigationItem[] = [
   { label: "My sign-in", href: "/coach/access" },
 ];
 
+const sidebarStorageKey = "bpt-admin-sidebar";
+
+/** The desktop sidebar is open unless this browser last closed it. Storage can be blocked. */
+function readSidebarCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(sidebarStorageKey) === "collapsed";
+  } catch {
+    return false;
+  }
+}
+
+function storeSidebarCollapsed(collapsed: boolean): void {
+  try {
+    window.localStorage.setItem(sidebarStorageKey, collapsed ? "collapsed" : "open");
+  } catch {
+    // The choice then lasts only for this page view.
+  }
+}
+
 function isStaffRole(
   role: AdminSession["role"] | StaffSession["role"],
 ): role is StaffSession["role"] {
@@ -128,6 +147,8 @@ export function AdminShell({
   const navigationLabel = coachWorkspace ? "Coach navigation" : "Admin navigation";
   const visibleNavigationItems = visibleGroups.flatMap((group) => group.items);
   const [navigationOpen, setNavigationOpen] = useState(false);
+  // The shell only mounts after the client has a session, so storage is readable on first render.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const navigationRef = useRef<HTMLDivElement>(null);
@@ -142,6 +163,14 @@ export function AdminShell({
   function closeNavigation(): void {
     setNavigationOpen(false);
   }
+
+  function toggleSidebar(): void {
+    const collapsed = !sidebarCollapsed;
+    setSidebarCollapsed(collapsed);
+    storeSidebarCollapsed(collapsed);
+  }
+
+  const workspaceName = coachWorkspace ? "coach" : "admin";
 
   useEffect(() => {
     if (!navigationInitializedRef.current) {
@@ -237,33 +266,48 @@ export function AdminShell({
         Skip to main content
       </a>
 
-      <div className="admin-shell" data-testid="admin-shell">
+      <div
+        className="admin-shell"
+        data-sidebar={sidebarCollapsed ? "collapsed" : "open"}
+        data-testid="admin-shell"
+      >
         <aside className="admin-sidebar" aria-label={navigationLabel}>
-          <Link className="admin-brand" href="/" aria-label="BPT Jersey home">
-            <Image
-              alt="BPT Jersey logo"
-              className="admin-logo"
-              height={112}
-              src="/bpt-jersey-logo.png"
-              width={168}
-            />
+          <div className="admin-brand">
+            <button
+              aria-controls="admin-sidebar-panel"
+              aria-expanded={!sidebarCollapsed}
+              aria-label={`${sidebarCollapsed ? "Show" : "Hide"} ${workspaceName} navigation`}
+              className="admin-logo-button"
+              onClick={toggleSidebar}
+              type="button"
+            >
+              <Image
+                alt=""
+                className="admin-logo"
+                height={112}
+                src="/bpt-jersey-logo.png"
+                width={168}
+              />
+            </button>
             <span className="admin-brand-mark">BPT</span>
             <span className="admin-brand-name">Jersey</span>
-          </Link>
-
-          <div className="admin-sidebar-heading">
-            <p className="admin-sidebar-kicker">Private workspace</p>
-            <p className="admin-sidebar-title">Run the day clearly.</p>
           </div>
 
-          {renderNavigation("admin-desktop-navigation")}
+          <div className="admin-sidebar-panel" hidden={sidebarCollapsed} id="admin-sidebar-panel">
+            <div className="admin-sidebar-heading">
+              <p className="admin-sidebar-kicker">Private workspace</p>
+              <p className="admin-sidebar-title">Run the day clearly.</p>
+            </div>
 
-          <div className="admin-sidebar-footer">
-            <p className="admin-sidebar-kicker">Current access</p>
-            <p className="admin-role">{roleLabel}</p>
-            <p className="admin-sidebar-note">
-              Every change here is recorded with who made it and when.
-            </p>
+            {renderNavigation("admin-desktop-navigation")}
+
+            <div className="admin-sidebar-footer">
+              <p className="admin-sidebar-kicker">Current access</p>
+              <p className="admin-role">{roleLabel}</p>
+              <p className="admin-sidebar-note">
+                Every change here is recorded with who made it and when.
+              </p>
+            </div>
           </div>
         </aside>
 
@@ -272,17 +316,13 @@ export function AdminShell({
             <button
               aria-controls="admin-mobile-navigation"
               aria-expanded={navigationOpen}
-              aria-label={`${navigationOpen ? "Close" : "Open"} ${coachWorkspace ? "coach" : "admin"} navigation`}
+              aria-label={`${navigationOpen ? "Close" : "Open"} ${workspaceName} navigation`}
               className="admin-mobile-menu-button"
               onClick={() => setNavigationOpen((open) => !open)}
               ref={menuButtonRef}
               type="button"
             >
-              <AdminIcon
-                name={navigationOpen ? "close" : "menu"}
-                height="1.25rem"
-                width="1.25rem"
-              />
+              <Image alt="" height={56} src="/bpt-jersey-logo.png" width={84} />
             </button>
             <div className="admin-header-title">
               <p className="admin-header-kicker">
@@ -319,7 +359,7 @@ export function AdminShell({
           {navigationOpen ? (
             <>
               <button
-                aria-label={`Dismiss ${coachWorkspace ? "coach" : "admin"} navigation`}
+                aria-label={`Dismiss ${workspaceName} navigation`}
                 className="admin-mobile-backdrop"
                 onClick={closeNavigation}
                 type="button"
@@ -334,12 +374,6 @@ export function AdminShell({
                 role="dialog"
               >
                 <div className="admin-mobile-navigation-header">
-                  <Image
-                    alt="BPT Jersey mobile logo"
-                    height={56}
-                    src="/bpt-jersey-logo.png"
-                    width={84}
-                  />
                   <div>
                     <strong>BPT Jersey</strong>
                     <span>
@@ -348,7 +382,7 @@ export function AdminShell({
                   </div>
                   <button
                     aria-expanded="true"
-                    aria-label={`Close ${coachWorkspace ? "coach" : "admin"} navigation`}
+                    aria-label={`Close ${workspaceName} navigation`}
                     className="admin-mobile-close-button"
                     onClick={closeNavigation}
                     ref={closeButtonRef}
