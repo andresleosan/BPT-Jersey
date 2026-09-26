@@ -62,6 +62,22 @@ afterEach(() => {
 });
 
 describe("AdminNotificationPanel", () => {
+  it("keeps one loading status line in place so the table does not shift when loading ends", async () => {
+    let finish: (value: AdminInboxPage) => void = () => undefined;
+    api.getAdminNotifications.mockReturnValueOnce(
+      new Promise<AdminInboxPage>((resolve) => (finish = resolve)),
+    );
+    render(<AdminNotificationPanel />);
+    const line = await screen.findByText("Loading notifications…");
+    expect(line).toHaveAttribute("role", "status");
+
+    await act(async () => finish(page));
+    await screen.findByText("Payment received");
+    expect(line).toBeInTheDocument();
+    expect(line).toHaveClass("admin-notification-loading");
+    expect(line).toBeEmptyDOMElement();
+  });
+
   it("sends the whole query with a reset cursor whenever a filter changes", async () => {
     render(<AdminNotificationPanel />);
     await screen.findByText("Payment received");
