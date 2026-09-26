@@ -240,14 +240,6 @@ service cloud.firestore {
     match /academies/{academyId}/notificationPreferences/{preferenceId} {
       allow read, write: if false;
     }
-    match /academies/{academyId}/techniqueLibraries/{libraryVersionId} {
-      allow read, write: if false;
-    }
-
-    match /academies/{academyId}/lessonPlans/{planId} {
-      allow read, write: if false;
-    }
-
     match /academies/{academyId}/familyGoals/{goalId} {
       allow read, write: if false;
     }

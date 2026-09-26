@@ -53,7 +53,6 @@ const coachAdminPrefixes = [
   "/admin/classes",
   "/admin/classes-services",
   "/admin/waitlists",
-  "/admin/lesson-plans",
 ] as const;
 
 export function sanitizeReturnPath(value: string | null): MemberDestination | undefined {

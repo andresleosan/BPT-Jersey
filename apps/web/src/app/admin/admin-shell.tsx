@@ -49,7 +49,6 @@ const navigationGroups: readonly NavigationGroup[] = [
       { label: "Courses & seminars", href: "/admin/courses" },
       { label: "Levels", href: "/admin/levels" },
       { label: "Waitlists", href: "/admin/waitlists", ownerOnly: true },
-      { label: "Lesson plans", href: "/admin/lesson-plans", ownerOnly: true },
     ],
   },
   {
