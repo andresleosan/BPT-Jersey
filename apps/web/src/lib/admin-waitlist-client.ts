@@ -245,7 +245,13 @@ export async function issueNextAdminWaitlistOffer(
   }
 }
 
-export async function listAdminWaitlistGroups(): Promise<readonly AdminWaitlistGroup[]> {
+/** `truncated`: the server hit a read cap, so some queues in the window are not listed. */
+export type AdminWaitlistGroups = Readonly<{
+  groups: readonly AdminWaitlistGroup[];
+  truncated: boolean;
+}>;
+
+export async function listAdminWaitlistGroups(): Promise<AdminWaitlistGroups> {
   try {
     const callable = httpsCallable<Record<string, never>, unknown>(
       getFirebaseFunctions(),
@@ -253,10 +259,19 @@ export async function listAdminWaitlistGroups(): Promise<readonly AdminWaitlistG
     );
     const result = await callable({});
     const data: unknown = result.data;
-    if (!isRecord(data) || !hasExactFields(data, ["groups"]) || !Array.isArray(data.groups)) {
+    if (
+      !isRecord(data) ||
+      // A server without the read cap flag answers `groups` only.
+      !(hasExactFields(data, ["groups"]) || hasExactFields(data, ["groups", "truncated"])) ||
+      !Array.isArray(data.groups) ||
+      (data.truncated !== undefined && typeof data.truncated !== "boolean")
+    ) {
       throw new Error(groupsError);
     }
-    return Object.freeze(data.groups.map(parseGroup));
+    return Object.freeze({
+      groups: Object.freeze(data.groups.map(parseGroup)),
+      truncated: data.truncated === true,
+    });
   } catch {
     throw new Error(groupsError);
   }
