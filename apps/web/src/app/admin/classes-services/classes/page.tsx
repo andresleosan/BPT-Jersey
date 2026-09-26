@@ -24,7 +24,7 @@ import {
 } from "./classes-filters";
 import { ListView, type DateRange } from "./list-view";
 import { SessionPanel, type StaffOption } from "./session-panel";
-import { trainerOptions } from "./trainer-options";
+import { trainerName, trainerOptions } from "./trainer-options";
 import { WeekActions, addDays } from "./week-actions";
 import { dayLabel, localParts, mondayOf, weekDays, type GridSession } from "./week-grid";
 
@@ -374,7 +374,7 @@ function ClassesContent(): ReactElement {
   const trainers = trainerOptions(staff);
   const canCreate =
     canEdit && catalog !== null && trainers.some((row) => row.active && row.status === "active");
-  const locations = catalog?.locations ?? [];
+  const locations = useMemo(() => catalog?.locations ?? [], [catalog]);
   const programs = useMemo(() => catalog?.programs ?? [], [catalog]);
   const today = localParts(new Date().toISOString(), timezone).date;
   // Sessions name their trainers by staffKey, never by auth uid, so "Mine" matches on the keys the
@@ -386,21 +386,27 @@ function ClassesContent(): ReactElement {
 
   const grid: readonly GridSession[] = useMemo(
     () =>
-      sessions.map((row) => ({
-        sessionId: row.sessionId,
-        title: row.title,
-        startAt: row.startAt,
-        endAt: row.endAt,
-        colour:
-          programs.find((program) => program.programId === row.programId)?.colour ?? fallbackColour,
-        booked: countsStatus === "ready" ? (booked[row.sessionId] ?? 0) : null,
-        capacity: row.capacity,
-        status: row.status,
-        locationId: row.locationId,
-        programId: row.programId,
-        instructorIds: row.instructorIds ?? [row.instructorId],
-      })),
-    [sessions, programs, booked, countsStatus],
+      sessions.map((row) => {
+        const program = programs.find((candidate) => candidate.programId === row.programId);
+        const location = locations.find((candidate) => candidate.locationId === row.locationId);
+        return {
+          sessionId: row.sessionId,
+          title: row.title,
+          startAt: row.startAt,
+          endAt: row.endAt,
+          colour: program?.colour ?? fallbackColour,
+          ...(program ? { typeName: program.name } : {}),
+          ...(location ? { locationName: location.name } : {}),
+          coachNames: (row.instructorIds ?? [row.instructorId]).map(trainerName),
+          booked: countsStatus === "ready" ? (booked[row.sessionId] ?? 0) : null,
+          capacity: row.capacity,
+          status: row.status,
+          locationId: row.locationId,
+          programId: row.programId,
+          instructorIds: row.instructorIds ?? [row.instructorId],
+        };
+      }),
+    [sessions, programs, locations, booked, countsStatus],
   );
 
   const visible = useMemo(
@@ -702,6 +708,7 @@ function ClassesContent(): ReactElement {
             locations={locations}
             selectedDate={agendaDate}
             onSelectDate={setAgendaDate}
+            onSelectDay={goTo}
             view={range}
             weekStart={weekStart}
             sessions={visible}

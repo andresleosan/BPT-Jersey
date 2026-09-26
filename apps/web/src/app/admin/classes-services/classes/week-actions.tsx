@@ -116,14 +116,6 @@ export function WeekActions({ weekStart, onChanged }: WeekActionsProps): ReactEl
       >
         Copy week
       </button>
-      <button
-        type="button"
-        className="cs-button"
-        disabled={kind !== null}
-        onClick={() => void open("delete")}
-      >
-        Delete week
-      </button>
       {kind === null ? null : (
         <dialog
           open
@@ -186,6 +178,17 @@ export function WeekActions({ weekStart, onChanged }: WeekActionsProps): ReactEl
           </div>
         </dialog>
       )}
+      {/* The destructive action sits apart, last in the bar, so it is never hit by mistake. */}
+      <div className="cs-week-actions-danger">
+        <button
+          type="button"
+          className="cs-button cs-button-danger"
+          disabled={kind !== null}
+          onClick={() => void open("delete")}
+        >
+          Delete week
+        </button>
+      </div>
     </div>
   );
 }

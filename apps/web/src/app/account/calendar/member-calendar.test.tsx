@@ -79,7 +79,7 @@ function stubViewport(desktop: boolean): void {
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
-      matches: desktop && query.includes("58rem"),
+      matches: desktop && query.includes("48rem"),
       media: query,
       onchange: null,
       addEventListener: vi.fn(),
@@ -114,7 +114,7 @@ afterEach(() => {
 });
 
 describe("MemberCalendar", () => {
-  it("phone: renders two day columns for a teen and no chips", async () => {
+  it("phone: renders one day column for a teen and no chips", async () => {
     stubViewport(false);
     render(
       <MemberCalendar
@@ -123,7 +123,7 @@ describe("MemberCalendar", () => {
         session={teen}
       />,
     );
-    await waitFor(() => expect(document.querySelectorAll(".day-column")).toHaveLength(2));
+    await waitFor(() => expect(document.querySelectorAll(".day-column")).toHaveLength(1));
     expect(screen.queryByRole("group", { name: "Choose member" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Sam" })).toBeInTheDocument();
   });
@@ -199,7 +199,7 @@ describe("MemberCalendar", () => {
         session={teen}
       />,
     );
-    await waitFor(() => expect(document.querySelectorAll(".day-column")).toHaveLength(2));
+    await waitFor(() => expect(document.querySelectorAll(".day-column")).toHaveLength(1));
     expect(screen.getByRole("button", { name: "Earlier" })).toBeDisabled();
     const before = Array.from(document.querySelectorAll(".day-column")).map((column) =>
       column.getAttribute("data-date"),
@@ -212,6 +212,59 @@ describe("MemberCalendar", () => {
       expect(after).not.toEqual(before);
     });
     expect(screen.getByRole("button", { name: "Earlier" })).toBeEnabled();
+  });
+
+  it("phone: a day strip pill shows that day and Later moves on one day", async () => {
+    stubViewport(false);
+    render(
+      <MemberCalendar
+        onSignOut={vi.fn()}
+        repository={createFixtureCalendarRepository("teenStudent")}
+        session={teen}
+      />,
+    );
+    await waitFor(() =>
+      expect(document.querySelector(".day-column")).toHaveAttribute("data-date", "2026-09-16"),
+    );
+    expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
+    const friday = screen.getByRole("button", { name: "Fri 18" });
+    expect(screen.getByRole("button", { name: "Wed 16" })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(friday);
+    await waitFor(() =>
+      expect(document.querySelector(".day-column")).toHaveAttribute("data-date", "2026-09-18"),
+    );
+    expect(document.querySelectorAll(".day-column")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Fri 18" })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(screen.getByRole("button", { name: "Later" }));
+    await waitFor(() =>
+      expect(document.querySelector(".day-column")).toHaveAttribute("data-date", "2026-09-19"),
+    );
+  });
+
+  it("desktop: a Week / Day switch, Week first, and Day shows one wide agenda column", async () => {
+    stubViewport(true);
+    render(
+      <MemberCalendar
+        onSignOut={vi.fn()}
+        repository={createFixtureCalendarRepository("teenStudent")}
+        session={teen}
+      />,
+    );
+    const switcher = await screen.findByRole("radiogroup", { name: "Calendar view" });
+    const weekOption = within(switcher).getByRole("radio", { name: "Week" });
+    const dayOption = within(switcher).getByRole("radio", { name: "Day" });
+    expect(weekOption).toHaveAttribute("aria-checked", "true");
+    expect(dayOption).toHaveAttribute("aria-checked", "false");
+    await waitFor(() => expect(document.querySelectorAll(".day-column").length).toBeGreaterThan(1));
+    await userEvent.click(dayOption);
+    expect(dayOption).toHaveAttribute("aria-checked", "true");
+    await waitFor(() => expect(document.querySelectorAll(".day-column")).toHaveLength(1));
+    expect(document.querySelector(".member-week")).toHaveClass("member-week--day");
+    expect(document.querySelector(".day-column")).toHaveAttribute("data-date", "2026-09-16");
+    await userEvent.click(screen.getByRole("button", { name: "Later" }));
+    await waitFor(() =>
+      expect(document.querySelector(".day-column")).toHaveAttribute("data-date", "2026-09-17"),
+    );
   });
 
   it("counts the whole Jersey week's classes against the plan limit, even days not on screen", async () => {
@@ -741,7 +794,7 @@ describe("MemberCalendar", () => {
       fireEvent.keyUp(slider, { key: "End" });
       await waitFor(() => expect(resolveClockIn).toBeDefined());
       // The calendar loads whole Monday–Sunday weeks, so step forward until the loaded range moves.
-      for (let step = 0; step < 4 && !resolveNextWeek; step += 1) {
+      for (let step = 0; step < 7 && !resolveNextWeek; step += 1) {
         await userEvent.click(screen.getByRole("button", { name: "Later" }));
       }
       await waitFor(() => expect(resolveNextWeek).toBeDefined());

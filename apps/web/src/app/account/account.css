@@ -581,7 +581,7 @@ html:has(dialog[open]:modal) {
   color: var(--mat-ink);
 }
 
-@media (min-width: 58rem) {
+@media (min-width: 48rem) {
   .member-week {
     grid-template-columns: var(--week-columns, repeat(6, minmax(0, 1fr)));
   }
@@ -590,6 +590,54 @@ html:has(dialog[open]:modal) {
     grid-template-columns: auto minmax(0, 36rem) auto;
     justify-content: start;
   }
+
+  /* Day view on a tablet or desktop: one wide agenda column. */
+  .member-week--day {
+    max-width: 44rem;
+  }
+}
+
+/* One-day view: each pill is a button that shows its day. */
+.day-pill--button {
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  min-height: 44px;
+  width: 100%;
+}
+
+.day-pill--button[aria-pressed="true"] {
+  border: 2px solid var(--mat-ink);
+}
+
+.day-pill--button:focus-visible,
+.calendar-mode-option:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+
+/* Week / Day switch (tablet and desktop). */
+.calendar-mode {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin: 0.5rem 0 0;
+}
+
+.calendar-mode-option {
+  background: var(--gi-white);
+  border: 1px solid var(--mat-ink);
+  border-radius: 999px;
+  color: var(--mat-ink);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  min-height: 44px;
+  padding: 0.5rem 1.1rem;
+}
+
+.calendar-mode-option[aria-checked="true"] {
+  background: var(--mat-ink);
+  color: var(--gi-white);
 }
 
 @media (prefers-reduced-motion: reduce) {
