@@ -177,14 +177,28 @@
   }
 }
 
+.cs-week-frame {
+  container-type: inline-size;
+}
+
 .cs-week {
   overflow-x: auto;
   display: grid;
-  grid-template-columns: 3.5rem repeat(7, minmax(8rem, 1fr));
+  /* Per-day minimums from the component (wider for days with side-by-side classes). */
+  grid-template-columns: var(--week-columns, 3.5rem repeat(7, minmax(8rem, 1fr)));
   /* Bands of rows stack with no gap so a day reads as one continuous column. */
   column-gap: 0.5rem;
   row-gap: 0;
   align-items: start;
+}
+
+/* Wide enough for a readable week (a 1280px screen beside the admin menu): the seven days share
+   the width equally and nothing scrolls sideways. Narrower, the minimums above apply and scroll. */
+@container (min-width: 50rem) {
+  .cs-week {
+    grid-template-columns: 3.5rem repeat(7, minmax(0, 1fr));
+    column-gap: 0.25rem;
+  }
 }
 
 .cs-hours {
@@ -278,17 +292,26 @@ button.cs-slot:focus-visible {
   outline: none;
 }
 
+/* The hovered slot says what a click does instead of being a blank grey block. */
+button.cs-slot:hover::after,
+button.cs-slot:focus-visible::after {
+  content: "+ " attr(data-time);
+  display: block;
+  padding: 0 0.35rem;
+  color: var(--mat-ink);
+  font-size: 0.72rem;
+  text-align: left;
+}
+
 .cs-event {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: auto auto auto 1fr;
-  align-content: start;
-  column-gap: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
   position: relative;
   z-index: 1;
   min-width: 0;
-  border: 1px solid var(--line);
-  padding: 0.2rem 0.35rem;
+  border: 1px solid rgb(26 26 24 / 30%);
+  padding: 0.25rem 0.3rem;
   background: var(--gi-white);
   color: var(--mat-ink);
   text-align: left;
@@ -299,9 +322,10 @@ button.cs-slot:focus-visible {
   transition: border-color 160ms ease;
 }
 
-/* The type's colour is data: a validated hex, drawn only as this left rule (DESIGN.md). */
-.cs-event-typed {
-  border-left: 0.35rem solid var(--type-colour);
+/* The type's colour is data: a validated hex that fills the week card (DESIGN.md §12), lightened
+   by the component when Mat Ink on it would fall below AA. */
+.cs-event.cs-event-typed {
+  background: var(--type-colour);
 }
 
 .cs-event:hover,
@@ -309,11 +333,6 @@ button.cs-slot:focus-visible {
   border-color: var(--bpt-purple);
   outline: none;
   box-shadow: inset 0 0 0 1px var(--bpt-purple);
-}
-
-.cs-event-typed:hover,
-.cs-event-typed:focus-visible {
-  border-left-color: var(--type-colour);
 }
 
 /* On hover or focus the card grows over the rows below so the whole name can be read. */
@@ -331,12 +350,26 @@ button.cs-slot:focus-visible {
   overflow: visible;
 }
 
-/* At rest the title, time and type stay on one line each; the full name is in the title
-   attribute and the accessible name. */
-.cs-event-title,
+/* In the week the title wraps to two lines (whole words first); the full name is in the title
+   attribute, the accessible name and the hover state. */
+.cs-day-grid .cs-event-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  flex-shrink: 0;
+  overflow: hidden;
+  overflow-wrap: break-word;
+}
+
+.cs-day-grid .cs-event:hover .cs-event-title,
+.cs-day-grid .cs-event:focus-visible .cs-event-title {
+  display: block;
+}
+
+/* At rest the time and type stay on one line each. */
 .cs-event-time,
 .cs-event-type {
-  grid-column: 1 / -1;
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
@@ -347,22 +380,24 @@ button.cs-slot:focus-visible {
   font-weight: 600;
 }
 
+/* Mat Ink on every fill: the component keeps each fill light enough for AA. */
+.cs-event-time,
+.cs-event-type {
+  font-size: 0.66rem;
+}
+
 .cs-event-time {
-  font-size: 0.64rem;
-  color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 
-.cs-event-type {
-  font-size: 0.62rem;
-  color: var(--muted);
-}
-
+/* The boxed occupancy sits at the card's bottom right, under the time. */
 .cs-event-chip {
-  grid-column: 2;
-  grid-row: 4;
-  align-self: end;
-  font-size: 0.78rem;
+  align-self: flex-end;
+  margin-top: auto;
+  padding: 0 0.3rem;
+  border: 1px solid rgb(26 26 24 / 45%);
+  background: rgb(255 255 255 / 60%);
+  font-size: 0.66rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
