@@ -15,9 +15,6 @@ export const classesServicesTabs: readonly ClassesServicesTab[] = Object.freeze(
     staffVisible: false,
   },
   { label: "Groups", href: "/admin/classes-services/groups", staffVisible: false },
-  { label: "Bulk Operations", href: "/admin/classes-services/bulk", staffVisible: false },
-  { label: "Listings & Reports", href: "/admin/classes-services/reports", staffVisible: false },
-  { label: "Drop-ins", href: "/admin/classes-services/drop-ins", staffVisible: false },
   { label: "Options", href: "/admin/classes-services/options", staffVisible: false },
   { label: "History", href: "/admin/classes-services/history", staffVisible: false },
 ]);
