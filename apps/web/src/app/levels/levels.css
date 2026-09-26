@@ -198,7 +198,7 @@
 .levels-error {
   border-left-color: #8d1c2f;
 }
-@media (max-width: 50rem) {
+@media (max-width: 47.99rem) {
   .levels-grid {
     grid-template-columns: minmax(0, 1fr);
   }

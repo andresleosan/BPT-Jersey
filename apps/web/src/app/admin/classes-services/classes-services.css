@@ -144,7 +144,7 @@
   text-transform: uppercase;
 }
 
-@media (max-width: 50rem) {
+@media (max-width: 47.99rem) {
   .cs-table thead {
     position: absolute;
     left: -9999px;
@@ -732,7 +732,7 @@ button.cs-slot:focus-visible {
   gap: 1rem;
 }
 
-@media (max-width: 50rem) {
+@media (max-width: 47.99rem) {
   .cs-session-body {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1148,7 +1148,7 @@ body:has(.cs-session-dialog[open]) {
   text-align: left;
   font-size: 1rem;
 }
-@media (max-width: 50rem) {
+@media (max-width: 47.99rem) {
   .cs-calendar-page {
     padding: 0.75rem;
   }
@@ -1222,7 +1222,7 @@ body:has(.cs-session-dialog[open]) {
 .cs-section-navigation > summary {
   display: none;
 }
-@media (max-width: 50rem) {
+@media (max-width: 47.99rem) {
   .cs-section-navigation {
     margin-bottom: 0.75rem;
   }

@@ -34,6 +34,33 @@ export default defineConfig({
       name: "mobile-chromium",
       use: { ...devices["Pixel 7"] },
     },
+    // T08: phone, tablet and iOS Safari coverage. Only the responsive spec runs here, so the
+    // rest of the suite (and CI, which installs Chromium alone) is unchanged.
+    {
+      name: "mobile-webkit",
+      testMatch: /t08-responsive\.spec\.ts/,
+      use: { ...devices["iPhone 15"] },
+    },
+    {
+      name: "tablet-webkit",
+      testMatch: /t08-responsive\.spec\.ts/,
+      use: { ...devices["iPad Pro 11"] },
+    },
+    {
+      name: "tablet-webkit-landscape",
+      testMatch: /t08-responsive\.spec\.ts/,
+      use: { ...devices["iPad Pro 11 landscape"] },
+    },
+    {
+      name: "tablet-chromium",
+      testMatch: /t08-responsive\.spec\.ts/,
+      use: { ...devices["Galaxy Tab S4"] },
+    },
+    {
+      name: "desktop-webkit",
+      testMatch: /t08-responsive\.spec\.ts/,
+      use: { ...devices["Desktop Safari"] },
+    },
     {
       name: "live-auth",
       testMatch: /login-gateway-live\.spec\.ts/,
