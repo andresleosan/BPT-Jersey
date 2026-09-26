@@ -351,7 +351,9 @@ export function MemberCalendar({
         now,
       });
       // Members see what they can book, plus their own bookings and attendance; nothing else.
-      if (!memberVisibleStatuses.has(derived.status)) continue;
+      // Private lessons stay on the calendar, locked, so members know the office arranges them.
+      if (!memberVisibleStatuses.has(derived.status) && derived.lockedReason !== "office_arranged")
+        continue;
       const list = map.get(day.dateKey) ?? [];
       list.push({ session: sessionRecord, program, derived, booking });
       map.set(day.dateKey, list);

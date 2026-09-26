@@ -5,6 +5,7 @@ import {
   type PlanDraft,
   type Site,
 } from "@bpt-jersey/domain/memberships";
+import { PRIVATE_LESSON_OPTIONS, type PrivateLessonOptionId } from "@bpt-jersey/domain/private-lessons";
 
 const money = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
 const periodLabel = { "per-session": "per class", monthly: "per month", term: "per term" } as const;
@@ -63,4 +64,10 @@ export function publicPlanGroups(site?: Site): readonly PlanGroup[] {
       group.plans.length > 0 &&
       (site === undefined || group.plans.every((plan) => plan.classSites.includes(site))),
   );
+}
+
+/** "£65.00", "£200.00 a month", "£500.00": private lesson prices come from the fixed catalogue. */
+export function privateLessonPriceLabel(optionId: PrivateLessonOptionId): string {
+  const price = money.format(PRIVATE_LESSON_OPTIONS[optionId].priceMinor / 100);
+  return optionId === "monthly" ? `${price} a month` : price;
 }

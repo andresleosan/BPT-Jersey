@@ -20,6 +20,10 @@ import {
   listSessionBookings,
   requestBooking,
 } from "../../../../lib/schedule-client";
+import {
+  bookPrivateLesson,
+  cancelPrivateLessonBooking,
+} from "../../../../lib/private-lesson-client";
 
 export type RegistrationsPanelProps = Readonly<{
   session: SessionRecord;
@@ -59,11 +63,15 @@ export function RegistrationsPanel({
   const [membershipsReady, setMembershipsReady] = useState(true);
   const [query, setQuery] = useState("");
   const [messages, setMessages] = useState<readonly string[]>([]);
+  const [info, setInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const sessionId = session.sessionId;
+  // ADR-018: only the office books private lessons, spending the member's credit.
+  const isPrivateLesson = session.accessMode === "private-lesson";
+  const canManageRegistrations = canEdit && (!isPrivateLesson || canReadMemberships);
 
   useEffect(() => {
     let abandoned = false;
@@ -96,7 +104,7 @@ export function RegistrationsPanel({
     return (studentId: string) => byStudent.get(studentId) ?? studentId;
   }, [members]);
 
-  const canEnrol = canReadMemberships && membershipsReady && !loading;
+  const canEnrol = canReadMemberships && (isPrivateLesson || membershipsReady) && !loading;
   const registered = bookings.filter((booking) => booking.status !== "cancelled");
 
   const matches =
@@ -118,6 +126,14 @@ export function RegistrationsPanel({
 
   /** Enrols one student; returns the reason it could not be done, or null on success. */
   async function enrol(studentId: string): Promise<string | null> {
+    if (isPrivateLesson) {
+      try {
+        await bookPrivateLesson({ sessionId, studentId });
+        return null;
+      } catch (failure) {
+        return messageOf(failure, "Unable to book this private lesson");
+      }
+    }
     if (!membershipsReady) return noMembershipList;
     const active = memberships.filter(
       (candidate) =>
@@ -156,10 +172,22 @@ export function RegistrationsPanel({
     setBusy(false);
   }
 
-  async function remove(studentId: string): Promise<void> {
+  async function remove(booking: SessionRegistrationRecord): Promise<void> {
     setBusy(true);
     try {
-      await cancelBooking({ sessionId, studentId, reason: officeRemovalReason });
+      if (isPrivateLesson && booking.schemaVersion === "4") {
+        const result = await cancelPrivateLessonBooking({
+          bookingId: booking.bookingId,
+          reason: officeRemovalReason,
+        });
+        setInfo(
+          result.creditRestored
+            ? "Cancelled. The credit is back on the member's purchase."
+            : "Cancelled. The purchase had expired, so the credit was not returned.",
+        );
+      } else {
+        await cancelBooking({ sessionId, studentId: booking.studentId, reason: officeRemovalReason });
+      }
       await refresh();
     } catch (failure) {
       setMessages([messageOf(failure, "Unable to remove this registration")]);
@@ -243,13 +271,13 @@ export function RegistrationsPanel({
                   finally { setBusy(false); }
                 }}>Record class payment</button>
               ) : null}
-              {canEdit ? (
+              {canManageRegistrations ? (
                 <button
                   type="button"
                   className="cs-button"
                   aria-label={`Remove ${booking.displayName ?? nameOf(booking.studentId)}`}
                   disabled={busy}
-                  onClick={() => void remove(booking.studentId)}
+                  onClick={() => void remove(booking)}
                 >
                   Remove
                 </button>
@@ -274,6 +302,11 @@ export function RegistrationsPanel({
         ))}
       </div>
       <div id={enrolmentPanelId} role="tabpanel" aria-label="Enrolment">
+        {info === null ? null : (
+          <p className="cs-notice" role="status">
+            {info}
+          </p>
+        )}
         {messages.length === 0 ? null : (
           <ul className="cs-notice" data-kind="error" role="alert">
             {messages.map((message) => (
@@ -281,7 +314,7 @@ export function RegistrationsPanel({
             ))}
           </ul>
         )}
-        {tab === "member" && canEdit ? (
+        {tab === "member" && canManageRegistrations ? (
           <div className="cs-enrol">
             <label className="cs-field">
               <span>Enrol a member of this gym</span>
@@ -322,7 +355,13 @@ export function RegistrationsPanel({
           <p className="cs-placeholder">Drop-in registrations arrive with the Drop-ins release.</p>
         ) : null}
       </div>
-      {canEdit ? null : <p className="cs-placeholder">Registrations are managed by the office.</p>}
+      {canManageRegistrations ? null : (
+        <p className="cs-placeholder">
+          {isPrivateLesson
+            ? "Private lessons are booked by the office."
+            : "Registrations are managed by the office."}
+        </p>
+      )}
     </section>
   );
 }

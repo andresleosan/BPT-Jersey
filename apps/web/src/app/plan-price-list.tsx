@@ -1,7 +1,12 @@
 import type { Site } from "@bpt-jersey/domain/memberships";
 import type { ReactElement } from "react";
 
-import { describePlanAccess, formatPlanPrice, publicPlanGroups } from "../lib/plan-copy";
+import {
+  describePlanAccess,
+  formatPlanPrice,
+  privateLessonPriceLabel,
+  publicPlanGroups,
+} from "../lib/plan-copy";
 
 export function PlanPriceList({ site }: Readonly<{ site?: Site }>): ReactElement {
   return (
@@ -25,6 +30,20 @@ export function PlanPriceList({ site }: Readonly<{ site?: Site }>): ReactElement
           </section>
         );
       })}
+      <section aria-labelledby="plans-private-lessons">
+        <h3 id="plans-private-lessons">Private lessons</h3>
+        <ul>
+          <li className="plan-price-row">
+            <div>
+              <strong>Private lessons</strong>
+              <span>One-to-one, ages 16 and over. Arranged with the office.</span>
+            </div>
+            <p className="plan-price-amount">
+              {`${privateLessonPriceLabel("single")} one lesson · ${privateLessonPriceLabel("monthly")} for 4 · ${privateLessonPriceLabel("pack-10")} for 10`}
+            </p>
+          </li>
+        </ul>
+      </section>
     </div>
   );
 }

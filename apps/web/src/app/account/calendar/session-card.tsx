@@ -64,6 +64,7 @@ export function SessionCard({
   const status = derived.status;
   const site = sessionSite(session);
   const isIntro = sessionAccessMode(session) === "intro";
+  const isPrivateLesson = session.accessMode === "private-lesson";
   // Every ordinary class opens its plan and roster, booked or not; course sessions have no roster.
   const detailStudentId = session.courseId ? undefined : studentId;
 
@@ -102,6 +103,16 @@ export function SessionCard({
         {isIntro ? "Book free intro" : hasTrial ? "Book free trial class" : "Book"}
       </button>
     );
+  } else if (status === "booked" && isPrivateLesson) {
+    // ADR-018: the office books and cancels private lessons; the member only sees them.
+    action = (
+      <>
+        <span className="session-action session-action--static">Booked</span>
+        <p className="session-note">Arranged by the office</p>
+      </>
+    );
+  } else if (status === "locked" && derived.lockedReason === "office_arranged") {
+    action = <span className="session-action session-action--static">Arranged by the office</span>;
   } else if (status === "booked") {
     action = canCancelBooking(session, now) ? (
       <button
