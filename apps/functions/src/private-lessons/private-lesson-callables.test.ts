@@ -29,6 +29,8 @@ describe("private lesson callables", () => {
       ),
       handlers.submit(request("coach", {})),
       handlers.listMine(request("coach", { studentId: "s1" })),
+      handlers.proofUrl(request("coach", { purchaseId: "p1" })),
+      handlers.proofUrl(request("adultStudent", { purchaseId: "p1" })),
     ];
     for (const call of calls) {
       await expect(call).rejects.toMatchObject({ code: "permission-denied" });
