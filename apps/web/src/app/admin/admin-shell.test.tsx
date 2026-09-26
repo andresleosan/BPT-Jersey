@@ -3,7 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AdminShell } from "./admin-shell";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/coach/access" }));
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.localStorage.clear();
+});
 const coach = {
   uid: "example-coach",
   displayName: "Example Coach",
@@ -47,6 +50,77 @@ describe("shared staff workspace", () => {
     expect(screen.getByRole("dialog", { name: "Coach navigation" })).toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+  it("hides and shows the desktop sidebar from the logo and remembers the choice", () => {
+    const { unmount } = render(
+      <AdminShell session={coach}>
+        <p>Content</p>
+      </AdminShell>,
+    );
+    expect(screen.queryByRole("link", { name: "BPT Jersey home" })).not.toBeInTheDocument();
+    const logo = screen.getByRole("button", { name: "Hide coach navigation" });
+    expect(logo).toHaveAttribute("aria-expanded", "true");
+    const panel = document.getElementById(logo.getAttribute("aria-controls")!)!;
+    expect(panel).not.toHaveAttribute("hidden");
+    expect(screen.getByTestId("admin-shell")).toHaveAttribute("data-sidebar", "open");
+
+    fireEvent.click(logo);
+    expect(logo).toHaveAttribute("aria-expanded", "false");
+    expect(logo).toHaveAccessibleName("Show coach navigation");
+    expect(panel).toHaveAttribute("hidden");
+    expect(screen.getByTestId("admin-shell")).toHaveAttribute("data-sidebar", "collapsed");
+    expect(window.localStorage.getItem("bpt-admin-sidebar")).toBe("collapsed");
+
+    unmount();
+    render(
+      <AdminShell session={coach}>
+        <p>Content</p>
+      </AdminShell>,
+    );
+    const restored = screen.getByRole("button", { name: "Show coach navigation" });
+    expect(screen.getByTestId("admin-shell")).toHaveAttribute("data-sidebar", "collapsed");
+    fireEvent.click(restored);
+    expect(restored).toHaveAttribute("aria-expanded", "true");
+    expect(window.localStorage.getItem("bpt-admin-sidebar")).toBe("open");
+  });
+  it("keeps the sidebar open when storage is blocked", () => {
+    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    try {
+      render(
+        <AdminShell session={coach}>
+          <p>Content</p>
+        </AdminShell>,
+      );
+      const logo = screen.getByRole("button", { name: "Hide coach navigation" });
+      fireEvent.click(logo);
+      expect(logo).toHaveAttribute("aria-expanded", "false");
+    } finally {
+      getItem.mockRestore();
+      setItem.mockRestore();
+    }
+  });
+  it("uses the header logo as the mobile drawer toggle", () => {
+    render(
+      <AdminShell session={coach}>
+        <p>Content</p>
+      </AdminShell>,
+    );
+    const trigger = screen.getByRole("button", { name: "Open coach navigation" });
+    expect(trigger).toHaveAttribute("type", "button");
+    expect(trigger).toHaveAttribute("aria-controls", "admin-mobile-navigation");
+    expect(trigger.querySelector("img")).toHaveAttribute("alt", "");
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(trigger).toHaveAccessibleName("Close coach navigation");
+    expect(document.getElementById("admin-mobile-navigation")).toHaveAttribute("role", "dialog");
+    fireEvent.click(trigger);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
   });
   it("sends the syllabus to /admin/levels and keeps office modules out of the coach menu (T13)", () => {
     for (const role of ["coach", "headCoach"] as const) {

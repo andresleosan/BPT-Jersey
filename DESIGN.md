@@ -76,7 +76,8 @@ Absolute rule: one brand purple, one brand lime, warm-grey neutrals. No blue, no
 - No horizontal scroll: `overflow-wrap: anywhere` on headings and paragraphs, `max-width: 100%` on media and buttons.
 - Headlines scale with `clamp()`; body never drops below `1rem`. Form controls (`input`, `select`, `textarea`) never drop below `16px`, so iOS Safari does not zoom into a field.
 - Touch targets: buttons are `3.15rem` tall; nav links and table actions keep ≥ `44px`.
-- Header wordmark stays single-line (`white-space: nowrap`); under `58rem` the landing nav folds its section links behind a "Menu" button (`aria-expanded`, `aria-controls`, Escape closes and returns focus) into a stacked list with `44px` rows, while "Sign in" stays visible beside it.
+- Header wordmark stays single-line (`white-space: nowrap`); under `58rem` the landing nav folds its section links behind the header logo, which becomes the menu button (`aria-expanded`, `aria-controls`, Escape closes and returns focus) over a stacked list with `44px` rows, while "Sign in" stays visible beside it. The logo button only exists once the script runs, so without JavaScript (and on desktop) the logo stays the plain link home.
+- Admin, staff and coach shell: the round logo is the navigation toggle, never a home link (the header's Home link covers that). On desktop it hides the purple sidebar down to a slim strip holding only the logo (sticky) and shows it again; open by default, the choice remembered per browser in `localStorage` (`bpt-admin-sidebar`). Below `48rem` the header logo opens and closes the navigation drawer. No slide animation: the change is instant.
 - `prefers-reduced-motion: reduce` disables all transforms and transitions (`transition: none`).
 
 ## 7. Motion & Interaction
