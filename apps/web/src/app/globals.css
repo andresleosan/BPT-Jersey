@@ -671,6 +671,7 @@ button:focus-visible {
 
   .plan-price-row .plan-price-amount {
     text-align: left;
+    white-space: normal;
   }
 }
 

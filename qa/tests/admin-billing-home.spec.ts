@@ -101,6 +101,7 @@ function billingCallables(calls: CallableCall[]): {
       listMemberNames: { members },
       getFamilyFinancialAccount: financialAccount,
       listIntroMembershipApplications: { applications: [] },
+      listPrivateLessonPurchases: { purchases: [] },
       issueManualInvoice: (body: unknown) => {
         const data = (body as { data: Record<string, unknown> }).data;
         return {
