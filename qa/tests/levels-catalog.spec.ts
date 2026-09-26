@@ -103,16 +103,4 @@ test.describe("Levels and Belts IBJJF E2E (T083)", () => {
 
     await expectNoBrowserHealthProblems(page, errors, directDataRequests);
   });
-
-  test("coach levels portal is protected by StaffAuthGate", async ({ page }) => {
-    const directDataRequests: string[] = [];
-    const errors = trackBrowserHealth(page, directDataRequests);
-
-    await installStaticRoute(page, "/coach/levels");
-    await page.goto("/coach/levels");
-
-    await expect(page.getByRole("heading", { name: "Staff Access Required" })).toBeVisible();
-
-    await expectNoBrowserHealthProblems(page, errors, directDataRequests);
-  });
 });

@@ -24,7 +24,9 @@ export const staffRoutes: Readonly<Record<StaffRouteRole, readonly string[]>> = 
 });
 
 const offMenuStaffRoutes = Object.freeze([
+  // The coach dashboard (exact) and sign-in page. The syllabus lives at /admin/levels (T13).
   "/coach",
+  "/coach/access",
   "/admin/waitlists",
   // Kept so the mat still reaches the redirect that /admin/classes became on 2026-09-16.
   "/admin/classes",
@@ -35,7 +37,7 @@ const offMenuStaffRoutes = Object.freeze([
 const classesServicesRoot = "/admin/classes-services";
 
 function matches(pathname: string, route: string): boolean {
-  if (route === "/admin") return pathname === "/admin";
+  if (route === "/admin" || route === "/coach") return pathname === route;
   return pathname === route || pathname.startsWith(`${route}/`);
 }
 

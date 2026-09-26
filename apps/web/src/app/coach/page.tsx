@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   upcomingBirthdayDefaultWindowDays,
@@ -28,12 +27,16 @@ import {
   listSessions,
   recordCheckIn,
 } from "../../lib/schedule-client";
+import { AdminDataTable } from "../admin/admin-data-table";
 import { useAdminOrStaffSession } from "../admin/admin-gate";
+import { AdminSectionHeader } from "../admin/admin-ui";
+
 const OpenLevelPanel = lazy(() =>
   import("./open-level-panel").then((module) => ({ default: module.OpenLevelPanel })),
 );
 
 type PremisesChoice = "town" | "west";
+type RosterEntry = SessionOperationalView["roster"][number];
 
 function todayDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -370,70 +373,102 @@ export default function CoachDashboardPage() {
     return sessions.find((s) => s.sessionId === effectiveSessionId) ?? null;
   }, [sessions, effectiveSessionId]);
 
+  const rosterColumns = [
+    {
+      key: "member",
+      label: "Member",
+      render: (student: RosterEntry) => <strong>{student.studentId}</strong>,
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (student: RosterEntry) => student.computedStatus.replace(/_/g, " "),
+    },
+    {
+      key: "attendance",
+      label: "Attendance",
+      render: (student: RosterEntry) =>
+        student.computedStatus === "attended" ||
+        student.computedStatus === "late" ||
+        student.computedStatus === "checked_out" ? (
+          <span>Checked in</span>
+        ) : (
+          <button
+            type="button"
+            className="admin-auth-button coach-button"
+            disabled={busyStudentId !== null || walkInBusy}
+            onClick={() => handleCheckIn(student.studentId)}
+          >
+            {busyStudentId === student.studentId ? "Checking in..." : "Check In"}
+          </button>
+        ),
+    },
+  ] as const;
+
   return (
     <div className="coach-dashboard">
-      <div className="coach-header-section">
-        <div>
-          <h1 className="coach-title">Today on the mat</h1>
-          <p className="coach-subtitle">
-            Review today’s classes and check members in at your site.
-          </p>
-        </div>
-
-        {/* Premises Selector */}
-        <div
-          className="coach-premises-selector"
-          role="group"
-          aria-label="Premises location selector"
-        >
-          <span className="coach-premises-label">Premises:</span>
-          <button
-            type="button"
-            className={`coach-premises-btn ${premises === "town" ? "active" : ""}`}
-            aria-pressed={premises === "town"}
-            onClick={() => handlePremisesChange("town")}
+      <AdminSectionHeader
+        eyebrow="Coach / Today"
+        title="Today on the mat"
+        description="Review today’s classes and check members in at your site."
+        actions={
+          <div
+            className="coach-premises-selector"
+            role="group"
+            aria-label="Premises location selector"
           >
-            Town (St Helier)
-          </button>
-          <button
-            type="button"
-            className={`coach-premises-btn ${premises === "west" ? "active" : ""}`}
-            aria-pressed={premises === "west"}
-            onClick={() => handlePremisesChange("west")}
-          >
-            West (St Peter)
-          </button>
-        </div>
-      </div>
+            <span className="coach-premises-label">Premises:</span>
+            <button
+              type="button"
+              className={`coach-premises-btn ${premises === "town" ? "active" : ""}`}
+              aria-pressed={premises === "town"}
+              onClick={() => handlePremisesChange("town")}
+            >
+              Town (St Helier)
+            </button>
+            <button
+              type="button"
+              className={`coach-premises-btn ${premises === "west" ? "active" : ""}`}
+              aria-pressed={premises === "west"}
+              onClick={() => handlePremisesChange("west")}
+            >
+              West (St Peter)
+            </button>
+          </div>
+        }
+      />
 
       {notice && (
-        <div className="notification notification-success" role="status">
+        <p className="admin-panel-card shop-admin-notice shop-admin-notice-success" role="status">
           {notice}
-        </div>
+        </p>
       )}
 
       {error && (
-        <div className="notification notification-error" role="alert">
+        <p className="admin-panel-card shop-admin-notice shop-admin-notice-error" role="alert">
           {error}
-        </div>
+        </p>
       )}
 
       <div className="coach-grid-layout">
-        {/* Main Panel: Classes & Roster */}
         <div className="coach-main-panel">
-          {/* Upcoming Classes Section */}
-          <section className="admin-panel-card coach-card">
-            <h2 className="coach-card-title">
-              <span>Today&apos;s Classes ({locationLabel(premises)})</span>
-              <span>Date: {date}</span>
-            </h2>
+          <section className="admin-panel-card" aria-labelledby="coach-classes-title">
+            <div className="admin-panel-card-heading">
+              <div>
+                <p className="admin-eyebrow">{date}</p>
+                <h3 id="coach-classes-title">Today&apos;s classes</h3>
+              </div>
+              <span>{locationLabel(premises)}</span>
+            </div>
 
             {loadingSessions ? (
               <p className="coach-loading" role="status">
                 Loading schedule...
               </p>
             ) : filteredSessions.length === 0 ? (
-              <p>No scheduled classes found for {locationLabel(premises)} today.</p>
+              <p className="admin-empty-state">
+                No scheduled classes found for {locationLabel(premises)} today.
+              </p>
             ) : (
               <div className="coach-session-list">
                 {filteredSessions.map((s) => {
@@ -468,7 +503,7 @@ export default function CoachDashboardPage() {
                                 : `Capacity: ${bookedCount} / ${s.capacity} booked`}
                             </span>
                             <span
-                              className={`coach-quorum-badge ${
+                              className={`coach-quorum ${
                                 quorumMet ? "coach-quorum-met" : "coach-quorum-warning"
                               }`}
                             >
@@ -484,9 +519,7 @@ export default function CoachDashboardPage() {
                                 ? "Capacity not set"
                                 : `Capacity: ${s.capacity} max`}
                             </span>
-                            <span className="coach-quorum-badge coach-quorum-warning">
-                              Minimum: {minRequired}
-                            </span>
+                            <span className="coach-quorum">Minimum: {minRequired}</span>
                           </>
                         )}
                       </span>
@@ -497,22 +530,24 @@ export default function CoachDashboardPage() {
             )}
           </section>
 
-          {/* Pre-Class Roster (5-minute Operational Interface) */}
-          <section className="admin-panel-card coach-card">
-            <h2 className="coach-card-title">
-              <span>
-                Pre-Class Roster: {selectedSession ? selectedSession.title : "Select a class"}
-              </span>
+          <section className="admin-panel-card" aria-labelledby="coach-roster-title">
+            <div className="admin-panel-card-heading">
+              <div>
+                <p className="admin-eyebrow">Pre-class roster</p>
+                <h3 id="coach-roster-title">
+                  {selectedSession ? `Roster: ${selectedSession.title}` : "Select a class"}
+                </h3>
+              </div>
               {selectedSession && (
                 <span className="coach-session-time">
                   Starts: {selectedSession.startAt.slice(11, 16)}
                 </span>
               )}
-            </h2>
+            </div>
 
             {selectedSession?.curriculum ? (
               <section className="coach-curriculum" aria-label="Session curriculum">
-                <h3>{selectedSession.curriculum.title}</h3>
+                <h4>{selectedSession.curriculum.title}</h4>
                 <ul>
                   {selectedSession.curriculum.techniques.map((technique) => (
                     <li key={technique}>{technique}</li>
@@ -525,14 +560,16 @@ export default function CoachDashboardPage() {
             ) : null}
 
             {!selectedSession ? (
-              <p>Select a class above to review attendance and check in members.</p>
+              <p className="admin-empty-state">
+                Select a class above to review attendance and check in members.
+              </p>
             ) : loadingRoster ||
               (operationalView && operationalView.session.sessionId !== effectiveSessionId) ? (
               <p className="coach-loading" role="status">
                 Loading roster...
               </p>
             ) : !operationalView ? (
-              <p>No roster data available.</p>
+              <p className="admin-empty-state">No roster data available.</p>
             ) : (
               <div>
                 <p>
@@ -582,7 +619,6 @@ export default function CoachDashboardPage() {
                         onChange={(event) => setOverrideReason(event.target.value)}
                         required
                         rows={2}
-
                         value={overrideReason}
                       />
                       <span id="coach-proximity-override-help">
@@ -593,51 +629,14 @@ export default function CoachDashboardPage() {
                 </section>
 
                 {operationalView.roster.length === 0 ? (
-                  <p>No members booked for this session yet.</p>
+                  <p className="admin-empty-state">No members booked for this session yet.</p>
                 ) : (
-                  <table className="coach-roster-table" aria-label="Class attendees roster">
-                    <thead>
-                      <tr>
-                        <th scope="col">Member</th>
-                        <th scope="col">Status</th>
-                        <th scope="col">Attendance</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {operationalView.roster.map((student) => {
-                        const isAttended =
-                          student.computedStatus === "attended" ||
-                          student.computedStatus === "late" ||
-                          student.computedStatus === "checked_out";
-                        const isBusy = busyStudentId === student.studentId;
-
-                        return (
-                          <tr key={student.studentId}>
-                            <td data-label="Member">
-                              <strong>{student.studentId}</strong>
-                            </td>
-                            <td data-label="Status">
-                              <span>{student.computedStatus.replace(/_/g, " ")}</span>
-                            </td>
-                            <td data-label="Attendance">
-                              {isAttended ? (
-                                <span>Checked in</span>
-                              ) : (
-                                <button
-                                  type="button"
-                                  className="admin-auth-button coach-button"
-                                  disabled={busyStudentId !== null || walkInBusy}
-                                  onClick={() => handleCheckIn(student.studentId)}
-                                >
-                                  {isBusy ? "Checking in..." : "Check In"}
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                  <AdminDataTable
+                    caption="Class attendees roster"
+                    columns={rosterColumns}
+                    rowKey={(student) => student.studentId}
+                    rows={operationalView.roster}
+                  />
                 )}
 
                 {["headCoach", "administrator", "owner"].includes(session.role) &&
@@ -650,7 +649,6 @@ export default function CoachDashboardPage() {
                   </Suspense>
                 ) : null}
 
-                {/* Manual walk-in attendance */}
                 <div className="coach-attendance-box">
                   <strong>Check in another member</strong>
                   <p>Use the member ID to record attendance for someone not listed above.</p>
@@ -682,19 +680,21 @@ export default function CoachDashboardPage() {
           </section>
         </div>
 
-        {/* Side Panel: Birthdays & Quick Links */}
         <div className="coach-side-panel">
           {/* T114: who to expect before the class starts */}
-          <section className="admin-panel-card coach-card">
-            <h2 className="coach-card-title">
-              <span>Before class</span>
+          <section className="admin-panel-card" aria-labelledby="coach-before-class-title">
+            <div className="admin-panel-card-heading">
+              <div>
+                <p className="admin-eyebrow">Selected class</p>
+                <h3 id="coach-before-class-title">Before class</h3>
+              </div>
               {preClass.status === "ready" && (
-                <span className="coach-birthday-badge">
+                <span>
                   {preClass.view.evidence.bookedCount + preClass.view.evidence.suggestedCount}{" "}
                   expected
                 </span>
               )}
-            </h2>
+            </div>
             {preClass.status === "idle" && <p>Pick a class to prepare it.</p>}
             {preClass.status === "loading" && <p>Preparing this class…</p>}
             {preClass.status === "error" && (
@@ -708,22 +708,22 @@ export default function CoachDashboardPage() {
                     : "This class is closed, so only the booked members are listed."}
                 </p>
                 {preClass.view.attendees.length === 0 ? (
-                  <p>Nobody is booked and nobody trains this class regularly yet.</p>
+                  <p className="admin-empty-state">
+                    Nobody is booked and nobody trains this class regularly yet.
+                  </p>
                 ) : (
                   <div role="list">
                     {preClass.view.attendees.map((attendee) => (
-                      <div key={attendee.studentId} className="coach-birthday-item" role="listitem">
+                      <div key={attendee.studentId} className="coach-list-item" role="listitem">
                         <div>
-                          <div className="coach-birthday-name">{attendee.displayName}</div>
-                          <div className="coach-birthday-meta">
+                          <div className="coach-list-name">{attendee.displayName}</div>
+                          <div className="coach-list-meta">
                             {attendee.source === "booked"
                               ? "Booked"
                               : `Regular · ${attendee.attendedCount} of the last ${attendee.comparableSessionCount}`}
                           </div>
                         </div>
-                        <span className="coach-birthday-badge">
-                          {attendee.source === "booked" ? "Booked" : "Suggested"}
-                        </span>
+                        <span>{attendee.source === "booked" ? "Booked" : "Suggested"}</span>
                       </div>
                     ))}
                   </div>
@@ -732,50 +732,42 @@ export default function CoachDashboardPage() {
             )}
           </section>
 
-          {/* Member Upcoming Birthdays Widget */}
-          <section className="admin-panel-card coach-card">
-            <h2 className="coach-card-title">
-              <span>Upcoming birthdays</span>
-              {birthdays.status === "ready" && (
-                <span className="coach-birthday-badge">{birthdays.entries.length} this week</span>
-              )}
-            </h2>
+          <section className="admin-panel-card" aria-labelledby="coach-birthdays-title">
+            <div className="admin-panel-card-heading">
+              <div>
+                <p className="admin-eyebrow">{locationLabel(premises)}</p>
+                <h3 id="coach-birthdays-title">Upcoming birthdays</h3>
+              </div>
+              {birthdays.status === "ready" && <span>{birthdays.entries.length} this week</span>}
+            </div>
             <p>Greet members and celebrate their birthday milestones on the mat!</p>
             {birthdays.status === "loading" && <p>Loading birthdays…</p>}
             {birthdays.status === "error" && (
               <p role="status">Unable to load upcoming birthdays. Please try again.</p>
             )}
             {birthdays.status === "ready" && birthdays.entries.length === 0 && (
-              <p>No birthdays at {locationLabel(premises)} this week.</p>
+              <p className="admin-empty-state">
+                No birthdays at {locationLabel(premises)} this week.
+              </p>
             )}
             {birthdays.status === "ready" && birthdays.entries.length > 0 && (
               <div role="list">
                 {birthdays.entries.map((birthday) => (
-                  <div key={birthday.studentId} className="coach-birthday-item" role="listitem">
+                  <div key={birthday.studentId} className="coach-list-item" role="listitem">
                     <div>
-                      <div className="coach-birthday-name">{birthday.displayName}</div>
-                      <div className="coach-birthday-meta">
+                      <div className="coach-list-name">{birthday.displayName}</div>
+                      <div className="coach-list-meta">
                         {birthday.participantType === "minor" ? "Minor" : "Adult"} ·{" "}
                         {birthday.trainingCenter}
                       </div>
                     </div>
-                    <span className="coach-birthday-badge">
+                    <span>
                       {birthdayWhenLabel(birthday.daysAway)} &middot; turns {birthday.turningAge}
                     </span>
                   </div>
                 ))}
               </div>
             )}
-          </section>
-
-          {/* Quick Links Card */}
-          <section className="admin-panel-card coach-card">
-            <h2 className="coach-card-title">Coach Tools</h2>
-            <div>
-              <Link href="/coach/levels" className="admin-home-link coach-button">
-                Browse IBJJF Progression Syllabus
-              </Link>
-            </div>
           </section>
         </div>
       </div>
