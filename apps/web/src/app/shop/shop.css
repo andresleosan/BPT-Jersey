@@ -4,6 +4,17 @@
  * price and stock rows line up across the cards of a row whatever the length of each name, and the
  * order controls sit on the card's last row.
  */
+/* The shared secondary button is white-on-dark; on the white product card it must be dark ink. */
+.shop-page .shop-signin-link {
+  border-color: var(--bpt-purple);
+  color: var(--bpt-purple);
+}
+
+.shop-page .shop-signin-link:hover {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
 @media (min-width: 48rem) {
   .shop-page .shop-product-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
