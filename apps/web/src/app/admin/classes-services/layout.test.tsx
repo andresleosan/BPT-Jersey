@@ -10,7 +10,7 @@ import ClassesServicesLayout from "./layout";
 describe("Classes / Services layout", () => {
   afterEach(() => cleanup());
 
-  it("shows the nine tabs to an administrator and marks the current one", () => {
+  it("shows the seven tabs to an administrator and marks the current one", () => {
     mocks.usePathname.mockReturnValue("/admin/classes-services/types");
     mocks.useAdminOrStaffSession.mockReturnValue({ role: "administrator" });
     render(
@@ -24,9 +24,7 @@ describe("Classes / Services layout", () => {
       "Class / Service Types",
       "Classes & Services 2.0",
       "Memberships and Vouchers",
-      "Bulk Operations",
-      "Listings & Reports",
-      "Drop-ins",
+      "Groups",
       "Options",
       "History",
     ]);
