@@ -1,5 +1,6 @@
 import { createMemberAccessService } from "../members/member-access-service.js";
 import { createHash } from "node:crypto";
+import { HttpsError } from "firebase-functions/v2/https";
 
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import {
@@ -678,6 +679,11 @@ export function createFirestoreWaitlistStore({
         }
 
         if (sessionDoc.data()?.courseId) throw new WaitlistStoreError("ineligible", "Course sessions use the course enrolment waitlist");
+        if (sessionDoc.data()?.accessMode === "private-lesson")
+          throw new HttpsError(
+            "failed-precondition",
+            "Private lessons are arranged by the office.",
+          );
         const storedSession = sessionCapacity(sessionDoc.data(), academyId, sessionId, now);
         assertMembership(
           membershipDoc.data(),

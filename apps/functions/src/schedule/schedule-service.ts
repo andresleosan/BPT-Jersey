@@ -48,7 +48,9 @@ import {
   type UpdateSessionInput,
   normalizeClassRecord,
   legacySessionId,
+  sessionAccessMode,
 } from "@bpt-jersey/domain/schedule";
+import { HttpsError } from "firebase-functions/v2/https";
 import {
   decideSelfCheckIn,
   isOpenMatProgram,
@@ -633,6 +635,33 @@ type WeekOperationsStore = Pick<
   "cancelSession" | "createSession" | "listSessionBookings" | "listSessions" | "requestBooking"
 >;
 
+function isPrivateLessonSession(session: SessionRecord): boolean {
+  try {
+    return sessionAccessMode(session) === "private-lesson";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * ADR-018: people cancel bookings. A private lesson holds a consumed credit, so its session cannot
+ * be cancelled underneath a confirmed booking; the office cancels the booking first (restoring the
+ * credit), then the session.
+ */
+async function assertNoConfirmedPrivateLessons(
+  store: Pick<ScheduleStore, "listSessionBookings">,
+  academyId: string,
+  sessions: readonly SessionRecord[],
+): Promise<void> {
+  for (const session of sessions) {
+    if (!isPrivateLessonSession(session)) continue;
+    const bookings = await store.listSessionBookings(academyId, session.sessionId);
+    if (bookings.some((booking) => booking.status === "confirmed")) {
+      throw new HttpsError("failed-precondition", "Cancel the private lesson booking first.");
+    }
+  }
+}
+
 function weekRangeOrThrow(weekStart: string, timezone: string): ListSessionsQuery {
   const range = weekRangeFor(weekStart, timezone);
   if (!range.ok) throw new Error(range.error);
@@ -765,6 +794,7 @@ async function deleteWeekWith(
   const sessions = liveSessions(
     await store.listSessions(academyId, weekRangeOrThrow(input.weekStart, timezone)),
   );
+  await assertNoConfirmedPrivateLessons(store, academyId, sessions);
   const cancelled: SessionRecord[] = [];
   for (const session of sessions) {
     cancelled.push(await store.cancelSession(academyId, session.sessionId, input.reason, actorId));
@@ -1271,20 +1301,26 @@ export function createFirestoreScheduleStore(options: {
         updatedAt: nowIso,
         updatedBy: actorId,
       });
-      await classRef.set(retired);
       const snapshot = await firestore
         .collection(`academies/${academyId}/sessions`)
         .where("classId", "==", classId)
         .get();
-      const cancelled: SessionRecord[] = [];
-      for (const doc of snapshot.docs) {
+      const upcoming = snapshot.docs.filter((doc) => {
         const session = doc.data() as SessionRecord;
-        if (
-          (session.status !== "scheduled" && session.status !== "active") ||
-          session.startAt < nowIso
-        ) {
-          continue;
-        }
+        return (
+          (session.status === "scheduled" || session.status === "active") &&
+          session.startAt >= nowIso
+        );
+      });
+      await assertNoConfirmedPrivateLessons(
+        this,
+        academyId,
+        upcoming.map((doc) => doc.data() as SessionRecord),
+      );
+      await classRef.set(retired);
+      const cancelled: SessionRecord[] = [];
+      for (const doc of upcoming) {
+        const session = doc.data() as SessionRecord;
         const next: SessionRecord = Object.freeze({
           ...session,
           status: "cancelled",
@@ -1459,6 +1495,7 @@ export function createFirestoreScheduleStore(options: {
 
       const current = existing.data() as SessionRecord;
       if (current.courseId) throw new Error("Cancel this session in Courses & Seminars.");
+      await assertNoConfirmedPrivateLessons(this, academyId, [current]);
       const now = new Date().toISOString();
 
       const cancelled: SessionRecord = Object.freeze({
@@ -2319,8 +2356,18 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
         updatedAt: nowIso,
         updatedBy: actorId,
       });
-      map!.set(classId, retired);
       const sMap = sessionsMap.get(academyId);
+      await assertNoConfirmedPrivateLessons(
+        this,
+        academyId,
+        [...(sMap?.values() ?? [])].filter(
+          (session) =>
+            session.classId === classId &&
+            (session.status === "scheduled" || session.status === "active") &&
+            session.startAt >= nowIso,
+        ),
+      );
+      map!.set(classId, retired);
       const cancelled: SessionRecord[] = [];
       if (sMap) {
         for (const [id, session] of sMap) {
@@ -2490,6 +2537,7 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
       if (!current) {
         throw new Error(`Session ${sessionId} does not exist`);
       }
+      await assertNoConfirmedPrivateLessons(this, academyId, [current]);
 
       const now = new Date().toISOString();
       const cancelled: SessionRecord = Object.freeze({
