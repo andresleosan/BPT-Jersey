@@ -1,6 +1,7 @@
 import type { ValidationIssue } from "../errors";
 import { err, ok, type Result } from "../result";
 import { isLevelCatalogVersion, levelCatalogVersionShapes } from "./level-catalog-v2";
+import { isCustomLevelSystemId } from "./level-editor-contracts";
 import {
   computeLevelProgress,
   isLevelCalendarDate,
@@ -515,9 +516,31 @@ export function parseLevelCatalogProjection(
   const { system, definitions, skills, requirements, sourceHash } = input;
 
   const systemId = isPlainRecord(system) ? system.systemId : undefined;
-  if (!isPlainRecord(system) || !isLevelCatalogVersion(systemId)) {
+  if (
+    !isPlainRecord(system) ||
+    (!isLevelCatalogVersion(systemId) && !isCustomLevelSystemId(systemId))
+  ) {
     issues.push(issue(["projection", "system"], "invalid_system"));
     return err(Object.freeze(issues));
+  }
+  // T04: a custom version has no fixed shape; its content was validated when it was saved.
+  if (!isLevelCatalogVersion(systemId)) {
+    if (!Array.isArray(definitions) || !Array.isArray(skills) || !Array.isArray(requirements)) {
+      issues.push(issue(["projection"], "invalid_custom_projection"));
+    }
+    if (typeof sourceHash !== "string" || !/^[a-f0-9]{64}$/u.test(sourceHash)) {
+      issues.push(issue(["projection", "sourceHash"], "invalid_source_hash"));
+    }
+    if (issues.length > 0) return err(Object.freeze(issues));
+    return ok(
+      Object.freeze({
+        system: Object.freeze(system as LevelSystemRecord),
+        definitions: Object.freeze([...(definitions as readonly LevelDefinitionRecord[])]),
+        skills: Object.freeze([...(skills as readonly SkillDefinition[])]),
+        requirements: Object.freeze([...(requirements as readonly LevelRequirementRecord[])]),
+        sourceHash: sourceHash as string,
+      }),
+    );
   }
   const shape = levelCatalogVersionShapes[systemId];
   if (!Array.isArray(definitions) || definitions.length !== shape.definitions) {

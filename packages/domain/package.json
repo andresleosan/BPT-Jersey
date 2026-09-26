@@ -160,6 +160,11 @@
       "import": "./src/levels/level-contracts.ts",
       "default": "./lib/levels/level-contracts.js"
     },
+    "./levels/editor": {
+      "types": "./src/levels/level-editor-contracts.ts",
+      "import": "./src/levels/level-editor-contracts.ts",
+      "default": "./lib/levels/level-editor-contracts.js"
+    },
     "./levels/achievements": {
       "types": "./src/levels/achievement-contracts.ts",
       "import": "./src/levels/achievement-contracts.ts",
