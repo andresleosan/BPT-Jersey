@@ -86,6 +86,7 @@ export const privateLessonPurchaseSchema = z.strictObject({
   submittedAt: instant,
   decidedAt: instant.nullable(),
   decidedBy: id.nullable(),
+  decisionReason: z.string().trim().max(300).nullable(),
   expiresAt: instant.nullable(),
   invoiceId: id.nullable(),
   schemaVersion: z.literal("1"),
@@ -104,6 +105,8 @@ export const privateLessonCreditUseSchema = z.strictObject({
 export type PrivateLessonCreditUse = z.infer<typeof privateLessonCreditUseSchema>;
 
 export const submitPrivateLessonPurchaseInputSchema = z.strictObject({
+  /** Same request id the payment proof was uploaded under; it also makes the submit replay-safe. */
+  requestId: z.uuid(),
   studentId: id,
   optionId,
   proofId: id,
@@ -140,6 +143,12 @@ export const cancelPrivateLessonBookingInputSchema = z.strictObject({
   reason: z.string().trim().min(2).max(300),
 });
 export type CancelPrivateLessonBookingInput = z.infer<typeof cancelPrivateLessonBookingInputSchema>;
+
+/** Office list row: the purchase plus the member's name for the review table. */
+export const privateLessonPurchaseRowSchema = privateLessonPurchaseSchema.extend({
+  studentName: z.string().max(200).nullable(),
+});
+export type PrivateLessonPurchaseRow = z.infer<typeof privateLessonPurchaseRowSchema>;
 
 /** Output of `listMyPrivateLessons`: usable credits plus the member's purchase history. */
 export const myPrivateLessonsSchema = z.strictObject({
