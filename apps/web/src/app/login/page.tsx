@@ -28,7 +28,7 @@ export default function LoginPage() {
             />
             <p className="login-mark">BPT / Jersey</p>
           </div>
-          <p className="login-intro-label">One academy. One clear system.</p>
+          <p className="login-intro-label">Brazilian Jiu-Jitsu Academy</p>
           <p className="login-intro-note">
             Sign in to manage your membership, classes, family and payments.
           </p>
