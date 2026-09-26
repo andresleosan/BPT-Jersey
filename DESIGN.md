@@ -118,6 +118,10 @@ swatches (`.levels-colour`) that stand for a belt. Nowhere else — they never b
 tag, the background of any other element, or text colour; the card around the bar stays Gi White
 with Mat Ink and the single purple eyebrow. A belt card is one `<article>` per belt; stripes are
 marks on the bar's ink tip plus an ordered list, never separate cards.
+In the catalogue editor (`/admin/levels` → Versions) the preview is that same `.belt-bar`, and the
+native `<input type="color">` beside each hex field is the only other place a belt colour shows. A
+hex reaches CSS only once it matches `#RRGGBB`; until then the field says "Enter a colour like
+#1A2B3C" and the preview keeps the last valid colour.
 
 ## 11. Ready for Jiu Jitsu (/account self check-in)
 
