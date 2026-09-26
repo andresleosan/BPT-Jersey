@@ -461,4 +461,74 @@ describe("CalendarView", () => {
     fireEvent.click(screen.getByRole("button", { name: /no classes/ }));
     expect(screen.queryAllByRole("button", { name: /Create|Add|Delete|Copy/ })).toHaveLength(0);
   });
+
+  it("shows the desktop day as its own agenda view, not a squeezed week column", () => {
+    const { container } = render(
+      <CalendarView
+        view="day"
+        weekStart="2026-09-16"
+        sessions={[]}
+        timezone="Europe/Jersey"
+        window={window}
+        canEdit={false}
+        onOpen={noop}
+        onCreate={noop}
+        onSelectWeek={noop}
+      />,
+    );
+    expect(container.querySelector(".cs-dayview")).not.toBeNull();
+    expect(container.querySelector(".cs-week")).toBeNull();
+  });
+
+  it("groups a phone day by hour under a sticky header that steps one day at a time", () => {
+    viewport.compact = true;
+    const onSelectDay = vi.fn();
+    const { container } = render(
+      <CalendarView
+        view="day"
+        weekStart="2026-09-16"
+        sessions={[
+          {
+            ...base,
+            sessionId: "a",
+            title: "Early Drills",
+            startAt: "2026-09-16T17:00:00.000Z",
+            endAt: "2026-09-16T17:30:00.000Z",
+          },
+          {
+            ...base,
+            sessionId: "b",
+            title: "Late Drills",
+            startAt: "2026-09-16T17:30:00.000Z",
+            endAt: "2026-09-16T18:30:00.000Z",
+          },
+          {
+            ...base,
+            sessionId: "c",
+            title: "Evening Class",
+            startAt: "2026-09-16T18:00:00.000Z",
+            endAt: "2026-09-16T19:00:00.000Z",
+          },
+        ]}
+        timezone="Europe/Jersey"
+        window={window}
+        canEdit={false}
+        onOpen={noop}
+        onCreate={noop}
+        onSelectWeek={noop}
+        onSelectDay={onSelectDay}
+      />,
+    );
+    const header = container.querySelector(".cs-agenda-header");
+    expect(header).toHaveTextContent("WED 16/9");
+    const hours = [...container.querySelectorAll(".cs-agenda-hour")];
+    expect(hours.map((hour) => hour.querySelector("h4")?.textContent)).toEqual(["18:00", "19:00"]);
+    expect(hours[0]).toHaveTextContent("Early Drills");
+    expect(hours[0]).toHaveTextContent("Late Drills");
+    expect(hours[1]).toHaveTextContent("Evening Class");
+    fireEvent.click(screen.getByRole("button", { name: "Previous day" }));
+    expect(onSelectDay).toHaveBeenCalledWith("2026-09-15");
+    fireEvent.click(screen.getByRole("button", { name: "Next day" }));
+    expect(onSelectDay).toHaveBeenCalledWith("2026-09-17");
+  });
 });

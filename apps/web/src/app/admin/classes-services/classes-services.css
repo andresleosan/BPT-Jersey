@@ -1257,3 +1257,179 @@ body:has(.cs-session-dialog[open]) {
   background: #fff8e6;
   color: #765400;
 }
+
+/* ── Single-day view (desktop) ── */
+.cs-dayview {
+  display: grid;
+  gap: 0.75rem;
+}
+.cs-dayview-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--mat-ink);
+}
+.cs-dayview-header h3 {
+  margin: 0;
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.6rem;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+.cs-dayview-header[aria-current="date"] h3 {
+  color: var(--bpt-purple);
+}
+.cs-dayview-slots {
+  display: grid;
+  gap: 0.75rem;
+}
+.cs-dayview-slot {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+.cs-dayview-axis {
+  padding-top: 0.6rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.cs-dayview-cards {
+  display: grid;
+  gap: 0.5rem;
+}
+.cs-dayview-card {
+  display: grid;
+  gap: 0.2rem;
+  align-content: start;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--line);
+  background: var(--gi-white);
+  color: var(--mat-ink);
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease;
+}
+.cs-dayview-card.cs-event-typed {
+  border-left: 0.35rem solid var(--type-colour);
+}
+.cs-dayview-card:hover,
+.cs-dayview-card:focus-visible {
+  border-color: var(--bpt-purple);
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 2px;
+}
+.cs-dayview-card.cs-event-typed:hover,
+.cs-dayview-card.cs-event-typed:focus-visible {
+  border-left-color: var(--type-colour);
+}
+.cs-dayview-card[data-status="cancelled"] {
+  border-left: 0.35rem solid var(--line);
+  background: var(--paper-edge);
+  color: var(--muted);
+}
+.cs-dayview-title {
+  font-weight: 700;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+.cs-dayview-time,
+.cs-dayview-occupancy {
+  font-variant-numeric: tabular-nums;
+}
+.cs-dayview-occupancy {
+  font-weight: 700;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+.cs-dayview-meter {
+  display: block;
+  height: 0.35rem;
+  background: var(--paper-edge);
+}
+.cs-dayview-meter > span {
+  display: block;
+  height: 100%;
+  background: var(--bpt-purple);
+}
+.cs-dayview-detail {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.cs-dayview-status {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.78rem;
+  color: var(--cs-red);
+}
+.cs-dayview-now {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--bpt-purple);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+.cs-dayview-now::after {
+  content: "";
+  flex: 1;
+  height: 2px;
+  background: var(--bpt-purple);
+}
+
+/* ── Phone day agenda ── */
+.cs-agenda-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  background: var(--gi-white);
+  border-bottom: 2px solid var(--mat-ink);
+}
+.cs-agenda-header h3 {
+  margin: 0;
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.4rem;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+  text-align: center;
+}
+.cs-agenda-header[aria-current="date"] h3 {
+  color: var(--bpt-purple);
+}
+.cs-agenda-hour {
+  display: grid;
+  gap: 0.5rem;
+}
+.cs-agenda-hour h4 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+}
+.cs-agenda-occupancy {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
