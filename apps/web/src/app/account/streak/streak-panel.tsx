@@ -41,7 +41,9 @@ function Bar({
         value={done}
         aria-label={`${bar.label}: ${bar.progress} of ${bar.target}`}
       />
-      {bar.almost ? <p className="streak-bar-hint">Just x1 missing to get {noun}!</p> : null}
+      {bar.almost ? (
+        <p className="streak-bar-hint">One more class to reach your next {noun}.</p>
+      ) : null}
     </div>
   );
 }
@@ -85,7 +87,7 @@ export function StreakPanel({ studentId }: Readonly<{ studentId: string }>) {
       <StreakFlame count={streak.streakCount} />
       <Bar bar={streak.goal} base={defaultGoal.target} noun="goal" />
       <Bar bar={streak.reward} base={defaultReward.target} noun="reward" />
-      <p className="streak-hours">{streak.hoursSinceSeasonStart} h trained since September</p>
+      <p className="streak-hours">{streak.hoursSinceSeasonStart} hours trained this season</p>
     </section>
   );
 }

@@ -85,7 +85,7 @@ function BillingContent() {
       {state === "error" ? (
         <section className="client-billing-state client-billing-error" role="alert">
           <h2>Billing is unavailable</h2>
-          <p>No financial details were displayed. Try again.</p>
+          <p>We couldn&apos;t load your billing. Try again.</p>
           <button className="button button-secondary" onClick={() => void load()} type="button">
             Try again
           </button>

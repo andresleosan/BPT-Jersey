@@ -12,6 +12,16 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
+/** "2026-08-07" -> "7 August 2026", read as a calendar date so no time zone can shift it. */
+function checkedOn(isoDate: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${isoDate}T00:00:00Z`));
+}
+
 export default function HomePage() {
   return (
     <>
@@ -35,7 +45,7 @@ export default function HomePage() {
         <nav className="primary-nav" aria-label="Primary navigation">
           <a href="#top">Home</a>
           <a href="#classes">Classes</a>
-          <a href="#programs">Programs</a>
+          <a href="#programmes">Programmes</a>
           <a href="/courses">Courses</a>
           <a href="#shop">Shop</a>
           <a href="#locations">Locations</a>
@@ -99,7 +109,7 @@ export default function HomePage() {
 
           <div className="schedule-table-wrap schedule-board">
             <table className="schedule-table">
-              <caption>Published class schedule</caption>
+              <caption>Weekly timetable</caption>
               <thead>
                 <tr>
                   <th scope="col">Location</th>
@@ -143,11 +153,11 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="programs-section" id="programs" aria-labelledby="programs-title">
+        <section className="programs-section" id="programmes" aria-labelledby="programs-title">
           <div className="section-heading">
-            <h2 id="programs-title">Find your way onto the mat</h2>
+            <h2 id="programs-title">Who the classes are for</h2>
           </div>
-          <ul className="program-list program-grid">
+          <ul className="program-list">
             {academyContent.programs.map((program) => (
               <li className="program-card" key={program.label}>
                 <h3>{program.title}</h3>
@@ -159,14 +169,14 @@ export default function HomePage() {
 
         <section className="fees-section" id="fees" aria-labelledby="fees-title">
           <div className="section-heading">
-            <h2 id="fees-title">Simple ways to train</h2>
+            <h2 id="fees-title">Memberships and prices</h2>
           </div>
           <PlanPriceList />
         </section>
 
         <section className="merch-section" id="shop" aria-labelledby="shop-title">
           <div className="section-heading">
-            <h2 id="shop-title">Wear the team</h2>
+            <h2 id="shop-title">Club shop</h2>
             <p>{academyContent.notes.merchandise}</p>
           </div>
           <ul className="merch-grid" aria-label="Merchandise categories">
@@ -207,25 +217,12 @@ export default function HomePage() {
               </a>
             </div>
           </div>
-          <ul className="contact-locations" aria-label="Training centres">
-            {academyContent.locations.map((location) => (
-              <li key={location.key}>
-                <address className="contact-details">
-                  <strong>{location.name}</strong>
-                  <span>{location.address}</span>
-                  <span>
-                    {location.locality}, {location.postcode}
-                  </span>
-                </address>
-              </li>
-            ))}
-          </ul>
         </section>
       </main>
 
       <footer className="site-footer">
         <p>Brazilian Power Team Jersey</p>
-        <p>Public information last verified {academyContent.lastVerified}.</p>
+        <p>Timetable checked {checkedOn(academyContent.lastVerified)}.</p>
         <a className="site-footer-staff" href="/staff/login">
           Staff sign-in
         </a>

@@ -83,6 +83,7 @@ Absolute rule: one brand purple, one brand lime, warm-grey neutrals. No blue, no
 - **Hover:** `-2px` lift on buttons; background swap on links. **Active:** return to `0` — the press is felt, not animated further.
 - **Reveal:** content mounts instantly. No staggered cascades, no scroll-triggered entrances, no perpetual loops. Skip-link slides in on focus (`translateY(-180%) → 0`, `160ms`).
 - **Performance:** only `transform` and `opacity` are animated; `scroll-behavior: smooth` with `scroll-margin-top: 7rem` for anchored targets.
+- **Exception:** The course promotion band is the only permitted perpetual motion: linear marquee, visible Pause control, pauses on hover/focus, static wrapped list under reduced motion.
 
 ## 8. Anti-Patterns (Banned)
 

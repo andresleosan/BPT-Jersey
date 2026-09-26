@@ -106,7 +106,7 @@ function SettingsContent() {
   return (
     <main className="client-destination settings-page" aria-labelledby="settings-title">
       <p className="account-eyebrow">
-        <Link href="/account">← Back to Account</Link>
+        <Link href="/account">← Back to account</Link>
       </p>
       <h1 id="settings-title">Account settings</h1>
       {people === undefined ? (
@@ -626,13 +626,13 @@ function OwnAccessSection({
               type="password"
               autoComplete="new-password"
               required
-              minLength={10}
+              minLength={12}
               value={password}
               disabled={busy}
               aria-describedby={`${ids}-password-help`}
               onChange={(event) => setPassword(event.target.value)}
             />
-            <small id={`${ids}-password-help`}>At least 10 characters.</small>
+            <small id={`${ids}-password-help`}>At least 12 characters.</small>
           </div>
           <div className="settings-actions">
             <button className="button button-primary" type="submit" disabled={busy}>

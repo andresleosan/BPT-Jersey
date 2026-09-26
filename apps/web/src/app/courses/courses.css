@@ -226,7 +226,7 @@
 
 .course-availability {
   color: var(--bpt-purple);
-  font-size: 0.85rem;
+  font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1272,14 +1272,49 @@
   padding-top: 0;
   padding-bottom: 0;
 }
+/*
+ * Public catalogue cards: DESIGN type scale (reading text never under 1rem), a 65ch measure and
+ * one vertical rhythm. Scoped to the catalogue because `.course-row p` and `.course-meta` also
+ * serve the office and member rows.
+ */
+.course-catalogue {
+  --course-space-xs: 0.5rem;
+  --course-space-s: 1rem;
+  --course-space-m: 1.5rem;
+}
+.course-catalogue .course-row p {
+  margin: 0;
+}
+.course-catalogue .course-row h3 {
+  margin: var(--course-space-s) 0;
+}
+.course-catalogue .course-meta {
+  font-size: 1rem;
+}
+.course-catalogue .course-row .course-byline,
+.course-catalogue .course-row .course-schedule {
+  gap: var(--course-space-xs) var(--course-space-s);
+  margin-top: var(--course-space-xs);
+}
+.course-catalogue .course-row-action p + p {
+  margin-top: var(--course-space-xs);
+}
+.course-catalogue .course-row .course-description-preview {
+  margin-bottom: var(--course-space-s);
+}
 .course-description-preview {
-  max-width: 62ch;
-  margin: 0 0 1rem;
+  max-width: 65ch;
+  line-height: 1.5;
   white-space: pre-line;
   overflow-wrap: anywhere;
 }
 .course-techniques-preview {
-  margin: 0 0 1rem;
+  margin: 0 0 var(--course-space-s);
+}
+.course-techniques-preview ul {
+  max-width: 65ch;
+  margin: var(--course-space-xs) 0 0;
+  padding-left: var(--course-space-m);
 }
 .course-techniques-preview summary {
   display: list-item;

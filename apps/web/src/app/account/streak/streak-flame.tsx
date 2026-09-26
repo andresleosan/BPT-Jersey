@@ -20,7 +20,7 @@ export function StreakFlame({ count }: Readonly<{ count: number }>) {
         const anim = lottie.loadAnimation({
           container: node,
           renderer: "svg",
-          loop: !still,
+          loop: false,
           autoplay: !still,
           path: "/animations/streak-flame.json",
         });
