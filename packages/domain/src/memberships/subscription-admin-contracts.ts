@@ -42,9 +42,17 @@ export const memberSubscriptionContextSchema = z.strictObject({
 });
 export type MemberSubscriptionContext = z.infer<typeof memberSubscriptionContextSchema>;
 
+export const adminNotificationKinds = [
+  "subscription-expiring",
+  "membership",
+  "registration",
+  "payment",
+  "class",
+] as const;
+export type AdminNotificationKind = (typeof adminNotificationKinds)[number];
 export const adminNotificationSchema = z.strictObject({
   notificationId: id,
-  kind: z.enum(["subscription-expiring", "membership", "registration", "payment", "class"]),
+  kind: z.enum(adminNotificationKinds),
   title: z.string().min(1).max(220),
   message: z.string().max(500),
   href: z.string().startsWith("/admin/"),
@@ -57,10 +65,18 @@ export const adminNotificationSchema = z.strictObject({
 });
 export type AdminNotification = z.infer<typeof adminNotificationSchema>;
 const cursorSchema = z.strictObject({ createdAt: instant, notificationId: id });
-export const adminInboxQuerySchema = z.strictObject({
-  filter: z.enum(["all", "unread"]),
-  cursor: cursorSchema.nullable(),
-});
+export const adminInboxQuerySchema = z
+  .strictObject({
+    kind: z.enum(adminNotificationKinds).nullable(),
+    readState: z.enum(["all", "unread", "read"]),
+    from: instant.nullable(),
+    to: instant.nullable(),
+    cursor: cursorSchema.nullable(),
+  })
+  .refine((q) => q.from === null || q.to === null || Date.parse(q.from) <= Date.parse(q.to), {
+    message: "from must be before to",
+    path: ["from"],
+  });
 export type AdminInboxQuery = z.infer<typeof adminInboxQuerySchema>;
 export const adminInboxPageSchema = z.strictObject({
   notifications: z.array(adminNotificationSchema),
