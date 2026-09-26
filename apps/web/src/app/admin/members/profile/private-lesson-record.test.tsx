@@ -25,6 +25,7 @@ describe("PrivateLessonRecord", () => {
     await waitFor(() =>
       expect(api.record).toHaveBeenCalledWith({
         studentId: "student-1",
+        requestId: expect.stringMatching(/^[0-9a-f-]{36}$/u),
         optionId: "pack-10",
         method: "cash",
         reference: null,
@@ -33,6 +34,25 @@ describe("PrivateLessonRecord", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Recorded Private lessons pack of 10. The credits are ready to book.",
     );
+  });
+
+  it("retries a failed save with the same request id and uses a new one for the next purchase", async () => {
+    api.record
+      .mockRejectedValueOnce(new Error("We could not update the private lesson. Try again."))
+      .mockResolvedValue({ purchaseId: "p1", optionId: "single" });
+    render(<PrivateLessonRecord studentId="student-1" />);
+    fireEvent.click(screen.getByRole("button", { name: "Record private lesson purchase" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save purchase" }));
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: "Save purchase" }));
+    await screen.findByRole("status");
+    fireEvent.click(screen.getByRole("button", { name: "Record private lesson purchase" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save purchase" }));
+    await waitFor(() => expect(api.record).toHaveBeenCalledTimes(3));
+
+    const ids = api.record.mock.calls.map(([input]) => (input as { requestId: string }).requestId);
+    expect(ids[0]).toBe(ids[1]);
+    expect(ids[2]).not.toBe(ids[0]);
   });
 
   it("shows the server's refusal", async () => {

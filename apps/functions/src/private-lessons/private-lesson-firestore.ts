@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type { Firestore, Transaction } from "firebase-admin/firestore";
 import {
   privateLessonPurchaseSchema,
@@ -10,7 +9,7 @@ import {
   createMemberAccessService,
   memberAccessDependenciesInTransaction,
 } from "../members/member-access-service.js";
-import { assertIntroProof } from "../memberships/intro-payment-proof.js";
+import { assertIntroProof, introProofUrl } from "../memberships/intro-payment-proof.js";
 import type { R2Client } from "../storage/r2-client.js";
 import type {
   PrivateLessonStore,
@@ -105,7 +104,12 @@ export function createFirestorePrivateLessonStore(
         return update(port);
       }),
     async listByStatus(status) {
-      const snapshot = await purchases.where("status", "==", status).limit(maxPurchaseRows).get();
+      // Newest first before the cap, so the office always sees the latest requests.
+      const snapshot = await purchases
+        .where("status", "==", status)
+        .orderBy("submittedAt", "desc")
+        .limit(maxPurchaseRows)
+        .get();
       return toPurchases(snapshot.docs);
     },
     async listForStudent(studentId) {
@@ -130,6 +134,6 @@ export function createFirestorePrivateLessonStore(
     canAccessStudent: (userId, studentId) =>
       db.runTransaction((tx) => canAccess(tx)(userId, studentId)),
     verifyProof: (input) => assertIntroProof(storage(), { academyId, ...input }),
-    newId: () => randomUUID(),
+    proofUrl: (input) => introProofUrl(storage(), { academyId, ...input }),
   };
 }

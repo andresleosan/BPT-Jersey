@@ -22,7 +22,12 @@ const baseline = { classes: 9, cutoff: "2026-09-01", source: "regyfit-import" } 
 const normalized = normalizeLevelCatalogSource(observedJson, businessCriteriaJson);
 
 type Stored = Map<string, Record<string, unknown>>;
-type Ref = { kind: "doc" | "collection"; path: string };
+type Ref = {
+  kind: "doc" | "collection";
+  path: string;
+  filters?: readonly Readonly<{ field: string; value: unknown }>[];
+  max?: number;
+};
 
 /** In-memory Firestore with transactional reads before buffered writes. */
 function fakeFirestore(records: Stored) {
@@ -40,12 +45,15 @@ function fakeFirestore(records: Stored) {
     set: async (data: Record<string, unknown>) => void records.set(path, data),
     delete: async () => void records.delete(path),
   });
-  const children = (path: string) =>
+  type Filter = Readonly<{ field: string; value: unknown }>;
+  const children = (path: string, filters: readonly Filter[] = [], max = Infinity) =>
     [...records.entries()]
       .filter(
         ([candidate]) =>
           candidate.startsWith(`${path}/`) && !candidate.slice(path.length + 1).includes("/"),
       )
+      .filter(([, data]) => filters.every(({ field, value }) => data[field] === value))
+      .slice(0, max)
       .map(([candidate, data]) => ({
         id: candidate.split("/").at(-1) ?? "",
         data: () => data,
@@ -53,11 +61,19 @@ function fakeFirestore(records: Stored) {
       }));
   const firestore = {
     doc: docRef,
-    collection: (path: string) => ({
-      kind: "collection" as const,
-      path,
-      get: async () => ({ docs: children(path) }),
-    }),
+    collection: (path: string) => {
+      const query = (filters: readonly Filter[], max = Infinity) => ({
+        kind: "collection" as const,
+        path,
+        filters,
+        max,
+        get: async () => ({ docs: children(path, filters, max) }),
+        where: (field: string, _operator: "==", value: unknown) =>
+          query([...filters, { field, value }], max),
+        limit: (count: number) => query(filters, count),
+      });
+      return query([]);
+    },
     batch: () => {
       throw new Error("level writes must use a transaction");
     },
@@ -65,7 +81,9 @@ function fakeFirestore(records: Stored) {
       const pending: (() => void)[] = [];
       const result = await update({
         get: async (ref: Ref) =>
-          ref.kind === "collection" ? { docs: children(ref.path) } : snapshotOf(ref.path),
+          ref.kind === "collection"
+            ? { docs: children(ref.path, ref.filters, ref.max) }
+            : snapshotOf(ref.path),
         create: (ref: Ref, data: Record<string, unknown>) => {
           if (records.has(ref.path)) throw new Error(`create collision ${ref.path}`);
           pending.push(() => {

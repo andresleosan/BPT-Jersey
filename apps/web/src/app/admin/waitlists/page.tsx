@@ -49,6 +49,7 @@ function writeGroupToUrl(groupId: string): void {
 
 export function AdminWaitlistsPage({ canIssue = true }: { canIssue?: boolean }) {
   const [groups, setGroups] = useState<readonly AdminWaitlistGroup[]>([]);
+  const [truncated, setTruncated] = useState(false);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [selectedGroupId, setSelectedGroupId] = useState(allGroups);
   const [busySessionId, setBusySessionId] = useState("");
@@ -66,11 +67,12 @@ export function AdminWaitlistsPage({ canIssue = true }: { canIssue?: boolean }) 
     void listAdminWaitlistGroups()
       .then((result) => {
         if (!active) return;
-        setGroups(result);
+        setGroups(result.groups);
+        setTruncated(result.truncated);
         setLoadState("ready");
         const requested = requestedGroupRef.current;
         requestedGroupRef.current = null;
-        if (requested && result.some((group) => group.groupId === requested)) {
+        if (requested && result.groups.some((group) => group.groupId === requested)) {
           setSelectedGroupId(requested);
         }
       })
@@ -164,6 +166,12 @@ export function AdminWaitlistsPage({ canIssue = true }: { canIssue?: boolean }) 
       {notice ? (
         <p aria-live="polite" className="admin-preview-notice" role="status">
           {notice}
+        </p>
+      ) : null}
+
+      {loadState === "ready" && truncated ? (
+        <p className="admin-preview-notice">
+          Showing the first waitlists only. Some queues in the next 45 days are not listed.
         </p>
       ) : null}
 

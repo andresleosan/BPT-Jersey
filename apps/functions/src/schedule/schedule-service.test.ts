@@ -1811,3 +1811,147 @@ describe("classes-services Firestore store", () => {
     }
   });
 });
+
+describe("schedule store: sessions holding a confirmed private lesson", () => {
+  const academyId = "demo-academy";
+  const refusal = {
+    code: "failed-precondition",
+    message: "Cancel the private lesson booking first.",
+  };
+  const privateSession = {
+    programId: "program-1",
+    locationId: "town" as const,
+    instructorId: "coach-a",
+    title: "Private lesson",
+    startAt: "2099-01-05T18:00:00.000Z",
+    endAt: "2099-01-05T19:00:00.000Z",
+    capacity: 1,
+    accessMode: "private-lesson" as const,
+  };
+
+  async function bookedPrivateLesson() {
+    const store = createInMemoryScheduleStore();
+    const session = await store.createSession(academyId, privateSession, "owner-1");
+    await store.requestBooking(
+      academyId,
+      { sessionId: session.sessionId, studentId: "s-1", membershipId: "m-1" },
+      "owner-1",
+    );
+    return { store, session };
+  }
+
+  it("refuses to cancel the session until the booking is cancelled", async () => {
+    const { store, session } = await bookedPrivateLesson();
+    await expect(
+      store.cancelSession(academyId, session.sessionId, "Coach ill", "owner-1"),
+    ).rejects.toMatchObject(refusal);
+    expect((await store.getSession(academyId, session.sessionId))?.status).toBe("scheduled");
+
+    await store.cancelBooking(
+      academyId,
+      { sessionId: session.sessionId, studentId: "s-1", reason: "Member away" },
+      "owner-1",
+      true,
+    );
+    await expect(
+      store.cancelSession(academyId, session.sessionId, "Coach ill", "owner-1"),
+    ).resolves.toMatchObject({ status: "cancelled" });
+  });
+
+  it("refuses a week deletion before cancelling anything in that week", async () => {
+    const { store, session } = await bookedPrivateLesson();
+    const other = await store.createSession(
+      academyId,
+      { ...privateSession, title: "Adults", capacity: 20, accessMode: "membership" },
+      "owner-1",
+    );
+    await expect(
+      store.deleteWeek(
+        academyId,
+        { weekStart: "2099-01-05", reason: "Closed" },
+        "Europe/Jersey",
+        "owner-1",
+      ),
+    ).rejects.toMatchObject(refusal);
+    expect((await store.getSession(academyId, session.sessionId))?.status).toBe("scheduled");
+    expect((await store.getSession(academyId, other.sessionId))?.status).toBe("scheduled");
+  });
+
+  it("refuses to remove a class whose future private lesson is booked, leaving it active", async () => {
+    const store = createInMemoryScheduleStore();
+    const created = await store.createClass(
+      academyId,
+      {
+        programId: "program-1",
+        locationId: "town",
+        name: "Private lessons",
+        recurrenceRules: [{ dayOfWeek: 1, startTime: "18:00", durationMinutes: 60 }],
+        instructorIds: ["coach-a"],
+        capacity: 1,
+        accessMode: "private-lesson",
+      },
+      "owner-1",
+    );
+    const [session] = await store.generateSessions(
+      academyId,
+      created.classId,
+      "2099-01-04",
+      "2099-01-10",
+      "Europe/Jersey",
+      "owner-1",
+    );
+    await store.requestBooking(
+      academyId,
+      { sessionId: session!.sessionId, studentId: "s-1", membershipId: "m-1" },
+      "owner-1",
+    );
+    await expect(
+      store.removeClass(
+        academyId,
+        created.classId,
+        "Coach left",
+        "owner-1",
+        "2099-01-01T00:00:00.000Z",
+      ),
+    ).rejects.toMatchObject(refusal);
+    expect((await store.getClass(academyId, created.classId))?.active).toBe(true);
+    expect((await store.getSession(academyId, session!.sessionId))?.status).toBe("scheduled");
+  });
+
+  it("checks the stored bookings in Firestore before cancelling a private lesson", async () => {
+    const writes: string[] = [];
+    const session = { ...privateSession, sessionId: "pl-1", academyId, status: "scheduled" };
+    const bookings = [
+      { bookingId: "b-1", sessionId: "pl-1", studentId: "s-1", status: "confirmed" },
+    ];
+    const firestore = {
+      collection: (path: string) => {
+        if (path === `academies/${academyId}/sessions`)
+          return {
+            doc: () => ({
+              get: async () => ({ exists: true, data: () => session }),
+              set: async () => {
+                writes.push("session");
+              },
+            }),
+          };
+        if (path === `academies/${academyId}/bookings`)
+          return {
+            where: (field: string, _op: string, value: string) => ({
+              get: async () => ({
+                docs: bookings
+                  .filter((row) => row[field as "sessionId"] === value)
+                  .map((row) => ({ id: row.bookingId, data: () => row })),
+              }),
+            }),
+          };
+        throw new Error(`unexpected ${path}`);
+      },
+    };
+    const store = createFirestoreScheduleStore({ firestore: firestore as never });
+    await expect(
+      store.cancelSession(academyId, "pl-1", "Coach ill", "owner-1"),
+    ).rejects.toMatchObject(refusal);
+    expect(writes).toEqual([]);
+  });
+});

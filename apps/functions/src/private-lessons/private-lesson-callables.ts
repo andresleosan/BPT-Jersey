@@ -80,6 +80,12 @@ export function createPrivateLessonHandlers(options: PrivateLessonHandlerOptions
         ),
       }));
     },
+    proofUrl: async (request: CallableRequest<unknown>) => {
+      const actor = await options.requireOffice(request);
+      return safely(() =>
+        service.getPrivateLessonProofUrl(options.store(actor.academyId), actor, request.data),
+      );
+    },
   });
 }
 
@@ -108,4 +114,8 @@ export const reviewPrivateLessonPurchase = onCall(browserAdminCallableOptions, (
 );
 export const recordPrivateLessonPurchase = onCall(browserAdminCallableOptions, (request) =>
   handlers().record(request),
+);
+export const getPrivateLessonProofUrl = onCall(
+  { ...browserAdminCallableOptions, secrets: enrolmentStorageSecrets },
+  (request) => handlers().proofUrl(request),
 );

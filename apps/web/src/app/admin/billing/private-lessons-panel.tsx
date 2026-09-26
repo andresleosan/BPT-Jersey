@@ -7,6 +7,7 @@ import {
 } from "@bpt-jersey/domain/private-lessons";
 
 import {
+  getPrivateLessonProofUrl,
   listPrivateLessonPurchases,
   reviewPrivateLessonPurchase,
 } from "../../../lib/private-lesson-client";
@@ -17,6 +18,7 @@ export function PrivateLessonsPanel() {
   const [items, setItems] = useState<readonly PrivateLessonPurchaseRow[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [reasons, setReasons] = useState<Readonly<Record<string, string>>>({});
+  const [proofLinks, setProofLinks] = useState<Readonly<Record<string, string>>>({});
   const [busy, setBusy] = useState<string>();
   const [failure, setFailure] = useState<string>();
 
@@ -33,6 +35,21 @@ export function PrivateLessonsPanel() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function openProof(item: PrivateLessonPurchaseRow) {
+    setFailure(undefined);
+    setBusy(item.purchaseId);
+    try {
+      const { url } = await getPrivateLessonProofUrl(item.purchaseId);
+      setProofLinks((current) => ({ ...current, [item.purchaseId]: url }));
+    } catch (error) {
+      setFailure(
+        error instanceof Error ? error.message : "Payment evidence is unavailable. Try again.",
+      );
+    } finally {
+      setBusy(undefined);
+    }
+  }
 
   async function decide(item: PrivateLessonPurchaseRow, decision: "approve" | "reject") {
     const name = item.studentName ?? "this member";
@@ -101,6 +118,27 @@ export function PrivateLessonsPanel() {
                   <span>Sent {formatDate(item.submittedAt)}</span>
                 </div>
                 <div className="billing-private-lesson-actions">
+                  {item.proofId === null ? null : proofLinks[item.purchaseId] ? (
+                    <a
+                      aria-label={`Open proof for ${name}`}
+                      className="button button-secondary"
+                      href={proofLinks[item.purchaseId]}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      Open proof
+                    </a>
+                  ) : (
+                    <button
+                      aria-label={`View proof for ${name}`}
+                      className="button button-secondary"
+                      disabled={busy === item.purchaseId}
+                      onClick={() => void openProof(item)}
+                      type="button"
+                    >
+                      View proof
+                    </button>
+                  )}
                   <input
                     aria-label={`Reason for ${name}`}
                     maxLength={300}

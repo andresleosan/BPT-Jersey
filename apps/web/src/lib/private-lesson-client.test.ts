@@ -18,6 +18,7 @@ vi.mock("./firebase-client", () => ({
 
 import {
   bookPrivateLesson,
+  getPrivateLessonProofUrl,
   cancelPrivateLessonBooking,
   listMyPrivateLessons,
   listPrivateLessonPurchases,
@@ -98,6 +99,25 @@ describe("private lesson client", () => {
     ).rejects.toThrow("We could not save the private lesson request. Try again.");
   });
 
+  it("asks for a purchase's proof by id and accepts only an https URL", async () => {
+    callableState.call.mockResolvedValueOnce({
+      data: { url: "https://r2.example/signed", expiresAt: "2026-09-26T10:01:00.000Z" },
+    });
+    await expect(getPrivateLessonProofUrl("private-lesson-1")).resolves.toEqual({
+      url: "https://r2.example/signed",
+      expiresAt: "2026-09-26T10:01:00.000Z",
+    });
+    expect(callableState.calls).toEqual([
+      { name: "getPrivateLessonProofUrl", payload: { purchaseId: "private-lesson-1" } },
+    ]);
+    callableState.call.mockResolvedValueOnce({
+      data: { url: "http://r2.example/signed", expiresAt: "2026-09-26T10:01:00.000Z" },
+    });
+    await expect(getPrivateLessonProofUrl("private-lesson-1")).rejects.toThrow(
+      "Payment evidence is unavailable. Try again.",
+    );
+  });
+
   it("reads the member's credits", async () => {
     callableState.call.mockResolvedValueOnce({
       data: { purchases: [purchaseFixture], creditsAvailable: 3, nextExpiry: "2027-02-28T09:00:00.000Z" },
@@ -116,7 +136,7 @@ describe("private lesson client", () => {
       .mockResolvedValueOnce({ data: { purchase: { ...purchaseFixture, source: "office" } } });
     await expect(listPrivateLessonPurchases("pending")).resolves.toHaveLength(1);
     await reviewPrivateLessonPurchase({ purchaseId: "private-lesson-1", decision: "reject", reason: "No transfer" });
-    await recordPrivateLessonPurchase({ studentId: "student-1", optionId: "pack-10", method: "cash", reference: null });
+    await recordPrivateLessonPurchase({ studentId: "student-1", requestId: "3f2a9c7d-1b4e-4d6a-8c0f-5e7b9a1d2c34", optionId: "pack-10", method: "cash", reference: null });
     expect(callableState.calls.map((call) => call.name)).toEqual([
       "listPrivateLessonPurchases",
       "reviewPrivateLessonPurchase",

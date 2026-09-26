@@ -54,17 +54,23 @@ function fakeStore(initial: Readonly<Record<string, Stored>>) {
   });
   const firestore = {
     doc: document,
-    collection: (path: string) => ({
-      get: async () => ({
-        docs: [...records.entries()]
-          .filter(([recordPath]) => recordPath.startsWith(`${path}/`))
-          .map(([recordPath, stored]) => ({
-            id: recordPath.slice(path.length + 1),
-            data: () => ({ ...stored.data }),
-            ref: document(recordPath),
-          })),
-      }),
-    }),
+    collection: (path: string) => {
+      const query = (filters: readonly (readonly [string, unknown])[]) => ({
+        get: async () => ({
+          docs: [...records.entries()]
+            .filter(([recordPath]) => recordPath.startsWith(`${path}/`))
+            .filter(([, stored]) => filters.every(([field, value]) => stored.data[field] === value))
+            .map(([recordPath, stored]) => ({
+              id: recordPath.slice(path.length + 1),
+              data: () => ({ ...stored.data }),
+              ref: document(recordPath),
+            })),
+        }),
+        where: (field: string, _operator: "==", value: unknown) =>
+          query([...filters, [field, value] as const]),
+      });
+      return query([]);
+    },
     batch: () => ({ set() {}, delete() {}, commit: async () => undefined }),
     runTransaction: async <T>(callback: (transaction: any) => Promise<T>) => {
       const staged = new Map<string, Readonly<Record<string, unknown>>>();
