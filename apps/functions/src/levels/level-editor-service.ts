@@ -49,8 +49,9 @@ type EditorQuerySnapshot = Readonly<{
   docs: readonly Readonly<{ id: string; data: () => StoredData; ref: EditorDocumentReference }>[];
 }>;
 type EditorQuery = Readonly<{ get: () => Promise<EditorQuerySnapshot> }>;
+type EditorFilteredQuery = EditorQuery & Readonly<{ limit: (count: number) => EditorQuery }>;
 type EditorCollection = EditorQuery &
-  Readonly<{ where: (field: string, operator: "==", value: unknown) => EditorQuery }>;
+  Readonly<{ where: (field: string, operator: "==", value: unknown) => EditorFilteredQuery }>;
 export type LevelEditorTransaction = Readonly<{
   get: {
     (reference: EditorDocumentReference): Promise<EditorSnapshot>;
@@ -709,7 +710,13 @@ export function createLevelEditorService({
         const [state, systems, heads, definitions] = await Promise.all([
           transaction.get(stateRef(academyId)),
           transaction.get(firestore.collection(systemsPath(academyId))),
-          transaction.get(firestore.collection(`academies/${academyId}/studentLevelProgress`)),
+          // Bounded read: one past the cap is enough to refuse an oversized activation.
+          transaction.get(
+            firestore
+              .collection(`academies/${academyId}/studentLevelProgress`)
+              .where("academyId", "==", academyId)
+              .limit(maxProgressHeadsPerActivation + 1),
+          ),
           transaction.get(definitionsOf(academyId, systemId)),
         ]);
         const records = systems.docs.map((document) => ({
