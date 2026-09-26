@@ -85,7 +85,7 @@ export type StaffClaims = Readonly<{ role?: unknown; academyId?: unknown }>;
 function coachCanReach(path: StaffDestination): boolean {
   return (
     path === "/coach" ||
-    path.startsWith("/coach/") ||
+    path === "/coach/access" ||
     coachAdminPrefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))
   );
 }
