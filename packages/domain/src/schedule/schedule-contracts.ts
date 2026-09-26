@@ -31,7 +31,7 @@ export const sessionStatuses = Object.freeze([
 ] as const);
 export type SessionStatus = (typeof sessionStatuses)[number];
 
-export const classAccessModes = Object.freeze(["membership", "intro"] as const);
+export const classAccessModes = Object.freeze(["membership", "intro", "private-lesson"] as const);
 export type ClassAccessMode = (typeof classAccessModes)[number];
 
 export function sessionAccessMode(value: { readonly accessMode?: unknown }): ClassAccessMode {
@@ -543,7 +543,7 @@ export function parseCreateClassInput(input: unknown): Result<CreateClassInput, 
   }
 
   if (!classAccessModes.includes(accessMode as ClassAccessMode)) {
-    return err("accessMode must be membership or intro");
+    return err("accessMode must be membership, intro or private-lesson");
   }
 
   if (typeof locationId !== "string" || !defaultLocationIds.includes(locationId)) {
@@ -692,7 +692,7 @@ export function parseUpdateClassInput(input: unknown): Result<UpdateClassInput, 
     return err("active must be a boolean");
   }
   if (accessMode !== undefined && !classAccessModes.includes(accessMode as ClassAccessMode)) {
-    return err("accessMode must be membership or intro");
+    return err("accessMode must be membership, intro or private-lesson");
   }
   const rulesResult =
     recurrenceRules === undefined ? undefined : parseRecurrenceRules(recurrenceRules);
@@ -831,7 +831,7 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
   }
 
   if (!classAccessModes.includes(accessMode as ClassAccessMode)) {
-    return err("accessMode must be membership or intro");
+    return err("accessMode must be membership, intro or private-lesson");
   }
 
   if (typeof locationId !== "string" || locationId.trim().length === 0) {
@@ -1033,7 +1033,7 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
     return err("repeatWeekly must be a boolean");
   }
   if (accessMode !== undefined && !classAccessModes.includes(accessMode as ClassAccessMode)) {
-    return err("accessMode must be membership or intro");
+    return err("accessMode must be membership, intro or private-lesson");
   }
   const extras = parseSessionExtras(instructorIds, bookingRules, waitingList);
   if (!extras.ok) return err(extras.error);
@@ -1449,11 +1449,20 @@ export type IntroBookingRecord = Omit<LegacyBookingRecord, "membershipId" | "sch
   membershipId: null;
   source: { kind: "intro" };
 };
-export type BookingRecord = LegacyBookingRecord | CourseBookingRecord | IntroBookingRecord;
+export type PrivateLessonBookingRecord = Omit<LegacyBookingRecord, "membershipId" | "schemaVersion"> & {
+  schemaVersion: "4";
+  membershipId: null;
+  source: { kind: "private-lesson"; purchaseId: string };
+};
+export type BookingRecord =
+  | LegacyBookingRecord
+  | CourseBookingRecord
+  | IntroBookingRecord
+  | PrivateLessonBookingRecord;
 /** Staff-only projection: no balances, payment references or family financial details. */
 export type SessionRegistrationRecord = BookingRecord & Readonly<{
   displayName: string | null;
-  paymentLabel: "Subscription" | "PAYG Paid" | "PAYG Needs to pay" | "PAYG Pay at venue" | "PAYG Transfer sent" | "Course" | "Intro" | "Payment status unavailable";
+  paymentLabel: "Subscription" | "PAYG Paid" | "PAYG Needs to pay" | "PAYG Pay at venue" | "PAYG Transfer sent" | "Course" | "Intro" | "Private lesson" | "Payment status unavailable";
 }>;
 
 export function isCourseBooking(value: BookingRecord): value is CourseBookingRecord {
@@ -1464,6 +1473,13 @@ export function isCourseBooking(value: BookingRecord): value is CourseBookingRec
 export function isIntroBooking(value: BookingRecord): value is IntroBookingRecord {
   return (
     value.schemaVersion === "3" && value.membershipId === null && value.source.kind === "intro"
+  );
+}
+export function isPrivateLessonBooking(value: BookingRecord): value is PrivateLessonBookingRecord {
+  return (
+    value.schemaVersion === "4" &&
+    value.membershipId === null &&
+    value.source.kind === "private-lesson"
   );
 }
 

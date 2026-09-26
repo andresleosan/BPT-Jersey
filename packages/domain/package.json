@@ -310,6 +310,11 @@
       "import": "./src/courses/index.ts",
       "default": "./lib/courses/index.js"
     },
+    "./private-lessons": {
+      "types": "./src/private-lessons/private-lesson-contracts.ts",
+      "import": "./src/private-lessons/private-lesson-contracts.ts",
+      "default": "./lib/private-lessons/private-lesson-contracts.js"
+    },
     "./members/inventory": {
       "types": "./src/members/member-inventory-contracts.ts",
       "import": "./src/members/member-inventory-contracts.ts",

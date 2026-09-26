@@ -37,6 +37,7 @@ export async function sessionRegistrations(
       ({ ...booking, displayName, paymentLabel });
     if (booking.schemaVersion === "2") return result("Course");
     if (booking.schemaVersion === "3") return result("Intro");
+    if (booking.schemaVersion === "4") return result("Private lesson");
     // Unsettled is not the same as unanswered: the member already said how they mean to pay.
     const unsettled = (): SessionRegistrationRecord =>
       result(
