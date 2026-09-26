@@ -1276,7 +1276,7 @@ html:has(dialog[open]:modal) {
   grid-area: hours;
 }
 
-@media (min-width: 50rem) {
+@media (min-width: 48rem) {
   .streak-panel-skeleton {
     height: 11rem;
   }

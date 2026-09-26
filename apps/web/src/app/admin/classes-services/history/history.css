@@ -62,7 +62,7 @@
   background: var(--paper-edge);
 }
 
-@media (max-width: 50rem) {
+@media (max-width: 47.99rem) {
   .cs-history-when,
   .cs-history-ip {
     white-space: normal;

@@ -60,6 +60,14 @@ video {
   max-width: 100%;
 }
 
+/* iOS Safari zooms into any field under 16px, and many controls take `font: inherit` from a
+   smaller label, so this floor has to win over every component rule. */
+input,
+select,
+textarea {
+  font-size: max(1rem, 16px) !important;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -153,8 +161,34 @@ button:focus-visible {
   min-width: 0;
 }
 
+.primary-nav-links {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(1rem, 2.5vw, 2.5rem);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.nav-menu-button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  color: var(--gi-white);
+  cursor: pointer;
+  display: none;
+  font: inherit;
+  letter-spacing: inherit;
+  min-height: 2.75rem;
+  padding: 0 1rem;
+}
+
 .primary-nav a {
+  align-items: center;
   border-bottom: 1px solid transparent;
+  display: inline-flex;
+  min-height: 2.75rem;
   padding-block: 0.5rem;
   transition:
     border-color 160ms ease,
@@ -364,7 +398,8 @@ button:focus-visible {
 }
 
 .button-secondary:focus-visible,
-.primary-nav .nav-cta:focus-visible {
+.primary-nav .nav-cta:focus-visible,
+.nav-menu-button:focus-visible {
   box-shadow: 0 0 0 6px var(--mat-ink);
   outline-color: var(--gi-white);
 }
@@ -768,11 +803,58 @@ button:focus-visible {
   color: var(--gi-white);
 }
 
-@media (max-width: 56rem) {
-  .primary-nav > a:not(.nav-cta) {
+@media (max-width: 57.99rem) {
+  .site-header {
+    padding-top: max(1.25rem, env(safe-area-inset-top));
+    padding-inline: max(clamp(1.25rem, 4vw, 4.5rem), env(safe-area-inset-left))
+      max(clamp(1.25rem, 4vw, 4.5rem), env(safe-area-inset-right));
+  }
+
+  .primary-nav {
+    gap: 0.5rem;
+  }
+
+  .nav-menu-button {
+    display: inline-flex;
+  }
+
+  .primary-nav-links[data-open="false"] {
     display: none;
   }
 
+  .primary-nav-links {
+    background: var(--bpt-purple-dark);
+    display: grid;
+    gap: 0;
+    left: 0;
+    padding: 0.5rem clamp(1.25rem, 4vw, 4.5rem) 1rem;
+    position: absolute;
+    right: 0;
+    top: 100%;
+  }
+
+  .primary-nav-links a {
+    border-bottom: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.3);
+    display: flex;
+    font-size: 1rem;
+  }
+}
+
+@media (min-width: 48rem) and (max-width: 63.99rem) {
+  .hero {
+    gap: 2rem;
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.8fr);
+    min-height: auto;
+    padding-inline: clamp(1.25rem, 4vw, 2.5rem);
+  }
+
+  .merch-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 47.99rem) {
   .hero {
     grid-template-columns: 1fr;
     min-height: auto;
@@ -796,7 +878,8 @@ button:focus-visible {
 
 @media (max-width: 38rem) {
   .site-header {
-    padding: 1rem;
+    padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) 1rem
+      max(1rem, env(safe-area-inset-left));
   }
 
   .wordmark {
@@ -813,13 +896,14 @@ button:focus-visible {
     font-size: 0.68rem;
   }
 
-  .primary-nav {
-    gap: 0;
-  }
-
-  .primary-nav .nav-cta {
+  .primary-nav .nav-cta,
+  .nav-menu-button {
     font-size: 0.78rem;
     padding-inline: 0.7rem;
+  }
+
+  .primary-nav-links {
+    padding-inline: 1rem;
   }
 
   .hero {
@@ -975,6 +1059,23 @@ button:focus-visible {
   }
 }
 
+/* The smallest phones (320px): logo, Menu and Sign in share one header row. */
+@media (max-width: 22.49rem) {
+  .site-header {
+    gap: 0.5rem;
+  }
+
+  .site-logo {
+    height: 3.25rem;
+    width: 3.5rem;
+  }
+
+  .primary-nav .nav-cta,
+  .nav-menu-button {
+    padding-inline: 0.55rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -994,7 +1095,7 @@ button:focus-visible {
 
 .login-page {
   background: var(--canvas);
-  min-height: 100vh;
+  min-height: 100dvh;
   overflow-x: clip;
   padding: clamp(1rem, 4vw, 4rem);
 }
@@ -1009,7 +1110,7 @@ button:focus-visible {
   grid-template-columns: minmax(12rem, 0.7fr) minmax(20rem, 34rem);
   margin: 0 auto;
   max-width: 78rem;
-  min-height: calc(100vh - clamp(2rem, 8vw, 8rem));
+  min-height: calc(100dvh - clamp(2rem, 8vw, 8rem));
   place-content: center;
 }
 
@@ -1287,7 +1388,7 @@ button:focus-visible {
 .client-auth-state {
   margin: 0 auto;
   max-width: 42rem;
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: clamp(3rem, 10vw, 8rem) clamp(1.25rem, 4vw, 4.5rem);
 }
 
@@ -1339,13 +1440,13 @@ button:focus-visible {
 }
 
 .client-auth-loading {
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .client-destination {
   margin: 0 auto;
   max-width: 58rem;
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: clamp(3rem, 10vw, 8rem) clamp(1.25rem, 4vw, 4.5rem);
 }
 
@@ -1513,7 +1614,7 @@ button:focus-visible {
 .shop-page {
   margin: 0 auto;
   max-width: 76rem;
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: clamp(3rem, 8vw, 6rem) clamp(1.25rem, 4vw, 4.5rem);
 }
 
@@ -1805,7 +1906,13 @@ button:focus-visible {
   color: #9b2c2c;
 }
 
-@media (max-width: 50rem) {
+@media (min-width: 48rem) and (max-width: 63.99rem) {
+  .shop-product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 47.99rem) {
   .shop-collection-form,
   .shop-product-grid {
     grid-template-columns: 1fr;
@@ -1825,7 +1932,7 @@ button:focus-visible {
   margin: 0.75rem 0 0;
 }
 
-@media (max-width: 50rem) {
+@media (max-width: 47.99rem) {
   .login-layout {
     grid-template-columns: 1fr;
     min-height: auto;
@@ -1881,7 +1988,7 @@ button:focus-visible {
   background: var(--canvas);
   display: grid;
   grid-template-columns: minmax(18rem, 0.7fr) minmax(0, 1.3fr);
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .profile-rail {
@@ -2195,7 +2302,7 @@ button:focus-visible {
 }
 
 .profile-loading {
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: clamp(3rem, 10vw, 8rem) clamp(1.25rem, 6vw, 6rem);
 }
 
@@ -2655,7 +2762,7 @@ button:focus-visible {
 .waitlist-page {
   margin: 0 auto;
   max-width: var(--content-width);
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: clamp(2.5rem, 7vw, 6.5rem) clamp(1.25rem, 4vw, 4.5rem);
 }
 
@@ -3369,7 +3476,7 @@ button:focus-visible {
 .enrol-page {
   margin: 0 auto;
   max-width: 60rem;
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: clamp(3rem, 8vw, 6rem) clamp(1.25rem, 4vw, 4.5rem);
 }
 
