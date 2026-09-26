@@ -127,9 +127,7 @@ test.describe("admin shell @smoke", () => {
       // below. This spec still said six after that shipped, so @smoke has been red since.
       "->Member search",
       "->Enrolment requests",
-      "->Medical conditions",
       "->Classes / Services",
-      "->Levels",
     ]);
     await expect(navigation.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
       "href",
