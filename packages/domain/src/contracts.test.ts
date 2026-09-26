@@ -192,6 +192,7 @@ describe("domain contracts", () => {
       "family.student.added",
       "level.catalog.published",
       "level.catalog.rolled_back",
+      "level.catalog.activated",
       "level.assessment.recorded",
       "level.medical-leave.recorded",
       "level.promotion.approved",

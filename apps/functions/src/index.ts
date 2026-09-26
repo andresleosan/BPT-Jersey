@@ -107,6 +107,14 @@ export {
 } from "./levels/level-callables.js";
 export { getProgressReport } from "./levels/progress-report-callables.js";
 export { getFamilyAchievementSummary } from "./levels/family-achievement-callables.js";
+export {
+  activateLevelCatalog,
+  createLevelCatalogDraft,
+  getLevelCatalogVersion,
+  listLevelCatalogVersions,
+  publishLevelCatalogDraft,
+  saveLevelCatalogDraft,
+} from "./levels/level-editor-callables.js";
 export { getOperationalReport } from "./reports/operational-report-callables.js";
 export { prepareAggregateReportExport } from "./exports/aggregate-report-export-callables.js";
 export {

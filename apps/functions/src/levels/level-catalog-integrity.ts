@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { isLevelCatalogVersion, levelCatalogVersionShapes } from "@bpt-jersey/domain/levels";
+import { isCustomLevelSystemId } from "@bpt-jersey/domain/levels/editor";
 
 import { assertApprovedLevelCatalogSource, type NormalizedLevelCatalog } from "./level-source.js";
 
@@ -51,7 +52,10 @@ const sha256Pattern = /^[a-f0-9]{64}$/u;
 const safeOperationIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 
 export function levelCatalogStorageId(systemId: string, logicalId: string): string {
-  return systemId === "ibjjf-v3" ? `${systemId}--${logicalId}` : logicalId;
+  // T04: custom versions share the collections with ibjjf-v3, so their IDs are prefixed as well.
+  return systemId === "ibjjf-v3" || isCustomLevelSystemId(systemId)
+    ? `${systemId}--${logicalId}`
+    : logicalId;
 }
 
 function canonicalJson(value: unknown): string {

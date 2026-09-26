@@ -1,0 +1,259 @@
+/* T04: belt catalogue versions and draft editor. Belt colours stay inside .belt-bar/.belt-tip
+   (DESIGN §10); everything here is Gi White, Mat Ink and the single purple accent. */
+.levels-tabs ul {
+  border-bottom: 2px solid var(--mat-ink);
+  display: flex;
+  flex-wrap: wrap;
+  list-style: none;
+  margin: 0 0 1.25rem;
+  padding: 0;
+}
+.levels-tab {
+  background: none;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  color: var(--mat-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  margin-bottom: -2px;
+  min-height: 44px;
+  padding: 0.8rem 1rem;
+  text-transform: uppercase;
+}
+.levels-tab[aria-selected="true"] {
+  border-bottom-color: var(--bpt-purple);
+  color: var(--bpt-purple);
+}
+.levels-tab:focus-visible,
+.levels-editor-button:focus-visible,
+.levels-editor-field input:focus-visible,
+.levels-editor-field select:focus-visible,
+.levels-editor-picker:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+.levels-versions,
+.levels-editor {
+  display: grid;
+  gap: 1.25rem;
+}
+.levels-versions-header,
+.levels-editor-header {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+}
+.levels-versions h2,
+.levels-editor h2 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  line-height: 1;
+  margin: 0;
+  text-transform: uppercase;
+}
+.levels-editor h3 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  line-height: 1;
+  margin: 0;
+  text-transform: uppercase;
+}
+.levels-editor-eyebrow {
+  color: var(--bpt-purple);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  margin: 0;
+  text-transform: uppercase;
+}
+.levels-editor-muted {
+  color: var(--muted);
+  margin: 0;
+  max-width: 58rem;
+}
+.levels-editor-button {
+  background: var(--gi-white);
+  border: 2px solid var(--mat-ink);
+  color: var(--mat-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+}
+.levels-editor-button[data-variant="primary"] {
+  background: var(--bpt-purple);
+  border-color: var(--bpt-purple);
+  color: var(--gi-white);
+}
+.levels-editor-button:disabled {
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+.levels-editor-button[data-variant="primary"]:disabled {
+  background: var(--paper-edge);
+}
+.levels-editor-row {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.levels-editor-field {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.levels-editor-field > span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.levels-editor-field input,
+.levels-editor-field select {
+  background: var(--gi-white);
+  border: 1px solid var(--mat-ink);
+  color: var(--mat-ink);
+  font: inherit;
+  min-height: 44px;
+  padding: 0.4rem 0.6rem;
+}
+.levels-editor-field input[aria-invalid="true"] {
+  border: 2px solid #8d1c2f;
+}
+.levels-editor-name {
+  width: min(100%, 28rem);
+}
+.levels-editor-hint {
+  border-left: 0.35rem solid #8d1c2f;
+  color: #721626;
+  font-size: 0.85rem;
+  margin: 0;
+  padding: 0.2rem 0.6rem;
+}
+.levels-editor-notice {
+  background: var(--gi-white);
+  border-left: 0.35rem solid var(--bpt-purple);
+  margin: 0;
+  padding: 0.75rem 1rem;
+}
+.levels-editor-notice[data-kind="error"] {
+  background: #fff0f2;
+  border-left-color: #8d1c2f;
+  color: #5f1020;
+}
+.levels-editor-notice[data-kind="success"] {
+  background: #e7f6ee;
+  border-left-color: #176b49;
+  color: #176b49;
+}
+.levels-editor-techniques,
+.levels-editor-belt {
+  background: var(--gi-white);
+  border: 2px solid var(--mat-ink);
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+}
+.levels-editor-belts {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 24rem), 1fr));
+}
+.levels-editor-group {
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  min-width: 0;
+  padding: 0.75rem;
+}
+.levels-editor-group legend {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0 0.25rem;
+  text-transform: uppercase;
+}
+.levels-editor-grid {
+  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+}
+.levels-editor-colour {
+  align-items: end;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: 44px 1fr;
+}
+.levels-editor-colour .levels-editor-hint {
+  grid-column: 1 / -1;
+}
+.levels-editor-picker {
+  background: var(--gi-white);
+  border: 1px solid var(--mat-ink);
+  cursor: pointer;
+  height: 44px;
+  padding: 2px;
+  width: 44px;
+}
+.levels-editor-list {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.levels-editor-list li {
+  align-items: end;
+  border-bottom: 1px solid var(--paper-edge);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: space-between;
+  padding-bottom: 0.5rem;
+}
+.levels-editor-inline {
+  grid-auto-flow: row;
+}
+.levels-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.levels-versions-table-wrap {
+  overflow-x: auto;
+}
+.levels-versions-table {
+  background: var(--gi-white);
+  border-collapse: collapse;
+  min-width: 40rem;
+  width: 100%;
+}
+.levels-versions-table th,
+.levels-versions-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  vertical-align: middle;
+}
+.levels-versions-table th {
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.levels-versions-table tr[data-active] td:first-child {
+  border-left: 0.35rem solid var(--bpt-purple);
+  font-weight: 700;
+}
+.levels-versions-skeleton {
+  background: var(--paper-edge);
+  height: 8rem;
+}
