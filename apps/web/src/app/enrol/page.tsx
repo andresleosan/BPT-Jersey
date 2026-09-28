@@ -31,6 +31,7 @@ import {
 import { ageOnDate } from "@bpt-jersey/domain/schedule/member-calendar";
 import type { LevelDefinitionRecord } from "@bpt-jersey/domain/levels";
 import { getLevelCatalog } from "../../lib/levels-client";
+import { beltsForAge } from "./level-declaration";
 import { EnrolmentBankDetails, useEnrolmentBankDetails } from "./payment-instructions";
 import { EnrolmentPlanChoices } from "./plan-choices";
 import { EnrolmentWaiverText } from "./waiver-text";
@@ -53,15 +54,25 @@ type Preference = (typeof preferenceOptions)[number]["value"];
 type Center = (typeof centerOptions)[number];
 type Gender = (typeof genderOptions)[number]["value"];
 
-/** Nobody has to declare a belt: every student starts on the free beginner trial. */
+/**
+ * Every student starts as "No, I'm new" on the free trial; the details step asks each of them
+ * whether they have trained before, and an experienced student names their belt on the plans step.
+ */
 const beginnerDeclaration: EnrolmentLevelDeclaration = {
   experience: "beginner",
   declaredLevelKey: null,
 };
 
+type Experience = EnrolmentLevelDeclaration["experience"];
+
+const westBeginnerNotice =
+  "Beginners start with the Introduction Class in Town. West is open once you have trained before or hold a paid plan.";
+
 type MinorForm = {
   selectedPlan: EnrolmentPlanChoice | "";
   declaration: EnrolmentLevelDeclaration;
+  /** Set when this beginner chose West and was moved to Town, so the reason is shown. */
+  movedToTown: boolean;
   fullName: string;
   dateOfBirth: string;
   gender: Gender;
@@ -72,6 +83,7 @@ type MinorForm = {
 type ApplicantForm = {
   selectedPlan: EnrolmentPlanChoice | "";
   declaration: EnrolmentLevelDeclaration;
+  movedToTown: boolean;
   /** The "Who is joining" choice: a guardian enrols children and may also train themselves. */
   guardian: boolean;
   /** Whether the applicant trains: always for an adult student, opt-in for a guardian. */
@@ -93,6 +105,7 @@ type ApplicantForm = {
 const emptyMinor: MinorForm = {
   selectedPlan: trialPlanChoice,
   declaration: beginnerDeclaration,
+  movedToTown: false,
   fullName: "",
   dateOfBirth: "",
   gender: "unknown",
@@ -103,6 +116,7 @@ const emptyMinor: MinorForm = {
 const emptyForm: ApplicantForm = {
   selectedPlan: trialPlanChoice,
   declaration: beginnerDeclaration,
+  movedToTown: false,
   guardian: false,
   applicantIsStudent: true,
   fullName: "",
@@ -237,9 +251,7 @@ function WaiverTerms({
   return (
     <fieldset className="enrol-waiver">
       <legend>{enrolmentWaiverTermsTitle}</legend>
-      <p className="enrol-hint">
-        Version {enrolmentWaiverTermsVersion}.
-      </p>
+      <p className="enrol-hint">Version {enrolmentWaiverTermsVersion}.</p>
       <EnrolmentWaiverText />
       <label className="enrol-waiver-accept">
         <input
@@ -251,6 +263,85 @@ function WaiverTerms({
       </label>
     </fieldset>
   );
+}
+
+type StudentPlacement = Pick<
+  MinorForm,
+  "declaration" | "movedToTown" | "selectedPlan" | "trainingCenter"
+>;
+
+/**
+ * Applies a student's experience answer and centre together. Beginners start at Town with the
+ * Introduction Class, so a beginner who is at (or picks) West is moved to Town and told why. A
+ * change of centre resets the plan to the trial, as the plans differ per centre.
+ */
+function placeStudent<T extends StudentPlacement>(
+  student: T,
+  experience: Experience,
+  trainingCenter: Center,
+): T {
+  const moved = experience === "beginner" && trainingCenter === "West";
+  const nextCenter: Center = moved ? "Town" : trainingCenter;
+  return {
+    ...student,
+    declaration:
+      experience === student.declaration.experience
+        ? student.declaration
+        : { experience, declaredLevelKey: null },
+    trainingCenter: nextCenter,
+    selectedPlan: nextCenter === student.trainingCenter ? student.selectedPlan : trialPlanChoice,
+    movedToTown: moved,
+  };
+}
+
+function ExperienceQuestion({
+  id,
+  child,
+  experience,
+  onChange,
+}: Readonly<{
+  id: string;
+  child: boolean;
+  experience: Experience;
+  onChange: (next: Experience) => void;
+}>) {
+  return (
+    <fieldset className="enrol-experience">
+      <legend>
+        {child
+          ? "Does this child have Brazilian Jiu-Jitsu experience?"
+          : "Do you have Brazilian Jiu-Jitsu experience?"}
+      </legend>
+      <label htmlFor={`${id}-beginner`}>
+        <input
+          checked={experience === "beginner"}
+          id={`${id}-beginner`}
+          name={id}
+          onChange={() => onChange("beginner")}
+          type="radio"
+        />
+        {child ? "No, they are new" : "No, I'm new"}
+      </label>
+      <label htmlFor={`${id}-experienced`}>
+        <input
+          checked={experience === "experienced"}
+          id={`${id}-experienced`}
+          name={id}
+          onChange={() => onChange("experienced")}
+          type="radio"
+        />
+        {child ? "Yes, they have trained before" : "Yes, I have trained before"}
+      </label>
+    </fieldset>
+  );
+}
+
+function TownNotice({ shown }: Readonly<{ shown: boolean }>) {
+  return shown ? (
+    <p className="enrol-message enrol-centre-notice" role="status">
+      {westBeginnerNotice}
+    </p>
+  ) : null;
 }
 
 function togglePreference(list: readonly Preference[], value: Preference): Preference[] {
@@ -336,16 +427,20 @@ function MinorFields({
           value={minor.dateOfBirth}
         />
       </label>
+      <ExperienceQuestion
+        id={`${prefix}-experience`}
+        child
+        experience={minor.declaration.experience}
+        onChange={(experience) => onChange(placeStudent(minor, experience, minor.trainingCenter))}
+      />
       <label className="enrol-field" htmlFor={`${prefix}-center`}>
         Training centre
         <select
           id={`${prefix}-center`}
           onChange={(event) =>
-            onChange({
-              ...minor,
-              trainingCenter: event.target.value as Center,
-              selectedPlan: trialPlanChoice,
-            })
+            onChange(
+              placeStudent(minor, minor.declaration.experience, event.target.value as Center),
+            )
           }
           value={minor.trainingCenter}
         >
@@ -356,6 +451,7 @@ function MinorFields({
           ))}
         </select>
       </label>
+      <TownNotice shown={minor.movedToTown} />
       <fieldset className="enrol-preferences">
         <legend>Training times</legend>
         {preferenceOptions.map((option) => (
@@ -393,6 +489,10 @@ function EnrolContent() {
   const [proofId, setProofId] = useState<string>();
   const [paidOn, setPaidOn] = useState("");
   const [reference, setReference] = useState("");
+  const effectiveDate = new Date().toISOString().slice(0, 10);
+  // The belt catalogue is read once and never blocks the form: a student who cannot be offered
+  // belts is told the office will confirm their level.
+  const [definitions, setDefinitions] = useState<readonly LevelDefinitionRecord[]>([]);
   const selections = {
     ...(form.applicantIsStudent && form.selectedPlan ? { applicant: form.selectedPlan } : {}),
     minors: form.guardian
@@ -401,12 +501,25 @@ function EnrolContent() {
           .map((minor) => minor.selectedPlan as EnrolmentPlanChoice)
       : [],
   };
+  const beltsUnavailable = (dateOfBirth: string) =>
+    beltsForAge(definitions, dateOfBirth ? ageOnDate(dateOfBirth, effectiveDate) : 0).length === 0;
+  // An experienced trial student at Town whose belts could not be offered goes to the office as a
+  // beginner, and the office confirms the level. West never takes a beginner, so there the belt
+  // stays required and the form refuses to send without it.
+  const declarationToSend = (student: MinorForm | ApplicantForm): EnrolmentLevelDeclaration =>
+    student.declaration.experience === "experienced" &&
+    student.declaration.declaredLevelKey === null &&
+    student.trainingCenter === "Town" &&
+    student.selectedPlan === trialPlanChoice &&
+    beltsUnavailable(student.dateOfBirth)
+      ? beginnerDeclaration
+      : student.declaration;
   // One declaration per student the plan selections name, in the same order: the contract reads
   // them side by side and a trial without its declaration is refused.
   const levelDeclarations = {
-    ...(form.applicantIsStudent && form.selectedPlan ? { applicant: form.declaration } : {}),
+    ...(form.applicantIsStudent && form.selectedPlan ? { applicant: declarationToSend(form) } : {}),
     minors: form.guardian
-      ? form.minors.filter((minor) => minor.selectedPlan).map((minor) => minor.declaration)
+      ? form.minors.filter((minor) => minor.selectedPlan).map(declarationToSend)
       : [],
   };
   const paymentTotal = enrolmentPaymentTotal(selections);
@@ -416,14 +529,10 @@ function EnrolContent() {
   const [requestId, setRequestId] = useState(createEnrolmentRequestId);
   const stepHeading = useRef<HTMLHeadingElement>(null);
   const submitting = useRef(false);
-  const effectiveDate = new Date().toISOString().slice(0, 10);
   useEffect(() => {
     stepHeading.current?.focus();
   }, [step]);
   const [requests, setRequests] = useState<readonly EnrolmentRequestClientView[]>();
-  // The belt catalogue is read once and never blocks the form: an applicant who cannot be offered
-  // belts is still a beginner, which is the choice this page already has selected for them.
-  const [definitions, setDefinitions] = useState<readonly LevelDefinitionRecord[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
@@ -519,15 +628,23 @@ function EnrolContent() {
       setMessage("Choose an available plan for every student.");
       return;
     }
-    // A trial student who says they are not a beginner has to name the belt they train at. This is
-    // where a catalogue that never loaded lands: the belt cannot be picked, so beginner it is.
-    if (
-      [levelDeclarations.applicant, ...levelDeclarations.minors].some(
-        (declaration) =>
-          declaration?.experience === "experienced" && declaration.declaredLevelKey === null,
-      )
-    ) {
-      setMessage('Choose a belt for every student, or choose "I am a beginner".');
+    // Somebody who has trained before names the belt they train at. Without a catalogue the belt
+    // cannot be picked: Town still takes the request (the office confirms the level), West does not.
+    const beltMissing = [
+      ...(form.applicantIsStudent ? [form] : []),
+      ...(form.guardian ? form.minors : []),
+    ].filter((student) => {
+      const declaration = declarationToSend(student);
+      return declaration.experience === "experienced" && declaration.declaredLevelKey === null;
+    });
+    if (beltMissing.some((student) => !beltsUnavailable(student.dateOfBirth))) {
+      setMessage("Choose a belt for every student who has trained before.");
+      return;
+    }
+    if (beltMissing.some((student) => student.trainingCenter === "West")) {
+      setMessage(
+        "Belt selection is unavailable right now, and West needs your belt. Try again later, or choose Town in your details.",
+      );
       return;
     }
     if (step === "plans") {
@@ -569,7 +686,11 @@ function EnrolContent() {
         effectiveDate,
       );
       if (!parsed.ok)
-        throw new Error("Check your selected plans and payment details before sending.");
+        throw new Error(
+          parsed.error[0]?.code === "beginner_must_start_at_town"
+            ? "Beginners start at Town with the Introduction Class."
+            : "Check your selected plans and payment details before sending.",
+        );
       const saved = await submitEnrolmentRequest(parsed.value);
       setRequests([saved, ...(requests ?? [])]);
     } catch (error) {
@@ -794,16 +915,26 @@ function EnrolContent() {
                 ) : null}
                 {form.applicantIsStudent ? (
                   <>
+                    <ExperienceQuestion
+                      id="enrol-experience"
+                      child={false}
+                      experience={form.declaration.experience}
+                      onChange={(experience) =>
+                        setForm(placeStudent(form, experience, form.trainingCenter))
+                      }
+                    />
                     <label className="enrol-field" htmlFor="enrol-center">
                       Training centre
                       <select
                         id="enrol-center"
                         onChange={(event) =>
-                          setForm({
-                            ...form,
-                            trainingCenter: event.target.value as Center,
-                            selectedPlan: trialPlanChoice,
-                          })
+                          setForm(
+                            placeStudent(
+                              form,
+                              form.declaration.experience,
+                              event.target.value as Center,
+                            ),
+                          )
                         }
                         value={form.trainingCenter}
                       >
@@ -814,6 +945,7 @@ function EnrolContent() {
                         ))}
                       </select>
                     </label>
+                    <TownNotice shown={form.movedToTown} />
                     <fieldset className="enrol-preferences">
                       <legend>Training times</legend>
                       {preferenceOptions.map((option) => (
@@ -1009,8 +1141,8 @@ function EnrolContent() {
                   <EnrolmentBankDetails {...bankDetails} />
                   <p>
                     Transfer total: <strong>£{(paymentTotal / 100).toFixed(2)}</strong>. Upload one
-                    screenshot covering the prepaid plans. Pay-as-you-go classes are paid
-                    separately at class.
+                    screenshot covering the prepaid plans. Pay-as-you-go classes are paid separately
+                    at class.
                   </p>
                   <label className="enrol-field">
                     Transfer date

@@ -382,6 +382,7 @@ export type MemberCalendarWeek = Readonly<{
 
 const trialAccessViewSchema = z.strictObject({
   site: z.enum(siteValues),
+  experience: z.enum(["beginner", "experienced"]).optional(),
   allowance: z.union([z.literal(1), z.literal(2)]),
   attendedCount: z.number().int().min(0),
   futureBookings: z.number().int().min(0),

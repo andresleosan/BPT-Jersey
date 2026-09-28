@@ -3,9 +3,14 @@ import {
   type OverviewFamilySource,
   type OverviewGuardianUserSource,
   type OverviewMembershipSource,
+  type OverviewPendingRequestSource,
   type OverviewStudentSource,
   type OverviewTrialSource,
 } from "@bpt-jersey/domain/members/overview";
+import {
+  enrolmentStudents,
+  parseEnrolmentRequestRecord,
+} from "@bpt-jersey/domain/members/enrolment-requests";
 import type { ParticipantType } from "@bpt-jersey/domain/memberships";
 import { parseEffectiveStudentProfileAt } from "@bpt-jersey/domain/profiles";
 import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
@@ -16,7 +21,7 @@ import { requireActiveOfficeActor } from "../auth/office-actor.js";
 
 /**
  * The whole directory in one office read, next to the data (europe-west9). The academy has a few
- * hundred members, so seven bounded collection reads beat a paginated, cursor-signed protocol.
+ * hundred members, so nine bounded collection reads beat a paginated, cursor-signed protocol.
  * ponytail: hard bound of 500 per collection; page it the day the academy outgrows that.
  */
 const bound = 500;
@@ -24,22 +29,55 @@ const bound = 500;
 export async function memberOverviewHandler(academyId: string, now: string) {
   const firestore = getFirestore();
   const root = `academies/${academyId}`;
-  const read = (name: string) => firestore.collection(`${root}/${name}`).limit(bound + 1).get();
-  const [students, memberships, plans, families, decisions, levels, trials] = await Promise.all([
+  const read = (name: string) =>
+    firestore
+      .collection(`${root}/${name}`)
+      .limit(bound + 1)
+      .get();
+  const [
+    students,
+    memberships,
+    plans,
+    families,
+    decisions,
+    levels,
+    trials,
+    enrolments,
+    planRequests,
+  ] = await Promise.all([
     read("students"),
     read("memberships"),
     read("plans"),
     read("families"),
     read("memberMigrationDecisions"),
     read("studentLevelProgress"),
-    firestore.collection(`${root}/trialAccess`).where("status", "==", "active").limit(bound + 1).get(),
+    // Every status: an exhausted or expired trial still tells the office the person tried BPT.
+    read("trialAccess"),
+    // Registrations still waiting for the office (enrolment "submitted", plan request "pending").
+    firestore
+      .collection(`${root}/enrolmentRequests`)
+      .where("status", "==", "submitted")
+      .limit(bound + 1)
+      .get(),
+    firestore
+      .collection(`${root}/memberPlanRequests`)
+      .where("status", "==", "pending")
+      .limit(bound + 1)
+      .get(),
   ]);
-  if (students.size > bound || trials.size > bound) {
+  if (
+    students.size > bound ||
+    trials.size > bound ||
+    enrolments.size > bound ||
+    planRequests.size > bound
+  ) {
     throw new HttpsError("failed-precondition", "The directory is too large for one page.");
   }
   const today = dateKeyInJersey(new Date(now));
   const legacyStudentIds = new Set(
-    decisions.docs.map((document) => document.get("studentId")).filter((id): id is string => typeof id === "string"),
+    decisions.docs
+      .map((document) => document.get("studentId"))
+      .filter((id): id is string => typeof id === "string"),
   );
   const studentRows: OverviewStudentSource[] = [];
   for (const document of students.docs) {
@@ -51,7 +89,9 @@ export async function memberOverviewHandler(academyId: string, now: string) {
       fullName: student.fullName,
       ...(student.dateOfBirth ? { dateOfBirth: student.dateOfBirth } : {}),
       trainingCenter: student.trainingCenter,
-      ...(student.trainingCenterStatus ? { trainingCenterStatus: student.trainingCenterStatus } : {}),
+      ...(student.trainingCenterStatus
+        ? { trainingCenterStatus: student.trainingCenterStatus }
+        : {}),
       ...(student.guardianStatus ? { guardianStatus: student.guardianStatus } : {}),
       ...(student.reviewReason ? { reviewReason: student.reviewReason } : {}),
       active: student.active,
@@ -63,7 +103,12 @@ export async function memberOverviewHandler(academyId: string, now: string) {
   const membershipsByStudent = new Map<string, OverviewMembershipSource[]>();
   for (const document of memberships.docs) {
     const data = document.data();
-    if (typeof data.studentId !== "string" || typeof data.planId !== "string" || typeof data.startsAt !== "string") continue;
+    if (
+      typeof data.studentId !== "string" ||
+      typeof data.planId !== "string" ||
+      typeof data.startsAt !== "string"
+    )
+      continue;
     const list = membershipsByStudent.get(data.studentId) ?? [];
     list.push({
       studentId: data.studentId,
@@ -95,7 +140,10 @@ export async function memberOverviewHandler(academyId: string, now: string) {
     : [];
   const nameOf = (value: unknown) => (typeof value === "string" ? value.trim().slice(0, 160) : "");
   const guardianNames = new Map(
-    guardianUsers.map((user) => [user.id, nameOf(user.get("fullName")) || nameOf(user.get("displayName"))]),
+    guardianUsers.map((user) => [
+      user.id,
+      nameOf(user.get("fullName")) || nameOf(user.get("displayName")),
+    ]),
   );
   const familiesById = new Map<string, OverviewFamilySource>();
   const guardianFamilies = new Map<string, string[]>();
@@ -110,17 +158,33 @@ export async function memberOverviewHandler(academyId: string, now: string) {
       ...(guardianName ? { guardianName } : {}),
       online: typeof primary === "string",
     });
-    if (typeof primary === "string") guardianFamilies.set(primary, [...(guardianFamilies.get(primary) ?? []), document.id]);
+    if (typeof primary === "string")
+      guardianFamilies.set(primary, [...(guardianFamilies.get(primary) ?? []), document.id]);
   }
   // A primary contact without a readable name has nothing to show in the directory.
-  const guardianUserRows: OverviewGuardianUserSource[] = [...guardianFamilies].flatMap(([userId, familyIds]) => {
-    const fullName = guardianNames.get(userId);
-    return fullName ? [{ userId, fullName, familyIds }] : [];
-  });
+  const guardianUserRows: OverviewGuardianUserSource[] = [...guardianFamilies].flatMap(
+    ([userId, familyIds]) => {
+      const fullName = guardianNames.get(userId);
+      return fullName ? [{ userId, fullName, familyIds }] : [];
+    },
+  );
   const trialsByStudent = new Map<string, OverviewTrialSource>();
   for (const document of trials.docs) {
     const data = document.data();
-    if (typeof data.studentId !== "string" || typeof data.status !== "string" || typeof data.expiresAt !== "string") continue;
+    if (
+      typeof data.studentId !== "string" ||
+      typeof data.status !== "string" ||
+      typeof data.expiresAt !== "string"
+    )
+      continue;
+    // A converted trial became a plan; an older trial never hides an active or later one.
+    if (data.status === "converted") continue;
+    const held = trialsByStudent.get(data.studentId);
+    if (
+      held &&
+      (held.status === "active" || (data.status !== "active" && held.expiresAt >= data.expiresAt))
+    )
+      continue;
     trialsByStudent.set(data.studentId, {
       status: data.status,
       expiresAt: data.expiresAt,
@@ -128,6 +192,36 @@ export async function memberOverviewHandler(academyId: string, now: string) {
       countedAttendanceIds: Array.isArray(data.countedAttendanceIds)
         ? data.countedAttendanceIds.filter((id: unknown): id is string => typeof id === "string")
         : [],
+    });
+  }
+  const pendingRequests: OverviewPendingRequestSource[] = [];
+  for (const document of enrolments.docs) {
+    const parsed = parseEnrolmentRequestRecord(document.data());
+    if (!parsed.ok || parsed.value.academyId !== academyId) continue;
+    enrolmentStudents(parsed.value).forEach((entry, index) =>
+      pendingRequests.push({
+        rowId: `request:${document.id}:${index}`,
+        fullName: entry.person.fullName,
+        dateOfBirth: entry.person.dateOfBirth,
+        trainingCenter: entry.person.trainingCenter,
+        // The applicant signs in with the account that sent the request; minors have none.
+        ownAccount: entry.path[0] === "applicant",
+      }),
+    );
+  }
+  for (const document of planRequests.docs) {
+    const person = document.get("person");
+    const fullName = nameOf(person?.fullName);
+    const centre = person?.trainingCenter;
+    if (!fullName || (centre !== "Town" && centre !== "West")) continue;
+    pendingRequests.push({
+      rowId: `request:${document.id}:0`,
+      fullName,
+      ...(typeof person.dateOfBirth === "string" && /^\d{4}-\d{2}-\d{2}$/u.test(person.dateOfBirth)
+        ? { dateOfBirth: person.dateOfBirth }
+        : {}),
+      trainingCenter: centre,
+      ownAccount: document.get("kind") === "self",
     });
   }
   const levelByStudent = new Map<string, string>();
@@ -144,6 +238,7 @@ export async function memberOverviewHandler(academyId: string, now: string) {
     planBands,
     trialsByStudent,
     guardianUsers: guardianUserRows,
+    pendingRequests,
     now,
   });
 }

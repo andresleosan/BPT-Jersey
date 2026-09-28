@@ -52,7 +52,10 @@ const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const maxQueryRows = 100;
 const queryReadLimit = maxQueryRows + 1;
 
-function fail(code: "capacity" | "conflict" | "ineligible" | "invalid" | "tenant", message: string): never {
+function fail(
+  code: "capacity" | "conflict" | "ineligible" | "invalid" | "tenant",
+  message: string,
+): never {
   throw new BookingTransactionError(code, message);
 }
 
@@ -65,11 +68,7 @@ function academyPath(academyId: string, collection: string): string {
   return `academies/${academyId}/${collection}`;
 }
 
-async function bounded(
-  transaction: BookingTransaction,
-  query: BookingQuery,
-  label: string,
-) {
+async function bounded(transaction: BookingTransaction, query: BookingQuery, label: string) {
   const snapshot = await transaction.get(query.limit(queryReadLimit));
   if (snapshot.docs.length > maxQueryRows) {
     return fail("ineligible", `${label} requires office review`);
@@ -132,7 +131,9 @@ function storedSession(
     !Number.isFinite(Date.parse(value.endAt)) ||
     Date.parse(value.endAt) <= Date.parse(value.startAt) ||
     (value.capacity !== null &&
-      (!Number.isSafeInteger(value.capacity) || Number(value.capacity) < 1 || Number(value.capacity) > 300)) ||
+      (!Number.isSafeInteger(value.capacity) ||
+        Number(value.capacity) < 1 ||
+        Number(value.capacity) > 300)) ||
     typeof value.locationId !== "string" ||
     typeof value.programId !== "string"
   ) {
@@ -240,13 +241,19 @@ async function introBookings(
     );
     for (const snapshot of docs) {
       const value = snapshot.data();
-      if (!value || value.academyId !== academyId || value.studentId !== studentId || value.bookingId !== snapshot.id) {
+      if (
+        !value ||
+        value.academyId !== academyId ||
+        value.studentId !== studentId ||
+        value.bookingId !== snapshot.id
+      ) {
         return fail("tenant", "Booking scope is invalid");
       }
       if (isConfirmedIntroBooking(value)) found.push(value);
     }
   }
-  if (found.length > maxQueryRows) return fail("ineligible", "Booking history requires office review");
+  if (found.length > maxQueryRows)
+    return fail("ineligible", "Booking history requires office review");
   return found;
 }
 
@@ -263,10 +270,17 @@ async function replayTarget(
   const existing = snapshots.filter((snapshot) => snapshot.exists);
   if (existing.length > 1) return fail("conflict", "Duplicate booking identities require review");
   const index = existing.length === 0 ? 0 : snapshots.findIndex((snapshot) => snapshot.exists);
-  return { reference: refs[index]!, ...(existing[0]?.data() ? { existing: existing[0]!.data()! } : {}) };
+  return {
+    reference: refs[index]!,
+    ...(existing[0]?.data() ? { existing: existing[0]!.data()! } : {}),
+  };
 }
 
-function auditDraft(command: IntroBookingCommand, booking: IntroBookingRecord, session: SessionRecord): AuditEventDraft {
+function auditDraft(
+  command: IntroBookingCommand,
+  booking: IntroBookingRecord,
+  session: SessionRecord,
+): AuditEventDraft {
   return {
     academyId: command.academyId,
     actorId: command.actorId,
@@ -316,7 +330,9 @@ export async function requestIntroBooking(
       now: command.now,
     });
     const sessionRef = firestore.doc(`${academyPath(academyId, "sessions")}/${sessionId}`);
-    const capacityRef = firestore.doc(`${academyPath(academyId, "sessionCapacityStates")}/${sessionId}`);
+    const capacityRef = firestore.doc(
+      `${academyPath(academyId, "sessionCapacityStates")}/${sessionId}`,
+    );
     const [sessionSnapshot, capacitySnapshot, studentSnapshot, target] = await Promise.all([
       transaction.get(sessionRef),
       transaction.get(capacityRef),
@@ -356,23 +372,39 @@ export async function requestIntroBooking(
     }
     if (!isIntroSession) {
       const dateKey = dateKeyInJersey(new Date(session.startAt));
-      const age = typeof student.dateOfBirth === "string" ? ageOnDate(student.dateOfBirth, dateKey) : 16;
-      if (age >= 16) {
+      const age =
+        typeof student.dateOfBirth === "string" ? ageOnDate(student.dateOfBirth, dateKey) : 16;
+      // Adult beginners: Introduction Classes only. Experienced adults may use their trial on a
+      // regular class of their age at the trial centre (the allowance below still counts it).
+      if (age >= 16 && trial.experience !== "experienced") {
         return fail("ineligible", "During your trial you can book Introduction Classes only");
       }
       const programSnapshot = await transaction.get(
-        firestore.doc(`${academyPath(academyId, "programs")}/${identifier(session.programId, "programId")}`),
+        firestore.doc(
+          `${academyPath(academyId, "programs")}/${identifier(session.programId, "programId")}`,
+        ),
       );
       const program = programSnapshot.data();
       if (!programSnapshot.exists || !program || program.academyId !== academyId) {
         return fail("ineligible", "Intro session is not bookable");
       }
-      // Kids and teens may book any class of their age and centre (the type's own rules).
+      // Kids, teens and experienced adults may book any class of their age and centre (the type's own rules).
       if (program.ageRange) {
         const typeRules = program as { ageRange: ProgramAgeRange; sites?: readonly ProgramSite[] };
-        if (!programAdmits({ ageRange: typeRules.ageRange, sites: typeRules.sites ?? [] }, age, expectedSite))
+        if (
+          !programAdmits(
+            { ageRange: typeRules.ageRange, sites: typeRules.sites ?? [] },
+            age,
+            expectedSite,
+          )
+        )
           return fail("ineligible", "This class is for another age group");
-      } else if ((program.ageBand as AgeBand) !== participantTypeOn(student.dateOfBirth as string, dateKey)) {
+      } else if (
+        (program.ageBand as AgeBand) !==
+        (typeof student.dateOfBirth === "string"
+          ? participantTypeOn(student.dateOfBirth, dateKey)
+          : "adult")
+      ) {
         return fail("ineligible", "This class is for another age group");
       }
     }
@@ -394,22 +426,33 @@ export async function requestIntroBooking(
     }
 
     // D12: the waiver accepted in /enrol or /account counts; the legacy consent still does too.
-    if (!(await hasAcceptedEnrolmentWaiver({ firestore, transaction } as never, academyId, ids[0]!)))
+    if (
+      !(await hasAcceptedEnrolmentWaiver({ firestore, transaction } as never, academyId, ids[0]!))
+    )
       await acceptedCurrentWaiver(firestore, transaction, academyId, ids, command.now);
     await assertNoMembershipHistory(firestore, transaction, academyId, ids);
     const priorIntroBookings = await introBookings(firestore, transaction, academyId, ids);
-    const otherIntroBookings = priorIntroBookings.filter((booking) => booking.sessionId !== sessionId);
+    const otherIntroBookings = priorIntroBookings.filter(
+      (booking) => booking.sessionId !== sessionId,
+    );
     const otherSessions = await Promise.all(
       otherIntroBookings.map((booking) =>
         transaction.get(
-          firestore.doc(`${academyPath(academyId, "sessions")}/${identifier(String(booking.sessionId), "sessionId")}`),
+          firestore.doc(
+            `${academyPath(academyId, "sessions")}/${identifier(String(booking.sessionId), "sessionId")}`,
+          ),
         ),
       ),
     );
     const sessionsById = new Map<string, { startAt: string }>();
     for (const snapshot of otherSessions) {
       const value = snapshot.data();
-      if (snapshot.exists && value?.academyId === academyId && value.sessionId === snapshot.id && typeof value.startAt === "string") {
+      if (
+        snapshot.exists &&
+        value?.academyId === academyId &&
+        value.sessionId === snapshot.id &&
+        typeof value.startAt === "string"
+      ) {
         sessionsById.set(snapshot.id, { startAt: value.startAt });
       }
     }
@@ -457,8 +500,8 @@ export async function requestIntroBooking(
       cancelledAt: null,
       cancellationReason: null,
       schemaVersion: "3",
-      createdAt: target.existing?.createdAt as string | undefined ?? command.now,
-      createdBy: target.existing?.createdBy as string | undefined ?? actorId,
+      createdAt: (target.existing?.createdAt as string | undefined) ?? command.now,
+      createdBy: (target.existing?.createdBy as string | undefined) ?? actorId,
       updatedAt: command.now,
       updatedBy: actorId,
     });

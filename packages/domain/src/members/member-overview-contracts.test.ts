@@ -131,13 +131,20 @@ describe("buildMemberOverview free trials", () => {
 
   it.each([
     ["expired", trial("active", "2026-09-20T00:00:00.000Z")],
-    ["converted", trial("converted", "2026-10-10T00:00:00.000Z")],
     ["exhausted", trial("exhausted", "2026-10-10T00:00:00.000Z")],
-  ])("does not show a %s trial as Free Trial", (_label, record) => {
+  ])("shows a %s trial without a membership as an inactive Trial ended", (label, record) => {
+    const result = overview({ students: [student("s-1", "Tia Trial")], trials: [["s-1", record]] });
+    expect(result.rows[0]?.planState).toBe("trial-ended");
+    expect(result.rows[0]?.plan).toMatchObject({ planId: "free-trial", status: label });
+    expect(result.rows[0]?.active).toBe(false);
+    expect(result.counters.inactive).toBe(1);
+  });
+
+  it("ignores a converted trial", () => {
+    const record = trial("converted", "2026-10-10T00:00:00.000Z");
     const result = overview({ students: [student("s-1", "Tia Trial")], trials: [["s-1", record]] });
     expect(result.rows[0]?.planState).toBe("none");
     expect(result.rows[0]?.plan).toBeUndefined();
-    expect(result.rows[0]?.active).toBe(false);
     expect(result.counters.inactive).toBe(1);
   });
 

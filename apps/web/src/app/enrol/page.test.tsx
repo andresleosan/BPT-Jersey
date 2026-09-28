@@ -164,6 +164,7 @@ describe("enrolment request page", () => {
     const user = userEvent.setup();
     render(<EnrolPage />);
     await screen.findByLabelText("Full name");
+    await user.click(screen.getByLabelText("Yes, I have trained before"));
     await user.selectOptions(screen.getByLabelText("Training centre"), "West");
     expect(screen.queryByText("£65 per month")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /send request/i })).not.toBeInTheDocument();
@@ -181,10 +182,11 @@ describe("enrolment request page", () => {
     expect(screen.queryByText("£85 per month")).not.toBeInTheDocument();
     expect(screen.queryByRole("radio", { name: /Kids|Teens/ })).not.toBeInTheDocument();
     expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
-    // An adult who chooses nothing sends the free beginner trial; a paid plan replaces it.
-    expect(screen.getByRole("radio", { name: /I am a beginner/ })).toBeChecked();
+    // An adult who chooses nothing sends the free trial; a paid plan replaces it.
+    expect(screen.getByRole("radio", { name: /Free Trial/ })).toBeChecked();
     await user.click(screen.getByRole("radio", { name: /West Adult/ }));
-    expect(screen.getByRole("radio", { name: /I am a beginner/ })).not.toBeChecked();
+    expect(screen.getByRole("radio", { name: /Free Trial/ })).not.toBeChecked();
+    await user.selectOptions(screen.getByLabelText("Belt"), "blue-belt");
     await completePayment(user);
     await user.click(screen.getByRole("button", { name: /send request/i }));
     await waitFor(() => expect(enrolmentApi.submitEnrolmentRequest).toHaveBeenCalledOnce());
@@ -491,11 +493,10 @@ describe("enrolment steps", () => {
 
     expect(screen.queryByLabelText(/^Address$/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Post code/i)).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("textbox", { name: /medical conditions/i }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /medical conditions/i })).not.toBeInTheDocument();
 
     await fillAdult(user);
+    await user.click(screen.getByLabelText("Yes, I have trained before"));
     await user.selectOptions(screen.getByLabelText("Training centre"), "West");
     await user.click(screen.getByRole("button", { name: /continue to plans/i }));
 
@@ -516,12 +517,13 @@ describe("enrolment steps", () => {
     await user.click(screen.getByRole("button", { name: /continue to plans/i }));
     expect(screen.getByRole("radio", { name: /Town Adult/ })).toBeChecked();
     await user.click(screen.getByRole("button", { name: /back to details/i }));
+    await user.click(screen.getByLabelText("Yes, I have trained before"));
     await user.selectOptions(screen.getByLabelText("Training centre"), "West");
     await user.click(screen.getByRole("button", { name: /continue to plans/i }));
     expect(screen.queryByRole("radio", { name: /Town Adult/ })).not.toBeInTheDocument();
     // Changing the centre drops the plan that belonged to the old one and falls back to the free
-    // beginner trial, which is where this form starts every student.
-    expect(screen.getByRole("radio", { name: /I am a beginner/ })).toBeChecked();
+    // trial, which is where this form starts every student.
+    expect(screen.getByRole("radio", { name: /Free Trial/ })).toBeChecked();
     expect(screen.getByRole("radio", { name: /West Adult/ })).not.toBeChecked();
     expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
   });
@@ -542,6 +544,10 @@ describe("enrolment steps", () => {
       const fields = within(screen.getByRole("group", { name: `Child ${index + 1}` }));
       await user.type(fields.getByLabelText("Full name"), child.name);
       await user.type(fields.getByLabelText("Date of birth"), child.dob);
+      // West is only open to a child who has trained before.
+      if (child.centre === "West") {
+        await user.click(fields.getByLabelText("Yes, they have trained before"));
+      }
       await user.selectOptions(fields.getByLabelText("Training centre"), child.centre);
       await user.click(fields.getByLabelText("Afternoon"));
     }
@@ -549,14 +555,16 @@ describe("enrolment steps", () => {
     await user.click(screen.getByRole("button", { name: /continue to plans/i }));
     const town = within(screen.getByRole("group", { name: "Town Child · Town" }));
     const west = within(screen.getByRole("group", { name: "West Teen · West" }));
-    // The free beginner trial plus the two plans each child's age and centre allow.
+    // The free trial plus the two plans each child's age and centre allow.
     expect(town.getAllByRole("radio")).toHaveLength(3);
     expect(west.getAllByRole("radio")).toHaveLength(3);
     expect(west.queryByRole("radio", { name: /West Kids/ })).not.toBeInTheDocument();
-    expect(town.getByRole("radio", { name: /I am a beginner/ })).toBeChecked();
-    expect(west.getByRole("radio", { name: /I am a beginner/ })).toBeChecked();
+    expect(town.getByRole("radio", { name: /Free Trial/ })).toBeChecked();
+    expect(west.getByRole("radio", { name: /Free Trial/ })).toBeChecked();
     await user.click(town.getByRole("radio", { name: /Town Kids & Teens 1x/ }));
-    expect(west.getByRole("radio", { name: /I am a beginner/ })).toBeChecked();
+    expect(west.getByRole("radio", { name: /Free Trial/ })).toBeChecked();
+    const westBelt = west.getByLabelText("Belt") as HTMLSelectElement;
+    await user.selectOptions(westBelt, westBelt.options[1]!.value);
     expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
     await user.click(west.getByRole("radio", { name: /West Teens single class/ }));
     await completePayment(user);
@@ -633,10 +641,10 @@ describe("beginner trial", () => {
 
     // The beginner card comes first and is already chosen: joining is free until the office says
     // otherwise, and nothing about a paid plan has to be touched to send the request.
-    const trial = screen.getByRole("radio", { name: /I am a beginner/ });
+    const trial = screen.getByRole("radio", { name: /Free Trial/ });
     expect(screen.getAllByRole("radio")[0]).toBe(trial);
     expect(trial).toBeChecked();
-    expect(screen.getByText("Trial: 2 free Introduction Classes")).toBeVisible();
+    expect(screen.getByText("2 free Introduction Classes in Town")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /continue to review/i }));
     expect(
@@ -669,12 +677,12 @@ describe("beginner trial", () => {
     await user.type(screen.getByLabelText("Date of birth"), "1994-04-02");
     await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
     await user.click(screen.getByLabelText("Evening"));
+    await user.click(screen.getByLabelText("Yes, I have trained before"));
     await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
     await user.click(screen.getByRole("button", { name: /continue to plans/i }));
 
-    await user.click(screen.getByRole("button", { name: "I'm not a Beginner" }));
     // A student who has trained before gets one free class, not two.
-    expect(screen.getByText("Trial: 1 free Introduction Class")).toBeVisible();
+    expect(screen.getByText("1 free class at Town")).toBeVisible();
     await user.selectOptions(screen.getByLabelText("Belt"), "blue-belt");
     await user.selectOptions(screen.getByLabelText("Stripes"), "2");
 

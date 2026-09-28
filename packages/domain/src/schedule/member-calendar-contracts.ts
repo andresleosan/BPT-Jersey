@@ -182,7 +182,9 @@ export function visibleDays(input: {
     return Object.freeze([dayFromAnchor(cursor, todayKey)]);
   }
 
-  const monday = new Date((input.includeSunday ? mondayOfWeek(today) : baseMonday(today)).getTime() + offset * 7 * dayMs);
+  const monday = new Date(
+    (input.includeSunday ? mondayOfWeek(today) : baseMonday(today)).getTime() + offset * 7 * dayMs,
+  );
   return Object.freeze(
     (input.includeSunday ? [0, 1, 2, 3, 4, 5, 6] : [0, 1, 2, 3, 4, 5]).map((step) =>
       dayFromAnchor(new Date(monday.getTime() + step * dayMs), todayKey),
@@ -190,7 +192,12 @@ export function visibleDays(input: {
   );
 }
 
-export function nextOffset(mode: CalendarMode, offset: number, now: Date, includeSunday = false): number | null {
+export function nextOffset(
+  mode: CalendarMode,
+  offset: number,
+  now: Date,
+  includeSunday = false,
+): number | null {
   if (mode === "week") {
     const next = offset + 1;
     return next <= weekMaxOffset(now) ? next : null;
@@ -201,7 +208,12 @@ export function nextOffset(mode: CalendarMode, offset: number, now: Date, includ
   return next <= calendarMaxOffsetDays ? next : null;
 }
 
-export function prevOffset(mode: CalendarMode, offset: number, now: Date, includeSunday = false): number | null {
+export function prevOffset(
+  mode: CalendarMode,
+  offset: number,
+  now: Date,
+  includeSunday = false,
+): number | null {
   if (offset <= 0) return null;
   if (mode === "week") return offset - 1;
   const today = todayAnchor(now);
@@ -268,7 +280,8 @@ function lockedReasonFor(
   program: ProgramRecord,
   member: CalendarMemberContext,
 ): LockedReason | undefined {
-  if (session.courseId) return member.courseSessionIds?.includes(session.sessionId) ? undefined : "paid_period";
+  if (session.courseId)
+    return member.courseSessionIds?.includes(session.sessionId) ? undefined : "paid_period";
   if (member.trial && !member.hasActiveMembership && member.membershipId === null)
     return trialLockedReason(session, program, member, member.trial);
   if (sessionAccessMode(session) === "intro") {
@@ -352,12 +365,16 @@ function trialLockedReason(
   if (sessionAccessMode(session) === "intro") return undefined;
   const typeReason = programTypeReason(session, program, member);
   if (typeReason) return typeReason;
-  if (age >= 16) return "trial_intro_only";
+  // Adult beginners: Introduction Classes only. Experienced adults may use their trial on a
+  // regular class of their age at the trial centre.
+  if (age >= 16 && trial.experience !== "experienced") return "trial_intro_only";
   // Kids and teens may book any class of their age: the type's age range was checked above.
   if (program.ageRange) return undefined;
-  return program.ageBand === participantTypeOn(member.dateOfBirth as string, dateKey)
-    ? undefined
-    : "age_band";
+  const band =
+    typeof member.dateOfBirth === "string"
+      ? participantTypeOn(member.dateOfBirth, dateKey)
+      : "adult";
+  return program.ageBand === band ? undefined : "age_band";
 }
 
 /** Group/site access is visibility; capacity and temporary limits are session states. */
@@ -387,12 +404,13 @@ export function deriveSessionStatus(input: {
   if (input.session.accessMode === "private-lesson" && !attended && !booked)
     return Object.freeze({ status: "locked", lockedReason: "office_arranged" });
   const lockedReason = lockedReasonFor(input.session, input.program, input.member);
-  if (lockedReason && !attended && !booked) return Object.freeze({ status: "locked", lockedReason });
+  if (lockedReason && !attended && !booked)
+    return Object.freeze({ status: "locked", lockedReason });
 
   if (input.attendance?.state === "no_show") return Object.freeze({ status: "missed" });
   if (attended) return Object.freeze({ status: "attended" });
   if (booked) return Object.freeze({ status: "booked" });
-  if (input.session.courseId) return Object.freeze({status: "closed"});
+  if (input.session.courseId) return Object.freeze({ status: "closed" });
   const sessionTime = Date.parse(input.session.startAt);
   if (
     (input.member.membershipStartsAt &&
@@ -477,7 +495,8 @@ export function lockedReasonLabel(
   if (reason === "paid_period") return "This class is outside your paid membership period";
   if (reason === "site") return `Your plan doesn't cover ${site}`;
   if (reason === "weekly_limit") return "Weekly class limit reached";
-  if (reason === "trial_ended") return "Your trial has ended. Choose a membership to keep training.";
+  if (reason === "trial_ended")
+    return "Your trial has ended. Choose a membership to keep training.";
   if (reason === "trial_intro_only")
     return "During your trial you can book Introduction Classes only.";
   if (reason === "office_arranged") return "Arranged by the office";

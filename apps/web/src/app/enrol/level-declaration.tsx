@@ -60,9 +60,9 @@ export function defaultWhiteBelt(
 }
 
 /**
- * What the applicant says about where they are starting from. A beginner declares nothing and gets
- * two free Introduction Classes; anybody else names the belt and stripes they train at today and
- * gets one. Nothing here is verified — the office confirms the level when it reviews the request.
+ * The belt and stripes of somebody who said in their details that they have trained before. A
+ * beginner declares nothing, so nothing is shown. Nothing here is verified — the office confirms
+ * the level when it reviews the request.
  */
 export function LevelDeclaration({
   id,
@@ -79,49 +79,17 @@ export function LevelDeclaration({
   disabled: boolean;
   onChange: (next: EnrolmentLevelDeclaration) => void;
 }>) {
+  if (value.experience === "beginner") return null;
+
+  // No catalogue, no honest list of belts. The applicant is told so; the page decides whether the
+  // request can still go without a belt (Town) or not (West).
   const belts = beltsForAge(definitions, age);
-
-  if (value.experience === "beginner") {
-    return (
-      <div className="enrol-level-declaration">
-        <button
-          className="button button-secondary"
-          disabled={disabled}
-          onClick={() =>
-            onChange({
-              experience: "experienced",
-              declaredLevelKey: belts[0]?.definitionKey ?? null,
-            })
-          }
-          type="button"
-        >
-          I&apos;m not a Beginner
-        </button>
-      </div>
-    );
-  }
-
-  const backToBeginner = (
-    <button
-      className="button button-secondary"
-      disabled={disabled}
-      onClick={() => onChange({ experience: "beginner", declaredLevelKey: null })}
-      type="button"
-    >
-      I am a beginner
-    </button>
-  );
-
-  // No catalogue, no honest list of belts. The applicant is told so and can still send the request
-  // as a beginner; the declaration stays incomplete, and the form refuses to send it that way.
-  const firstBelt = belts[0];
-  if (!firstBelt) {
+  if (belts.length === 0) {
     return (
       <div className="enrol-level-declaration">
         <p role="alert">
           Belt selection is unavailable right now — the office will confirm your level.
         </p>
-        {backToBeginner}
       </div>
     );
   }
@@ -129,11 +97,13 @@ export function LevelDeclaration({
   const declared = definitions.find(
     (definition) => definition.definitionKey === value.declaredLevelKey,
   );
-  const beltKey =
-    declared?.kind === "stripe"
-      ? (declared.parentDefinitionKey ?? firstBelt.definitionKey)
-      : (declared?.definitionKey ?? firstBelt.definitionKey);
-  const stripes = stripesForBelt(definitions, beltKey);
+  const declaredBeltKey =
+    declared?.kind === "stripe" ? declared.parentDefinitionKey : declared?.definitionKey;
+  // Only a belt of this person's age band counts; anything else is shown as not chosen yet.
+  const beltKey = belts.some((belt) => belt.definitionKey === declaredBeltKey)
+    ? (declaredBeltKey ?? "")
+    : "";
+  const stripes = beltKey ? stripesForBelt(definitions, beltKey) : [];
   const declaredStripes =
     declared?.kind === "stripe"
       ? (stripes.find((stripe) => stripe.definitionKey === declared.definitionKey)?.stripes ?? 0)
@@ -144,14 +114,16 @@ export function LevelDeclaration({
       <label className="enrol-field" htmlFor={`${id}-belt`}>
         Belt
         <select
+          aria-required="true"
           disabled={disabled}
           id={`${id}-belt`}
           // A stripe belongs to one belt, so changing the belt drops the stripes with it.
           onChange={(event) =>
-            onChange({ experience: "experienced", declaredLevelKey: event.target.value })
+            onChange({ experience: "experienced", declaredLevelKey: event.target.value || null })
           }
           value={beltKey}
         >
+          <option value="">Choose a belt</option>
           {belts.map((belt) => (
             <option key={belt.definitionKey} value={belt.definitionKey}>
               {belt.name}
@@ -162,7 +134,7 @@ export function LevelDeclaration({
       <label className="enrol-field" htmlFor={`${id}-stripes`}>
         Stripes
         <select
-          disabled={disabled}
+          disabled={disabled || !beltKey}
           id={`${id}-stripes`}
           onChange={(event) => {
             const wanted = stripes.find((stripe) => String(stripe.stripes) === event.target.value);
@@ -181,7 +153,6 @@ export function LevelDeclaration({
           ))}
         </select>
       </label>
-      {backToBeginner}
     </div>
   );
 }

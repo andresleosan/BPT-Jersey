@@ -76,13 +76,18 @@ describe("belt and stripe options", () => {
   });
 });
 
+const experienced: EnrolmentLevelDeclaration = {
+  experience: "experienced",
+  declaredLevelKey: null,
+};
+
 describe("level declaration", () => {
   it("declares the stripe key when stripes are chosen", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    render(<Harness age={30} onChange={onChange} />);
+    render(<Harness age={30} initial={experienced} onChange={onChange} />);
 
-    await user.click(screen.getByRole("button", { name: "I'm not a Beginner" }));
+    expect(screen.getByLabelText("Belt")).toHaveValue("");
     await user.selectOptions(screen.getByLabelText("Belt"), "blue-belt");
     await user.selectOptions(screen.getByLabelText("Stripes"), "2");
 
@@ -92,24 +97,12 @@ describe("level declaration", () => {
     });
   });
 
-  it("returns to beginner", async () => {
-    const user = userEvent.setup();
-    const onChange = vi.fn();
-    render(
-      <Harness
-        age={30}
-        initial={{ experience: "experienced", declaredLevelKey: "blue-2nd-stripe" }}
-        onChange={onChange}
-      />,
-    );
+  // Experience is answered on the details step, so a beginner sees no belt and no toggle here.
+  it("shows nothing for a beginner", () => {
+    render(<Harness age={30} onChange={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: "I am a beginner" }));
-
-    expect(onChange).toHaveBeenLastCalledWith({
-      experience: "beginner",
-      declaredLevelKey: null,
-    });
     expect(screen.queryByLabelText("Belt")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("shows the belt the student already declared, stripes and all", async () => {
@@ -137,23 +130,15 @@ describe("level declaration", () => {
   });
 
   // Without a catalogue the form cannot offer a belt, and it must not pretend it can: the applicant
-  // is told the office will confirm the level, and can still send the request as a beginner.
-  it("says so when the catalogue could not be loaded", async () => {
-    const user = userEvent.setup();
-    const onChange = vi.fn();
-    render(<Harness age={30} definitions={[]} onChange={onChange} />);
+  // is told the office will confirm the level.
+  it("says so when the catalogue could not be loaded", () => {
+    render(<Harness age={30} definitions={[]} initial={experienced} onChange={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: "I'm not a Beginner" }));
-
-    expect(onChange).toHaveBeenLastCalledWith({
-      experience: "experienced",
-      declaredLevelKey: null,
-    });
     expect(
       screen.getByText(
         "Belt selection is unavailable right now — the office will confirm your level.",
       ),
     ).toBeVisible();
-    expect(screen.getByRole("button", { name: "I am a beginner" })).toBeVisible();
+    expect(screen.queryByLabelText("Belt")).not.toBeInTheDocument();
   });
 });
