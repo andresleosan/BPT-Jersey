@@ -6,6 +6,11 @@ import {
   participantTypeOn,
 } from "@bpt-jersey/domain/schedule/member-calendar";
 import {
+  programAdmits,
+  type ProgramAgeRange,
+  type ProgramSite,
+} from "@bpt-jersey/domain/schedule/classes-services";
+import {
   buildBookingId,
   buildBookingIdCandidates,
   isWithinBookingCutoff,
@@ -360,8 +365,12 @@ export async function requestIntroBooking(
       if (!programSnapshot.exists || !program || program.academyId !== academyId) {
         return fail("ineligible", "Intro session is not bookable");
       }
-      const band = participantTypeOn(student.dateOfBirth as string, dateKey);
-      if ((program.ageBand as AgeBand) !== band) {
+      // Kids and teens may book any class of their age and centre (the type's own rules).
+      if (program.ageRange) {
+        const typeRules = program as { ageRange: ProgramAgeRange; sites?: readonly ProgramSite[] };
+        if (!programAdmits({ ageRange: typeRules.ageRange, sites: typeRules.sites ?? [] }, age, expectedSite))
+          return fail("ineligible", "This class is for another age group");
+      } else if ((program.ageBand as AgeBand) !== participantTypeOn(student.dateOfBirth as string, dateKey)) {
         return fail("ineligible", "This class is for another age group");
       }
     }

@@ -156,9 +156,12 @@ const enrolmentPlanChoiceSchema = z.union([z.enum(planIds), z.literal(trialPlanC
 export const enrolmentExperiences = Object.freeze(["beginner", "experienced"] as const);
 export type EnrolmentExperience = (typeof enrolmentExperiences)[number];
 
-/** Beginners get two free Introduction Classes; a student who declares a belt gets one. */
-export function enrolmentTrialAllowance(experience: EnrolmentExperience): 1 | 2 {
-  return experience === "beginner" ? 2 : 1;
+/**
+ * Beginners get two free Introduction Classes; an adult who declares a belt gets one.
+ * Kids and teens (under 16) always get two free classes of their age group.
+ */
+export function enrolmentTrialAllowance(experience: EnrolmentExperience, age: number | null = null): 1 | 2 {
+  return experience === "beginner" || (age !== null && age < 16) ? 2 : 1;
 }
 
 export const enrolmentLevelDeclarationSchema = z

@@ -353,6 +353,8 @@ function trialLockedReason(
   const typeReason = programTypeReason(session, program, member);
   if (typeReason) return typeReason;
   if (age >= 16) return "trial_intro_only";
+  // Kids and teens may book any class of their age: the type's age range was checked above.
+  if (program.ageRange) return undefined;
   return program.ageBand === participantTypeOn(member.dateOfBirth as string, dateKey)
     ? undefined
     : "age_band";
