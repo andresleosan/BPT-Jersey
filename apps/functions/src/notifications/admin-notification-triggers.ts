@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
+import { getFirestore, Timestamp, type Firestore } from "firebase-admin/firestore";
 import { onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import {
@@ -7,6 +8,28 @@ import {
   type AdminNotification,
 } from "@bpt-jersey/domain/memberships/admin";
 import { syncSubscriptionNotice } from "./admin-notification-service.js";
+import { createNotificationDescriber } from "./notification-details.js";
+
+/** Profile name first, then the sign-in name: the same order finance uses for "Recorded by". */
+function describer(db: Firestore, academyId: string) {
+  return createNotificationDescriber({
+    get: async (path) => (await db.doc(path).get()).data(),
+    userName: async (userId) => {
+      if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(userId)) return null;
+      const stored: unknown = (await db.doc(`academies/${academyId}/users/${userId}`).get()).get(
+        "displayName",
+      );
+      if (typeof stored === "string" && stored.trim()) return stored.trim();
+      return (
+        (
+          await getAuth()
+            .getUser(userId)
+            .catch(() => null)
+        )?.displayName?.trim() || null
+      );
+    },
+  });
+}
 
 export const subscriptionExpiryNoticeWritten = onDocumentWritten(
   {
@@ -135,24 +158,71 @@ export const adminOperationalNotificationCreated = onDocumentCreated(
     const db = getFirestore();
     const id = `event-${createHash("sha256").update(event.params.auditEventId).digest("hex")}`;
     const ref = db.doc(`academies/${event.params.academyId}/adminNotifications/${id}`);
-    const sourceId = data.targetRef.split("/").at(-1);
-    const referenceLabel =
-      typeof sourceId === "string" && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(sourceId)
-        ? `Reference: ${sourceId}. `
-        : "";
+    if ((await ref.get()).exists) return;
+    const described = await describer(db, event.params.academyId).describe(
+      {
+        action: data.action,
+        actorId: typeof data.actorId === "string" ? data.actorId : "",
+        targetRef: data.targetRef,
+        amountMinor: data.amountMinor,
+        method: data.method,
+      },
+      copy.title,
+    );
     const value = adminNotificationSchema.parse({
       notificationId: id,
       ...copy,
-      message: `${referenceLabel}Open the related section to review the details.`,
+      message: (described?.message ?? "Open the related section to review the details.").slice(
+        0,
+        500,
+      ),
       createdAt:
         data.occurredAt instanceof Timestamp
           ? data.occurredAt.toDate().toISOString()
           : new Date(event.time).toISOString(),
       readAt: null,
       resolvedAt: null,
-      membershipId: null,
-      studentId: null,
+      membershipId: described?.membershipId ?? null,
+      studentId: described?.studentId ?? null,
       endsAt: null,
+      ...(described ? { details: described.details } : {}),
+    });
+    await db.runTransaction(async (transaction) => {
+      if (!(await transaction.get(ref)).exists) transaction.create(ref, value);
+    });
+  },
+);
+
+/** A member paying by bank transfer from My plan writes an application, not an audit event. */
+export const adminPlanPaymentNotificationCreated = onDocumentCreated(
+  {
+    document: "academies/{academyId}/membershipApplications/{applicationId}",
+    retry: true,
+  },
+  async (event) => {
+    const data = event.data?.data();
+    if (!data || data.academyId !== event.params.academyId) return;
+    const db = getFirestore();
+    const id = `application-${createHash("sha256").update(event.params.applicationId).digest("hex")}`;
+    const ref = db.doc(`academies/${event.params.academyId}/adminNotifications/${id}`);
+    if ((await ref.get()).exists) return;
+    const described = await describer(db, event.params.academyId).describeApplication(data);
+    const value = adminNotificationSchema.parse({
+      notificationId: id,
+      kind: "payment",
+      title: described.details.amount ? "Payment sent for approval" : "Plan chosen for approval",
+      href: "/admin/members/requests",
+      message: described.message.slice(0, 500),
+      createdAt:
+        typeof data.createdAt === "string" && !Number.isNaN(Date.parse(data.createdAt))
+          ? new Date(data.createdAt).toISOString()
+          : new Date(event.time).toISOString(),
+      readAt: null,
+      resolvedAt: null,
+      membershipId: null,
+      studentId: described.studentId,
+      endsAt: null,
+      details: described.details,
     });
     await db.runTransaction(async (transaction) => {
       if (!(await transaction.get(ref)).exists) transaction.create(ref, value);

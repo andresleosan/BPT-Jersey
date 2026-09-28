@@ -50,6 +50,21 @@ export const adminNotificationKinds = [
   "class",
 ] as const;
 export type AdminNotificationKind = (typeof adminNotificationKinds)[number];
+/**
+ * A snapshot of what happened, taken when the notification is written, so the inbox renders the
+ * full message from one document without reading payments, members or sessions again. Old
+ * notifications have no details and fall back to `message`.
+ */
+export const adminNotificationDetailsSchema = z.strictObject({
+  /** Who the notification is about (payer, applicant, member) or who acted; never empty. */
+  from: z.string().trim().min(1).max(160),
+  /** Formatted money in the academy currency, shown beside the subject; null when none applies. */
+  amount: z.string().max(40).nullable(),
+  facts: z
+    .array(z.strictObject({ label: z.string().min(1).max(40), value: z.string().min(1).max(300) }))
+    .max(16),
+});
+export type AdminNotificationDetails = z.infer<typeof adminNotificationDetailsSchema>;
 export const adminNotificationSchema = z.strictObject({
   notificationId: id,
   kind: z.enum(adminNotificationKinds),
@@ -62,6 +77,7 @@ export const adminNotificationSchema = z.strictObject({
   membershipId: id.nullable(),
   studentId: id.nullable(),
   endsAt: instant.nullable(),
+  details: adminNotificationDetailsSchema.optional(),
 });
 export type AdminNotification = z.infer<typeof adminNotificationSchema>;
 const cursorSchema = z.strictObject({ createdAt: instant, notificationId: id });
@@ -106,10 +122,13 @@ const manualSettlementSchema = z.discriminatedUnion("kind", [
     kind: z.literal("previously-paid"),
     recordId: z.string().regex(/^[0-9]{1,12}$/u),
     paymentConfirmed: z.literal(true),
-    review: z.strictObject({
-      decisionId: z.uuid(), sourceVersion: z.string().regex(/^\d+:\d+$/u),
-      sourceItemIds: z.array(z.string().min(1).max(240)).min(1).max(20),
-    }).optional(),
+    review: z
+      .strictObject({
+        decisionId: z.uuid(),
+        sourceVersion: z.string().regex(/^\d+:\d+$/u),
+        sourceItemIds: z.array(z.string().min(1).max(240)).min(1).max(20),
+      })
+      .optional(),
   }),
   z.strictObject({ kind: z.literal("unchanged") }),
   z.strictObject({ kind: z.literal("pay-as-you-go") }),

@@ -267,6 +267,7 @@ export {
   subscriptionExpiryNoticeWritten,
   subscriptionExpiryNoticesSchedule,
   adminOperationalNotificationCreated,
+  adminPlanPaymentNotificationCreated,
 } from "./notifications/admin-notification-triggers.js";
 
 export {
