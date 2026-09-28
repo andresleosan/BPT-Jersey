@@ -2,6 +2,7 @@ import type { UserActorContext } from "@bpt-jersey/domain";
 import { createHash } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { trialAccessSchema, trialExpiresAt } from "@bpt-jersey/domain/memberships/trial-access";
+import { ageOnDate } from "@bpt-jersey/domain/schedule/member-calendar";
 import { PLAN_CATALOG } from "@bpt-jersey/domain/memberships";
 import {
   enrolmentNeedsPayment,
@@ -103,6 +104,7 @@ export function createEnrolmentRegistration(
             continue;
           }
           const startsAt = record.approvalStartedAt!;
+          const age = student.dateOfBirth ? ageOnDate(student.dateOfBirth, startsAt.slice(0, 10)) : null;
           await trialRef.set(
             trialAccessSchema.parse({
               trialId: studentId,
@@ -110,7 +112,7 @@ export function createEnrolmentRegistration(
               studentId,
               site: student.trainingCenter,
               experience,
-              allowance: enrolmentTrialAllowance(experience),
+              allowance: enrolmentTrialAllowance(experience, age),
               countedAttendanceIds: [],
               status: "active",
               startsAt,

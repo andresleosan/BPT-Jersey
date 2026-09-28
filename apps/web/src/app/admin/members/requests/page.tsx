@@ -66,16 +66,21 @@ function formatDate(value: string): string {
 function PlanPreference({
   planId,
   declaration,
+  dateOfBirth,
 }: Readonly<{
+  dateOfBirth: string;
   planId: EnrolmentPlanChoice | undefined;
   declaration: EnrolmentLevelDeclaration | undefined;
 }>) {
   if (planId === trialPlanChoice) {
-    const allowance = enrolmentTrialAllowance(declaration?.experience ?? "beginner");
+    const age = ageOnDate(dateOfBirth, new Date().toISOString().slice(0, 10));
+    const allowance = enrolmentTrialAllowance(declaration?.experience ?? "beginner", age);
     return (
       <p className="admin-request-meta">
         <strong>Requested plan:</strong>{" "}
-        {allowance === 2
+        {age < 16
+          ? "Trial (2 free classes for their age group)"
+          : allowance === 2
           ? "Trial (2 free Introduction Classes)"
           : "Trial (1 free Introduction Class)"}
       </p>
@@ -185,6 +190,7 @@ function DetailPanel({
       {detail.applicantIsStudent ? (
         <>
           <PlanPreference
+            dateOfBirth={applicant.dateOfBirth}
             planId={detail.planSelections?.applicant}
             declaration={detail.levelDeclarations?.applicant}
           />
@@ -213,6 +219,7 @@ function DetailPanel({
                   </p>
                 ) : null}
                 <PlanPreference
+                  dateOfBirth={minor.dateOfBirth}
                   planId={detail.planSelections?.minors[index]}
                   declaration={detail.levelDeclarations?.minors[index]}
                 />

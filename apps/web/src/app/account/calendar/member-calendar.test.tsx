@@ -916,7 +916,7 @@ describe("free trial", () => {
       />,
     );
     expect(
-      await screen.findByText(/Your trial has ended\. Choose a membership to keep training\./u),
+      await screen.findByText(/You need an active membership to book more classes\./u),
     ).toBeVisible();
     expect(screen.getByRole("link", { name: "Get a membership" })).toHaveAttribute(
       "href",

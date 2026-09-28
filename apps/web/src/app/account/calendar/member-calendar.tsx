@@ -122,7 +122,8 @@ function dayOf(days: readonly CalendarDay[], startAt: string): CalendarDay | und
   return days.find((d) => startAt >= d.startAt && startAt < d.endAt);
 }
 
-const trialEndedNotice = "Your trial has ended. Choose a membership to keep training.";
+const trialEndedNotice =
+  "Your free trial classes are used. You need an active membership to book more classes.";
 const memberVisibleStatuses: ReadonlySet<string> = new Set(["open", "booked", "attended", "missed"]);
 
 /** How many free trial classes are still bookable: attended and booked ones are both spent. */

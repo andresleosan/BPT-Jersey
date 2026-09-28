@@ -63,9 +63,11 @@ export function EnrolmentPlanChoices({
         <span>
           <strong>I am a beginner</strong>
           <span className="enrol-plan-access" id={`enrol-plan-${id}-trial-access`}>
-            {enrolmentTrialAllowance(declaration.experience) === 2
-              ? "Trial: 2 free Introduction Classes"
-              : "Trial: 1 free Introduction Class"}
+            {age < 16
+              ? "Trial: 2 free classes for your age group"
+              : enrolmentTrialAllowance(declaration.experience, age) === 2
+                ? "Trial: 2 free Introduction Classes"
+                : "Trial: 1 free Introduction Class"}
           </span>
         </span>
       </label>
