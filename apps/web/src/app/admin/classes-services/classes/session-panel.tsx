@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactElement } from "react";
 
 import type {
   ClassAccessMode,
@@ -21,11 +21,21 @@ import {
   updateSession,
   type ScheduleCatalogResponse,
 } from "../../../../lib/schedule-client";
+import type { PrivateLessonSchedulerState } from "./private-lesson-scheduler";
 import { RegistrationsPanel } from "./registrations-panel";
 import { trainerName, trainerOptions, type StaffOption } from "./trainer-options";
 import { localParts } from "./week-grid";
 
 export type { StaffOption } from "./trainer-options";
+
+// Loaded only when the office picks "Private lesson", so creating a class stays as light as before.
+const PrivateLessonScheduler = lazy(() =>
+  import("./private-lesson-scheduler").then((module) => ({
+    default: module.PrivateLessonScheduler,
+  })),
+);
+const privateFormId = "cs-private-lesson-form";
+const privateMinutes = 45;
 
 export type SessionPanelProps = Readonly<{
   mode: "create" | "edit";
@@ -210,6 +220,11 @@ export function SessionPanel({
   const [busy, setBusy] = useState(false);
 
   const [view, setView] = useState<"details" | "registrations">("details");
+  const [kind, setKind] = useState<"class" | "private">("class");
+  const [privateState, setPrivateState] = useState<PrivateLessonSchedulerState>({
+    busy: false,
+    done: false,
+  });
   const [registrationsLoaded, setRegistrationsLoaded] = useState(false);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -443,6 +458,25 @@ export function SessionPanel({
               Registrations
             </button>
           </div>
+        ) : canEdit && canReadMemberships ? (
+          <div className="cs-session-switcher" aria-label="What to create">
+            <button
+              type="button"
+              aria-pressed={kind === "class"}
+              disabled={busy || privateState.busy}
+              onClick={() => setKind("class")}
+            >
+              Class
+            </button>
+            <button
+              type="button"
+              aria-pressed={kind === "private"}
+              disabled={busy || privateState.busy}
+              onClick={() => setKind("private")}
+            >
+              Private lesson
+            </button>
+          </div>
         ) : null}
       </header>
       <div className="cs-session-scroll">
@@ -452,7 +486,30 @@ export function SessionPanel({
           </p>
         )}
         <div className="cs-session-body">
-          <div className="cs-session-form" hidden={view !== "details"}>
+          {!editing && kind === "private" ? (
+            <Suspense
+              fallback={
+                <div className="cs-private-skeleton" aria-busy="true" aria-label="Loading" />
+              }
+            >
+              <PrivateLessonScheduler
+                formId={privateFormId}
+                catalog={catalog}
+                trainers={trainers.map((row) => ({
+                  key: row.staffKey,
+                  name: trainerName(row.staffKey),
+                }))}
+                timezone={timezone}
+                defaults={defaults}
+                onStateChange={setPrivateState}
+                onSaved={(created) => (created ? onSaved(created) : onClose())}
+              />
+            </Suspense>
+          ) : null}
+          <div
+            className="cs-session-form"
+            hidden={view !== "details" || (!editing && kind === "private")}
+          >
             <h3>When</h3>
             <div className="cs-form-row cs-session-when">
               <label className="cs-field">
@@ -474,7 +531,15 @@ export function SessionPanel({
                   aria-invalid={!draft.startTime}
                   aria-describedby={missingDateTime ? "cs-session-time-error" : undefined}
                   disabled={readOnly}
-                  onChange={(event) => patch({ startTime: event.target.value })}
+                  onChange={(event) =>
+                    patch({
+                      startTime: event.target.value,
+                      // Private lessons always last 45 minutes: the end follows the start.
+                      ...(draft.accessMode === "private-lesson"
+                        ? { endTime: timeOf(minutesOf(event.target.value) + privateMinutes) }
+                        : {}),
+                    })
+                  }
                 />
               </label>
               <label className="cs-field">
@@ -484,7 +549,7 @@ export function SessionPanel({
                   value={draft.endTime}
                   aria-invalid={!draft.endTime}
                   aria-describedby={missingDateTime ? "cs-session-time-error" : undefined}
-                  disabled={readOnly}
+                  disabled={readOnly || draft.accessMode === "private-lesson"}
                   onChange={(event) => patch({ endTime: event.target.value })}
                 />
               </label>
@@ -593,7 +658,9 @@ export function SessionPanel({
                 >
                   <option value="membership">Membership required</option>
                   <option value="intro">Free Intro Class</option>
-                  <option value="private-lesson">Private lesson (office books with a credit)</option>
+                  {draft.accessMode === "private-lesson" ? (
+                    <option value="private-lesson">Private lesson</option>
+                  ) : null}
                 </select>
               </label>
             </div>
@@ -886,10 +953,37 @@ export function SessionPanel({
         </div>
       </div>
       <footer className="cs-dialog-actions cs-session-footer">
-        <button type="button" className="cs-button" disabled={busy} onClick={onClose}>
-          {canEdit && view === "details" ? "Discard changes" : "Close"}
-        </button>
-        {view === "registrations" ? (
+        {!editing && kind === "private" ? (
+          <>
+            {privateState.done ? null : (
+              <button
+                type="button"
+                className="cs-button"
+                disabled={privateState.busy}
+                onClick={onClose}
+              >
+                Discard
+              </button>
+            )}
+            <button
+              type="submit"
+              form={privateFormId}
+              className="cs-button cs-button-primary"
+              disabled={privateState.busy}
+            >
+              {privateState.busy
+                ? "Creating…"
+                : privateState.done
+                  ? "Back to calendar"
+                  : "Create lessons"}
+            </button>
+          </>
+        ) : (
+          <button type="button" className="cs-button" disabled={busy} onClick={onClose}>
+            {canEdit && view === "details" ? "Discard changes" : "Close"}
+          </button>
+        )}
+        {!editing && kind === "private" ? null : view === "registrations" ? (
           <button
             type="button"
             className="cs-button cs-button-primary"

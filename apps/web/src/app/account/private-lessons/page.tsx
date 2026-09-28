@@ -39,9 +39,9 @@ const statusLabels = {
 };
 
 const optionNotes: Readonly<Record<PrivateLessonOptionId, string>> = {
-  single: "One lesson, valid for 3 months.",
-  monthly: "Four lessons, valid for one month. Renew with a new transfer.",
-  "pack-10": "Ten lessons, valid for 6 months.",
+  single: "One 45-minute lesson, valid for 3 months.",
+  monthly: "One 45-minute lesson a week, four a month. Renew with a new transfer.",
+  "pack-10": "Ten 45-minute lessons to use within 3 months.",
 };
 
 /** 16+ only (D6 band "adult"); no date of birth counts as adult, as everywhere else. */
@@ -194,8 +194,8 @@ function PrivateLessonsContent() {
       <p className="account-eyebrow">BPT Jersey / Private lessons</p>
       <h1 id="private-lessons-title">Private lessons</h1>
       <p className="client-destination-intro">
-        Buy one-to-one lessons by bank transfer. The academy confirms the transfer and then arranges
-        each lesson with you.
+        Buy 45-minute one-to-one lessons by bank transfer. The office confirms the transfer and
+        calls you to set the day and time; your lessons then appear in your calendar.
       </p>
 
       {state === "loading" ? (

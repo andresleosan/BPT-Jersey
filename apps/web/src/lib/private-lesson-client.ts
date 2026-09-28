@@ -10,7 +10,9 @@ import {
   type PrivateLessonPurchase,
   type PrivateLessonPurchaseRow,
   type PrivateLessonPurchaseStatus,
+  type SchedulePrivateLessonsInput,
 } from "@bpt-jersey/domain/private-lessons";
+import type { SessionRecord } from "@bpt-jersey/domain/schedule";
 
 import { httpsCallable } from "./callable";
 import { getFirebaseFunctions } from "./firebase-client";
@@ -33,6 +35,8 @@ const knownMessages = new Set([
   "This private lesson is not scheduled.",
   "This member is already booked on this session.",
   "This booking is not a private lesson.",
+  "The monthly plan allows one private lesson a week.",
+  "Choose a future date before the private lessons expire.",
 ]);
 
 function safeError(error: unknown, fallback: string): Error {
@@ -134,4 +138,25 @@ export function cancelPrivateLessonBooking(input: { bookingId: string; reason: s
     z.looseObject({ booking: bookingSchema, creditRestored: z.boolean() }),
     officeError,
   );
+}
+
+/**
+ * Office creates a paid member's private lessons and books them in one step. `requested` is how
+ * many dates the choice covered; fewer sessions means the server stopped at a refused date.
+ */
+export function schedulePrivateLessons(
+  input: SchedulePrivateLessonsInput,
+): Promise<{ sessions: SessionRecord[]; requested: number }> {
+  return call(
+    "schedulePrivateLessons",
+    input,
+    z.looseObject({
+      sessions: z.array(z.looseObject({ sessionId: z.string().min(1) })).max(10),
+      requested: z.number().int().positive(),
+    }),
+    officeError,
+  ).then((value) => ({
+    sessions: value.sessions as unknown as SessionRecord[],
+    requested: value.requested,
+  }));
 }
