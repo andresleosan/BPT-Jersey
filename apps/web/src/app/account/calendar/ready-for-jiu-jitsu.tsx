@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 
 import type { AttendanceRecord, ProgramRecord } from "@bpt-jersey/domain/schedule";
 import { formatSessionTimeRange, sessionSite } from "@bpt-jersey/domain/schedule/member-calendar";
@@ -24,6 +24,8 @@ type Props = Readonly<{
   clockIn: (input: SelfCheckInInput) => Promise<AttendanceRecord>;
   onCheckedIn: (record: AttendanceRecord) => void;
   siblingHint?: string;
+  /** Opened from the door's NFC tag / QR code: check in at once, the same as a full slide. */
+  autoCheckIn?: boolean;
 }>;
 
 type Phase =
@@ -82,6 +84,7 @@ export function ReadyForJiuJitsu({
   clockIn,
   onCheckedIn,
   siblingHint,
+  autoCheckIn = false,
 }: Props) {
   const [value, setValue] = useState(0);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
@@ -126,6 +129,13 @@ export function ReadyForJiuJitsu({
     }
   }, [clockIn, onCheckedIn, refuse, session.sessionId, studentId]);
 
+  // ponytail: runs once per mount (the card is keyed by session); a refusal leaves the slider to retry.
+  useEffect(() => {
+    if (!autoCheckIn || candidate.kind !== "ready") return;
+    setValue(100);
+    void commit();
+  }, []);
+
   const settle = useCallback(() => {
     if (busy || commitStarted.current) return;
     if (value >= commitAt) {
@@ -165,7 +175,7 @@ export function ReadyForJiuJitsu({
     phase.kind === "locating"
       ? "Checking you're at the gym…"
       : phase.kind === "sending"
-        ? "Clocking you in…"
+        ? "Checking you in…"
         : phase.kind === "refused"
           ? phase.message
           : "";
@@ -181,14 +191,14 @@ export function ReadyForJiuJitsu({
           <span
             className="ready-fill"
             aria-hidden="true"
-            data-label={busy ? "" : "Slide to clock in"}
+            data-label={busy ? "" : "Slide to check in"}
           />
           <span className="ready-label" aria-hidden="true">
-            {busy ? "" : "Slide to clock in"}
+            {busy ? "" : "Slide to check in"}
           </span>
           <input
-            aria-label={`Slide to clock in for ${session.title}, ${formatSessionTimeRange(session)}, ${sessionSite(session)}`}
-            aria-valuetext={`${value}% — release at the end to clock in`}
+            aria-label={`Slide to check in for ${session.title}, ${formatSessionTimeRange(session)}, ${sessionSite(session)}`}
+            aria-valuetext={`${value}% — release at the end to check in`}
             className="ready-range"
             disabled={busy}
             max={100}
