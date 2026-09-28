@@ -139,7 +139,7 @@ export async function deleteMemberAccountHandler(
       correlationId: `write-${createHash("sha256").update(`${actor.academyId}:${studentId}:${requestId}`).digest("hex")}`,
     } as Parameters<typeof appendAuditEventInTransaction>[2]);
   });
-  return deleteMemberAccountResultSchema.parse({ studentId, cancelledBookings, removedMemberships: memberships.size });
+  return deleteMemberAccountResultSchema.parse({ studentId, cancelledBookings, removedMemberships: memberships?.size ?? 0 });
 }
 
 export const deleteMemberAccount = onCall({ ...browserAdminCallableOptions, region: "europe-west9" }, async (request) => {
