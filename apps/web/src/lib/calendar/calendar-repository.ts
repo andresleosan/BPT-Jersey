@@ -71,4 +71,5 @@ export interface CalendarRepository {
   walkIn?(input: WalkInCheckInInput): Promise<AttendanceRecord>;
 }
 
-export type WalkInCheckInInput = SelfCheckInInput & Readonly<{ membershipId: string }>;
+/** No membershipId (a trial member) books the class as an intro one. */
+export type WalkInCheckInInput = SelfCheckInInput & Readonly<{ membershipId?: string }>;

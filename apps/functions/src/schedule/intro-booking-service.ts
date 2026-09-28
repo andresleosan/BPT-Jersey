@@ -44,6 +44,8 @@ export type IntroBookingCommand = Readonly<{
   studentId: string;
   sessionId: string;
   now: string;
+  /** Set only by the walk-in check-in after its on-site gate: waives the 60-minute cutoff alone. */
+  walkIn?: true;
 }>;
 
 const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
@@ -374,7 +376,7 @@ export async function requestIntroBooking(
         return fail("ineligible", "This class is for another age group");
       }
     }
-    if (!isWithinBookingCutoff(session.startAt, command.now, 60)) {
+    if (!command.walkIn && !isWithinBookingCutoff(session.startAt, command.now, 60)) {
       return fail("ineligible", "Intro booking cutoff has passed");
     }
     if (target.existing) {

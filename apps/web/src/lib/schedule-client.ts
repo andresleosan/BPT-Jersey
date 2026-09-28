@@ -550,7 +550,7 @@ export async function selfCheckIn(input: SelfCheckInInput): Promise<AttendanceRe
 
 /** Door NFC/QR walk-in: books the class (cutoff waived on site) and checks the member in. */
 export async function walkInCheckIn(
-  input: SelfCheckInInput & Readonly<{ membershipId: string }>,
+  input: SelfCheckInInput & Readonly<{ membershipId?: string }>,
 ): Promise<AttendanceRecord> {
   const functions = getFirebaseFunctions();
   const callable = httpsCallable<typeof input, { attendance: AttendanceRecord }>(
