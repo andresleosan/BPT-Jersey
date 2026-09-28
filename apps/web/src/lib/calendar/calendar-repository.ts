@@ -67,4 +67,8 @@ export interface CalendarRepository {
   cancel(input: CancelBookingInput): Promise<BookingRecord>;
   /** T040V2: member self check-in. Refusals preserve `code` and `details.reason`. */
   clockIn(input: SelfCheckInInput): Promise<AttendanceRecord>;
+  /** Door NFC/QR: books the class the member walked into and checks them in (live only). */
+  walkIn?(input: WalkInCheckInInput): Promise<AttendanceRecord>;
 }
+
+export type WalkInCheckInInput = SelfCheckInInput & Readonly<{ membershipId: string }>;

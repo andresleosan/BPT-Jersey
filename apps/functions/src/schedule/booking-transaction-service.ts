@@ -126,6 +126,11 @@ export type ConfirmBookingInTransactionInput = Readonly<{
    * and weekly limit. Payment, membership period, terms, cutoff and capacity still apply.
    */
   groupOverride?: true;
+  /**
+   * Set only by the walk-in check-in (`schedule-callables.ts`), after it has judged the member at
+   * the site inside the class's check-in window: waives the 60-minute cutoff and nothing else.
+   */
+  walkIn?: true;
 }>;
 
 const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
@@ -793,7 +798,7 @@ async function executeBookingInTransaction(
   // Membership ownership follows the approved athlete identity; its original payer family
   // survives a guardian replacement and is used only for the financial eligibility read below.
   const capacityRevision = revision(capacitySnapshot, academyId, sessionId, "sessionId");
-  if (!isWithinBookingCutoff(storedSession.startAt, input.now, 60)) {
+  if (!input.walkIn && !isWithinBookingCutoff(storedSession.startAt, input.now, 60)) {
     return invalid("ineligible", "Booking cutoff has passed");
   }
 

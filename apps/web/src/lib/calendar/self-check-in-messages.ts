@@ -30,6 +30,8 @@ export function selfCheckInFailureMessage(error: unknown): string {
       return "You need a confirmed booking for this class.";
     case "already_checked_in":
       return "You're already checked in.";
+    case "capacity":
+      return "This class is full. Ask a coach to check you in.";
     default:
       return fallback;
   }

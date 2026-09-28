@@ -17,6 +17,7 @@ import {
   listStudentBookings,
   requestBooking,
   selfCheckIn,
+  walkInCheckIn,
   warmMemberCalendarWeek,
 } from "../schedule-client";
 import type { TrialAccessView } from "@bpt-jersey/domain/memberships/trial-access";
@@ -228,5 +229,6 @@ export function createFirebaseCalendarRepository(session: {
     book: requestBooking,
     cancel: cancelBooking,
     async clockIn(input) {return courseSessions.has(input.sessionId) ? (await courseApi.checkIn(input)).attendance : selfCheckIn(input);},
+    walkIn: walkInCheckIn,
   };
 }

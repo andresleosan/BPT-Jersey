@@ -15,7 +15,8 @@ export type MemberDestination =
   | "/account/private-lessons"
   | "/shop"
   | "/enrol"
-  | "/checkout";
+  | "/checkout"
+  | "/checkin";
 
 /** The member gates and account pages keep their prop type under the historical name. */
 export type AuthDestination = MemberDestination;
@@ -44,6 +45,7 @@ const memberDestinations = new Set<MemberDestination>([
   "/shop",
   "/enrol",
   "/checkout",
+  "/checkin",
 ]);
 
 // Exact segments only: no query, no hash, no dot segments, no protocol-relative form.
