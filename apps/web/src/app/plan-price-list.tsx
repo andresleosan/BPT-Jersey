@@ -36,10 +36,13 @@ export function PlanPriceList({ site }: Readonly<{ site?: Site }>): ReactElement
           <li className="plan-price-row">
             <div>
               <strong>Private lessons</strong>
-              <span>One-to-one, ages 16 and over. Arranged with the office.</span>
+              <span>
+                One-to-one, 45 minutes, ages 16 and over. The office calls you to set the day and
+                time.
+              </span>
             </div>
             <p className="plan-price-amount">
-              {`${privateLessonPriceLabel("single")} one lesson · ${privateLessonPriceLabel("monthly")} for 4 · ${privateLessonPriceLabel("pack-10")} for 10`}
+              {`${privateLessonPriceLabel("single")} one lesson · ${privateLessonPriceLabel("monthly")}, one a week · ${privateLessonPriceLabel("pack-10")} for 10 within 3 months`}
             </p>
           </li>
         </ul>

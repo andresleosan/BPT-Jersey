@@ -8,7 +8,12 @@ import {
   type AdminNotification,
 } from "@bpt-jersey/domain/memberships/admin";
 import { syncSubscriptionNotice } from "./admin-notification-service.js";
-import { createNotificationDescriber } from "./notification-details.js";
+import {
+  PRIVATE_LESSON_MINUTES,
+  PRIVATE_LESSON_OPTIONS,
+  type PrivateLessonOptionId,
+} from "@bpt-jersey/domain/private-lessons";
+import { createNotificationDescriber, money } from "./notification-details.js";
 
 /** Profile name first, then the sign-in name: the same order finance uses for "Recorded by". */
 function describer(db: Firestore, academyId: string) {
@@ -223,6 +228,90 @@ export const adminPlanPaymentNotificationCreated = onDocumentCreated(
       studentId: described.studentId,
       endsAt: null,
       details: described.details,
+    });
+    await db.runTransaction(async (transaction) => {
+      if (!(await transaction.get(ref)).exists) transaction.create(ref, value);
+    });
+  },
+);
+
+function textOf(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim().slice(0, 300) : null;
+}
+
+/**
+ * A member paying for private lessons: the office calls them to agree the day and time, so the
+ * notice carries the phone number next to the purchase.
+ */
+export const adminPrivateLessonPurchaseNotificationCreated = onDocumentCreated(
+  {
+    document: "academies/{academyId}/privateLessonPurchases/{purchaseId}",
+    retry: true,
+  },
+  async (event) => {
+    const data = event.data?.data();
+    if (
+      !data ||
+      data.academyId !== event.params.academyId ||
+      data.source !== "member" ||
+      typeof data.studentId !== "string" ||
+      typeof data.optionId !== "string" ||
+      !Object.hasOwn(PRIVATE_LESSON_OPTIONS, data.optionId)
+    )
+      return;
+    const db = getFirestore();
+    const base = db.doc(`academies/${event.params.academyId}`);
+    const id = `private-lesson-${createHash("sha256").update(event.params.purchaseId).digest("hex")}`;
+    const ref = base.collection("adminNotifications").doc(id);
+    if ((await ref.get()).exists) return;
+    const [student, account] = await Promise.all([
+      base.collection("students").doc(data.studentId).get(),
+      typeof data.accountUid === "string"
+        ? base.collection("users").doc(data.accountUid).get()
+        : Promise.resolve(null),
+    ]);
+    const option = PRIVATE_LESSON_OPTIONS[data.optionId as PrivateLessonOptionId];
+    const name = textOf(student.get("fullName")) ?? "A member";
+    const phone = textOf(student.get("phoneNumber")) ?? textOf(account?.get("phoneNumber"));
+    const amount = money(typeof data.priceMinor === "number" ? data.priceMinor : null);
+    const sessions =
+      data.optionId === "monthly"
+        ? `${option.credits} x ${PRIVATE_LESSON_MINUTES} min, one a week`
+        : `${option.credits} x ${PRIVATE_LESSON_MINUTES} min within ${option.validityMonths} months`;
+    const value = adminNotificationSchema.parse({
+      notificationId: id,
+      kind: "payment",
+      title: "Private lessons paid: call to arrange the sessions",
+      href: "/admin/billing",
+      message: `${name} paid for ${option.displayName}. ${
+        phone ? `Call ${phone}` : "Contact them"
+      } to agree the day and time, approve the payment, then create the sessions in Classes.`.slice(
+        0,
+        500,
+      ),
+      createdAt:
+        typeof data.submittedAt === "string" && !Number.isNaN(Date.parse(data.submittedAt))
+          ? new Date(data.submittedAt).toISOString()
+          : new Date(event.time).toISOString(),
+      readAt: null,
+      resolvedAt: null,
+      membershipId: null,
+      studentId: data.studentId,
+      endsAt: null,
+      details: {
+        from: name.slice(0, 160),
+        amount,
+        facts: [
+          { label: "Member", value: name },
+          { label: "Phone", value: phone ?? "Not on file" },
+          { label: "Service", value: option.displayName },
+          { label: "Sessions", value: sessions },
+          ...(textOf(data.bankReference)
+            ? [{ label: "Bank reference", value: textOf(data.bankReference)! }]
+            : []),
+          { label: "Status", value: "Awaiting approval" },
+        ],
+      },
     });
     await db.runTransaction(async (transaction) => {
       if (!(await transaction.get(ref)).exists) transaction.create(ref, value);

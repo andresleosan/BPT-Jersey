@@ -196,6 +196,8 @@ export const getMemberCalendarWeek = onCall(
     const visible = sessions.filter((session) => {
       if (session.courseId) return false;
       if (held.has(session.sessionId)) return true;
+      // A private lesson is one member's own session: nobody else sees it.
+      if (sessionAccessMode(session) === "private-lesson") return false;
       const program = programById.get(session.programId);
       if (!program) return false;
       if (!member.hasActiveMembership && !member.trial && sessionAccessMode(session) !== "intro")

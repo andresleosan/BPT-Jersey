@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { addSubscriptionMonth } from "../memberships/subscription-admin-contracts";
+import { localInstant } from "../schedule/classes-services-contracts";
 
 export const privateLessonOptionIds = Object.freeze(["single", "monthly", "pack-10"] as const);
 export type PrivateLessonOptionId = (typeof privateLessonOptionIds)[number];
@@ -21,7 +22,7 @@ export const PRIVATE_LESSON_OPTIONS: Readonly<Record<PrivateLessonOptionId, Priv
       validityMonths: 3,
     }),
     monthly: Object.freeze({
-      displayName: "Private lessons monthly (4 sessions)",
+      displayName: "Private lessons monthly (one a week)",
       priceMinor: 20000,
       credits: 4,
       validityMonths: 1,
@@ -30,9 +31,14 @@ export const PRIVATE_LESSON_OPTIONS: Readonly<Record<PrivateLessonOptionId, Priv
       displayName: "Private lessons pack of 10",
       priceMinor: 50000,
       credits: 10,
-      validityMonths: 6,
+      validityMonths: 3,
     }),
   });
+
+/** Every private lesson lasts 45 minutes; the office picks only the start. */
+export const PRIVATE_LESSON_MINUTES = 45;
+/** Class type the office's private lesson sessions belong to; created on first use. */
+export const PRIVATE_LESSON_PROGRAM_ID = "private-lesson";
 
 /** Adds the option's validity in UTC calendar months, clamping to the end of short months. */
 export function privateLessonExpiry(optionId: PrivateLessonOptionId, approvedAt: string): string {
@@ -145,6 +151,47 @@ export const privateLessonProofUrlSchema = z.strictObject({
   expiresAt: instant,
 });
 export type PrivateLessonProofUrl = z.infer<typeof privateLessonProofUrlSchema>;
+/**
+ * Office creates a member's private lessons in one step: the purchase names the member, then one
+ * date or the same local day and time every week while credit and validity last.
+ */
+export const schedulePrivateLessonsInputSchema = z.strictObject({
+  purchaseId: id,
+  locationId: id,
+  instructorId: id,
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
+  startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/u),
+  repeatWeekly: z.boolean(),
+});
+export type SchedulePrivateLessonsInput = z.infer<typeof schedulePrivateLessonsInputSchema>;
+
+/**
+ * Start instants for `schedulePrivateLessons`, shared with the office preview. A single lesson never
+ * repeats; weekly lessons stop when the credits run out or at the purchase's expiry.
+ */
+export function privateLessonStarts(
+  purchase: Pick<PrivateLessonPurchase, "optionId" | "creditsRemaining" | "expiresAt">,
+  input: Pick<SchedulePrivateLessonsInput, "date" | "startTime" | "repeatWeekly">,
+  timezone: string,
+): string[] {
+  const weeks =
+    input.repeatWeekly && purchase.optionId !== "single"
+      ? purchase.creditsRemaining
+      : Math.min(1, purchase.creditsRemaining);
+  const expiry = purchase.expiresAt === null ? -Infinity : Date.parse(purchase.expiresAt);
+  const [year, month, day] = input.date.split("-").map(Number);
+  const starts: string[] = [];
+  for (let week = 0; week < weeks; week += 1) {
+    const date = new Date(Date.UTC(year ?? 1970, (month ?? 1) - 1, (day ?? 1) + 7 * week))
+      .toISOString()
+      .slice(0, 10);
+    const start = localInstant(date, input.startTime, timezone);
+    if (!Number.isFinite(start) || start >= expiry) break;
+    starts.push(new Date(start).toISOString());
+  }
+  return starts;
+}
+
 export const privateLessonBookingInputSchema = z.strictObject({ sessionId: id, studentId: id });
 export type PrivateLessonBookingInput = z.infer<typeof privateLessonBookingInputSchema>;
 export const cancelPrivateLessonBookingInputSchema = z.strictObject({

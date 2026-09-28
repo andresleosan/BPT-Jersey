@@ -65,7 +65,12 @@ import {
 import { createFirestoreScheduleStore, type ScheduleStore } from "./schedule-service.js";
 import {
   cancelPrivateLessonBookingInputSchema,
+  PRIVATE_LESSON_MINUTES,
+  PRIVATE_LESSON_PROGRAM_ID,
   privateLessonBookingInputSchema,
+  privateLessonPurchaseSchema,
+  privateLessonStarts,
+  schedulePrivateLessonsInputSchema,
 } from "@bpt-jersey/domain/private-lessons";
 import { requireActiveOfficeActor } from "../auth/office-actor.js";
 import {
@@ -1690,4 +1695,125 @@ export const bookPrivateLesson = onCall(scheduleCallableOptions, async (request)
 
 export const cancelPrivateLessonBooking = onCall(scheduleCallableOptions, async (request) =>
   createCancelPrivateLessonBookingHandler()(request),
+);
+
+/**
+ * Office creates a paid member's private lessons: 45-minute sessions for one member each, booked on
+ * the purchase the office picked. Weekly repetition books every remaining credit before expiry.
+ */
+export function createSchedulePrivateLessonsHandler() {
+  return async (request: CallableRequest<unknown>) => {
+    const actor = await requireActiveOfficeActor(request);
+    const input = schedulePrivateLessonsInputSchema.safeParse(request.data);
+    if (!input.success)
+      throw new HttpsError("invalid-argument", "Private lesson request is invalid");
+    const { purchaseId, locationId, instructorId } = input.data;
+    const db = getFirestore();
+    const store = getStore();
+    const base = `academies/${actor.academyId}`;
+    const [purchaseSnapshot, locations] = await Promise.all([
+      db.doc(`${base}/privateLessonPurchases/${purchaseId}`).get(),
+      store.listLocations(actor.academyId),
+    ]);
+    const location = locations.find((row) => row.locationId === locationId);
+    if (!location) throw new HttpsError("invalid-argument", "Choose a location.");
+    const stored: Record<string, unknown> = { ...purchaseSnapshot.data() };
+    const owned = stored.academyId === actor.academyId;
+    delete stored.academyId;
+    const parsed = privateLessonPurchaseSchema.safeParse(stored);
+    const purchase = owned && parsed.success ? parsed.data : null;
+    if (
+      !purchase ||
+      purchase.status !== "approved" ||
+      purchase.creditsRemaining < 1 ||
+      purchase.expiresAt === null ||
+      Date.parse(purchase.expiresAt) <= Date.now()
+    ) {
+      throw new HttpsError("failed-precondition", "No private lesson credit available.");
+    }
+    const starts = privateLessonStarts(purchase, input.data, location.timezone);
+    if (starts.length === 0 || Date.parse(starts[0]!) <= Date.now()) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Choose a future date before the private lessons expire.",
+      );
+    }
+    const programRef = db.doc(`${base}/programs/${PRIVATE_LESSON_PROGRAM_ID}`);
+    if (!(await programRef.get()).exists) {
+      // ponytail: the type is created on first use, so no manual catalogue step is needed.
+      await programRef.set(
+        {
+          programId: PRIVATE_LESSON_PROGRAM_ID,
+          academyId: actor.academyId,
+          name: "Private Lesson",
+          ageBand: "all",
+          discipline: "bjj",
+          level: "all-levels",
+          abbreviation: "PRIV",
+          colour: "#D9D6FF",
+          kind: "class-frequency",
+          dropInPolicy: "unlimited",
+          notifyByEmail: false,
+          showInList: false,
+          message: "",
+          active: true,
+          schemaVersion: "1",
+          ageRange: { minAge: 16, maxAge: null },
+        },
+        { merge: true },
+      );
+    }
+    const sessions = [];
+    // ponytail: one booking transaction per date; a failure stops the rest and keeps what was booked.
+    for (const startAt of starts) {
+      const session = await store.createSession(
+        actor.academyId,
+        {
+          programId: PRIVATE_LESSON_PROGRAM_ID,
+          locationId,
+          instructorId,
+          instructorIds: [instructorId],
+          title: "Private lesson",
+          startAt,
+          endAt: new Date(Date.parse(startAt) + PRIVATE_LESSON_MINUTES * 60_000).toISOString(),
+          capacity: 1,
+          minParticipants: 0,
+          accessMode: "private-lesson",
+          bookingRules: "defined",
+          waitingList: "off",
+        },
+        actor.userId,
+      );
+      try {
+        await bookPrivateLessonTransaction(db as unknown as BookingFirestore, {
+          academyId: actor.academyId,
+          actorId: actor.userId,
+          actorRole: actor.role as "owner" | "administrator",
+          actorIp: clientIpFromRequest(request),
+          studentId: purchase.studentId,
+          sessionId: session.sessionId,
+          purchaseId,
+          now: new Date().toISOString(),
+        });
+      } catch (error) {
+        // An empty private lesson would sit on the calendar with nobody booked: take it away.
+        await store
+          .cancelSession(
+            actor.academyId,
+            session.sessionId,
+            "Private lesson not booked",
+            actor.userId,
+          )
+          .catch(() => undefined);
+        if (sessions.length === 0) return mapPrivateLessonBookingError(error);
+        break;
+      }
+      sessions.push(session);
+    }
+    return { sessions, requested: starts.length };
+  };
+}
+
+export const schedulePrivateLessons = onCall(scheduleCallableOptions, async (request) =>
+  createSchedulePrivateLessonsHandler()(request),
 );

@@ -512,7 +512,9 @@ async function weeklyUsage(input: {
   let used = 0;
   const openMatByProgram = new Map<string, boolean>();
   for (const sessionSnapshot of sessions.docs) {
-    if (sessionSnapshot.data()?.courseId) continue;
+    // Courses and private lessons are paid separately: neither uses a weekly class place.
+    if (sessionSnapshot.data()?.courseId || sessionSnapshot.data()?.accessMode === "private-lesson")
+      continue;
     const historical = historicalSession(sessionSnapshot, input.academyId, sessionSnapshot.id);
     if (
       historical.status === "cancelled" ||

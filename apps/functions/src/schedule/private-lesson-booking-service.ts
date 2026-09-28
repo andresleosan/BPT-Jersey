@@ -13,6 +13,7 @@ import {
   type BookingRecord,
   type PrivateLessonBookingRecord,
 } from "@bpt-jersey/domain/schedule";
+import { jerseyWeekKey } from "@bpt-jersey/domain/schedule/member-calendar";
 
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import {
@@ -30,6 +31,8 @@ export type PrivateLessonBookingCommand = Readonly<{
   actorIp: string | null;
   studentId: string;
   sessionId: string;
+  /** The purchase the office picked; without it the credit that expires first is used. */
+  purchaseId?: string;
   now: string;
 }>;
 
@@ -235,8 +238,46 @@ export async function bookPrivateLesson(
       const purchase = storedPurchase(doc.data(), academyId, doc.id);
       return purchase && purchase.studentId === studentId ? [purchase] : [];
     });
-    const credit = pickCreditPurchase(purchases, command.now);
+    const credit = pickCreditPurchase(
+      command.purchaseId === undefined
+        ? purchases
+        : purchases.filter((purchase) => purchase.purchaseId === command.purchaseId),
+      command.now,
+    );
     if (!credit) return fail("ineligible", "No private lesson credit available.");
+    if (credit.optionId === "monthly") {
+      // The monthly plan is one lesson a week: no two of its lessons in the same Jersey week.
+      const uses = await transaction.get(
+        firestore
+          .collection(collection(academyId, "privateLessonCreditUses"))
+          .where("purchaseId", "==", credit.purchaseId)
+          .limit(maxRows),
+      );
+      const others = await Promise.all(
+        uses.docs
+          .filter((doc) => doc.data()?.state === "consumed" && doc.data()?.sessionId !== sessionId)
+          .map((doc) =>
+            transaction.get(
+              firestore.doc(
+                `${collection(academyId, "sessions")}/${String(doc.data()?.sessionId)}`,
+              ),
+            ),
+          ),
+      );
+      const week = jerseyWeekKey(session.startAt);
+      if (
+        others.some((doc) => {
+          const other = doc.data();
+          return (
+            other?.status !== "cancelled" &&
+            typeof other?.startAt === "string" &&
+            jerseyWeekKey(other.startAt) === week
+          );
+        })
+      ) {
+        return fail("ineligible", "The monthly plan allows one private lesson a week.");
+      }
+    }
 
     const booking: PrivateLessonBookingRecord = Object.freeze({
       bookingId,

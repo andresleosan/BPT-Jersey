@@ -511,7 +511,13 @@ export function AdminNotificationPanel({ role }: { role?: string | null | undefi
                     .map((fact) => (
                       <div key={fact.label}>
                         <dt>{fact.label}</dt>
-                        <dd>{fact.value}</dd>
+                        <dd>
+                          {fact.label === "Phone" && /^\+?[\d\s()-]{6,}$/u.test(fact.value) ? (
+                            <a href={`tel:${fact.value.replace(/[^\d+]/gu, "")}`}>{fact.value}</a>
+                          ) : (
+                            fact.value
+                          )}
+                        </dd>
                       </div>
                     ))}
                 </dl>

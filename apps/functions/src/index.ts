@@ -268,6 +268,7 @@ export {
   subscriptionExpiryNoticesSchedule,
   adminOperationalNotificationCreated,
   adminPlanPaymentNotificationCreated,
+  adminPrivateLessonPurchaseNotificationCreated,
 } from "./notifications/admin-notification-triggers.js";
 
 export {
@@ -407,4 +408,5 @@ export { getPrivateLessonProofUrl } from "./private-lessons/private-lesson-calla
 export {
   bookPrivateLesson,
   cancelPrivateLessonBooking,
+  schedulePrivateLessons,
 } from "./schedule/schedule-callables.js";

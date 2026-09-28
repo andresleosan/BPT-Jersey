@@ -347,7 +347,7 @@ export function MemberCalendar({
       const rowProgram = programs.get(row.programId);
       if (row.courseId || row.status === "cancelled" || !bookings.has(row.sessionId) || !rowProgram)
         continue;
-      if (rowProgram.discipline === "open-mat") continue;
+      if (rowProgram.discipline === "open-mat" || row.accessMode === "private-lesson") continue;
       const key = jerseyWeekKey(row.startAt);
       classesBookedByWeek.set(key, (classesBookedByWeek.get(key) ?? 0) + 1);
     }
@@ -357,7 +357,13 @@ export function MemberCalendar({
     for (const sessionRecord of sorted) {
       const program = programs.get(sessionRecord.programId);
       const day = dayOf(days, sessionRecord.startAt);
-      if (!program || !day || !canViewMemberSession(sessionRecord, program, memberContext))
+      // The server only sends a member's own private lessons; their plan does not decide those.
+      if (
+        !program ||
+        !day ||
+        (sessionRecord.accessMode !== "private-lesson" &&
+          !canViewMemberSession(sessionRecord, program, memberContext))
+      )
         continue;
       const booking = bookings.get(sessionRecord.sessionId);
       const derived = deriveSessionStatus({

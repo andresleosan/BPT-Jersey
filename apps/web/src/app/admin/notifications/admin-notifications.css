@@ -489,6 +489,15 @@
   overflow-wrap: anywhere;
 }
 
+.admin-inbox-facts dd a {
+  align-items: center;
+  color: var(--bpt-purple);
+  display: inline-flex;
+  font-weight: 700;
+  min-height: 44px;
+  text-underline-offset: 0.2em;
+}
+
 .admin-inbox-actions,
 .admin-inbox-links {
   display: flex;
