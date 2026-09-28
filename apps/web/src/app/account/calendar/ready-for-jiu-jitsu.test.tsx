@@ -73,7 +73,7 @@ function stubGeolocation(
 }
 
 function slider(): HTMLInputElement {
-  return screen.getByRole("slider", { name: /Slide to clock in/u }) as HTMLInputElement;
+  return screen.getByRole("slider", { name: /Slide to check in/u }) as HTMLInputElement;
 }
 
 function slideToEnd(): void {
@@ -110,7 +110,7 @@ describe("ReadyForJiuJitsu", () => {
 
     expect(document.querySelector(".ready-fill")).toHaveAttribute(
       "data-label",
-      "Slide to clock in",
+      "Slide to check in",
     );
     expect(accountCss).toMatch(
       /\.ready-label\s*\{[\s\S]*?color: var\(--mat-ink\);[\s\S]*?z-index: 1;/u,
@@ -273,7 +273,7 @@ describe("ReadyForJiuJitsu", () => {
     locate(near);
     await waitFor(() => expect(clockIn).toHaveBeenCalledTimes(1));
     expect(slider()).toBeDisabled();
-    expect(screen.getByRole("status")).toHaveTextContent("Clocking you in…");
+    expect(screen.getByRole("status")).toHaveTextContent("Checking you in…");
     fireEvent.pointerUp(slider());
     fireEvent.touchEnd(slider());
     fireEvent.keyUp(slider(), { key: "End" });

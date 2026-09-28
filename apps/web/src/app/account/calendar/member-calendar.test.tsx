@@ -504,7 +504,7 @@ describe("MemberCalendar", () => {
       render(<MemberCalendar onSignOut={vi.fn()} repository={repository} session={teen} />);
       await waitFor(() => expect(document.querySelector(".skeleton-card")).not.toBeInTheDocument());
       expect(screen.queryByRole("region", { name: "Ready for Jiu Jitsu" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("slider", { name: /Slide to clock in/u })).not.toBeInTheDocument();
+      expect(screen.queryByRole("slider", { name: /Slide to check in/u })).not.toBeInTheDocument();
     });
 
     it("clocks in and turns the card into the confirmation and the session card into attended", async () => {
@@ -517,7 +517,7 @@ describe("MemberCalendar", () => {
           session={teen}
         />,
       );
-      const slider = await screen.findByRole("slider", { name: /Slide to clock in/u });
+      const slider = await screen.findByRole("slider", { name: /Slide to check in/u });
       fireEvent.change(slider, { target: { value: "100" } });
       fireEvent.keyUp(slider, { key: "End" });
       await screen.findByRole("heading", { name: "You're in" });
@@ -550,7 +550,7 @@ describe("MemberCalendar", () => {
       const repository = createFixtureCalendarRepository("teenStudent");
       const loadWeek = vi.spyOn(repository, "loadWeek");
       render(<MemberCalendar onSignOut={vi.fn()} repository={repository} session={teen} />);
-      await screen.findByRole("slider", { name: /Slide to clock in/u });
+      await screen.findByRole("slider", { name: /Slide to check in/u });
       await act(async () => {});
       const before = loadWeek.mock.calls.length;
       await act(async () => {
@@ -597,10 +597,10 @@ describe("MemberCalendar", () => {
       });
       const repository = { ...fixture, loadWeek };
       render(<MemberCalendar onSignOut={vi.fn()} repository={repository} session={teen} />);
-      await screen.findByRole("slider", { name: /Slide to clock in/u });
+      await screen.findByRole("slider", { name: /Slide to check in/u });
       await vi.advanceTimersByTimeAsync(60_000);
       await screen.findByRole("heading", { name: "You're in" });
-      expect(screen.queryByRole("slider", { name: /Slide to clock in/u })).not.toBeInTheDocument();
+      expect(screen.queryByRole("slider", { name: /Slide to check in/u })).not.toBeInTheDocument();
     });
 
     it("does not replace a successful clock-in with an earlier poll response", async () => {
@@ -618,7 +618,7 @@ describe("MemberCalendar", () => {
       });
       const repository = { ...fixture, loadWeek };
       render(<MemberCalendar onSignOut={vi.fn()} repository={repository} session={teen} />);
-      const slider = await screen.findByRole("slider", { name: /Slide to clock in/u });
+      const slider = await screen.findByRole("slider", { name: /Slide to check in/u });
       await vi.advanceTimersByTimeAsync(60_000);
       await waitFor(() => expect(resolveStale).toBeDefined());
       fireEvent.change(slider, { target: { value: "100" } });

@@ -675,6 +675,7 @@ export function MemberCalendar({
             if (candidateScope) handleCheckedIn(candidateScope, record);
           }}
           studentId={participant.studentId}
+          autoCheckIn={checkIn}
           {...(candidateProgram ? { program: candidateProgram } : {})}
           {...(siblingHint ? { siblingHint } : {})}
         />
