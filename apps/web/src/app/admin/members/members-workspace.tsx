@@ -375,7 +375,7 @@ function DeleteAccountButton({ row, onDeleted }: { row: MemberOverviewRow; onDel
   const [error, setError] = useState<string>();
   async function remove() {
     const sure = window.confirm(
-      `Delete the account of ${row.fullName}?\n\nThis removes the member record, its identifiers, memberships and future bookings. It cannot be undone.`,
+      `Delete the account of ${row.fullName}?\n\nThis removes the member, its login, bookings, memberships, attendance and billing history, even if the account is active. A backup is kept for 30 days.`,
     );
     if (!sure) return;
     setBusy(true);
