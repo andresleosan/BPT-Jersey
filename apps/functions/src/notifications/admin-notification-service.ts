@@ -15,6 +15,7 @@ import {
 import { parseMembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle";
 import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
 import { expiryNotificationId } from "./notification-identifiers.js";
+import { when } from "./notification-details.js";
 
 const dayMs = 24 * 60 * 60 * 1000;
 
@@ -60,6 +61,9 @@ export async function syncSubscriptionNotice(
           (await transaction.get(base.collection("students").doc(current.studentId))).data(),
         )
       : null;
+    const planName: unknown = due
+      ? (await transaction.get(base.collection("plans").doc(current.planId))).get("displayName")
+      : null;
     if (
       oldRef &&
       old?.exists &&
@@ -88,6 +92,18 @@ export async function syncSubscriptionNotice(
         membershipId,
         studentId: current.studentId,
         endsAt: new Date(end).toISOString(),
+        details: {
+          from: student.value.fullName,
+          amount: null,
+          facts: [
+            { label: "Member", value: student.value.fullName },
+            ...(typeof planName === "string" && planName
+              ? [{ label: "Plan", value: planName.slice(0, 300) }]
+              : []),
+            { label: "Ends", value: when(end) ?? end },
+            { label: "Status", value: current.status.replace(/^./u, (c) => c.toUpperCase()) },
+          ],
+        },
       };
       transaction.create(noticeRef, adminNotificationSchema.parse(value));
     }
