@@ -1109,7 +1109,10 @@ export function createWalkInCheckInHandler(options: StudentScopeOptions) {
     const raw = typeof request.data === "object" && request.data !== null ? request.data : {};
     const { membershipId, ...rest } = raw as Record<string, unknown>;
     const parsed = parseSelfCheckInInput(rest);
-    if (!parsed.ok || typeof membershipId !== "string" || membershipId.trim() === "") {
+    if (
+      !parsed.ok ||
+      (membershipId !== undefined && (typeof membershipId !== "string" || membershipId.trim() === ""))
+    ) {
       throw new HttpsError("invalid-argument", "Walk-in check-in request is invalid");
     }
     const { sessionId, studentId, position } = parsed.value;
@@ -1117,11 +1120,14 @@ export function createWalkInCheckInHandler(options: StudentScopeOptions) {
 
     const firestore = getFirestore();
     const academyPath = `academies/${actor.academyId}`;
+    // Mirrors the calendar: a member with no plan (trial) and every Intro class book as intro.
+    let intro = membershipId === undefined;
     try {
       const session = (await firestore.doc(`${academyPath}/sessions/${sessionId}`).get()).data();
       if (!session || session.status === "cancelled" || typeof session.startAt !== "string") {
         throw new HttpsError("not-found", "Class is not available");
       }
+      intro ||= session.accessMode === "intro";
       const [location, program] = await Promise.all([
         typeof session.locationId === "string"
           ? firestore.doc(`${academyPath}/locations/${session.locationId}`).get()
@@ -1154,12 +1160,27 @@ export function createWalkInCheckInHandler(options: StudentScopeOptions) {
     }
 
     try {
-      await firestore.runTransaction((transaction) =>
+      if (intro) {
+        await (
+          options.requestIntroBooking ??
+          ((command) =>
+            requestIntroBookingTransaction(firestore as unknown as BookingFirestore, command))
+        )({
+          academyId: actor.academyId,
+          actorId: actor.userId,
+          actorRole: actor.role,
+          actorIp: clientIpFromRequest(request),
+          studentId,
+          sessionId,
+          now: new Date().toISOString(),
+          walkIn: true,
+        });
+      } else await firestore.runTransaction((transaction) =>
         confirmBookingInTransaction({
           firestore: firestore as unknown as BookingFirestore,
           transaction: transaction as never,
           academyId: actor.academyId,
-          request: { sessionId, studentId, membershipId: membershipId.trim() },
+          request: { sessionId, studentId, membershipId: String(membershipId).trim() },
           actorId: actor.userId,
           actorIp: clientIpFromRequest(request),
           actorRole: actor.role as never,

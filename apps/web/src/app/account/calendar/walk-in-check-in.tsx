@@ -30,7 +30,7 @@ export function WalkInCheckIn({ entries, studentId, membershipId, walkIn, onChec
   const [status, setStatus] = useState("");
 
   async function pick(entry: CalendarEntry) {
-    if (!walkIn || !membershipId || busy) return;
+    if (!walkIn || busy) return;
     setBusy(entry.session.sessionId);
     setStatus("Checking you're at the gym…");
     try {
@@ -43,7 +43,7 @@ export function WalkInCheckIn({ entries, studentId, membershipId, walkIn, onChec
       await walkIn({
         sessionId: entry.session.sessionId,
         studentId,
-        membershipId,
+        ...(membershipId ? { membershipId } : {}),
         position: reading.position,
       });
       setStatus("You're checked in.");
@@ -55,8 +55,7 @@ export function WalkInCheckIn({ entries, studentId, membershipId, walkIn, onChec
     }
   }
 
-  // ponytail: trial and intro-only members have no membership to book with; the coach checks them in.
-  const canBook = Boolean(walkIn && membershipId);
+  const canBook = Boolean(walkIn);
   return (
     <section className="ready-card" aria-labelledby="walk-in-title">
       <p className="member-eyebrow ready-eyebrow">Check in</p>
