@@ -152,6 +152,7 @@ export {
   saveProgram,
   saveSession,
   selfCheckIn,
+  walkInCheckIn,
   updateClass,
   updateLocation,
   updateProgram,

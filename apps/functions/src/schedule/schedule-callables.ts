@@ -26,7 +26,11 @@ import {
   type AttendanceRecord,
   type BulkBookEligibleSessionsResult,
 } from "@bpt-jersey/domain/schedule";
-import { parseSelfCheckInInput } from "@bpt-jersey/domain/schedule/self-check-in";
+import {
+  decideSelfCheckIn,
+  isOpenMatProgram,
+  parseSelfCheckInInput,
+} from "@bpt-jersey/domain/schedule/self-check-in";
 import {
   parseCopyWeekInput,
   parseCreateLocationInput,
@@ -40,7 +44,11 @@ import {
 
 import { clientIpFromRequest } from "../audit/client-ip.js";
 import { requireUserActor } from "../auth/user-authorization.js";
-import { BookingTransactionError, type BookingFirestore } from "./booking-transaction-service.js";
+import {
+  BookingTransactionError,
+  confirmBookingInTransaction,
+  type BookingFirestore,
+} from "./booking-transaction-service.js";
 import {
   requestIntroBooking as requestIntroBookingTransaction,
   type IntroBookingCommand,
@@ -1085,6 +1093,101 @@ export function createSelfCheckInHandler(options: StudentScopeOptions) {
 }
 
 /**
+ * Walk-in check-in (the NFC tag / QR code at the door opens /checkin): a member at the gym without
+ * a booking picks the class. The window and 50 m gate are judged first; only then is the class
+ * booked with the 60-minute cutoff waived (plan, terms, capacity and payment rules all still
+ * apply) and the attendance recorded through the ordinary self check-in, which judges it again.
+ */
+export function createWalkInCheckInHandler(options: StudentScopeOptions) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    if (staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
+      throw new HttpsError("permission-denied", "Staff check in members from the coach screen");
+    }
+    const raw = typeof request.data === "object" && request.data !== null ? request.data : {};
+    const { membershipId, ...rest } = raw as Record<string, unknown>;
+    const parsed = parseSelfCheckInInput(rest);
+    if (!parsed.ok || typeof membershipId !== "string" || membershipId.trim() === "") {
+      throw new HttpsError("invalid-argument", "Walk-in check-in request is invalid");
+    }
+    const { sessionId, studentId, position } = parsed.value;
+    await requireStudentScope(request, studentId, options);
+
+    const firestore = getFirestore();
+    const academyPath = `academies/${actor.academyId}`;
+    try {
+      const session = (await firestore.doc(`${academyPath}/sessions/${sessionId}`).get()).data();
+      if (!session || session.status === "cancelled" || typeof session.startAt !== "string") {
+        throw new HttpsError("not-found", "Class is not available");
+      }
+      const [location, program] = await Promise.all([
+        typeof session.locationId === "string"
+          ? firestore.doc(`${academyPath}/locations/${session.locationId}`).get()
+          : undefined,
+        typeof session.programId === "string"
+          ? firestore.doc(`${academyPath}/programs/${session.programId}`).get()
+          : undefined,
+      ]);
+      const geofence = location?.data()?.geofence as
+        | { latitude?: unknown; longitude?: unknown }
+        | undefined;
+      const decision = decideSelfCheckIn({
+        session: {
+          startAt: session.startAt,
+          endAt: typeof session.endAt === "string" ? session.endAt : session.startAt,
+        },
+        isOpenMat: isOpenMatProgram({ discipline: program?.data()?.discipline }),
+        site:
+          typeof geofence?.latitude === "number" && typeof geofence.longitude === "number"
+            ? { latitude: geofence.latitude, longitude: geofence.longitude }
+            : null,
+        position,
+        nowMs: Date.now(),
+      });
+      if (!decision.ok) {
+        throw new SelfCheckInRefusedError(decision.error.reason, decision.error.distanceMeters);
+      }
+    } catch (error) {
+      return mapSelfCheckInError(error);
+    }
+
+    try {
+      await firestore.runTransaction((transaction) =>
+        confirmBookingInTransaction({
+          firestore: firestore as unknown as BookingFirestore,
+          transaction: transaction as never,
+          academyId: actor.academyId,
+          request: { sessionId, studentId, membershipId: membershipId.trim() },
+          actorId: actor.userId,
+          actorIp: clientIpFromRequest(request),
+          actorRole: actor.role as never,
+          now: new Date().toISOString(),
+          walkIn: true,
+        }),
+      );
+    } catch (error) {
+      return mapBookingError(error);
+    }
+
+    try {
+      const attendance = await store.recordSelfCheckIn(
+        actor.academyId,
+        parsed.value,
+        actor.userId,
+        undefined,
+        actor.role as ScheduleMutationActorRole,
+        clientIpFromRequest(request),
+      );
+      return { attendance };
+    } catch (error) {
+      return mapSelfCheckInError(error);
+    }
+  };
+}
+
+/**
  * T110: applies the quorum rule to one session. Staff only, and safe to repeat: the sweep writes only
  * while the session is still `scheduled`, so a second call reports the earlier cancellation instead
  * of touching anything (BRIEF decision 3).
@@ -1530,6 +1633,10 @@ export const checkIn = onCall(scheduleCallableOptions, async (request) => {
 
 export const selfCheckIn = onCall(scheduleCallableOptions, async (request) =>
   createSelfCheckInHandler({ store: getStore() })(request),
+);
+
+export const walkInCheckIn = onCall(scheduleCallableOptions, async (request) =>
+  createWalkInCheckInHandler({ store: getStore() })(request),
 );
 
 export const reconcileSessionQuorum = onCall(scheduleCallableOptions, async (request) =>

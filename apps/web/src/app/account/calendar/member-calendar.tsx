@@ -24,6 +24,8 @@ import {
 import { PLAN_CATALOG, type PlanId } from "@bpt-jersey/domain/memberships";
 import type { TrialAccessView } from "@bpt-jersey/domain/memberships/trial-access";
 import {
+  isOpenMatProgram,
+  isSelfCheckInWindowOpen,
   nextSelfCheckInSession,
   type SelfCheckInCandidate,
 } from "@bpt-jersey/domain/schedule/self-check-in";
@@ -49,6 +51,7 @@ import { CancelDialog } from "./cancel-dialog";
 import { DayColumn } from "./day-column";
 import { PaygPaymentDialog } from "./payg-payment-dialog";
 import { ReadyForJiuJitsu } from "./ready-for-jiu-jitsu";
+import { WalkInCheckIn } from "./walk-in-check-in";
 import type { CalendarEntry } from "./session-card";
 
 const desktopQuery = "(min-width: 48rem)";
@@ -72,6 +75,8 @@ type MemberCalendarProps = Readonly<{
   onParticipants?: (studentIds: readonly string[]) => void;
   /** The signed-in uid: paints the last member and week at once while the live load runs. */
   cacheKey?: string;
+  /** Opened from the door's NFC tag / QR code: members without a booking pick their class. */
+  checkIn?: boolean;
 }>;
 
 type LoadState = "loading" | "ready" | "error";
@@ -148,6 +153,7 @@ export function MemberCalendar({
   gate,
   onParticipants,
   cacheKey,
+  checkIn = false,
 }: MemberCalendarProps) {
   const viewport = useViewport();
   const now = useMinuteClock();
@@ -302,9 +308,11 @@ export function MemberCalendar({
       ? week
       : undefined;
 
-  const entriesByDay = useMemo(() => {
+  const { byDay: entriesByDay, walkIns } = useMemo(() => {
     const map = new Map<string, CalendarEntry[]>();
-    if (!selectedWeek || !participant) return map;
+    // Classes the member could walk into right now without a booking (the /checkin door link).
+    const walkIns: CalendarEntry[] = [];
+    if (!selectedWeek || !participant) return { byDay: map, walkIns };
     const programs = new Map(selectedWeek.programs.map((p) => [p.programId, p]));
     const bookings = new Map(
       selectedWeek.bookings.filter((b) => b.status !== "cancelled").map((b) => [b.sessionId, b]),
@@ -376,6 +384,16 @@ export function MemberCalendar({
         weeklyClassesBooked: classesBookedByWeek.get(jerseyWeekKey(sessionRecord.startAt)) ?? 0,
         now,
       });
+      if (
+        !booking &&
+        !attendance.has(sessionRecord.sessionId) &&
+        !sessionRecord.courseId &&
+        sessionRecord.accessMode !== "private-lesson" &&
+        (derived.status === "open" || derived.status === "closed") &&
+        isSelfCheckInWindowOpen(sessionRecord, isOpenMatProgram(program), now.getTime())
+      ) {
+        walkIns.push({ session: sessionRecord, program, derived, booking });
+      }
       // Members see what they can book, plus their own bookings and attendance; nothing else.
       // Private lessons stay on the calendar, locked, so members know the office arranges them.
       if (!memberVisibleStatuses.has(derived.status) && derived.lockedReason !== "office_arranged")
@@ -384,7 +402,7 @@ export function MemberCalendar({
       list.push({ session: sessionRecord, program, derived, booking });
       map.set(day.dateKey, list);
     }
-    return map;
+    return { byDay: map, walkIns };
   }, [selectedWeek, participant, days, now]);
 
   const candidate: SelfCheckInCandidate | undefined = useMemo(
@@ -659,6 +677,16 @@ export function MemberCalendar({
           studentId={participant.studentId}
           {...(candidateProgram ? { program: candidateProgram } : {})}
           {...(siblingHint ? { siblingHint } : {})}
+        />
+      ) : null}
+      {checkIn && !blocked && !failed && weekState === "ready" && !candidate && participant ? (
+        <WalkInCheckIn
+          entries={walkIns}
+          key={participant.studentId}
+          onCheckedIn={() => setReloadToken((value) => value + 1)}
+          studentId={participant.studentId}
+          {...(participant.membershipId ? { membershipId: participant.membershipId } : {})}
+          {...(repository.walkIn ? { walkIn: repository.walkIn.bind(repository) } : {})}
         />
       ) : null}
       {top ? <div className="member-top">{top}</div> : null}

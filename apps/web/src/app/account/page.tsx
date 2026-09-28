@@ -32,6 +32,8 @@ function AccountContent() {
   if (!session || !role || !repository) {
     return null;
   }
+  // Arrived from the door's NFC tag / QR code (/checkin).
+  const checkIn = new URLSearchParams(window.location.search).has("checkin");
 
   async function handleSignOut(): Promise<void> {
     clearCalendarCache(session!.uid);
@@ -45,6 +47,7 @@ function AccountContent() {
         {(gate, track) => (
           <MemberCalendar
             cacheKey={session.uid}
+            checkIn={checkIn}
             onSignOut={() => void handleSignOut()}
             repository={repository}
             session={{ role, displayName }}
