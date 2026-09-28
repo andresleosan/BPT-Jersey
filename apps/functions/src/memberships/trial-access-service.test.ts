@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { TrialAccessRecord } from "@bpt-jersey/domain";
 import type { BookingRecord } from "@bpt-jersey/domain/schedule";
-import { futureIntroBookingCount, readTrialAccess, trialView, type TrialReader } from "./trial-access-service.js";
+import {
+  futureIntroBookingCount,
+  readTrialAccess,
+  trialView,
+  type TrialReader,
+} from "./trial-access-service.js";
 
 const academyId = "academy-1";
 const studentId = "student-1";
@@ -98,6 +103,7 @@ describe("trialView", () => {
     const record = trial({ countedAttendanceIds: ["a1"] });
     expect(trialView(record, 3, now)).toEqual({
       site: "Town",
+      experience: "beginner",
       allowance: 2,
       attendedCount: 1,
       futureBookings: 3,
@@ -121,9 +127,7 @@ describe("futureIntroBookingCount", () => {
   });
 
   it("ignores attended sessions", () => {
-    expect(
-      futureIntroBookingCount([booking()], sessions, new Set(["session-1"]), now),
-    ).toBe(0);
+    expect(futureIntroBookingCount([booking()], sessions, new Set(["session-1"]), now)).toBe(0);
   });
 
   it("ignores past sessions", () => {
@@ -141,6 +145,8 @@ describe("futureIntroBookingCount", () => {
   });
 
   it("ignores bookings whose session is missing from the map", () => {
-    expect(futureIntroBookingCount([booking({ sessionId: "unknown" })], sessions, new Set(), now)).toBe(0);
+    expect(
+      futureIntroBookingCount([booking({ sessionId: "unknown" })], sessions, new Set(), now),
+    ).toBe(0);
   });
 });

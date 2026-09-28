@@ -5213,8 +5213,13 @@ a.admin-birthday-badge:focus-visible,
 .members-plan-expiring {
   color: #8a5a00;
 }
-.members-plan-expired {
+.members-plan-expired,
+.members-plan-none,
+.members-plan-trial-ended {
   color: #8d1c2f;
+}
+.members-plan-pending {
+  color: #8a5a00;
 }
 .members-legacy-tools {
   margin-top: 1.5rem;

@@ -41,6 +41,13 @@ export function EnrolmentPlanChoices({
   const recommended =
     plans.find((plan) => plan.classSites.length === 1 && plan.billingPeriod !== "per-session") ??
     plans[0];
+  // Beginners train at Town; adults among them are limited to the Introduction Class, while kids
+  // and teens join the classes of their age group. The count comes from the domain allowance.
+  const trialClasses = enrolmentTrialAllowance(declaration.experience, age);
+  const trialAccess =
+    declaration.experience === "beginner" && age >= 16
+      ? `${trialClasses} free Introduction Classes in Town`
+      : `${trialClasses} free ${trialClasses === 1 ? "class" : "classes"} at ${trainingCenter}`;
   return (
     <fieldset className="enrol-plan-choices" disabled={disabled}>
       <legend>
@@ -48,8 +55,9 @@ export function EnrolmentPlanChoices({
       </legend>
       {/*
         The free trial comes first and is the choice nobody has to make: somebody who has never
-        trained finds their own option at the top instead of guessing at a plan. What they declare
-        here only decides how many free classes they are offered — the office confirms the level.
+        trained finds their own option at the top instead of guessing at a plan. The experience
+        answered in the details only decides how many free classes are offered and where — the
+        office confirms the level.
       */}
       <label className="enrol-plan-option">
         <input
@@ -61,13 +69,9 @@ export function EnrolmentPlanChoices({
           aria-describedby={`enrol-plan-${id}-trial-access`}
         />
         <span>
-          <strong>I am a beginner</strong>
+          <strong>Free Trial</strong>
           <span className="enrol-plan-access" id={`enrol-plan-${id}-trial-access`}>
-            {age < 16
-              ? "Trial: 2 free classes for your age group"
-              : enrolmentTrialAllowance(declaration.experience, age) === 2
-                ? "Trial: 2 free Introduction Classes"
-                : "Trial: 1 free Introduction Class"}
+            {trialAccess}
           </span>
         </span>
       </label>

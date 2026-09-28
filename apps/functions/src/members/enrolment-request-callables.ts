@@ -182,7 +182,14 @@ export async function submitEnrolmentRequestHandler(
   const actor = actorWithRole(request, clientRoles, "A client account is required");
   const occurredAt = now(services);
   const parsed = parseEnrolmentRequestSubmission(request.data, occurredAt.slice(0, 10));
-  if (!parsed.ok) throw new HttpsError("invalid-argument", "Enrolment payload is invalid");
+  if (!parsed.ok) {
+    if (parsed.error.some((item) => item.code === "beginner_must_start_at_town"))
+      throw new HttpsError(
+        "invalid-argument",
+        "Beginners start at Town with the Introduction Class.",
+      );
+    throw new HttpsError("invalid-argument", "Enrolment payload is invalid");
+  }
   try {
     if (parsed.value.payment) {
       const proofId = parsed.value.payment.proofId;

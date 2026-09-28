@@ -1,18 +1,17 @@
 import type { UserActorContext } from "@bpt-jersey/domain";
 import { createHash } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
-import { trialAccessSchema, trialExpiresAt } from "@bpt-jersey/domain/memberships/trial-access";
 import { ageOnDate } from "@bpt-jersey/domain/schedule/member-calendar";
 import { PLAN_CATALOG } from "@bpt-jersey/domain/memberships";
 import {
   enrolmentNeedsPayment,
   enrolmentPaymentTotal,
   enrolmentStudents,
-  enrolmentTrialAllowance,
   trialPlanChoice,
 } from "@bpt-jersey/domain/members/enrolment-requests";
 import { createLevelCatalogStore } from "../levels/level-service.js";
 import { saveManualSubscription } from "../memberships/manual-subscription-service.js";
+import { newTrialAccessRecord } from "../memberships/trial-access-service.js";
 import {
   EnrolmentApprovalError,
   type EnrolmentApprovalDependencies,
@@ -40,7 +39,9 @@ export function createEnrolmentRegistration(
         if (!catalog.definitions.some((level) => level.definitionKey === selection.definitionKey))
           fail("Choose a current level from the catalogue.");
         const trial = selection.planId === trialPlanChoice;
-        const plan = trial ? undefined : PLAN_CATALOG.find((item) => item.planId === selection.planId);
+        const plan = trial
+          ? undefined
+          : PLAN_CATALOG.find((item) => item.planId === selection.planId);
         if (!trial && !plan) fail("Choose a catalogue plan.");
         const preferred = students[index]!.plan;
         // The office may turn any request into a trial; otherwise the applicant's own choice stands.
@@ -104,23 +105,18 @@ export function createEnrolmentRegistration(
             continue;
           }
           const startsAt = record.approvalStartedAt!;
-          const age = student.dateOfBirth ? ageOnDate(student.dateOfBirth, startsAt.slice(0, 10)) : null;
+          const age = student.dateOfBirth
+            ? ageOnDate(student.dateOfBirth, startsAt.slice(0, 10))
+            : null;
           await trialRef.set(
-            trialAccessSchema.parse({
-              trialId: studentId,
+            newTrialAccessRecord({
               academyId: record.academyId,
               studentId,
               site: student.trainingCenter,
               experience,
-              allowance: enrolmentTrialAllowance(experience, age),
-              countedAttendanceIds: [],
-              status: "active",
+              age,
               startsAt,
-              expiresAt: trialExpiresAt(startsAt),
               enrolmentRequestId: record.enrolmentRequestId,
-              createdAt: startsAt,
-              updatedAt: startsAt,
-              schemaVersion: "1",
             }),
           );
           continue;

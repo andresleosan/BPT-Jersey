@@ -32,8 +32,17 @@ const statusFilters = [
 type StatusFilter = (typeof statusFilters)[number]["value"] | "everyone";
 
 function groupLabel(row: MemberOverviewRow): string {
-  const band = row.ageBand === "kids" ? "Kids" : row.ageBand === "teens" ? "Teens" : row.ageBand === "adult" ? "Adults" : "Group to be confirmed";
-  return row.centreConfirmed ? `${band} · ${row.trainingCenter}` : `${band} · centre to be confirmed`;
+  const band =
+    row.ageBand === "kids"
+      ? "Kids"
+      : row.ageBand === "teens"
+        ? "Teens"
+        : row.ageBand === "adult"
+          ? "Adults"
+          : "Group to be confirmed";
+  return row.centreConfirmed
+    ? `${band} · ${row.trainingCenter}`
+    : `${band} · centre to be confirmed`;
 }
 
 /** A guardian with no member record of their own: there is no student profile to open or delete. */
@@ -41,18 +50,38 @@ function isSyntheticGuardian(row: MemberOverviewRow): boolean {
   return row.studentId.startsWith("guardian:");
 }
 
+/** A person in a request still waiting for approval: reviewed in Enrolment requests, not a profile. */
+function isPendingRequest(row: MemberOverviewRow): boolean {
+  return row.studentId.startsWith("request:");
+}
+
+const requestsHref = "/admin/members/requests";
+
 export function planLabel(row: MemberOverviewRow): { title: string; detail: string } {
-  if (row.rowKind === "guardian") return { title: "Guardian", detail: "Parent or guardian of an active member" };
-  if (!row.plan) return { title: "No plan", detail: row.source === "regyfit" ? "Previous plan not linked" : "—" };
-  const ends = row.plan.endsAt ? new Date(row.plan.endsAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null;
+  if (row.rowKind === "guardian")
+    return { title: "Guardian", detail: "Parent or guardian of an active member" };
+  if (row.planState === "pending") return { title: "Free Trial", detail: "Pending approval" };
+  if (!row.plan) return { title: "Needs Plan Renovation", detail: "No plan assigned yet" };
+  const ends = row.plan.endsAt
+    ? new Date(row.plan.endsAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
+    : null;
+  if (row.planState === "expired")
+    return {
+      title: "Needs Plan Renovation",
+      detail: `${row.plan.displayName} ended ${ends ?? "—"}`,
+    };
+  if (row.planState === "trial-ended")
+    return {
+      title: "Trial ended",
+      detail:
+        row.plan.status === "exhausted" ? "Free classes used" : `Free Trial ended ${ends ?? "—"}`,
+    };
   const detail =
-    row.planState === "expired"
-      ? `Expired on ${ends ?? "—"}`
-      : row.planState === "trial"
-        ? `Trial until ${ends ?? "—"}`
-        : ends
-          ? `Valid until ${ends}`
-          : "Ongoing";
+    row.planState === "trial"
+      ? `Trial until ${ends ?? "—"}`
+      : ends
+        ? `Valid until ${ends}`
+        : "Ongoing";
   return { title: row.plan.displayName, detail };
 }
 
@@ -80,7 +109,9 @@ export function filterRows(
   const query = filters.query.trim().toLowerCase();
   return rows.filter(
     (row) =>
-      (query === "" || row.fullName.toLowerCase().includes(query) || row.guardian?.fullName.toLowerCase().includes(query)) &&
+      (query === "" ||
+        row.fullName.toLowerCase().includes(query) ||
+        row.guardian?.fullName.toLowerCase().includes(query)) &&
       // The search always looks across everyone: a returning member must be findable at once.
       (query !== "" || matchesStatus(row, filters.status)) &&
       (filters.centre === "" || row.trainingCenter === filters.centre) &&
@@ -89,7 +120,10 @@ export function filterRows(
   );
 }
 
-type WorkspaceState = { status: "loading" } | { status: "ready"; overview: MemberOverview } | { status: "error"; message: string };
+type WorkspaceState =
+  | { status: "loading" }
+  | { status: "ready"; overview: MemberOverview }
+  | { status: "error"; message: string };
 
 function readView(search: string): MemberView {
   const view = new URLSearchParams(search).get("view");
@@ -114,8 +148,16 @@ export function MembersWorkspace() {
     let live = true;
     void getMemberOverview()
       .then((overview) => live && startTransition(() => setState({ status: "ready", overview })))
-      .catch((error: unknown) =>
-        live && startTransition(() => setState({ status: "error", message: error instanceof Error ? error.message : "Unable to load the member directory." })),
+      .catch(
+        (error: unknown) =>
+          live &&
+          startTransition(() =>
+            setState({
+              status: "error",
+              message:
+                error instanceof Error ? error.message : "Unable to load the member directory.",
+            }),
+          ),
       );
     return () => {
       live = false;
@@ -123,7 +165,10 @@ export function MembersWorkspace() {
   }, [reloadToken]);
 
   const rows = useMemo(() => (state.status === "ready" ? state.overview.rows : []), [state]);
-  const visible = useMemo(() => filterRows(rows, { query, status, centre, band, source }), [rows, query, status, centre, band, source]);
+  const visible = useMemo(
+    () => filterRows(rows, { query, status, centre, band, source }),
+    [rows, query, status, centre, band, source],
+  );
   const counters = state.status === "ready" ? state.overview.counters : undefined;
   const reload = () => setReloadToken((token) => token + 1);
 
@@ -143,6 +188,10 @@ export function MembersWorkspace() {
         <div className="members-cell">
           {isSyntheticGuardian(row) ? (
             <strong>{row.fullName}</strong>
+          ) : isPendingRequest(row) ? (
+            <Link className="member-record-link" href={requestsHref}>
+              {row.fullName}
+            </Link>
           ) : (
             <Link className="member-record-link" href={recordHref(row.studentId)}>
               {row.fullName}
@@ -151,7 +200,9 @@ export function MembersWorkspace() {
           <span className="members-cell-detail">
             {isSyntheticGuardian(row)
               ? "Guardian account"
-              : `${row.age === undefined ? "Age unknown" : `${row.age} years`} · ${row.source === "regyfit" ? "Regyfit" : "BPT registration"}`}
+              : isPendingRequest(row)
+                ? `${row.age === undefined ? "Age unknown" : `${row.age} years`} · Awaiting approval`
+                : `${row.age === undefined ? "Age unknown" : `${row.age} years`} · ${row.source === "regyfit" ? "Regyfit" : "BPT registration"}`}
           </span>
         </div>
       ),
@@ -180,7 +231,9 @@ export function MembersWorkspace() {
         return (
           <div className="members-cell">
             <span>{plan.title}</span>
-            <span className={`members-cell-detail members-plan-${row.planState}`}>{plan.detail}</span>
+            <span className={`members-cell-detail members-plan-${row.planState}`}>
+              {plan.detail}
+            </span>
           </div>
         );
       },
@@ -190,9 +243,23 @@ export function MembersWorkspace() {
       label: "Guardian / account",
       render: (row: MemberOverviewRow) => (
         <div className="members-cell">
-          <span>{row.guardian ? row.guardian.fullName : row.ownAccount ? "Own account" : row.ageBand === "adult" ? "No account yet" : "—"}</span>
+          <span>
+            {row.guardian
+              ? row.guardian.fullName
+              : row.ownAccount
+                ? "Own account"
+                : row.ageBand === "adult"
+                  ? "No account yet"
+                  : "—"}
+          </span>
           <span className="members-cell-detail">
-            {row.guardian ? (row.guardian.online ? "Online access" : "Office contact only") : row.ownAccount ? "Online access" : "No online access"}
+            {row.guardian
+              ? row.guardian.online
+                ? "Online access"
+                : "Office contact only"
+              : row.ownAccount
+                ? "Online access"
+                : "No online access"}
           </span>
         </div>
       ),
@@ -217,6 +284,10 @@ export function MembersWorkspace() {
       render: (row: MemberOverviewRow) =>
         isSyntheticGuardian(row) ? (
           <span className="members-cell-detail">—</span>
+        ) : isPendingRequest(row) ? (
+          <Link className="membership-table-button" href={requestsHref}>
+            Review request
+          </Link>
         ) : (
           <DeleteAccountButton row={row} onDeleted={reload} />
         ),
@@ -272,7 +343,9 @@ export function MembersWorkspace() {
                 type="button"
               >
                 {item.label}
-                {item.value === "review" && counters ? <span className="members-tab-count">{counters.review}</span> : null}
+                {item.value === "review" && counters ? (
+                  <span className="members-tab-count">{counters.review}</span>
+                ) : null}
               </button>
             </li>
           ))}
@@ -295,7 +368,10 @@ export function MembersWorkspace() {
       ) : view === "families" ? (
         <FamiliesView rows={state.overview.rows} />
       ) : view === "review" ? (
-        <DataReview rows={state.overview.rows.filter((row) => row.flags.length > 0)} onSaved={reload} />
+        <DataReview
+          rows={state.overview.rows.filter((row) => row.flags.length > 0)}
+          onSaved={reload}
+        />
       ) : (
         <section className="admin-panel-card" aria-label="Member directory">
           <div className="admin-filter-bar members-filters">
@@ -310,7 +386,10 @@ export function MembersWorkspace() {
             </label>
             <label className="admin-filter-control">
               Status
-              <select onChange={(event) => setStatus(event.target.value as StatusFilter)} value={status}>
+              <select
+                onChange={(event) => setStatus(event.target.value as StatusFilter)}
+                value={status}
+              >
                 <option value="everyone">Everyone</option>
                 {statusFilters.map((item) => (
                   <option key={item.value} value={item.value}>
@@ -353,14 +432,21 @@ export function MembersWorkspace() {
               No members match these filters.
             </p>
           ) : (
-            <AdminDataTable caption="Member directory" columns={columns} rowKey={(row) => row.studentId} rows={visible} />
+            <AdminDataTable
+              caption="Member directory"
+              columns={columns}
+              rowKey={(row) => row.studentId}
+              rows={visible}
+            />
           )}
           <details className="members-legacy-tools">
             <summary>Migration tools</summary>
             <p>
-              Legacy members not yet in this directory are decided in the <Link href="/admin/members/migration">migration queue</Link>.
-              The <Link href="/admin/members/search?archive">imported archive</Link> stays readable until history moves into each record.
-              Family operations: <Link href="/admin/families">Families and minors</Link>. Exact-name lookup:
+              Legacy members not yet in this directory are decided in the{" "}
+              <Link href="/admin/members/migration">migration queue</Link>. The{" "}
+              <Link href="/admin/members/search?archive">imported archive</Link> stays readable
+              until history moves into each record. Family operations:{" "}
+              <Link href="/admin/families">Families and minors</Link>. Exact-name lookup:
             </p>
             <MemberNameSearch />
           </details>
@@ -370,7 +456,13 @@ export function MembersWorkspace() {
   );
 }
 
-function DeleteAccountButton({ row, onDeleted }: { row: MemberOverviewRow; onDeleted: () => void }) {
+function DeleteAccountButton({
+  row,
+  onDeleted,
+}: {
+  row: MemberOverviewRow;
+  onDeleted: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   async function remove() {
@@ -391,7 +483,12 @@ function DeleteAccountButton({ row, onDeleted }: { row: MemberOverviewRow; onDel
   }
   return (
     <div className="members-cell">
-      <button className="membership-table-button membership-table-button-danger" disabled={busy} onClick={() => void remove()} type="button">
+      <button
+        className="membership-table-button membership-table-button-danger"
+        disabled={busy}
+        onClick={() => void remove()}
+        type="button"
+      >
         {busy ? "Deleting…" : "Delete account"}
       </button>
       {error ? (

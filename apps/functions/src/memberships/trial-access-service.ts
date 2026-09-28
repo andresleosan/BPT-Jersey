@@ -1,6 +1,9 @@
+import type { Site } from "@bpt-jersey/domain/memberships";
+import { enrolmentTrialAllowance } from "@bpt-jersey/domain/members/enrolment-requests";
 import {
   trialAccessSchema,
   trialAttendedCount,
+  trialExpiresAt,
   trialStatusAt,
   type TrialAccessRecord,
   type TrialAccessView,
@@ -22,6 +25,34 @@ export async function readTrialAccess(
   return parsed.data;
 }
 
+/** The `trialAccess/{studentId}` document an approved student starts their free trial with. */
+export function newTrialAccessRecord(input: {
+  academyId: string;
+  studentId: string;
+  site: Site;
+  experience: "beginner" | "experienced";
+  age: number | null;
+  startsAt: string;
+  enrolmentRequestId: string;
+}): TrialAccessRecord {
+  return trialAccessSchema.parse({
+    trialId: input.studentId,
+    academyId: input.academyId,
+    studentId: input.studentId,
+    site: input.site,
+    experience: input.experience,
+    allowance: enrolmentTrialAllowance(input.experience, input.age),
+    countedAttendanceIds: [],
+    status: "active",
+    startsAt: input.startsAt,
+    expiresAt: trialExpiresAt(input.startsAt),
+    enrolmentRequestId: input.enrolmentRequestId,
+    createdAt: input.startsAt,
+    updatedAt: input.startsAt,
+    schemaVersion: "1",
+  });
+}
+
 export function trialView(
   trial: TrialAccessRecord,
   futureBookings: number,
@@ -29,6 +60,7 @@ export function trialView(
 ): TrialAccessView {
   return {
     site: trial.site,
+    experience: trial.experience,
     allowance: trial.allowance,
     attendedCount: trialAttendedCount(trial),
     futureBookings,

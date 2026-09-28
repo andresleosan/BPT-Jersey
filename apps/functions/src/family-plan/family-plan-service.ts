@@ -15,6 +15,7 @@ import {
   type CanonicalMemberDirectoryActor,
   type CanonicalMemberDirectoryService,
 } from "../members/canonical-member-directory-service.js";
+import { newTrialAccessRecord } from "../memberships/trial-access-service.js";
 
 /**
  * "Add a child" / "Train yourself" from My plan (plan tasks 2.2). A member asks; the office decides.
@@ -389,6 +390,34 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
           throw new HttpsError(
             "failed-precondition",
             "Another office user took over this request. Reload it.",
+          );
+        }
+        // The approved person starts on a beginner Free Trial, written with the approval so a retry
+        // neither duplicates nor misses it. A student who already has a trial or any membership keeps
+        // what they have. Adult beginners start at Town; kids and teens keep their centre.
+        const trialRef = db.doc(`academies/${actor.academyId}/trialAccess/${studentId}`);
+        const [trialSnapshot, memberships] = await Promise.all([
+          transaction.get(trialRef),
+          transaction.get(
+            db
+              .collection(`academies/${actor.academyId}/memberships`)
+              .where("studentId", "==", studentId)
+              .limit(1),
+          ),
+        ]);
+        if (!trialSnapshot.exists && memberships.empty) {
+          const age = memberAgeOn(person.dateOfBirth, dateKeyInJersey(new Date(decidedAt)));
+          transaction.create(
+            trialRef,
+            newTrialAccessRecord({
+              academyId: actor.academyId,
+              studentId,
+              site: age === null || age >= 16 ? "Town" : person.trainingCenter,
+              experience: "beginner",
+              age,
+              startsAt: decidedAt,
+              enrolmentRequestId: `plan-${request.requestId}`,
+            }),
           );
         }
         transaction.update(reference, {

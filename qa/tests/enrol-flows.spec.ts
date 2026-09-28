@@ -22,14 +22,20 @@ async function fillApplicant(
   who: "adult" | "guardian",
   details: { name: string; dob: string; centre?: "Town" | "West" },
 ) {
-  await page.getByLabel(
-    who === "adult" ? "I am joining as an adult student" : "I am a parent or guardian enrolling a child",
-  ).check();
+  await page
+    .getByLabel(
+      who === "adult"
+        ? "I am joining as an adult student"
+        : "I am a parent or guardian enrolling a child",
+    )
+    .check();
   const applicant = page.locator("fieldset.enrol-applicant");
   await applicant.getByLabel("Full name").fill(details.name);
   await applicant.getByLabel("Date of birth").fill(details.dob);
   await applicant.getByLabel("Phone (required)").fill("07700900111");
   if (who === "adult") {
+    // West is only open to somebody who has trained before; beginners are moved to Town.
+    if (details.centre === "West") await applicant.getByLabel("Yes, I have trained before").check();
     await applicant.getByLabel("Training centre").selectOption(details.centre ?? "Town");
     await applicant.getByLabel("Evening").check();
   }
@@ -142,8 +148,14 @@ test("R2 guardian enrols two children on different plans with one transfer", asy
   await addChild(page, 1, `Leo ${surname}`, "2015-09-12");
   await acceptWaiverAndContinue(page);
   const plans = page.locator("fieldset.enrol-plan-choices");
-  await plans.nth(0).getByRole("radio", { name: /Town Kids & Teens 1x/u }).check();
-  await plans.nth(1).getByRole("radio", { name: /Town Kids & Teens 2x/u }).check();
+  await plans
+    .nth(0)
+    .getByRole("radio", { name: /Town Kids & Teens 1x/u })
+    .check();
+  await plans
+    .nth(1)
+    .getByRole("radio", { name: /Town Kids & Teens 2x/u })
+    .check();
   await page.getByRole("button", { name: "Continue to payment" }).click();
   await payByTransfer(page, "£230.00");
   await ownerApproves(browser, name);
@@ -161,6 +173,7 @@ test("R3 pay-as-you-go and beginner trial send without a screenshot", async ({
   await fillApplicant(page, "adult", { name: payg, dob: "1992-01-20", centre: "West" });
   await acceptWaiverAndContinue(page);
   await page.getByRole("radio", { name: /West Pay as you go/u }).check();
+  await page.getByLabel("Belt").selectOption({ index: 1 });
   await page.getByRole("button", { name: "Continue to review" }).click();
   await page.getByRole("button", { name: "Send request to the academy" }).click();
   await expect(page.getByRole("heading", { name: "Waiting for the academy" })).toBeVisible({
@@ -175,7 +188,7 @@ test("R3 pay-as-you-go and beginner trial send without a screenshot", async ({
   await trialPage.goto("/enrol");
   await fillApplicant(trialPage, "adult", { name: trial, dob: "1994-07-07" });
   await acceptWaiverAndContinue(trialPage);
-  await trialPage.getByRole("radio", { name: /I am a beginner/u }).check();
+  await trialPage.getByRole("radio", { name: /Free Trial/u }).check();
   await trialPage.getByRole("button", { name: "Continue to review" }).click();
   await trialPage.getByRole("button", { name: "Send request to the academy" }).click();
   await expect(trialPage.getByRole("heading", { name: "Waiting for the academy" })).toBeVisible({
@@ -196,8 +209,14 @@ test("R4 removing a child and going back leaves no ghost child or amount", async
   await addChild(page, 1, `${name} Drop`, "2014-05-05");
   await acceptWaiverAndContinue(page);
   const plans = page.locator("fieldset.enrol-plan-choices");
-  await plans.nth(0).getByRole("radio", { name: /Town Kids & Teens 2x/u }).check();
-  await plans.nth(1).getByRole("radio", { name: /Town Kids & Teens 1x/u }).check();
+  await plans
+    .nth(0)
+    .getByRole("radio", { name: /Town Kids & Teens 2x/u })
+    .check();
+  await plans
+    .nth(1)
+    .getByRole("radio", { name: /Town Kids & Teens 1x/u })
+    .check();
   await page.getByRole("button", { name: "Back to details" }).click();
   await page.getByRole("button", { name: "Remove child 2" }).click();
   await expect(page.getByRole("group", { name: "Child 2" })).toHaveCount(0);
@@ -207,7 +226,10 @@ test("R4 removing a child and going back leaves no ghost child or amount", async
   await page.getByRole("button", { name: "Continue to payment" }).click();
   await expect(page.getByText("Transfer total: £135.00")).toBeVisible();
   await page.getByRole("button", { name: "Back to plans" }).click();
-  await plans.nth(0).getByRole("radio", { name: /Town Kids & Teens 1x/u }).check();
+  await plans
+    .nth(0)
+    .getByRole("radio", { name: /Town Kids & Teens 1x/u })
+    .check();
   await page.getByRole("button", { name: "Continue to payment" }).click();
   await expect(page.getByText("Transfer total: £95.00")).toBeVisible();
 });

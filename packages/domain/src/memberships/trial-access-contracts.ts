@@ -56,6 +56,8 @@ export function trialStatusAt(trial: TrialAccessRecord, nowIso: string): TrialAc
 
 export type TrialAccessView = Readonly<{
   site: Site;
+  /** Absent from older responses: treated as a beginner (Introduction Classes only for adults). */
+  experience?: "beginner" | "experienced" | undefined;
   allowance: 1 | 2;
   attendedCount: number;
   futureBookings: number;

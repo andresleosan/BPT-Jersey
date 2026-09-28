@@ -160,7 +160,10 @@ export type EnrolmentExperience = (typeof enrolmentExperiences)[number];
  * Beginners get two free Introduction Classes; an adult who declares a belt gets one.
  * Kids and teens (under 16) always get two free classes of their age group.
  */
-export function enrolmentTrialAllowance(experience: EnrolmentExperience, age: number | null = null): 1 | 2 {
+export function enrolmentTrialAllowance(
+  experience: EnrolmentExperience,
+  age: number | null = null,
+): 1 | 2 {
   return experience === "beginner" || (age !== null && age < 16) ? 2 : 1;
 }
 
@@ -210,7 +213,10 @@ export const enrolmentApprovalSetupSchema = z
             startsOn: z.iso.date(),
             endsOn: z.iso.date().nullable(),
           })
-          .refine((s) => s.planId !== trialPlanChoice || s.endsOn === null, "Trial has no paid period"),
+          .refine(
+            (s) => s.planId !== trialPlanChoice || s.endsOn === null,
+            "Trial has no paid period",
+          ),
       )
       .min(1)
       .max(maximumEnrolmentRequestMinors + 1),
@@ -585,9 +591,15 @@ export function parseEnrolmentRequestSubmission(
     planSelections,
     levelDeclarations,
   });
-  for (const { path, plan, declaration } of trialChoices) {
+  for (const { path, person, plan, declaration } of trialChoices) {
+    // Beginners start at Town with the Introduction Class, whatever plan they chose: West is only
+    // open to somebody who has trained before.
+    if (declaration?.experience === "beginner" && person.trainingCenter === "West") {
+      return err(issue(["levelDeclarations", ...path], "beginner_must_start_at_town"));
+    }
     if (plan !== trialPlanChoice) continue;
-    if (!declaration) return err(issue(["levelDeclarations", ...path], "level_declaration_required"));
+    if (!declaration)
+      return err(issue(["levelDeclarations", ...path], "level_declaration_required"));
     if (declaration.experience === "experienced" && declaration.declaredLevelKey === null) {
       return err(issue(["levelDeclarations", ...path], "declared_level_required"));
     }
