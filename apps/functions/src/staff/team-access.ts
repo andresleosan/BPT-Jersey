@@ -45,6 +45,8 @@ export type TeamAccessServices = Readonly<{
   ): Promise<void>;
   /** userId → coach profile (the active one wins when a login has several). */
   coachProfilesByUser(academyId: string): Promise<ReadonlyMap<string, TeamCoachProfile>>;
+  /** Owner/administrator → coach: claims, users.adminRole and an active coach profile. */
+  demoteToCoach(actor: AdminActor, uid: string): Promise<void>;
   now(): Date;
 }>;
 function verifiedApplication(request: CallableRequest): void {
@@ -109,11 +111,13 @@ export async function changeTeamRoleHandler(
   if (!input.success) throw new HttpsError("invalid-argument", "Invalid role change.");
   if (input.data.userId === actor.uid)
     throw new HttpsError("failed-precondition", "Ask another owner to change your role.");
-  await services.grant(
-    actor,
-    { uid: input.data.userId, email: input.data.email, role: input.data.role },
-    "team",
-  );
+  if (input.data.role === "coach") await services.demoteToCoach(actor, input.data.userId);
+  else
+    await services.grant(
+      actor,
+      { uid: input.data.userId, email: input.data.email, role: input.data.role },
+      "team",
+    );
   return { changed: true };
 }
 export async function createStaffInvitationHandler(

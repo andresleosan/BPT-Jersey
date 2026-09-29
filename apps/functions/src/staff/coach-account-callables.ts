@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
-import { deleteCoachAccountSchema, setCoachBeltSchema } from "@bpt-jersey/domain/staff/team-access";
+import { deleteCoachAccountSchema, setCoachBeltSchema, setOwnerTeachesSchema, type CoachBelt } from "@bpt-jersey/domain/staff/team-access";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { requireActiveOfficeActor } from "../auth/office-actor.js";
 
@@ -90,4 +90,42 @@ export const deleteCoachAccount = onCall(browserAdminCallableOptions, async (req
   batch.create(base.collection("auditEvents").doc(), coachAudit(actor.academyId, actor.userId, userId, "staff.coach_deleted", "coach account deletion", now));
   await batch.commit();
   return { deleted: true as const };
+});
+
+/** Creates the coach profile (staffId = uid) or reactivates the existing ones. Idempotent. */
+export async function activateCoachProfile(db: Firestore, academyId: string, actorId: string, userId: string, belt?: CoachBelt) {
+  const profiles = await coachProfiles(db, academyId, userId);
+  const now = new Date().toISOString();
+  const batch = db.batch();
+  if (profiles.length === 0) {
+    batch.create(db.doc(`academies/${academyId}/staff/${userId}`), { staffId: userId, academyId, userId, role: "coach", ...(belt ? { belt } : {}), active: true, status: "active", schemaVersion: "1", createdAt: now, createdBy: actorId, updatedAt: now, updatedBy: actorId });
+  } else {
+    for (const profile of profiles) batch.update(profile.ref, { active: true, status: "active", ...(belt ? { belt } : {}), updatedAt: now, updatedBy: actorId });
+  }
+  return { batch, now };
+}
+
+export const setOwnerTeaches = onCall(browserAdminCallableOptions, async (request) => {
+  const actor = await requireActiveOfficeActor(request);
+  if (actor.role !== "owner") throw new HttpsError("permission-denied", "Only an owner can choose which owners appear on the website.");
+  const input = setOwnerTeachesSchema.safeParse(request.data);
+  if (!input.success) throw new HttpsError("invalid-argument", "Choose a belt before showing this owner on the website.");
+  const { userId, teaches, belt } = input.data;
+  const user = await getAuth().getUser(userId);
+  if (user.customClaims?.academyId !== actor.academyId || user.customClaims?.role !== "owner") {
+    throw new HttpsError("failed-precondition", "Only owner accounts use this setting.");
+  }
+  const db = getFirestore();
+  if (teaches) {
+    const { batch, now } = await activateCoachProfile(db, actor.academyId, actor.userId, userId, belt);
+    batch.create(db.collection(`academies/${actor.academyId}/auditEvents`).doc(), coachAudit(actor.academyId, actor.userId, userId, "staff.owner_teaches_on", "owner shown on the website", now));
+    await batch.commit();
+  } else {
+    const now = new Date().toISOString();
+    const batch = db.batch();
+    for (const profile of await coachProfiles(db, actor.academyId, userId)) batch.update(profile.ref, { active: false, status: "inactive", updatedAt: now, updatedBy: actor.userId });
+    batch.create(db.collection(`academies/${actor.academyId}/auditEvents`).doc(), coachAudit(actor.academyId, actor.userId, userId, "staff.owner_teaches_off", "owner hidden from the website", now));
+    await batch.commit();
+  }
+  return { teaches };
 });
