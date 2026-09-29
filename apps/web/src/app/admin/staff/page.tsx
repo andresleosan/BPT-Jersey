@@ -164,7 +164,9 @@ export function StaffAdminPage() {
       "Unable to update staff status. Please try again.",
       (profile) => {
         setSelected((current) =>
-          current?.coach ? { ...current, coach: { ...current.coach, active: profile.active } } : current,
+          current?.coach?.staffKey === profile.staffKey
+            ? { ...current, coach: { ...current.coach, active: profile.active } }
+            : current,
         );
         setRefreshKey((key) => key + 1);
       },
@@ -400,7 +402,14 @@ export function StaffAdminPage() {
           ) : (
             <p className="staff-hint">Turn on «Teaches» to manage availability and assignments.</p>
           )}
-          <button className="staff-secondary-button" type="button" onClick={() => setSelected(undefined)}>
+          <button className="staff-secondary-button" type="button"
+            onClick={() => {
+              setSelected(undefined);
+              setError("");
+              setStatus("");
+              setInvalidField(undefined);
+            }}
+          >
             Close
           </button>
         </section>
