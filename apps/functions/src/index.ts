@@ -374,6 +374,7 @@ export {
   exportCourseSubject,
 } from "./courses/course-callables.js";
 export { coursePublic } from "./courses/course-public-http.js";
+export { coachesPublic } from "./staff/coaches-public-http.js";
 export { courseScheduler, courseProofCleanup } from "./courses/course-scheduler.js";
 
 export { listMyMemberProfiles } from "./members/member-access-callables.js";
