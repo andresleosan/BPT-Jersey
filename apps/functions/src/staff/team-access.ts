@@ -91,13 +91,15 @@ export async function listTeamDirectoryHandler(
     .filter(
       (user) =>
         user.customClaims?.academyId === actor.academyId &&
-        ["owner", "administrator", "headCoach", "coach"].includes(String(user.customClaims.role)),
+        (["owner", "administrator", "headCoach", "coach"].includes(String(user.customClaims.role)) ||
+          // Deactivated coaches lose the role claim but keep their coach profile.
+          (user.customClaims.role === undefined && coaches.has(user.uid))),
     )
     .map((user) => ({
       userId: user.uid,
       name: user.displayName?.trim() ?? "",
       email: user.email ?? null,
-      role: user.customClaims!.role,
+      role: user.customClaims!.role ?? "coach",
       coach: coaches.get(user.uid) ?? null,
     }));
   return teamDirectoryResponseSchema.parse({ people, nextPageToken: page.pageToken ?? null });

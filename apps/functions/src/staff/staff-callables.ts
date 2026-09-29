@@ -442,6 +442,14 @@ export async function setStaffActiveHandler(
   const payload = parseActive(request.data);
   try {
     const current = await services.store.getStaffProfile(actor.academyId, payload.staffId);
+    if (
+      actor.role !== "owner" &&
+      (await readClaims(current.userId, services)).role === "owner"
+    )
+      throw new HttpsError(
+        "permission-denied",
+        "Only an owner can change an owner's website settings.",
+      );
     const profile = await withClaimsMutation(
       actor.uid,
       actor.academyId,

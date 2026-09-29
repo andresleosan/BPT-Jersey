@@ -20,6 +20,13 @@ export const setCoachBelt = onCall(browserAdminCallableOptions, async (request) 
   const input = setCoachBeltSchema.safeParse(request.data);
   if (!input.success) throw new HttpsError("invalid-argument", "Choose a belt from the list.");
   const db = getFirestore();
+  if (actor.role !== "owner") {
+    const target = await getAuth().getUser(input.data.userId).catch((error: { code?: string }) => {
+      if (error.code === "auth/user-not-found") throw new HttpsError("not-found", "This account no longer exists.");
+      throw error;
+    });
+    if (target.customClaims?.role === "owner") throw new HttpsError("permission-denied", "Only an owner can change an owner's website settings.");
+  }
   const profiles = await coachProfiles(db, actor.academyId, input.data.userId);
   if (profiles.length === 0) throw new HttpsError("failed-precondition", "This account has no coach profile.");
   const now = new Date().toISOString();
@@ -31,7 +38,7 @@ export const setCoachBelt = onCall(browserAdminCallableOptions, async (request) 
 });
 
 function upcomingLabel(title: unknown, startAt: string): string {
-  return `${typeof title === "string" && title ? title : "Session"} on ${startAt.slice(0, 16).replace("T", " ")}`;
+  return `${typeof title === "string" && title ? title : "Session"} on ${new Date(startAt).toLocaleString("en-GB", { timeZone: "Europe/Jersey", dateStyle: "medium", timeStyle: "short" })}`;
 }
 
 export const deleteCoachAccount = onCall(browserAdminCallableOptions, async (request) => {
@@ -47,10 +54,13 @@ export const deleteCoachAccount = onCall(browserAdminCallableOptions, async (req
     if (error.code === "auth/user-not-found") return null;
     throw error;
   });
-  if (user && (user.customClaims?.academyId !== actor.academyId || !["coach", "headCoach"].includes(String(user.customClaims?.role)))) {
+  const profiles = await coachProfiles(db, actor.academyId, userId);
+  // A deactivated coach has no role claim left, only a coach profile.
+  const claimRole = user?.customClaims?.role;
+  const isCoach = claimRole === undefined ? profiles.length > 0 : ["coach", "headCoach"].includes(String(claimRole));
+  if (user && (user.customClaims?.academyId !== actor.academyId || !isCoach)) {
     throw new HttpsError("failed-precondition", "Only coach accounts can be deleted. Change the role to Coach first.");
   }
-  const profiles = await coachProfiles(db, actor.academyId, userId);
   if (!user && profiles.length === 0) throw new HttpsError("not-found", "This coach no longer exists.");
 
   // Sessions and classes store the staffId; direct accounts use the uid as staffId.
@@ -77,8 +87,6 @@ export const deleteCoachAccount = onCall(browserAdminCallableOptions, async (req
     throw new HttpsError("failed-precondition", `Reassign these to another coach first: ${list.slice(0, 10).join("; ")}${more}.`);
   }
 
-  if (user) await auth.deleteUser(userId).catch((error: { code?: string }) => { if (error.code !== "auth/user-not-found") throw error; });
-
   const batch = db.batch();
   for (const profile of profiles) batch.delete(profile.ref);
   for (const collection of ["staffAvailability", "staffAssignments"]) {
@@ -89,6 +97,8 @@ export const deleteCoachAccount = onCall(browserAdminCallableOptions, async (req
   batch.set(base.collection("users").doc(userId), { active: false, status: "inactive", deletedAt: now, updatedAt: now, updatedBy: actor.userId }, { merge: true });
   batch.create(base.collection("auditEvents").doc(), coachAudit(actor.academyId, actor.userId, userId, "staff.coach_deleted", "coach account deletion", now));
   await batch.commit();
+  // Auth goes last: if it fails, the account stays visible in the directory and a second Delete finishes it.
+  if (user) await auth.deleteUser(userId).catch((error: { code?: string }) => { if (error.code !== "auth/user-not-found") throw error; });
   return { deleted: true as const };
 });
 
