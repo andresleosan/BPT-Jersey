@@ -749,7 +749,16 @@
 }
 
 .course-signin form {
+  display: grid;
+  gap: 1rem;
+  justify-items: start;
   margin: 1.5rem 0;
+}
+
+.course-signin label {
+  display: grid;
+  gap: 0.4rem;
+  justify-self: stretch;
 }
 
 .course-proof {
