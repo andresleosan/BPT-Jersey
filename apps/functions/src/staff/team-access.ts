@@ -1,12 +1,11 @@
-import { createHash, randomUUID } from "node:crypto";
 import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 import {
   changeTeamRoleSchema,
-  staffInvitationInputSchema,
   teamDirectoryRequestSchema,
   teamDirectoryResponseSchema,
   invitationIdentitySchema,
   type StaffInvitation,
+  type TeamCoachProfile,
   type TeamDirectoryResponse,
 } from "@bpt-jersey/domain/staff/team-access";
 import { requireAdminActor, type AdminActor } from "../auth/admin-authorization.js";
@@ -44,6 +43,8 @@ export type TeamAccessServices = Readonly<{
     target: { uid: string; email: string | null; role: "owner" | "administrator" | "coach" },
     transition: "team" | "invitation",
   ): Promise<void>;
+  /** userId → coach profile (the active one wins when a login has several). */
+  coachProfilesByUser(academyId: string): Promise<ReadonlyMap<string, TeamCoachProfile>>;
   now(): Date;
 }>;
 function verifiedApplication(request: CallableRequest): void {
@@ -83,6 +84,7 @@ export async function listTeamDirectoryHandler(
   const input = teamDirectoryRequestSchema.safeParse(request.data);
   if (!input.success) throw new HttpsError("invalid-argument", "Invalid directory request.");
   const page = await services.auth.listUsers(1000, input.data.pageToken);
+  const coaches = await services.coachProfilesByUser(actor.academyId);
   const people = page.users
     .filter(
       (user) =>
@@ -94,6 +96,7 @@ export async function listTeamDirectoryHandler(
       name: user.displayName?.trim() ?? "",
       email: user.email ?? null,
       role: user.customClaims!.role,
+      coach: coaches.get(user.uid) ?? null,
     }));
   return teamDirectoryResponseSchema.parse({ people, nextPageToken: page.pageToken ?? null });
 }
@@ -116,25 +119,12 @@ export async function changeTeamRoleHandler(
 export async function createStaffInvitationHandler(
   request: CallableRequest,
   services: TeamAccessServices,
-) {
-  const actor = await currentActor(request, services);
-  const input = staffInvitationInputSchema.safeParse(request.data);
-  if (!input.success)
-    throw new HttpsError("invalid-argument", "Enter an email address and an administrative role.");
-  if (input.data.role !== "coach" && actor.role !== "owner")
-    throw new HttpsError("permission-denied", "Only an owner can grant administrative access.");
-  const now = services.now();
-  return services.invitations.save({
-    id: createHash("sha256").update(input.data.email).digest("hex"),
-    version: randomUUID(),
-    academyId: actor.academyId,
-    ...input.data,
-    invitedBy: actor.uid,
-    createdAt: now.toISOString(),
-    expiresAt: new Date(now.getTime() + 7 * 86400000).toISOString(),
-    status: "pending",
-    claimedBy: null,
-  });
+): Promise<StaffInvitation> {
+  await currentActor(request, services);
+  throw new HttpsError(
+    "failed-precondition",
+    "Create staff with an initial password in the team directory instead.",
+  );
 }
 export async function listStaffInvitationsHandler(
   request: CallableRequest,
