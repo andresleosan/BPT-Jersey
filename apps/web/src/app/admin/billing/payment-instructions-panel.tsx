@@ -8,6 +8,7 @@ import {
   type PaymentInstructions,
 } from "../../../lib/billing-client";
 import { AdminStatusBadge } from "../admin-ui";
+import "./billing.css";
 
 /**
  * T010/T035 (re-scoped 2026-09-06): the pilot has no payment gateway. Members pay by bank transfer
@@ -85,8 +86,8 @@ export function PaymentInstructionsPanel({
         There is no card gateway in the pilot. Members pay by bank transfer or cash and you record
         the payment here. These details are shown to every member with a balance.
       </p>
-      <form onSubmit={(event) => void handleSubmit(event)}>
-        <label htmlFor="payment-account-name">
+      <form className="billing-form" onSubmit={(event) => void handleSubmit(event)}>
+        <label className="family-field" htmlFor="payment-account-name">
           Account name
           <input
             id="payment-account-name"
@@ -95,7 +96,7 @@ export function PaymentInstructionsPanel({
             value={accountName}
           />
         </label>
-        <label htmlFor="payment-sort-code">
+        <label className="family-field" htmlFor="payment-sort-code">
           Sort code
           <input
             id="payment-sort-code"
@@ -106,7 +107,7 @@ export function PaymentInstructionsPanel({
             value={sortCode}
           />
         </label>
-        <label htmlFor="payment-account-number">
+        <label className="family-field" htmlFor="payment-account-number">
           Account number
           <input
             id="payment-account-number"
@@ -117,7 +118,7 @@ export function PaymentInstructionsPanel({
             value={accountNumber}
           />
         </label>
-        <label htmlFor="payment-bank-name">
+        <label className="family-field" htmlFor="payment-bank-name">
           Bank (optional)
           <input
             id="payment-bank-name"
@@ -125,7 +126,7 @@ export function PaymentInstructionsPanel({
             value={bankName}
           />
         </label>
-        <label htmlFor="payment-reference-hint">
+        <label className="family-field billing-form-wide" htmlFor="payment-reference-hint">
           What to use as the transfer reference
           <input
             id="payment-reference-hint"
@@ -134,7 +135,7 @@ export function PaymentInstructionsPanel({
             value={referenceHint}
           />
         </label>
-        <label htmlFor="payment-accepts-cash">
+        <label className="billing-radio billing-form-wide" htmlFor="payment-accepts-cash">
           <input
             checked={acceptsCash}
             id="payment-accepts-cash"
@@ -143,11 +144,13 @@ export function PaymentInstructionsPanel({
           />
           Cash is accepted at reception
         </label>
-        {error ? <p role="alert">{error}</p> : null}
-        {message ? <p role="status">{message}</p> : null}
-        <button className="admin-home-link" disabled={busy} type="submit">
-          {busy ? "Saving..." : "Save payment instructions"}
-        </button>
+        {error ? <p className="billing-form-wide" role="alert">{error}</p> : null}
+        {message ? <p className="billing-form-wide" role="status">{message}</p> : null}
+        <div className="billing-form-wide">
+          <button className="admin-home-link" disabled={busy} type="submit">
+            {busy ? "Saving..." : "Save payment instructions"}
+          </button>
+        </div>
       </form>
     </section>
   );

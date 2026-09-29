@@ -541,6 +541,12 @@ a.admin-birthday-badge:focus-visible,
     text-transform: uppercase;
   }
 
+  .admin-data-table thead tr {
+    column-gap: 1.25rem;
+    display: flex;
+    flex-wrap: wrap;
+  }
+
   .admin-data-table th {
     padding: 0.45rem 0;
   }
@@ -2509,6 +2515,10 @@ a.admin-birthday-badge:focus-visible,
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.staff-form-grid + .staff-primary-button {
+  margin-top: 1.5rem;
 }
 
 .staff-operation-card {
