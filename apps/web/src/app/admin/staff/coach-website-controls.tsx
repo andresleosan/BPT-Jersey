@@ -4,7 +4,7 @@ import { coachBeltLabels, coachBelts, type CoachBelt, type TeamDirectoryPerson }
 import { deleteCoachAccount, setCoachBelt, setOwnerTeaches } from "../../../lib/team-access-client";
 
 /** Website settings of one person: belt, «Teaches» for owners, delete for coaches. */
-export function CoachWebsiteControls({ person, owner, onChanged }: { person: TeamDirectoryPerson; owner: boolean; onChanged: (message: string) => void }) {
+export function CoachWebsiteControls({ person, owner, onChanged }: { person: TeamDirectoryPerson; owner: boolean; onChanged: (message: string, updated?: TeamDirectoryPerson) => void }) {
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [typed, setTyped] = useState("");
@@ -15,15 +15,16 @@ export function CoachWebsiteControls({ person, owner, onChanged }: { person: Tea
   const isOwner = person.role === "owner";
   const teaches = isOwner && person.coach?.active === true;
 
-  async function run(action: () => Promise<unknown>, done: string) {
+  async function run(action: () => Promise<unknown>, done: string, updated?: TeamDirectoryPerson, onFail?: () => void) {
     setBusy(true);
     setError("");
     try {
       await action();
       setConfirming(false);
       setTyped("");
-      onChanged(done);
+      onChanged(done, updated);
     } catch (caught) {
+      onFail?.();
       setError(caught instanceof Error ? caught.message : "Unable to update this person.");
     } finally {
       setBusy(false);
@@ -31,8 +32,19 @@ export function CoachWebsiteControls({ person, owner, onChanged }: { person: Tea
   }
 
   function chooseBelt(belt: CoachBelt) {
+    if (isCoach && !person.coach) {
+      setError("This coach has no coach profile.");
+      return;
+    }
+    const previous = person.coach?.belt ?? "";
     setPendingBelt(belt);
-    if (person.coach) void run(() => setCoachBelt({ userId: person.userId, belt }), `Belt saved for ${name}.`);
+    if (person.coach)
+      void run(
+        () => setCoachBelt({ userId: person.userId, belt }),
+        `Belt saved for ${name}.`,
+        { ...person, coach: { ...person.coach, belt } },
+        () => setPendingBelt(previous),
+      );
   }
 
   if (!isCoach && !isOwner) return <p className="staff-hint">Administrators do not appear on the website.</p>;
@@ -54,6 +66,9 @@ export function CoachWebsiteControls({ person, owner, onChanged }: { person: Tea
             onChange={(event) => void run(
               () => setOwnerTeaches({ userId: person.userId, teaches: event.target.checked, ...(pendingBelt ? { belt: pendingBelt } : {}) }),
               event.target.checked ? `${name} now appears on the website.` : `${name} no longer appears on the website.`,
+              event.target.checked
+                ? { ...person, coach: { staffKey: person.coach?.staffKey ?? person.userId, active: true, belt: pendingBelt as CoachBelt } }
+                : { ...person, coach: person.coach ? { ...person.coach, active: false } : null },
             )}
           />
           <span>Teaches — show on website</span>
@@ -66,8 +81,8 @@ export function CoachWebsiteControls({ person, owner, onChanged }: { person: Tea
       )}
       {isCoach && owner && confirming && (
         <div role="group" aria-label={`Delete ${name}`}>
-          <p>This deletes {name}&apos;s login and removes them from the website. It cannot be undone. Type the coach&apos;s name to confirm.</p>
-          <input aria-label="Coach name" value={typed} onChange={(event) => setTyped(event.target.value)} />
+          <p id={`delete-coach-${person.userId}`}>This deletes {name}&apos;s login and removes them from the website. It cannot be undone. Type the coach&apos;s name to confirm.</p>
+          <input autoFocus aria-describedby={`delete-coach-${person.userId}`} aria-label="Coach name" value={typed} onChange={(event) => setTyped(event.target.value)} />
           <button
             className="staff-primary-button"
             type="button"
