@@ -1391,3 +1391,10 @@ html:has(dialog[open]:modal) {
   gap: 0.5rem;
   margin-top: 0.75rem;
 }
+
+/* Grey class: the link that opens it (My plan). */
+.session-action--link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}

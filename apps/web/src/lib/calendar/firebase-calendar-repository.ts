@@ -218,6 +218,7 @@ export function createFirebaseCalendarRepository(session: {
           bookings: week.bookings.filter((booking) => booking.schemaVersion !== "2"),
           attendance: week.attendance.filter((record) => !record.courseId),
           bookedCounts: week.bookedCounts,
+          ...(week.access ? {access: week.access} : {}),
           ...(week.groupAccess ? {groupAccess: studentGroupAccessSchema.parse(week.groupAccess)} : {}),
         };
       };

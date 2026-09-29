@@ -18,6 +18,7 @@ import {
   type SessionRecord,
 } from "@bpt-jersey/domain/schedule";
 
+import { joinClientWaitlist } from "../../../lib/waitlist-client";
 import { SessionDetailDialog } from "../session-detail/session-detail-dialog";
 
 export type CalendarEntry = Readonly<{
@@ -36,6 +37,10 @@ type SessionCardProps = Readonly<{
   /** The participant whose eyes the detail uses (cohort, own booking); absent means no detail. */
   studentId?: string | undefined;
   note?: string | undefined;
+  /** My plan, for the grey classes a plan or renewal would open; absent for teen accounts. */
+  planHref?: string | undefined;
+  /** The member's plan, to join the waitlist of a full class; absent without a plan. */
+  membershipId?: string | null | undefined;
   onBook: (entry: CalendarEntry) => void;
   onCancelRequest: (entry: CalendarEntry) => void;
 }>;
@@ -43,7 +48,7 @@ type SessionCardProps = Readonly<{
 const staticLabels: Readonly<Record<string, string>> = Object.freeze({
   missed: "Missed",
   attended: "Attended",
-  closed: "Closed",
+  closed: "Booking closed",
   full: "Full",
 });
 
@@ -54,10 +59,12 @@ export function SessionCard({
   hasTrial = false,
   studentId,
   note,
+  planHref,
+  membershipId,
   onBook,
   onCancelRequest,
 }: SessionCardProps) {
-  const [showReason, setShowReason] = useState(false);
+  const [waitlist, setWaitlist] = useState<"idle" | "busy" | "joined" | string>("idle");
   // The title that opened the detail, to take focus back on close (Safari does not focus it on click).
   const [detailOpener, setDetailOpener] = useState<HTMLElement | null>(null);
   const { session, program, derived } = entry;
@@ -129,20 +136,53 @@ export function SessionCard({
         <p className="session-note">Cancellations closed</p>
       </>
     );
-  } else if (status === "locked") {
+  } else if (status === "locked" && derived.lockedReason) {
+    // Grey: a class of their age and centre they cannot book yet, with what would open it.
+    const reason = derived.lockedReason;
+    const opensWithPlan =
+      reason === "needs_renewal" || reason === "needs_subscription" || reason === "open_mat";
     action = (
       <>
-        <button
-          aria-expanded={showReason}
-          className="session-action session-action--static"
-          onClick={() => setShowReason((value) => !value)}
-          type="button"
-        >
-          Not available
-        </button>
-        {showReason && derived.lockedReason ? (
-          <p className="session-reason">
-            {lockedReasonLabel(derived.lockedReason, site, program.ageBand)}
+        <span className="session-action session-action--static">
+          {lockedReasonLabel(reason, site, program.ageBand)}
+        </span>
+        {opensWithPlan && planHref ? (
+          <a className="session-action session-action--link" href={planHref}>
+            {reason === "needs_renewal" ? "Renew" : "Choose a plan"}
+          </a>
+        ) : null}
+      </>
+    );
+  } else if (status === "full" && studentId && membershipId && !session.courseId) {
+    const joinWaitlist = async () => {
+      setWaitlist("busy");
+      try {
+        await joinClientWaitlist({ sessionId: session.sessionId, studentId, membershipId });
+        setWaitlist("joined");
+      } catch (error) {
+        setWaitlist(error instanceof Error ? error.message : "Could not join the waitlist.");
+      }
+    };
+    action = (
+      <>
+        <span className="session-action session-action--static">Full</span>
+        {waitlist === "joined" ? (
+          <p className="session-note" role="status">
+            You&apos;re on the waitlist. We&apos;ll offer you a place if one opens.
+          </p>
+        ) : (
+          <button
+            className="session-action"
+            disabled={busy || waitlist === "busy"}
+            onClick={() => void joinWaitlist()}
+            type="button"
+          >
+            Join waitlist
+          </button>
+        )}
+        {waitlist !== "idle" && waitlist !== "busy" && waitlist !== "joined" ? (
+          <p className="session-note" role="alert">
+            {waitlist}
           </p>
         ) : null}
       </>

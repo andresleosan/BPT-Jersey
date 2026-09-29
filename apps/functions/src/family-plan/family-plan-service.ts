@@ -414,7 +414,6 @@ export function createFamilyPlanService(dependencies: FamilyPlanDependencies) {
               studentId,
               site: age === null || age >= 16 ? "Town" : person.trainingCenter,
               experience: "beginner",
-              age,
               startsAt: decidedAt,
               enrolmentRequestId: `plan-${request.requestId}`,
             }),

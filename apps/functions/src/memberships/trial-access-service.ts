@@ -31,7 +31,6 @@ export function newTrialAccessRecord(input: {
   studentId: string;
   site: Site;
   experience: "beginner" | "experienced";
-  age: number | null;
   startsAt: string;
   enrolmentRequestId: string;
 }): TrialAccessRecord {
@@ -41,7 +40,7 @@ export function newTrialAccessRecord(input: {
     studentId: input.studentId,
     site: input.site,
     experience: input.experience,
-    allowance: enrolmentTrialAllowance(input.experience, input.age),
+    allowance: enrolmentTrialAllowance(input.experience),
     countedAttendanceIds: [],
     status: "active",
     startsAt: input.startsAt,

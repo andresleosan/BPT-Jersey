@@ -235,15 +235,24 @@ export const calendarSessionStatuses = Object.freeze([
 ] as const);
 export type CalendarSessionStatus = (typeof calendarSessionStatuses)[number];
 
+/**
+ * Why a session cannot be booked. `age_band`, `site` and `paid_period` (a course the member is not
+ * on) hide the session; every other reason shows it in grey with its label, so members see what a
+ * plan, a renewal or a free week would open.
+ */
 export type LockedReason =
   | "age_band"
   | "site"
   | "open_mat"
   | "weekly_limit"
   | "paid_period"
-  | "trial_ended"
-  | "trial_intro_only"
+  | "needs_renewal"
+  | "needs_subscription"
+  | "plan_pending"
+  | "trial_booked"
   | "office_arranged";
+
+const hiddenReasons: ReadonlySet<LockedReason> = new Set(["age_band", "site", "paid_period"]);
 
 export type CalendarMemberContext = Readonly<{
   studentId: string;
@@ -261,6 +270,10 @@ export type CalendarMemberContext = Readonly<{
   introSite?: Site;
   hasActiveMembership?: boolean;
   hasAttendedIntro?: boolean;
+  /** Had a membership before: a class no plan covers asks for a renewal, not a first plan. */
+  hadMembership?: boolean;
+  /** A plan paid by transfer is waiting for the office: nothing else needs buying. */
+  planPending?: boolean;
   /** null means the live profile needs a date of birth; undefined supports fixture contexts. */
   dateOfBirth?: string | null;
   trial?: TrialAccessView;
@@ -275,6 +288,12 @@ export function sessionSite(session: Pick<SessionRecord, "locationId">): Site {
   return session.locationId === "town" ? "Town" : "West";
 }
 
+/** A class the member's age and centre admit, but no plan, trial or renewal covers yet. */
+function noPlanReason(member: CalendarMemberContext): LockedReason {
+  if (member.planPending) return "plan_pending";
+  return member.hadMembership ? "needs_renewal" : "needs_subscription";
+}
+
 function lockedReasonFor(
   session: SessionRecord,
   program: ProgramRecord,
@@ -282,15 +301,15 @@ function lockedReasonFor(
 ): LockedReason | undefined {
   if (session.courseId)
     return member.courseSessionIds?.includes(session.sessionId) ? undefined : "paid_period";
-  if (member.trial && !member.hasActiveMembership && member.membershipId === null)
+  if (member.trial && member.membershipId === null)
     return trialLockedReason(session, program, member, member.trial);
-  if (sessionAccessMode(session) === "intro") {
-    if (member.hasActiveMembership || member.hasAttendedIntro) return "paid_period";
-    return member.introSite !== undefined && member.introSite === sessionSite(session)
-      ? undefined
-      : "site";
+  // Introduction Classes belong to the Free Trial of adult beginners; nobody else sees them.
+  if (sessionAccessMode(session) === "intro") return "age_band";
+  if (member.membershipId === null) {
+    // No plan: the classes of their age at their own centre, in grey.
+    if (member.introSite !== undefined && sessionSite(session) !== member.introSite) return "site";
+    return ageReason(session, program, member) ?? noPlanReason(member);
   }
-  if (member.membershipId === null) return "paid_period";
   // An office-granted extra group waives the age rules only; the plan's centres and weekly limit still apply.
   const extra = member.additionalProgramIds?.includes(program.programId) ?? false;
   const typeReason = programTypeReason(session, program, member, extra);
@@ -315,6 +334,24 @@ function lockedReasonFor(
     return member.planOpenMatSites.includes(site) ? undefined : "open_mat";
   }
   return member.planClassSites.includes(site) ? undefined : "site";
+}
+
+/** The type's age range and centres, or the legacy age band of a type without a range. */
+function ageReason(
+  session: SessionRecord,
+  program: ProgramRecord,
+  member: CalendarMemberContext,
+): LockedReason | undefined {
+  const typeReason = programTypeReason(session, program, member);
+  if (typeReason) return typeReason;
+  if (program.ageRange || program.ageBand === "all") return undefined;
+  const band =
+    member.dateOfBirth === undefined
+      ? member.participantType
+      : member.dateOfBirth === null
+        ? "adult"
+        : participantTypeOn(member.dateOfBirth, dateKeyInJersey(new Date(session.startAt)));
+  return program.ageBand === band ? undefined : "age_band";
 }
 
 /**
@@ -350,40 +387,51 @@ export function participantTypeOn(dateOfBirth: string, dateKey: string): Partici
   return bandForAge(ageOnDate(dateOfBirth, dateKey));
 }
 
+/**
+ * Free Trial: adult (16+) beginners book Introduction Classes; everyone else books regular classes
+ * of their age at the trial centre. At most `allowance` free classes may be held at once; once they
+ * are all attended (or the 30 days are over) the classes stay in grey until a plan is bought.
+ */
 function trialLockedReason(
   session: SessionRecord,
   program: ProgramRecord,
   member: CalendarMemberContext,
   trial: TrialAccessView,
 ): LockedReason | undefined {
-  if (trial.status !== "active" || Date.parse(session.startAt) >= Date.parse(trial.expiresAt))
-    return "trial_ended";
-  if (trial.attendedCount + trial.futureBookings >= trial.allowance) return "trial_ended";
   if (sessionSite(session) !== trial.site) return "site";
-  const dateKey = dateKeyInJersey(new Date(session.startAt));
-  const age = typeof member.dateOfBirth === "string" ? ageOnDate(member.dateOfBirth, dateKey) : 16;
-  if (sessionAccessMode(session) === "intro") return undefined;
-  const typeReason = programTypeReason(session, program, member);
-  if (typeReason) return typeReason;
-  // Adult beginners: Introduction Classes only. Experienced adults may use their trial on a
-  // regular class of their age at the trial centre.
-  if (age >= 16 && trial.experience !== "experienced") return "trial_intro_only";
-  // Kids and teens may book any class of their age: the type's age range was checked above.
-  if (program.ageRange) return undefined;
-  const band =
+  const age =
     typeof member.dateOfBirth === "string"
-      ? participantTypeOn(member.dateOfBirth, dateKey)
-      : "adult";
-  return program.ageBand === band ? undefined : "age_band";
+      ? ageOnDate(member.dateOfBirth, dateKeyInJersey(new Date(session.startAt)))
+      : 16;
+  const adultBeginner = age >= 16 && trial.experience !== "experienced";
+  const intro = sessionAccessMode(session) === "intro";
+  if (intro && !adultBeginner) return "age_band";
+  if (!intro) {
+    // Same as the trial booking: a type with no age range of its own (Introduction Class,
+    // seminars) is not a trial class.
+    if (!program.ageRange && program.ageBand === "all") return "age_band";
+    const reason = ageReason(session, program, member);
+    if (reason) return reason;
+  }
+  const over =
+    trial.status !== "active" ||
+    Date.parse(session.startAt) >= Date.parse(trial.expiresAt) ||
+    trial.attendedCount >= trial.allowance;
+  if (over) return intro ? "age_band" : noPlanReason(member);
+  // An adult beginner's free classes are Introduction Classes; open mats are never a trial class.
+  if (!intro && (adultBeginner || program.discipline === "open-mat")) return noPlanReason(member);
+  if (trial.attendedCount + trial.futureBookings >= trial.allowance) return "trial_booked";
+  return undefined;
 }
 
-/** Group/site access is visibility; capacity and temporary limits are session states. */
+/** Age and centre decide visibility; a session they may not book yet still shows, in grey. */
 export function canViewMemberSession(
   session: SessionRecord,
   program: ProgramRecord,
   member: CalendarMemberContext,
 ): boolean {
-  return lockedReasonFor(session, program, member) === undefined;
+  const reason = lockedReasonFor(session, program, member);
+  return reason === undefined || !hiddenReasons.has(reason);
 }
 
 export function deriveSessionStatus(input: {
@@ -417,7 +465,14 @@ export function deriveSessionStatus(input: {
       sessionTime < Date.parse(input.member.membershipStartsAt)) ||
     (input.member.membershipEndsAt && sessionTime >= Date.parse(input.member.membershipEndsAt))
   )
-    return Object.freeze({ status: "locked", lockedReason: "paid_period" });
+    return Object.freeze({
+      status: "locked",
+      lockedReason: input.member.planPending
+        ? "plan_pending"
+        : sessionTime >= Date.parse(input.member.membershipStartsAt ?? "")
+          ? "needs_renewal"
+          : noPlanReason(input.member),
+    });
 
   const bookable =
     input.program.active &&
@@ -494,13 +549,13 @@ export function lockedReasonLabel(
   }
   if (reason === "paid_period") return "This class is outside your paid membership period";
   if (reason === "site") return `Your plan doesn't cover ${site}`;
-  if (reason === "weekly_limit") return "Weekly class limit reached";
-  if (reason === "trial_ended")
-    return "Your trial has ended. Choose a membership to keep training.";
-  if (reason === "trial_intro_only")
-    return "During your trial you can book Introduction Classes only.";
+  if (reason === "weekly_limit") return "Weekly limit reached";
+  if (reason === "needs_renewal") return "Needs renewal to book";
+  if (reason === "needs_subscription") return "Needs a subscription to book";
+  if (reason === "plan_pending") return "Plan pending approval";
+  if (reason === "trial_booked") return "Your free trial classes are booked";
   if (reason === "office_arranged") return "Arranged by the office";
-  return `Open Mats at ${site} aren't in your plan`;
+  return "Open Mat not included in your plan";
 }
 
 export * from "./student-group-access-contracts";

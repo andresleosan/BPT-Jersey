@@ -43,7 +43,7 @@ export function EnrolmentPlanChoices({
     plans[0];
   // Beginners train at Town; adults among them are limited to the Introduction Class, while kids
   // and teens join the classes of their age group. The count comes from the domain allowance.
-  const trialClasses = enrolmentTrialAllowance(declaration.experience, age);
+  const trialClasses = enrolmentTrialAllowance(declaration.experience);
   const trialAccess =
     declaration.experience === "beginner" && age >= 16
       ? `${trialClasses} free Introduction Classes in Town`

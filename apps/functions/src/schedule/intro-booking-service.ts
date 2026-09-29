@@ -370,10 +370,17 @@ export async function requestIntroBooking(
     } catch {
       return fail("ineligible", "Session access mode is invalid");
     }
+    const trialDateKey = dateKeyInJersey(new Date(session.startAt));
+    const trialAge =
+      typeof student.dateOfBirth === "string" ? ageOnDate(student.dateOfBirth, trialDateKey) : 16;
+    // Introduction Classes are for adult (16+) beginners only; kids, teens and experienced adults
+    // use their free classes on regular classes of their age.
+    if (isIntroSession && (trialAge < 16 || trial.experience === "experienced")) {
+      return fail("ineligible", "Introduction Classes are for adult beginners");
+    }
     if (!isIntroSession) {
-      const dateKey = dateKeyInJersey(new Date(session.startAt));
-      const age =
-        typeof student.dateOfBirth === "string" ? ageOnDate(student.dateOfBirth, dateKey) : 16;
+      const dateKey = trialDateKey;
+      const age = trialAge;
       // Adult beginners: Introduction Classes only. Experienced adults may use their trial on a
       // regular class of their age at the trial centre (the allowance below still counts it).
       if (age >= 16 && trial.experience !== "experienced") {
@@ -387,6 +394,9 @@ export async function requestIntroBooking(
       const program = programSnapshot.data();
       if (!programSnapshot.exists || !program || program.academyId !== academyId) {
         return fail("ineligible", "Intro session is not bookable");
+      }
+      if (program.discipline === "open-mat") {
+        return fail("ineligible", "Open Mats are not part of the free trial");
       }
       // Kids, teens and experienced adults may book any class of their age and centre (the type's own rules).
       if (program.ageRange) {

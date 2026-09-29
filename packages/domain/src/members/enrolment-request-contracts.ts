@@ -157,14 +157,11 @@ export const enrolmentExperiences = Object.freeze(["beginner", "experienced"] as
 export type EnrolmentExperience = (typeof enrolmentExperiences)[number];
 
 /**
- * Beginners get two free Introduction Classes; an adult who declares a belt gets one.
- * Kids and teens (under 16) always get two free classes of their age group.
+ * A beginner gets two free trial classes and a student who declares a belt gets one, at any age:
+ * adult beginners use them on Introduction Classes, everyone else on regular classes of their age.
  */
-export function enrolmentTrialAllowance(
-  experience: EnrolmentExperience,
-  age: number | null = null,
-): 1 | 2 {
-  return experience === "beginner" || (age !== null && age < 16) ? 2 : 1;
+export function enrolmentTrialAllowance(experience: EnrolmentExperience): 1 | 2 {
+  return experience === "beginner" ? 2 : 1;
 }
 
 export const enrolmentLevelDeclarationSchema = z
