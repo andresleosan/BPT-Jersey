@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { academyContent } from "../content/academy";
 import Image from "next/image";
 
+import { CoachingTeam } from "./coaching-team";
 import { CourseCatalogue } from "./courses/course-catalogue";
 import { CoursePromotionBar } from "./courses/course-promotion-bar";
 
@@ -128,19 +129,7 @@ export default function HomePage() {
             </table>
           </div>
 
-          <div className="instructors-block">
-            <div className="section-heading">
-              <h3>The coaching team</h3>
-            </div>
-            <ul className="instructor-list">
-              {academyContent.instructors.map((instructor) => (
-                <li className="instructor-card" key={instructor.name}>
-                  <strong>{instructor.name}</strong>
-                  <span>{instructor.credential}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <CoachingTeam />
         </section>
 
         <section className="programs-section" id="programmes" aria-labelledby="programs-title">
