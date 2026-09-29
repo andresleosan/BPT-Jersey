@@ -68,7 +68,9 @@ function dayQuery(date: string) {
 
 async function loadAttendanceViews(date: string): Promise<readonly SessionOperationalView[]> {
   const sessions = await listSessions(dayQuery(date));
-  return Promise.all(sessions.map((session) => getSessionOperationalView(session.sessionId)));
+  // Same as the owner's class calendar: cancelled sessions (incl. the old Regyfit imports) stay out.
+  const live = sessions.filter((session) => session.status !== "cancelled");
+  return Promise.all(live.map((session) => getSessionOperationalView(session.sessionId)));
 }
 
 function rowsFromViews(views: readonly SessionOperationalView[]): readonly AttendanceRow[] {
