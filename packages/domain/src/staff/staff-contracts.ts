@@ -1,6 +1,7 @@
 import type { ValidationIssue } from "../errors";
 import type { AcademyId, StaffId, UserId } from "../identifiers";
 import { err, ok, type Result } from "../result";
+import { coachBelts, type CoachBelt } from "./team-access-contracts";
 
 export const staffRoles = Object.freeze(["headCoach", "coach"] as const);
 export type StaffRole = (typeof staffRoles)[number];
@@ -16,6 +17,8 @@ export type StaffProfile = Readonly<{
   academyId: AcademyId;
   userId: UserId;
   role: StaffRole;
+  /** Shown on the public landing page when set; absent on legacy profiles. */
+  belt?: CoachBelt;
   active: boolean;
   status: StaffStatus;
   schemaVersion: "1";
@@ -54,6 +57,8 @@ const staffProfileFields = Object.freeze([
   "updatedAt",
   "updatedBy",
 ] as const);
+
+const staffProfileFieldsWithBelt = Object.freeze([...staffProfileFields, "belt"] as const);
 
 const staffAssignmentFields = Object.freeze([
   "academyId",
@@ -164,7 +169,12 @@ export function parseStaffProfile(
   try {
     const issues: ValidationIssue[] = [];
     if (!isPlainRecord(value)) return err([issue([], "invalid_type")]);
-    if (!hasExactFields(value, staffProfileFields)) issues.push(issue([], "unexpected_property"));
+    const hasBelt = Object.hasOwn(value, "belt");
+    const fields = hasBelt ? staffProfileFieldsWithBelt : staffProfileFields;
+    if (!hasExactFields(value, fields)) issues.push(issue([], "unexpected_property"));
+    if (hasBelt && !coachBelts.includes(value.belt as CoachBelt)) {
+      issues.push(issue(["belt"], "unknown_belt"));
+    }
     validateTenantIdentity(value, issues);
     if (!isIdentifier(value.userId)) issues.push(issue(["userId"], "invalid_id"));
     if (!staffRoles.includes(value.role as StaffRole)) issues.push(issue(["role"], "unknown_role"));
