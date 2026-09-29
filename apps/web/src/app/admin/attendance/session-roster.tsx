@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
+import { searchAttendanceMembers } from "../../../lib/schedule-client";
 import type { SessionRecord } from "@bpt-jersey/domain/schedule";
 import {
   deriveRosterTag,
@@ -24,6 +27,87 @@ function timeOf(iso: string): string {
   return iso.slice(11, 16);
 }
 
+type MemberMatch = Readonly<{ studentId: string; fullName: string }>;
+
+/** Staff find a member who did not book and mark them present with one click. */
+function WalkInSearch({
+  busy,
+  onWalkIn,
+  sessionTitle,
+}: {
+  busy: boolean;
+  onWalkIn: (studentId: string, displayName: string) => void;
+  sessionTitle: string;
+}) {
+  const [query, setQuery] = useState("");
+  const [matches, setMatches] = useState<readonly MemberMatch[]>([]);
+  const [status, setStatus] = useState("");
+
+  useEffect(() => {
+    const needle = query.trim();
+    if (needle.length < 2) {
+      setMatches([]);
+      setStatus("");
+      return;
+    }
+    let active = true;
+    // Waits for a pause in typing so each keystroke does not reach the server.
+    const timer = setTimeout(() => {
+      setStatus("Searching...");
+      searchAttendanceMembers(needle).then(
+        (found) => {
+          if (!active) return;
+          setMatches(found);
+          setStatus(found.length === 0 ? "No active member matches that name." : "");
+        },
+        () => {
+          if (active) setStatus("Unable to search members. Try again.");
+        },
+      );
+    }, 300);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [query]);
+
+  return (
+    <div className="attendance-walk-in">
+      <label className="attendance-walk-in-field">
+        <span>Add a member who didn&apos;t book</span>
+        <input
+          aria-label={`Search a member to mark present in ${sessionTitle}`}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Type at least two letters of their name"
+          type="search"
+          value={query}
+        />
+      </label>
+      {status ? <p role="status">{status}</p> : null}
+      {matches.length > 0 ? (
+        <ul className="attendance-walk-in-results">
+          {matches.map((member) => (
+            <li key={member.studentId}>
+              <button
+                aria-label={`Mark ${member.fullName} present`}
+                className="button"
+                disabled={busy}
+                onClick={() => {
+                  onWalkIn(member.studentId, member.fullName);
+                  setQuery("");
+                }}
+                type="button"
+              >
+                {member.fullName}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 /**
  * One class of the day: who booked, who is already on the mat (green), who is still expected
  * (grey) and who has not clocked in although the class started (red). The coach records the
@@ -34,6 +118,7 @@ export function SessionRoster({
   onLoadMore,
   nowMs,
   onClockIn,
+  onWalkIn,
   roster,
   session,
 }: {
@@ -41,6 +126,7 @@ export function SessionRoster({
   onLoadMore?: () => void;
   nowMs: number;
   onClockIn: (studentId: string, displayName: string) => void;
+  onWalkIn?: (studentId: string, displayName: string) => void;
   roster: SessionRosterState;
   session: SessionRecord;
 }) {
@@ -108,6 +194,13 @@ export function SessionRoster({
             );
           })}
         </ul>
+      ) : null}
+      {!cancelled && onWalkIn ? (
+        <WalkInSearch
+          busy={busyStudentId !== undefined}
+          onWalkIn={onWalkIn}
+          sessionTitle={session.title}
+        />
       ) : null}
     </section>
   );

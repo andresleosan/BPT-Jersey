@@ -153,6 +153,8 @@ export {
   saveSession,
   selfCheckIn,
   walkInCheckIn,
+  searchAttendanceMembers,
+  staffWalkInAttendance,
   updateClass,
   updateLocation,
   updateProgram,

@@ -540,6 +540,50 @@ export async function recordCheckIn(input: CheckInInput): Promise<AttendanceReco
   return result.data.attendance;
 }
 
+/** /admin/attendance: active members by name (staff, coaches included), at most 20. */
+export async function searchAttendanceMembers(
+  query: string,
+): Promise<readonly { studentId: string; fullName: string }[]> {
+  const callable = httpsCallable<
+    { query: string },
+    { members: { studentId: string; fullName: string }[] }
+  >(getFirebaseFunctions(), "searchAttendanceMembers");
+  return (await callable({ query })).data.members;
+}
+
+/** /admin/attendance: books a member who did not book (cutoff waived for staff) and checks them in. */
+export async function staffWalkInAttendance(input: {
+  sessionId: string;
+  studentId: string;
+}): Promise<AttendanceRecord> {
+  const callable = httpsCallable<typeof input, { attendance: AttendanceRecord }>(
+    getFirebaseFunctions(),
+    "staffWalkInAttendance",
+  );
+  return (await callable(input)).data.attendance;
+}
+
+/** A sentence for the office from a walk-in refusal; never the raw Firebase error. */
+export function walkInFailureMessage(error: unknown): string {
+  const reason = (error as { details?: { reason?: unknown } } | null)?.details?.reason;
+  switch (reason) {
+    case "capacity":
+      return "This class is full.";
+    case "financial":
+      return "This member's account has an outstanding balance.";
+    case "weekly-limit":
+      return "This member has used all the classes their plan allows this week.";
+    case "ineligible":
+      return "This member's plan or age doesn't cover this class.";
+    case "payment":
+      return "Booked, but the class payment must be confirmed before attendance is recorded.";
+    case "conflict":
+      return "This member is already checked in.";
+    default:
+      return "Unable to mark this member. Nothing was changed.";
+  }
+}
+
 /** T040V2 member self check-in. Errors keep `code` and `details.reason` for the UI to map. */
 export async function selfCheckIn(input: SelfCheckInInput): Promise<AttendanceRecord> {
   const functions = getFirebaseFunctions();
