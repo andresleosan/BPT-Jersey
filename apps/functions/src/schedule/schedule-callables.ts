@@ -8,6 +8,7 @@ import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { error as logError } from "firebase-functions/logger";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import {
+  isIntroductionClass,
   parseBulkBookEligibleSessionsInput,
   parseCancelBookingInput,
   parseCheckInInput,
@@ -1127,7 +1128,6 @@ export function createWalkInCheckInHandler(options: StudentScopeOptions) {
       if (!session || session.status === "cancelled" || typeof session.startAt !== "string") {
         throw new HttpsError("not-found", "Class is not available");
       }
-      intro ||= session.accessMode === "intro";
       const [location, program] = await Promise.all([
         typeof session.locationId === "string"
           ? firestore.doc(`${academyPath}/locations/${session.locationId}`).get()
@@ -1136,6 +1136,7 @@ export function createWalkInCheckInHandler(options: StudentScopeOptions) {
           ? firestore.doc(`${academyPath}/programs/${session.programId}`).get()
           : undefined,
       ]);
+      intro ||= isIntroductionClass(session, program?.data());
       const geofence = location?.data()?.geofence as
         | { latitude?: unknown; longitude?: unknown }
         | undefined;

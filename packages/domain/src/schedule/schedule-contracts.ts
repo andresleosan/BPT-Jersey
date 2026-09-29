@@ -42,6 +42,21 @@ export function sessionAccessMode(value: { readonly accessMode?: unknown }): Cla
   throw new Error("Stored session accessMode is invalid");
 }
 
+/**
+ * The academy's Introduction Class is a class type (Classes / Services → Types) whose name starts
+ * with "Introduction Class". A session stored with the legacy `accessMode: "intro"` also counts.
+ */
+export function isIntroductionClass(
+  session: { readonly accessMode?: unknown },
+  program: { readonly name?: unknown } | null | undefined,
+): boolean {
+  if (session.accessMode === "intro") return true;
+  return (
+    typeof program?.name === "string" &&
+    program.name.trim().toLowerCase().startsWith("introduction class")
+  );
+}
+
 export const daysOfWeek = Object.freeze([1, 2, 3, 4, 5, 6, 7] as const);
 export type DayOfWeek = (typeof daysOfWeek)[number];
 

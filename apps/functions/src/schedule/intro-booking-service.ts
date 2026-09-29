@@ -13,6 +13,7 @@ import {
 import {
   buildBookingId,
   buildBookingIdCandidates,
+  isIntroductionClass,
   isWithinBookingCutoff,
   sessionAccessMode,
   type AgeBand,
@@ -364,9 +365,20 @@ export async function requestIntroBooking(
     }
     const expectedSite = session.locationId === "town" ? "Town" : "West";
     if (expectedSite !== trial.site) return fail("ineligible", "Intro venue is not eligible");
+    const programSnapshot = await transaction.get(
+      firestore.doc(
+        `${academyPath(academyId, "programs")}/${identifier(session.programId, "programId")}`,
+      ),
+    );
+    const storedProgram = programSnapshot.data();
+    const program =
+      programSnapshot.exists && storedProgram && storedProgram.academyId === academyId
+        ? storedProgram
+        : undefined;
     let isIntroSession: boolean;
     try {
-      isIntroSession = sessionAccessMode(session) === "intro";
+      sessionAccessMode(session);
+      isIntroSession = isIntroductionClass(session, program);
     } catch {
       return fail("ineligible", "Session access mode is invalid");
     }
@@ -381,18 +393,13 @@ export async function requestIntroBooking(
     if (!isIntroSession) {
       const dateKey = trialDateKey;
       const age = trialAge;
-      // Adult beginners: Introduction Classes only. Experienced adults may use their trial on a
-      // regular class of their age at the trial centre (the allowance below still counts it).
-      if (age >= 16 && trial.experience !== "experienced") {
-        return fail("ineligible", "During your trial you can book Introduction Classes only");
+      // Adult beginners: the first free class is an Introduction Class; once they have attended
+      // one, the second may be a regular class of their age at the trial centre. Experienced adults
+      // may use their trial on a regular class too (the allowance below still counts it).
+      if (age >= 16 && trial.experience !== "experienced" && trialAttendedCount(trial) < 1) {
+        return fail("ineligible", "Your first free class is an Introduction Class");
       }
-      const programSnapshot = await transaction.get(
-        firestore.doc(
-          `${academyPath(academyId, "programs")}/${identifier(session.programId, "programId")}`,
-        ),
-      );
-      const program = programSnapshot.data();
-      if (!programSnapshot.exists || !program || program.academyId !== academyId) {
+      if (!program) {
         return fail("ineligible", "Intro session is not bookable");
       }
       if (program.discipline === "open-mat") {

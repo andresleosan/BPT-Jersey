@@ -4,7 +4,7 @@
  * Spec: docs/archive/superpowers/specs/2026-09-10-member-calendar-design.md
  * Every day, label and deadline is computed in Europe/Jersey. Nothing here touches Firebase.
  */
-import { isWithinBookingCutoff, sessionAccessMode } from "./schedule-contracts";
+import { isIntroductionClass, isWithinBookingCutoff } from "./schedule-contracts";
 import { programAdmits } from "./classes-services-contracts";
 import type {
   AttendanceRecord,
@@ -250,6 +250,7 @@ export type LockedReason =
   | "needs_subscription"
   | "plan_pending"
   | "trial_booked"
+  | "trial_intro_first"
   | "office_arranged";
 
 const hiddenReasons: ReadonlySet<LockedReason> = new Set(["age_band", "site", "paid_period"]);
@@ -304,7 +305,7 @@ function lockedReasonFor(
   if (member.trial && member.membershipId === null)
     return trialLockedReason(session, program, member, member.trial);
   // Introduction Classes belong to the Free Trial of adult beginners; nobody else sees them.
-  if (sessionAccessMode(session) === "intro") return "age_band";
+  if (isIntroductionClass(session, program)) return "age_band";
   if (member.membershipId === null) {
     // No plan: the classes of their age at their own centre, in grey.
     if (member.introSite !== undefined && sessionSite(session) !== member.introSite) return "site";
@@ -388,9 +389,11 @@ export function participantTypeOn(dateOfBirth: string, dateKey: string): Partici
 }
 
 /**
- * Free Trial: adult (16+) beginners book Introduction Classes; everyone else books regular classes
- * of their age at the trial centre. At most `allowance` free classes may be held at once; once they
- * are all attended (or the 30 days are over) the classes stay in grey until a plan is bought.
+ * Free Trial: an adult (16+) beginner's first free class is an Introduction Class; once they have
+ * attended one, the second may be another Introduction Class or a regular class of their age at the
+ * trial centre. Everyone else books regular classes of their age at the trial centre and never an
+ * Introduction Class. At most `allowance` free classes may be held at once; once they are all
+ * attended (or the 30 days are over) the classes stay in grey until a plan is bought.
  */
 function trialLockedReason(
   session: SessionRecord,
@@ -404,7 +407,7 @@ function trialLockedReason(
       ? ageOnDate(member.dateOfBirth, dateKeyInJersey(new Date(session.startAt)))
       : 16;
   const adultBeginner = age >= 16 && trial.experience !== "experienced";
-  const intro = sessionAccessMode(session) === "intro";
+  const intro = isIntroductionClass(session, program);
   if (intro && !adultBeginner) return "age_band";
   if (!intro) {
     // Same as the trial booking: a type with no age range of its own (Introduction Class,
@@ -418,8 +421,10 @@ function trialLockedReason(
     Date.parse(session.startAt) >= Date.parse(trial.expiresAt) ||
     trial.attendedCount >= trial.allowance;
   if (over) return intro ? "age_band" : noPlanReason(member);
-  // An adult beginner's free classes are Introduction Classes; open mats are never a trial class.
-  if (!intro && (adultBeginner || program.discipline === "open-mat")) return noPlanReason(member);
+  // Open mats are never a trial class.
+  if (!intro && program.discipline === "open-mat") return noPlanReason(member);
+  // An adult beginner's first free class is an Introduction Class.
+  if (!intro && adultBeginner && trial.attendedCount < 1) return "trial_intro_first";
   if (trial.attendedCount + trial.futureBookings >= trial.allowance) return "trial_booked";
   return undefined;
 }
@@ -554,6 +559,7 @@ export function lockedReasonLabel(
   if (reason === "needs_subscription") return "Needs a subscription to book";
   if (reason === "plan_pending") return "Plan pending approval";
   if (reason === "trial_booked") return "Your free trial classes are booked";
+  if (reason === "trial_intro_first") return "Your first free class is an Introduction Class";
   if (reason === "office_arranged") return "Arranged by the office";
   return "Open Mat not included in your plan";
 }
