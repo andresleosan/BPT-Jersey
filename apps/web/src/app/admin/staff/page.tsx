@@ -3,13 +3,11 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 import {
-  listStaffProfiles,
   replaceStaffAssignments,
   replaceStaffAvailability,
   setStaffActive,
   type StaffAssignmentInput,
   type StaffAvailabilityWindowInput,
-  type StaffProfileProjection,
 } from "../../../lib/staff-client";
 import {
   listStaffPermissionGrants,
@@ -18,15 +16,18 @@ import {
   revokeStaffPermission,
   type PermissionGrantView,
 } from "../../../lib/staff-permissions-client";
-import { AdminDataTable } from "../admin-data-table";
-import { AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
+import type { TeamDirectoryPerson } from "@bpt-jersey/domain/staff/team-access";
+import { teamRoleLabels } from "@bpt-jersey/domain/staff/team-access";
 
+import { useAdminGateSession } from "../admin-gate";
+import { AdminSectionHeader } from "../admin-ui";
+
+import { CoachWebsiteControls } from "./coach-website-controls";
 import { TeamDirectory } from "./team-directory";
 
 import "../admin.css";
 
 type Mutation = "active" | "availability" | "assignment" | "revoke" | "";
-type StaffRole = StaffProfileProjection["role"];
 type AssignmentType = StaffAssignmentInput["targetType"];
 type StaffField = "startLocal" | "endLocal" | "timezone" | "targetId";
 type StaffFieldElement = HTMLInputElement | HTMLSelectElement;
@@ -47,14 +48,6 @@ const weekdays = [
   "Saturday",
 ] as const;
 
-function roleLabel(role: StaffRole): string {
-  return role === "headCoach" ? "Head coach (legacy)" : "Coach";
-}
-
-function statusLabel(active: boolean): string {
-  return active ? "Active" : "Inactive";
-}
-
 function isValidTimezone(value: string): boolean {
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: value }).format();
@@ -65,15 +58,15 @@ function isValidTimezone(value: string): boolean {
 }
 
 export function StaffAdminPage() {
-  const [profiles, setProfiles] = useState<readonly StaffProfileProjection[]>([]);
-  const [selectedStaffKey, setSelectedStaffKey] = useState<string>();
+  const session = useAdminGateSession();
+  const [selected, setSelected] = useState<TeamDirectoryPerson>();
+  const [refreshKey, setRefreshKey] = useState(0);
   const [weekday, setWeekday] = useState("1");
   const [startLocal, setStartLocal] = useState("");
   const [endLocal, setEndLocal] = useState("");
   const [timezone, setTimezone] = useState("");
   const [targetType, setTargetType] = useState<AssignmentType>("location");
   const [targetId, setTargetId] = useState("");
-  const [loading, setLoading] = useState(true);
   const [mutation, setMutation] = useState<Mutation>("");
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -81,10 +74,8 @@ export function StaffAdminPage() {
   const [grantsError, setGrantsError] = useState("");
   const [invalidField, setInvalidField] = useState<StaffField>();
   const fieldRefs = useRef<Partial<Record<StaffField, StaffFieldElement | null>>>({});
-  const rowActionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const restoreFocusRef = useRef<string | undefined>(undefined);
 
-  const selectedProfile = profiles.find((profile) => profile.staffKey === selectedStaffKey);
+  const selectedProfile = selected?.coach ?? undefined;
   const busy = mutation !== "";
 
   const refreshGrants = useCallback(async () => {
@@ -120,34 +111,8 @@ export function StaffAdminPage() {
     }
   }
 
-  useEffect(() => {
-    if (busy || !restoreFocusRef.current) return;
-    const staffKey = restoreFocusRef.current;
-    restoreFocusRef.current = undefined;
-    rowActionRefs.current[staffKey]?.focus();
-  }, [busy]);
-
-  useEffect(() => {
-    let mounted = true;
-    void listStaffProfiles()
-      .then((result) => {
-        if (!mounted) return;
-        setProfiles(result);
-        setLoading(false);
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setError("Unable to load staff profiles. Please try again.");
-        setLoading(false);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  function selectProfile(profile: StaffProfileProjection): void {
-    setSelectedStaffKey(profile.staffKey);
+  function manage(person: TeamDirectoryPerson): void {
+    setSelected(person);
     setError("");
     setStatus("");
     setInvalidField(undefined);
@@ -184,7 +149,6 @@ export function StaffAdminPage() {
     } catch {
       setError(errorMessage);
     } finally {
-      if (selectedStaffKey) restoreFocusRef.current = selectedStaffKey;
       setMutation("");
     }
   }
@@ -198,12 +162,12 @@ export function StaffAdminPage() {
       () => setStaffActive({ staffKey: selectedProfile.staffKey, active }),
       active ? "Staff profile activated." : "Staff profile deactivated.",
       "Unable to update staff status. Please try again.",
-      (profile) =>
-        setProfiles((current) =>
-          current.map((candidate) =>
-            candidate.staffKey === profile.staffKey ? profile : candidate,
-          ),
-        ),
+      (profile) => {
+        setSelected((current) =>
+          current?.coach ? { ...current, coach: { ...current.coach, active: profile.active } } : current,
+        );
+        setRefreshKey((key) => key + 1);
+      },
     );
   }
 
@@ -266,7 +230,7 @@ export function StaffAdminPage() {
         title="Staff management"
       />
 
-      <TeamDirectory />
+      <TeamDirectory onManage={manage} refreshKey={refreshKey} />
 
       {error ? (
         <p
@@ -278,74 +242,39 @@ export function StaffAdminPage() {
           {error}
         </p>
       ) : null}
-      {loading ? (
-        <p aria-live="polite" className="staff-message" role="status">
-          Loading staff profiles...
-        </p>
-      ) : profiles.length === 0 ? (
-        <p className="staff-message" role="status">
-          No staff profiles found.
-        </p>
-      ) : (
-        <AdminDataTable
-          caption="Staff profiles"
-          columns={[
-            {
-              key: "staffKey",
-              label: "Staff key",
-              render: (profile: StaffProfileProjection) => (
-                <button
-                  aria-pressed={profile.staffKey === selectedStaffKey}
-                  aria-label={`Select staff ${profile.staffKey}`}
-                  className="staff-row-action"
-                  disabled={busy}
-                  onClick={() => selectProfile(profile)}
-                  ref={(element) => {
-                    rowActionRefs.current[profile.staffKey] = element;
-                  }}
-                  type="button"
-                >
-                  {profile.staffKey}
-                </button>
-              ),
-            },
-            {
-              key: "role",
-              label: "Role",
-              render: (profile: StaffProfileProjection) => roleLabel(profile.role),
-            },
-            {
-              key: "status",
-              label: "Status",
-              render: (profile: StaffProfileProjection) => (
-                <AdminStatusBadge status={statusLabel(profile.active)} />
-              ),
-            },
-          ]}
-          rowKey={(profile) => profile.staffKey}
-          rows={profiles}
-        />
-      )}
-
-      {selectedProfile ? (
+      {selected ? (
         <section className="staff-selected-panel" aria-labelledby="staff-selected-title">
-          <p className="admin-eyebrow">Selected profile</p>
-          <h3 id="staff-selected-title">{selectedProfile.staffKey}</h3>
+          <p className="admin-eyebrow">Manage · {teamRoleLabels[selected.role]}</p>
+          <h3 id="staff-selected-title">{selected.name || selected.email || "Team member"}</h3>
 
           <section className="staff-card staff-operation-card">
-            <p>
-              Change account roles in the <a href="#staff-account-roles">team directory</a>.
-              Coaching availability and assignments are managed below.
-            </p>
-            <button
-              className="staff-secondary-button"
-              disabled={busy}
-              onClick={() => void handleActiveUpdate()}
-              type="button"
-            >
-              {selectedProfile.active ? "Deactivate staff profile" : "Activate staff profile"}
-            </button>
+            <h4>Website</h4>
+            <CoachWebsiteControls
+              key={`${selected.userId}:${refreshKey}`}
+              person={selected}
+              owner={session.role === "owner"}
+              onChanged={(message, updated) => {
+                setStatus(message);
+                if (updated) setSelected(updated);
+                setRefreshKey((key) => key + 1);
+                if (message.endsWith("was deleted.")) setSelected(undefined);
+              }}
+            />
           </section>
+
+          {selectedProfile ? (
+            <>
+              <section className="staff-card staff-operation-card">
+                <p>Coaching availability and assignments are managed below.</p>
+                <button
+                  className="staff-secondary-button"
+                  disabled={busy}
+                  onClick={() => void handleActiveUpdate()}
+                  type="button"
+                >
+                  {selectedProfile.active ? "Deactivate coach profile" : "Activate coach profile"}
+                </button>
+              </section>
 
           <form
             className="staff-card staff-operation-card"
@@ -467,6 +396,13 @@ export function StaffAdminPage() {
               Replace assignment
             </button>
           </form>
+            </>
+          ) : (
+            <p className="staff-hint">Turn on «Teaches» to manage availability and assignments.</p>
+          )}
+          <button className="staff-secondary-button" type="button" onClick={() => setSelected(undefined)}>
+            Close
+          </button>
         </section>
       ) : null}
 
