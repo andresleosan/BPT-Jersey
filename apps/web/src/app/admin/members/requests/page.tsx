@@ -422,19 +422,16 @@ function EnrolmentRequestQueueContent() {
           enrolmentStudents(detail).map(({ plan: planId, declaration, person }) => {
             const dateOfBirth = person.dateOfBirth;
             const age = dateOfBirth ? ageOnDate(dateOfBirth, today) : 0;
-            // Preselect only for a trial plan. The public enrolment form sends a `beginner`
-            // declaration by default for every student, trial or paid, so gating on the
-            // declaration's presence would preselect a paid enrolment too; a paid enrolment must
-            // still start with an empty level, so the "choose every student's level" guard in
-            // `approve()` keeps firing for it.
+            // The belt a student declared is preselected on any plan. Otherwise only a trial gets
+            // the white belt: a paid beginner still starts empty, so the "choose every student's
+            // level" guard in `approve()` keeps firing for it.
             return {
               planId: planId ?? "town-adult",
               definitionKey:
-                planId === trialPlanChoice
-                  ? (declaration?.declaredLevelKey ??
-                    defaultWhiteBelt(loadedCatalog.definitions, age) ??
-                    "")
-                  : "",
+                declaration?.declaredLevelKey ??
+                (planId === trialPlanChoice
+                  ? (defaultWhiteBelt(loadedCatalog.definitions, age) ?? "")
+                  : ""),
               startsOn: today,
               endsOn:
                 PLAN_CATALOG.find((plan) => plan.planId === planId)?.billingPeriod === "monthly"
