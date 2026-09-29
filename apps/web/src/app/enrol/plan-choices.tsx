@@ -6,9 +6,7 @@ import {
   type EnrolmentPlanChoice,
 } from "@bpt-jersey/domain/members/enrolment-requests";
 import type { Site } from "@bpt-jersey/domain/memberships";
-import type { LevelDefinitionRecord } from "@bpt-jersey/domain/levels";
 import { describePlanAccess, formatPlanPrice } from "../../lib/plan-copy";
-import { LevelDeclaration } from "./level-declaration";
 
 export function EnrolmentPlanChoices({
   id,
@@ -18,9 +16,7 @@ export function EnrolmentPlanChoices({
   effectiveDate,
   selectedPlan,
   declaration,
-  onDeclarationChange,
   age,
-  definitions,
   disabled,
   onChange,
 }: Readonly<{
@@ -31,9 +27,7 @@ export function EnrolmentPlanChoices({
   effectiveDate: string;
   selectedPlan: EnrolmentPlanChoice | "";
   declaration: EnrolmentLevelDeclaration;
-  onDeclarationChange: (next: EnrolmentLevelDeclaration) => void;
   age: number;
-  definitions: readonly LevelDefinitionRecord[];
   disabled: boolean;
   onChange: (plan: EnrolmentPlanChoice) => void;
 }>) {
@@ -75,14 +69,6 @@ export function EnrolmentPlanChoices({
           </span>
         </span>
       </label>
-      <LevelDeclaration
-        id={`enrol-plan-${id}-level`}
-        age={age}
-        definitions={definitions}
-        value={declaration}
-        disabled={disabled}
-        onChange={onDeclarationChange}
-      />
       {plans.length === 0 ? (
         <p role="alert">
           No plans are available for these details. Go back and check the date of birth and training

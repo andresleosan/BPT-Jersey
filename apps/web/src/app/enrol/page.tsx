@@ -31,7 +31,7 @@ import {
 import { ageOnDate } from "@bpt-jersey/domain/schedule/member-calendar";
 import type { LevelDefinitionRecord } from "@bpt-jersey/domain/levels";
 import { getLevelCatalog } from "../../lib/levels-client";
-import { beltsForAge } from "./level-declaration";
+import { beltsForAge, LevelDeclaration } from "./level-declaration";
 import { EnrolmentBankDetails, useEnrolmentBankDetails } from "./payment-instructions";
 import { EnrolmentPlanChoices } from "./plan-choices";
 import { EnrolmentWaiverText } from "./waiver-text";
@@ -392,14 +392,49 @@ function StatusCard({
   );
 }
 
+/** The belt of somebody who answered that they have trained before, right under that answer. */
+function BeltPicker({
+  id,
+  dateOfBirth,
+  declaration,
+  definitions,
+  loading,
+  onChange,
+}: Readonly<{
+  id: string;
+  dateOfBirth: string;
+  declaration: EnrolmentLevelDeclaration;
+  definitions: readonly LevelDefinitionRecord[];
+  loading: boolean;
+  onChange: (next: EnrolmentLevelDeclaration) => void;
+}>) {
+  if (declaration.experience === "beginner") return null;
+  if (!dateOfBirth) return <p className="enrol-hint">Enter the date of birth to choose the belt.</p>;
+  if (loading && definitions.length === 0) return <p className="enrol-hint">Loading belts…</p>;
+  return (
+    <LevelDeclaration
+      id={id}
+      age={ageOnDate(dateOfBirth, new Date().toISOString().slice(0, 10))}
+      definitions={definitions}
+      value={declaration}
+      disabled={false}
+      onChange={onChange}
+    />
+  );
+}
+
 function MinorFields({
   minor,
   index,
+  definitions,
+  catalogLoading,
   onChange,
   onRemove,
 }: Readonly<{
   minor: MinorForm;
   index: number;
+  definitions: readonly LevelDefinitionRecord[];
+  catalogLoading: boolean;
   onChange: (next: MinorForm) => void;
   onRemove: () => void;
 }>) {
@@ -421,7 +456,12 @@ function MinorFields({
         <input
           id={`${prefix}-dob`}
           onChange={(event) =>
-            onChange({ ...minor, dateOfBirth: event.target.value, selectedPlan: trialPlanChoice })
+            onChange({
+              ...minor,
+              dateOfBirth: event.target.value,
+              selectedPlan: trialPlanChoice,
+              declaration: { ...minor.declaration, declaredLevelKey: null },
+            })
           }
           type="date"
           value={minor.dateOfBirth}
@@ -432,6 +472,14 @@ function MinorFields({
         child
         experience={minor.declaration.experience}
         onChange={(experience) => onChange(placeStudent(minor, experience, minor.trainingCenter))}
+      />
+      <BeltPicker
+        id={`${prefix}-level`}
+        dateOfBirth={minor.dateOfBirth}
+        declaration={minor.declaration}
+        definitions={definitions}
+        loading={catalogLoading}
+        onChange={(declaration) => onChange({ ...minor, declaration })}
       />
       <label className="enrol-field" htmlFor={`${prefix}-center`}>
         Training centre
@@ -493,6 +541,7 @@ function EnrolContent() {
   // The belt catalogue is read once and never blocks the form: a student who cannot be offered
   // belts is told the office will confirm their level.
   const [definitions, setDefinitions] = useState<readonly LevelDefinitionRecord[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
   const selections = {
     ...(form.applicantIsStudent && form.selectedPlan ? { applicant: form.selectedPlan } : {}),
     minors: form.guardian
@@ -546,11 +595,19 @@ function EnrolContent() {
   useEffect(() => {
     if (!signedIn) return;
     let active = true;
-    void getLevelCatalog()
-      .then((catalog) => {
-        if (active) setDefinitions(catalog.definitions);
-      })
-      .catch(() => undefined);
+    // ponytail: three tries cover a cold start; after that the belts are reported unavailable.
+    void (async () => {
+      for (let attempt = 0; attempt < 3 && active; attempt += 1) {
+        try {
+          const catalog = await getLevelCatalog();
+          if (active) setDefinitions(catalog.definitions);
+          break;
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
+      }
+      if (active) setCatalogLoading(false);
+    })();
     return () => {
       active = false;
     };
@@ -619,13 +676,10 @@ function EnrolContent() {
       return;
     }
     setMessage(undefined);
-    if (step === "details") {
-      setStep("plans");
-      return;
-    }
     if (
-      (form.applicantIsStudent && !form.selectedPlan) ||
-      (form.guardian && form.minors.some((minor) => !minor.selectedPlan))
+      step !== "details" &&
+      ((form.applicantIsStudent && !form.selectedPlan) ||
+        (form.guardian && form.minors.some((minor) => !minor.selectedPlan)))
     ) {
       setMessage("Choose an available plan for every student.");
       return;
@@ -647,6 +701,11 @@ function EnrolContent() {
       setMessage(
         "Belt selection is unavailable right now, and West needs your belt. Try again later, or choose Town in your details.",
       );
+      return;
+    }
+    // The belt is picked next to the experience answer, so it is checked before the plans step.
+    if (step === "details") {
+      setStep("plans");
       return;
     }
     if (step === "plans") {
@@ -860,6 +919,7 @@ function EnrolContent() {
                         ...form,
                         dateOfBirth: event.target.value,
                         selectedPlan: trialPlanChoice,
+                        declaration: { ...form.declaration, declaredLevelKey: null },
                       })
                     }
                     type="date"
@@ -924,6 +984,14 @@ function EnrolContent() {
                       onChange={(experience) =>
                         setForm(placeStudent(form, experience, form.trainingCenter))
                       }
+                    />
+                    <BeltPicker
+                      id="enrol-level"
+                      dateOfBirth={form.dateOfBirth}
+                      declaration={form.declaration}
+                      definitions={definitions}
+                      loading={catalogLoading}
+                      onChange={(declaration) => setForm({ ...form, declaration })}
                     />
                     <label className="enrol-field" htmlFor="enrol-center">
                       Training centre
@@ -1018,6 +1086,8 @@ function EnrolContent() {
                   {form.minors.map((minor, index) => (
                     <MinorFields
                       index={index}
+                      definitions={definitions}
+                      catalogLoading={catalogLoading}
                       key={index}
                       minor={minor}
                       onChange={(next) =>
@@ -1076,9 +1146,7 @@ function EnrolContent() {
                   effectiveDate={effectiveDate}
                   selectedPlan={form.selectedPlan}
                   declaration={form.declaration}
-                  onDeclarationChange={(declaration) => setForm({ ...form, declaration })}
                   age={form.dateOfBirth ? ageOnDate(form.dateOfBirth, effectiveDate) : 0}
-                  definitions={definitions}
                   disabled={busy}
                   onChange={(selectedPlan) => setForm({ ...form, selectedPlan })}
                 />
@@ -1094,16 +1162,7 @@ function EnrolContent() {
                     effectiveDate={effectiveDate}
                     selectedPlan={minor.selectedPlan}
                     declaration={minor.declaration}
-                    onDeclarationChange={(declaration) =>
-                      setForm({
-                        ...form,
-                        minors: form.minors.map((item, position) =>
-                          position === index ? { ...item, declaration } : item,
-                        ),
-                      })
-                    }
                     age={minor.dateOfBirth ? ageOnDate(minor.dateOfBirth, effectiveDate) : 0}
-                    definitions={definitions}
                     disabled={busy}
                     onChange={(selectedPlan) =>
                       setForm({
