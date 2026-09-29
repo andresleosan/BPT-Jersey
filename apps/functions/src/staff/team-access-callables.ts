@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { coachBeltSchema, type TeamCoachProfile } from "@bpt-jersey/domain/staff/team-access";
 import { createStaffProfileHandler, staffCallableServices } from "./staff-callables.js";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
@@ -26,6 +27,18 @@ function services(request: CallableRequest): TeamAccessServices {
     auth,
     invitations: createTeamInvitationStore(firestore, request.auth?.uid ?? "anonymous"),
     now: () => new Date(),
+    async coachProfilesByUser(academyId) {
+      const snapshot = await firestore.collection(`academies/${academyId}/staff`).get();
+      const profiles = new Map<string, TeamCoachProfile>();
+      for (const doc of snapshot.docs) {
+        const data = doc.data();
+        if (typeof data.userId !== "string") continue;
+        const belt = coachBeltSchema.safeParse(data.belt);
+        const profile = { staffKey: doc.id, active: data.active === true, belt: belt.success ? belt.data : null };
+        if (!profiles.get(data.userId)?.active) profiles.set(data.userId, profile);
+      }
+      return profiles;
+    },
     async grant(actor, target, transition) {
       // Actor was checked against live Auth: either the caller or the still-authorised inviter.
       // Reuse the existing cross-Auth/Firestore lock, audit and compensation rather than writing claims here.

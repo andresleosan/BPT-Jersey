@@ -297,6 +297,7 @@ export {
 } from "./schedule/member-calendar-week-callables.js";
 
 export { createStaffWithPassword } from "./staff/direct-staff-creation.js";
+export { setCoachBelt } from "./staff/coach-account-callables.js";
 
 export {
   listTeamDirectory,
