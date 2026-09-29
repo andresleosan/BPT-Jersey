@@ -129,7 +129,6 @@ function dayOf(days: readonly CalendarDay[], startAt: string): CalendarDay | und
 
 const trialEndedNotice =
   "Your free trial classes are used. You need an active membership to book more classes.";
-const memberVisibleStatuses: ReadonlySet<string> = new Set(["open", "booked", "attended", "missed"]);
 
 /** How many free trial classes are still bookable: attended and booked ones are both spent. */
 function trialClassesLeft(trial: TrialAccessView): number {
@@ -343,6 +342,12 @@ export function MemberCalendar({
         ? { hasActiveMembership: participant.hasActiveMembership }
         : {}),
       ...(participant.trial ? { trial: participant.trial } : {}),
+      ...(selectedWeek.access
+        ? {
+            hadMembership: selectedWeek.access.hadMembership,
+            planPending: selectedWeek.access.planPending,
+          }
+        : {}),
       ...(selectedWeek.groupAccess
         ? {
             additionalProgramIds: selectedWeek.groupAccess.programIds,
@@ -394,9 +399,16 @@ export function MemberCalendar({
       ) {
         walkIns.push({ session: sessionRecord, program, derived, booking });
       }
-      // Members see what they can book, plus their own bookings and attendance; nothing else.
+      // Members see their own sessions, plus every upcoming session their age and centre admit:
+      // bookable, or in grey with the reason (full, weekly limit, booking closed, needs a plan…).
       // Private lessons stay on the calendar, locked, so members know the office arranges them.
-      if (!memberVisibleStatuses.has(derived.status) && derived.lockedReason !== "office_arranged")
+      const own =
+        derived.status === "booked" || derived.status === "attended" || derived.status === "missed";
+      if (
+        !own &&
+        (Date.parse(sessionRecord.startAt) <= now.getTime() ||
+          (sessionRecord.courseId && derived.status === "closed"))
+      )
         continue;
       const list = map.get(day.dateKey) ?? [];
       list.push({ session: sessionRecord, program, derived, booking });
@@ -715,8 +727,17 @@ export function MemberCalendar({
       {!failed && memberState === "ready" && participant && !participant.trial &&
       participant.hasActiveMembership === false ? (
         <p className="calendar-trial-band" role="status">
-          {participant.firstName} has no active plan, so only free Intro Classes can be booked.{" "}
-          {planLink}
+          {selectedWeek?.access?.planPending ? (
+            `${participant.firstName}'s plan is waiting for the office to approve it.`
+          ) : (
+            <>
+              {participant.firstName}{" "}
+              {selectedWeek?.access?.hadMembership
+                ? "needs a renewal to book classes."
+                : "needs a subscription to book classes."}{" "}
+              {planLink}
+            </>
+          )}
         </p>
       ) : null}
       <section aria-label="Calendar" className="member-body">
@@ -767,6 +788,8 @@ export function MemberCalendar({
                 hasTrial={participant?.trial !== undefined}
                 key={day.dateKey}
                 studentId={participant?.studentId}
+                planHref={session.role === "teenStudent" ? undefined : "/account/membership"}
+                membershipId={participant?.membershipId}
                 loading={loading}
                 notes={notes}
                 now={now}

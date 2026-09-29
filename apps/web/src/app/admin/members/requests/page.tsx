@@ -74,15 +74,17 @@ function PlanPreference({
 }>) {
   if (planId === trialPlanChoice) {
     const age = ageOnDate(dateOfBirth, new Date().toISOString().slice(0, 10));
-    const allowance = enrolmentTrialAllowance(declaration?.experience ?? "beginner", age);
+    const experience = declaration?.experience ?? "beginner";
+    const allowance = enrolmentTrialAllowance(experience);
+    const classes = `${allowance} free ${allowance === 1 ? "class" : "classes"}`;
     return (
       <p className="admin-request-meta">
         <strong>Requested plan:</strong>{" "}
-        {age < 16
-          ? "Trial (2 free classes for their age group)"
-          : allowance === 2
-          ? "Trial (2 free Introduction Classes)"
-          : "Trial (1 free Introduction Class)"}
+        {age >= 16 && experience === "beginner"
+          ? `Trial (${allowance} free Introduction Classes)`
+          : age < 16
+            ? `Trial (${classes} for their age group)`
+            : `Trial (${classes})`}
       </p>
     );
   }

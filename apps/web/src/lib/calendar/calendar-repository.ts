@@ -57,6 +57,8 @@ export type CalendarWeekData = Readonly<{
   attendance: readonly AttendanceRecord[];
   /** sessionId → confirmed bookings. `{}` when the backend cannot tell. */
   bookedCounts: Readonly<Record<string, number>>;
+  /** Whether grey classes ask for a renewal, a first plan, or wait for a pending plan. */
+  access?: Readonly<{ hadMembership: boolean; planPending: boolean }>;
 }>;
 
 export interface CalendarRepository {

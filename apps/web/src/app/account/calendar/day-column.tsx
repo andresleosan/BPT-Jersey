@@ -13,6 +13,8 @@ type DayColumnProps = Readonly<{
   hasTrial?: boolean;
   studentId?: string | undefined;
   notes: Readonly<Record<string, string>>;
+  planHref?: string | undefined;
+  membershipId?: string | null | undefined;
   onBook: (entry: CalendarEntry) => void;
   onCancelRequest: (entry: CalendarEntry) => void;
 }>;
@@ -29,7 +31,7 @@ export function DayColumn(props: DayColumnProps) {
       </div>
     );
   } else if (props.entries.length === 0) {
-    body = <p className="day-empty">No classes to book</p>;
+    body = <p className="day-empty">No classes this day</p>;
   } else {
     body = (
       <ul className="day-list">
@@ -41,6 +43,8 @@ export function DayColumn(props: DayColumnProps) {
             key={entry.session.sessionId}
             note={props.notes[entry.session.sessionId]}
             studentId={props.studentId}
+            planHref={props.planHref}
+            membershipId={props.membershipId}
             now={props.now}
             onBook={props.onBook}
             onCancelRequest={props.onCancelRequest}

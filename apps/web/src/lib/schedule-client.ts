@@ -378,6 +378,8 @@ export type MemberCalendarWeek = Readonly<{
   groupAccess?: unknown;
   /** Present only while the student trains on a free trial instead of a membership. */
   trial?: TrialAccessView;
+  /** Whether grey classes ask for a renewal, a first plan, or wait for a pending plan. */
+  access?: Readonly<{ hadMembership: boolean; planPending: boolean }>;
 }>;
 
 const trialAccessViewSchema = z.strictObject({

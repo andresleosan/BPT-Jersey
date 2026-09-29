@@ -1,7 +1,6 @@
 import type { UserActorContext } from "@bpt-jersey/domain";
 import { createHash } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
-import { ageOnDate } from "@bpt-jersey/domain/schedule/member-calendar";
 import { PLAN_CATALOG } from "@bpt-jersey/domain/memberships";
 import {
   enrolmentNeedsPayment,
@@ -105,16 +104,12 @@ export function createEnrolmentRegistration(
             continue;
           }
           const startsAt = record.approvalStartedAt!;
-          const age = student.dateOfBirth
-            ? ageOnDate(student.dateOfBirth, startsAt.slice(0, 10))
-            : null;
           await trialRef.set(
             newTrialAccessRecord({
               academyId: record.academyId,
               studentId,
               site: student.trainingCenter,
               experience,
-              age,
               startsAt,
               enrolmentRequestId: record.enrolmentRequestId,
             }),

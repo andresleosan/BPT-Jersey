@@ -115,6 +115,18 @@ export const getMemberCalendarWeek = onCall(
       (parsedMembership.value.status === "active" || parsedMembership.value.status === "trial")
         ? parsedMembership.value
         : undefined;
+    // Renewal or first plan, and a transfer awaiting the office: the wording of the grey classes.
+    const [pastMemberships, pendingPlans] = await Promise.all([
+      db.collection(`${base}/memberships`).where("studentId", "==", records.studentId).limit(1).get(),
+      db
+        .collection(`${base}/membershipApplications`)
+        .where("studentId", "==", records.studentId)
+        .where("status", "==", "pending_review")
+        .limit(1)
+        .get(),
+    ]);
+    const hadMembership = !pastMemberships.empty;
+    const planPending = !pendingPlans.empty;
     const planSnapshot = membership
       ? await db.doc(`${base}/plans/${membership.planId}`).get()
       : undefined;
@@ -179,6 +191,8 @@ export const getMemberCalendarWeek = onCall(
       dateOfBirth: groupAccess.dateOfBirth,
       introSite: profile.trainingCenter,
       hasActiveMembership: membership !== undefined && plan !== undefined,
+      hadMembership,
+      planPending,
       ...(trialViewValue
         ? { trial: trialViewValue }
         : {
@@ -200,8 +214,6 @@ export const getMemberCalendarWeek = onCall(
       if (sessionAccessMode(session) === "private-lesson") return false;
       const program = programById.get(session.programId);
       if (!program) return false;
-      if (!member.hasActiveMembership && !member.trial && sessionAccessMode(session) !== "intro")
-        return false;
       return canViewMemberSession(session, program, member);
     });
     const bookedCounts = await store
@@ -219,6 +231,7 @@ export const getMemberCalendarWeek = onCall(
       bookedCounts,
       ...(member.hasActiveMembership ? { groupAccess } : {}),
       ...(trialViewValue ? { trial: trialViewValue } : {}),
+      access: { hadMembership, planPending },
     };
   },
 );
