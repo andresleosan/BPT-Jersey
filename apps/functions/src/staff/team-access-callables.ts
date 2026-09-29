@@ -7,8 +7,10 @@ import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import {
   provisionAdminRoleWithServices,
+  withSharedRoleLock,
   type SyntheticFirestore,
 } from "../auth/admin-provisioning.js";
+import { activateCoachProfile, coachAudit } from "./coach-account-callables.js";
 import { createTeamInvitationStore } from "./team-invitations-firestore.js";
 import {
   listTeamDirectoryHandler,
@@ -38,6 +40,19 @@ function services(request: CallableRequest): TeamAccessServices {
         if (!profiles.get(data.userId)?.active) profiles.set(data.userId, profile);
       }
       return profiles;
+    },
+    async demoteToCoach(actor, uid) {
+      await withSharedRoleLock(firestore as unknown as SyntheticFirestore, actor.academyId, actor.uid, uid, async () => {
+        const user = await auth.getUser(uid);
+        if (user.disabled || user.customClaims?.academyId !== actor.academyId || !["owner", "administrator"].includes(String(user.customClaims?.role))) {
+          throw new HttpsError("failed-precondition", "Only an active owner or administrator can be changed to coach here.");
+        }
+        const { batch, now } = await activateCoachProfile(firestore, actor.academyId, actor.uid, uid);
+        batch.set(firestore.doc(`academies/${actor.academyId}/users/${uid}`), { adminRole: null, updatedAt: now, updatedBy: actor.uid }, { merge: true });
+        batch.create(firestore.collection(`academies/${actor.academyId}/auditEvents`).doc(), coachAudit(actor.academyId, actor.uid, uid, "admin.role.changed_to_coach", "administrative role management", now));
+        await batch.commit();
+        await auth.setCustomUserClaims(uid, { ...user.customClaims, academyId: actor.academyId, role: "coach" });
+      });
     },
     async grant(actor, target, transition) {
       // Actor was checked against live Auth: either the caller or the still-authorised inviter.
