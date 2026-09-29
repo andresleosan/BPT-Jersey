@@ -462,7 +462,7 @@ describe("intro booking transaction", () => {
     });
     await expect(requestIntroBooking(store.db, store.command)).rejects.toMatchObject({
       code: "ineligible",
-      message: "During your trial you can book Introduction Classes only",
+      message: "Your first free class is an Introduction Class",
     });
     expect(store.documents(`academies/${academyId}/bookings`)).toHaveLength(0);
   });

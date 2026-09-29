@@ -11,10 +11,10 @@ import {
 } from "@bpt-jersey/domain/schedule/member-calendar";
 import {
   ageRangeLabel,
+  isIntroductionClass,
   levelRangeLabel,
   type BookingRecord,
   type ProgramRecord,
-  sessionAccessMode,
   type SessionRecord,
 } from "@bpt-jersey/domain/schedule";
 
@@ -70,7 +70,7 @@ export function SessionCard({
   const { session, program, derived } = entry;
   const status = derived.status;
   const site = sessionSite(session);
-  const isIntro = sessionAccessMode(session) === "intro";
+  const isIntro = isIntroductionClass(session, program);
   const isPrivateLesson = session.accessMode === "private-lesson";
   // Every ordinary class opens its plan and roster, booked or not; course sessions have no roster.
   const detailStudentId = session.courseId ? undefined : studentId;

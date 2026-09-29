@@ -528,6 +528,7 @@ export {
   classLevels,
   daysOfWeek,
   disciplines,
+  isIntroductionClass,
   locationIds,
   parseCreateClassInput,
   parseCreateSessionInput,

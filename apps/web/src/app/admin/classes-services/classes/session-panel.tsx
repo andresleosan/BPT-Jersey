@@ -657,7 +657,10 @@ export function SessionPanel({
                   }
                 >
                   <option value="membership">Membership required</option>
-                  <option value="intro">Free Intro Class</option>
+                  {/* Introduction Class is a class type now; only a legacy stored value shows. */}
+                  {draft.accessMode === "intro" ? (
+                    <option value="intro">Free Intro Class</option>
+                  ) : null}
                   {draft.accessMode === "private-lesson" ? (
                     <option value="private-lesson">Private lesson</option>
                   ) : null}

@@ -32,6 +32,7 @@ import {
 import {
   buildBookingId,
   buildBookingIdCandidates,
+  isIntroductionClass,
   isWithinBookingCutoff,
   type BookingRecord,
   type CancelBookingInput,
@@ -835,6 +836,11 @@ async function executeBookingInTransaction(
   ]);
   const storedPlan = plan(planSnapshot, academyId, storedMembership.planId);
   const storedProgram = program(programSnapshot, academyId, storedSession.programId);
+  if (isIntroductionClass(sessionSnapshot.data() ?? {}, storedProgram))
+    return invalid(
+      "ineligible",
+      "Introduction Classes are for new adult members on their Free Trial",
+    );
   // Read the grant inside this transaction: a concurrent revocation forces a retry.
   const groupSnapshot = await input.transaction.get(
     input.firestore.doc(path(academyId, "studentGroupAccess") + "/" + studentId),
