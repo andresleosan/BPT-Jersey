@@ -542,7 +542,9 @@ function EnrolContent() {
   );
   const alreadyStudent = session?.role === "guardian" || session?.role === "adultStudent";
 
+  // The belts need a signed-in account: ask once the session is ready, not while it is restoring.
   useEffect(() => {
+    if (!signedIn) return;
     let active = true;
     void getLevelCatalog()
       .then((catalog) => {
@@ -552,7 +554,7 @@ function EnrolContent() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [signedIn]);
 
   useEffect(() => {
     if (!signedIn) return;
