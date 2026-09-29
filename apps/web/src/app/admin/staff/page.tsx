@@ -268,14 +268,16 @@ export function StaffAdminPage() {
             <>
               <section className="staff-card staff-operation-card">
                 <p>Coaching availability and assignments are managed below.</p>
-                <button
-                  className="staff-secondary-button"
-                  disabled={busy}
-                  onClick={() => void handleActiveUpdate()}
-                  type="button"
-                >
-                  {selectedProfile.active ? "Deactivate coach profile" : "Activate coach profile"}
-                </button>
+                {selected?.role === "coach" || selected?.role === "headCoach" ? (
+                  <button
+                    className="staff-secondary-button"
+                    disabled={busy}
+                    onClick={() => void handleActiveUpdate()}
+                    type="button"
+                  >
+                    {selectedProfile.active ? "Deactivate coach profile" : "Activate coach profile"}
+                  </button>
+                ) : null}
               </section>
 
           <form

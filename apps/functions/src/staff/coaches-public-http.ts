@@ -1,5 +1,6 @@
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { error as logError } from "firebase-functions/logger";
 import { onRequest } from "firebase-functions/v2/https";
 import { coachBeltLabels, coachBelts, coachBeltSchema, type CoachBelt } from "@bpt-jersey/domain/staff/team-access";
 import { browserOrigins } from "../auth/callable-options.js";
@@ -33,7 +34,8 @@ export const coachesPublic = onRequest({ cors: browserOrigins, invoker: "public"
     ).map((coach) => ({ ...coach, beltLabel: coachBeltLabels[coach.belt] }));
     response.set("Cache-Control", "public, max-age=60");
     response.status(200).json({ coaches });
-  } catch {
+  } catch (error) {
+    logError("coachesPublic failed", error);
     response.set("Cache-Control", "no-store");
     response.status(500).json({ error: "unavailable" });
   }
