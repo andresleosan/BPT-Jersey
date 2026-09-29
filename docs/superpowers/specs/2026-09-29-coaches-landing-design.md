@@ -25,6 +25,14 @@ cambio en `/admin/staff` se ve en la landing en ≤ 60 s.
 | D5 | Transición: antes de publicar, Claude comprueba en producción (lectura) qué coaches tienen cuenta, les pone el cinturón que hoy muestra la landing y lista a Luis los que faltan. Después se borra la lista fija. **Sin lista de respaldo.** | Luis: «Yo reviso y relleno» |
 | D6 | **Delete coach bloqueado** si el coach está asignado a clases activas o sesiones futuras; el mensaje dice cuáles reasignar. El historial pasado se conserva. | Propuesta de Claude, aprobada con el diseño |
 | D7 | La landing **consulta un endpoint público al cargar** (no se reconstruye la web). Coste aceptado: la lista ya no va en el HTML estático (SEO menor). | Propuesta de Claude, aprobada con el diseño |
+| D8 | `academyContent.instructors` **se conserva**: también alimenta el desplegable «Trainer» del calendario de clases (`trainer-options.ts`). Solo la landing deja de usarlo. El calendario no se toca; migrarlo a cuentas reales sería un proyecto aparte. | Luis: «Separar: landing de BD» |
+| D9 | El cinturón y **Delete coach** van en el **Team directory** de `/admin/staff`, la tabla que muestra nombres. La tarjeta del perfil de staff muestra solo el identificador. El cinturón se guarda con un callable propio, `setCoachBelt`, en vez de pasar por `updateStaffProfile`. | Ajuste de Claude al planificar (el código lo exige) |
+| D10 | Nombre en la landing = `displayName` de Firebase Auth, la misma fuente que el Team directory. Rol y estado = claims de Auth (`coach`/`headCoach`, no deshabilitado). | Ajuste de Claude al planificar |
+| D11 | Al borrar, `users/{uid}` queda con `active: false`, `status: "inactive"` y `deletedAt`. «inactive» ya es un valor válido; «deleted» podría romper lectores estrictos. También se borra el acceso por número (`staffLoginCredentials`). | Ajuste de Claude al planificar |
+| D12 | Los 5 coaches actuales ya tienen cuenta real (uid `coach-miro`, `coach-charlie`, …) creada por `scripts/provision-landing-coaches.mjs`. La transición solo les pone el cinturón. | Hallazgo al planificar (se confirma leyendo producción) |
+
+> Si alguna sección de abajo contradice D8–D12 (añadidas al planificar), **mandan D8–D12**.
+> Por ejemplo, ya no se usa `updateStaffProfile` para el cinturón, ni `status: "deleted"`, ni el texto «Former coach».
 
 ## 1. Datos
 
@@ -116,8 +124,8 @@ Valores permitidos, en orden de rango descendente (el índice define el orden de
 - URL del endpoint: igual que en `apps/web/src/lib/courses/course-public-client.ts`, es
   decir, `NEXT_PUBLIC_COACHES_API_URL` o, si no está definida,
   `https://europe-west9-${projectId}.cloudfunctions.net/coachesPublic`.
-- Se borran `instructors` y el tipo `Instructor` de `apps/web/src/content/academy.ts`
-  (y lo que eso deje sin uso).
+- `instructors` en `apps/web/src/content/academy.ts` **se conserva** para el calendario (D8);
+  la landing ya no lo lee.
 
 ## 5. Transición y entrega
 
