@@ -572,3 +572,35 @@
     width: 100%;
   }
 }
+
+.attendance-walk-in {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+}
+
+.attendance-walk-in-field {
+  display: grid;
+  font-weight: 600;
+  gap: 0.35rem;
+}
+
+.attendance-walk-in-field input {
+  border: 1px solid var(--mat-ink);
+  font: inherit;
+  font-weight: 400;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  width: 100%;
+}
+
+.attendance-walk-in-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}

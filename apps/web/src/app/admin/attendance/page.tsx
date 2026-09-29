@@ -20,6 +20,8 @@ import {
   listSessions,
   reconcileSessionNoShows,
   recordCheckIn,
+  staffWalkInAttendance,
+  walkInFailureMessage,
   recordCheckout,
 } from "../../../lib/schedule-client";
 import { AdminFilterBar, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
@@ -268,6 +270,26 @@ export function AttendancePage() {
         await refreshAfterSuccess(`Clock-in recorded for ${displayName}.`);
       } catch {
         setOperationError("Unable to record the clock-in. Nothing was changed.");
+      } finally {
+        setBusyStudentId(undefined);
+        setBusyKey(undefined);
+      }
+    },
+    [loadRoster, refreshAfterSuccess],
+  );
+  const handleWalkIn = useCallback(
+    async (sessionId: string, studentId: string, displayName: string): Promise<void> => {
+      setBusyStudentId(studentId);
+      setBusyKey(`walk-in:${sessionId}:${studentId}`);
+      setOperationError("");
+      setNotice("");
+      try {
+        await staffWalkInAttendance({ sessionId, studentId });
+        await loadRoster(sessionId);
+        setClockMs(Date.now());
+        await refreshAfterSuccess(`${displayName} marked present.`);
+      } catch (error) {
+        setOperationError(`${displayName}: ${walkInFailureMessage(error)}`);
       } finally {
         setBusyStudentId(undefined);
         setBusyKey(undefined);
@@ -564,6 +586,9 @@ export function AttendancePage() {
             nowMs={clockMs}
             onClockIn={(studentId, displayName) =>
               void handleClockIn(s.sessionId, studentId, displayName)
+            }
+            onWalkIn={(studentId, displayName) =>
+              void handleWalkIn(s.sessionId, studentId, displayName)
             }
             roster={rosters[s.sessionId] ?? { status: "loading" }}
             session={s}

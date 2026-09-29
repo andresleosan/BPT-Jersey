@@ -1209,6 +1209,135 @@ export function createWalkInCheckInHandler(options: StudentScopeOptions) {
   };
 }
 
+const attendanceSearchLimit = 20;
+
+/**
+ * /admin/attendance: staff (coaches included) find a member by name to mark a walk-in. Only active
+ * students, at most 20, name and id only: coaches cannot read the office member directory.
+ */
+export function createSearchAttendanceMembersHandler() {
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
+      throw new HttpsError("permission-denied", "Staff access is required");
+    }
+    const query = (request.data as { query?: unknown } | null)?.query;
+    if (typeof query !== "string" || query.trim().length < 2 || query.length > 80) {
+      throw new HttpsError("invalid-argument", "Type at least two letters");
+    }
+    const needle = query.trim().toLowerCase();
+    // ponytail: scans the active students in memory; add a name index if the academy grows past a few thousand.
+    const snapshot = await getFirestore()
+      .collection(`academies/${actor.academyId}/students`)
+      .where("status", "==", "active")
+      .get();
+    const members = snapshot.docs
+      .map((doc) => ({ studentId: doc.id, fullName: String(doc.data().fullName ?? "").trim() }))
+      .filter((member) => member.fullName.toLowerCase().includes(needle))
+      .sort((left, right) => left.fullName.localeCompare(right.fullName))
+      .slice(0, attendanceSearchLimit);
+    return { members };
+  };
+}
+
+/**
+ * /admin/attendance: staff mark a member who did not book. The class is booked under the staff
+ * member's authority (the member's active plan, or an intro place when they have none) with the
+ * 60-minute cutoff waived, then the arrival is recorded as an ordinary manual check-in.
+ */
+export function createStaffWalkInAttendanceHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
+      throw new HttpsError("permission-denied", "Staff access is required for check-in");
+    }
+    const data = (request.data ?? {}) as { sessionId?: unknown; studentId?: unknown };
+    const sessionId = typeof data.sessionId === "string" ? data.sessionId.trim() : "";
+    const studentId = typeof data.studentId === "string" ? data.studentId.trim() : "";
+    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(sessionId) || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(studentId)) {
+      throw new HttpsError("invalid-argument", "Walk-in attendance request is invalid");
+    }
+
+    const firestore = getFirestore();
+    const academyPath = `academies/${actor.academyId}`;
+    const session = (await firestore.doc(`${academyPath}/sessions/${sessionId}`).get()).data();
+    if (!session || session.status === "cancelled" || typeof session.startAt !== "string") {
+      throw new HttpsError("not-found", "Class is not available");
+    }
+    const booked = await firestore
+      .collection(`${academyPath}/bookings`)
+      .where("sessionId", "==", sessionId)
+      .where("studentId", "==", studentId)
+      .where("status", "==", "confirmed")
+      .limit(1)
+      .get();
+
+    if (booked.empty) {
+      const startMs = Date.parse(session.startAt);
+      const memberships = await firestore
+        .collection(`${academyPath}/memberships`)
+        .where("studentId", "==", studentId)
+        .get();
+      const membership = memberships.docs.find((doc) => {
+        const m = doc.data();
+        return (
+          (m.status === "active" || m.status === "trial") &&
+          typeof m.startsAt === "string" &&
+          Date.parse(m.startsAt) <= startMs &&
+          (m.endsAt === null || m.endsAt === undefined || startMs < Date.parse(String(m.endsAt)))
+        );
+      });
+      const now = new Date().toISOString();
+      try {
+        if (!membership || session.accessMode === "intro") {
+          await requestIntroBookingTransaction(firestore as unknown as BookingFirestore, {
+            academyId: actor.academyId,
+            actorId: actor.userId,
+            actorRole: actor.role as never,
+            actorIp: clientIpFromRequest(request),
+            studentId,
+            sessionId,
+            now,
+            walkIn: true,
+          });
+        } else {
+          await firestore.runTransaction((transaction) =>
+            confirmBookingInTransaction({
+              firestore: firestore as unknown as BookingFirestore,
+              transaction: transaction as never,
+              academyId: actor.academyId,
+              request: { sessionId, studentId, membershipId: membership.id },
+              actorId: actor.userId,
+              actorIp: clientIpFromRequest(request),
+              actorRole: actor.role as never,
+              now,
+              walkIn: true,
+            }),
+          );
+        }
+      } catch (error) {
+        return mapBookingError(error);
+      }
+    }
+
+    try {
+      const attendance = await store.recordCheckIn(
+        actor.academyId,
+        { sessionId, studentId, method: "manual" },
+        actor.userId,
+        undefined,
+        actor.role as ScheduleMutationActorRole,
+        clientIpFromRequest(request),
+      );
+      return { attendance };
+    } catch (error) {
+      return mapAttendanceError(error);
+    }
+  };
+}
+
 /**
  * T110: applies the quorum rule to one session. Staff only, and safe to repeat: the sweep writes only
  * while the session is still `scheduled`, so a second call reports the earlier cancellation instead
@@ -1659,6 +1788,14 @@ export const selfCheckIn = onCall(scheduleCallableOptions, async (request) =>
 
 export const walkInCheckIn = onCall(scheduleCallableOptions, async (request) =>
   createWalkInCheckInHandler({ store: getStore() })(request),
+);
+
+export const searchAttendanceMembers = onCall(scheduleReadCallableOptions, async (request) =>
+  createSearchAttendanceMembersHandler()(request),
+);
+
+export const staffWalkInAttendance = onCall(scheduleCallableOptions, async (request) =>
+  createStaffWalkInAttendanceHandler({ store: getStore() })(request),
 );
 
 export const reconcileSessionQuorum = onCall(scheduleCallableOptions, async (request) =>
