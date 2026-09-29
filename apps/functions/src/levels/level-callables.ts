@@ -22,6 +22,7 @@ import {
   type StudentProgressSummary,
   type VoidPromotionResult,
 } from "@bpt-jersey/domain/levels";
+import { requireUserActor } from "../auth/user-authorization.js";
 import {
   createFirebaseLevelAuthorization,
   type AuthorizedLevelActor,
@@ -151,10 +152,16 @@ async function requireCurrentTarget(dependencies: HandlerDependencies, actor: Au
 
 export function createListLevelCatalogHandler(dependencies: HandlerDependencies) {
   return async (request: CallableRequest<unknown>): Promise<LevelCatalogProjection> => {
-    const actor = await dependencies.authorization.requireActor(request);
+    // A new account filling in /enrol stays a `shopper` until the office approves it, and it needs
+    // the published belts to declare its level. The catalogue is the public belt list, not personal
+    // data, so a signed-in shopper (with App Check) may read it; every other role is checked as before.
+    const registering = request.app !== undefined && request.auth?.token.role === "shopper";
+    const academyId = registering
+      ? requireUserActor(request).academyId
+      : (await dependencies.authorization.requireActor(request)).academyId;
     if (request.data !== null && request.data !== undefined) invalidPayload();
     try {
-      return await dependencies.store.listPublished(actor.academyId);
+      return await dependencies.store.listPublished(academyId);
     } catch (error) {
       return mapStoreError(error, "retrieve level catalog");
     }
