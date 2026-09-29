@@ -4,7 +4,10 @@ import { z } from "zod";
 import {
   teamDirectoryRequestSchema, teamDirectoryResponseSchema, changeTeamRoleSchema,
   staffInvitationInputSchema, staffInvitationSchema, staffInvitationListSchema, invitationIdentitySchema,
+  setCoachBeltSchema, setCoachBeltResultSchema, setOwnerTeachesSchema, setOwnerTeachesResultSchema,
+  deleteCoachAccountSchema, deleteCoachAccountResultSchema,
   type ChangeTeamRoleInput, type StaffInvitationInput,
+  type CoachBelt, type SetCoachBeltInput, type SetOwnerTeachesInput, type DeleteCoachAccountInput,
 } from "@bpt-jersey/domain/staff/team-access";
 import { getFirebaseFunctions } from "./firebase-client";
 
@@ -32,6 +35,21 @@ export function acceptStaffInvitation() {
 }
 
 const directStaffResultSchema = z.strictObject({ userId: z.string().min(1).max(128), email: z.email(), role: z.enum(["coach","administrator","owner"]), passwordChangeRequired: z.literal(true) });
-export function createStaffWithPassword(input: { displayName: string; email: string; password: string; role: "coach"|"administrator"|"owner" }) {
+export function createStaffWithPassword(input: { displayName: string; email: string; password: string; role: "coach"|"administrator"|"owner"; belt?: CoachBelt }) {
   return call("createStaffWithPassword", input, directStaffResultSchema, "Unable to create this staff account. Check the email and try again.");
+}
+export function setCoachBelt(input: SetCoachBeltInput) {
+  return call("setCoachBelt", setCoachBeltSchema.parse(input), setCoachBeltResultSchema, "Unable to save this belt. Refresh the team directory and try again.");
+}
+export function setOwnerTeaches(input: SetOwnerTeachesInput) {
+  return call("setOwnerTeaches", setOwnerTeachesSchema.parse(input), setOwnerTeachesResultSchema, "Unable to update this owner. Choose a belt and try again.");
+}
+/** Unlike call(), keeps the server's reason when a coach still has classes to reassign. */
+export async function deleteCoachAccount(input: DeleteCoachAccountInput) {
+  try {
+    return deleteCoachAccountResultSchema.parse((await httpsCallable<unknown, unknown>(getFirebaseFunctions(), "deleteCoachAccount")(deleteCoachAccountSchema.parse(input))).data);
+  } catch (error) {
+    const reason = (error as { code?: string }).code === "functions/failed-precondition" && error instanceof Error ? error.message : "";
+    throw new Error(reason || "Unable to delete this coach. Refresh the team directory and try again.");
+  }
 }
