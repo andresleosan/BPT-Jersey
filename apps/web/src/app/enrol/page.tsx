@@ -319,11 +319,14 @@ function placeStudent<T extends StudentPlacement>(
 function ExperienceQuestion({
   id,
   child,
+  childName = "",
   experience,
   onChange,
 }: Readonly<{
   id: string;
   child: boolean;
+  /** The child's first name once typed, so each child's question reads as theirs. */
+  childName?: string;
   experience: Experience;
   onChange: (next: Experience) => void;
 }>) {
@@ -331,7 +334,7 @@ function ExperienceQuestion({
     <fieldset className="enrol-experience">
       <legend>
         {child
-          ? "Does this child have Brazilian Jiu-Jitsu experience?"
+          ? `Does ${childName.trim().split(/\s+/u)[0] || "this child"} have Brazilian Jiu-Jitsu experience?`
           : "Do you have Brazilian Jiu-Jitsu experience?"}
       </legend>
       <label htmlFor={`${id}-beginner`}>
@@ -431,7 +434,8 @@ function BeltPicker({
   onChange: (next: EnrolmentLevelDeclaration) => void;
 }>) {
   if (declaration.experience === "beginner") return null;
-  if (!dateOfBirth) return <p className="enrol-hint">Enter the date of birth to choose the belt.</p>;
+  if (!dateOfBirth)
+    return <p className="enrol-hint">Enter the date of birth to choose the belt.</p>;
   if (loading && definitions.length === 0) return <p className="enrol-hint">Loading belts…</p>;
   return (
     <LevelDeclaration
@@ -463,7 +467,10 @@ function MinorFields({
   const prefix = `enrol-minor-${index}`;
   return (
     <fieldset className="enrol-minor">
-      <legend>Child {index + 1}</legend>
+      <legend>
+        Child {index + 1}
+        {minor.fullName.trim() ? ` · ${minor.fullName.trim()}` : ""}
+      </legend>
       <label className="enrol-field" htmlFor={`${prefix}-name`}>
         Full name
         <input
@@ -506,6 +513,7 @@ function MinorFields({
       <ExperienceQuestion
         id={`${prefix}-experience`}
         child
+        childName={minor.fullName}
         experience={minor.declaration.experience}
         onChange={(experience) => onChange(placeStudent(minor, experience, minor.trainingCenter))}
       />
@@ -558,8 +566,12 @@ function MinorFields({
           </label>
         ))}
       </fieldset>
-      <button className="button button-secondary" onClick={onRemove} type="button">
-        Remove child {index + 1}
+      <button
+        className="button button-secondary enrol-remove-child"
+        onClick={onRemove}
+        type="button"
+      >
+        Remove {minor.fullName.trim() || `child ${index + 1}`}
       </button>
     </fieldset>
   );
@@ -767,8 +779,7 @@ function EnrolContent() {
       // A request still in progress wins over an older approved one (review M6).
       requests?.find(
         (request) => request.status !== "withdrawn" && request.status !== "approved",
-      ) ??
-      (existing ? undefined : requests?.find((request) => request.status === "approved")),
+      ) ?? (existing ? undefined : requests?.find((request) => request.status === "approved")),
     [requests, existing],
   );
 
@@ -1232,7 +1243,7 @@ function EnrolContent() {
                     }
                     type="button"
                   >
-                    Add a child
+                    {form.minors.length > 0 ? "Add another child" : "Add a child"}
                   </button>
                 </section>
               ) : null}

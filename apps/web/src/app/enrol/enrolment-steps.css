@@ -98,17 +98,6 @@
   margin-top: 0.75rem;
 }
 
-.enrol-experience label {
-  align-items: center;
-  display: flex;
-  gap: 0.5rem;
-  letter-spacing: normal;
-  text-transform: none;
-}
-.enrol-experience input {
-  min-height: auto;
-  width: auto;
-}
 .enrol-centre-notice {
   margin-top: 0.75rem;
 }
