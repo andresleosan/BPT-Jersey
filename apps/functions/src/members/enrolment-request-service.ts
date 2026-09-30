@@ -540,6 +540,34 @@ export function createEnrolmentRequestStore(
             );
           if (submission.applicantIsStudent && profiles.some((profile) => profile.via === "self"))
             throw new EnrolmentRequestStoreError("precondition", "You already train on this account.");
+          // A child already on the account is not added twice (review I3): approval would reuse the
+          // existing record and then fail on its level or trial.
+          const children = profiles.filter((profile) => profile.via === "guardian");
+          const childBirthDates = await Promise.all(
+            children.map(async (child) =>
+              asDocument(
+                await transaction.get(
+                  firestore.doc(`${collectionPath(academyId, "students")}/${child.studentId}`),
+                ),
+              ).data()?.dateOfBirth,
+            ),
+          );
+          const sameName = (left: string, right: string) =>
+            left.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("en-GB") ===
+            right.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("en-GB");
+          if (
+            submission.minors.some((minor) =>
+              children.some(
+                (child, index) =>
+                  sameName(child.fullName, minor.fullName) &&
+                  childBirthDates[index] === minor.dateOfBirth,
+              ),
+            )
+          )
+            throw new EnrolmentRequestStoreError(
+              "precondition",
+              "This child is already on your account.",
+            );
           // The holder's contact comes from the account, not from the form (spec D10).
           submission = {
             ...submission,
@@ -550,7 +578,28 @@ export function createEnrolmentRequestStore(
               phoneNumber: user.value.phoneNumber ?? submission.applicant.phoneNumber,
             },
           };
-        } else if (!canSubmitEnrolmentRequest(hold?.status)) {
+        } else if (
+          !canSubmitEnrolmentRequest(hold?.status) ||
+          // An account that already holds members adds people from My plan (existing-member
+          // mode), never through a second plain enrolment (review I1: a withdrawn or denied
+          // existing-member request must not reopen this path).
+          (
+            await Promise.all([
+              transaction.get(
+                firestore
+                  .collection(collectionPath(academyId, "students"))
+                  .where("userId", "==", actorId)
+                  .limit(1),
+              ),
+              transaction.get(
+                firestore
+                  .collection(collectionPath(academyId, "relationships"))
+                  .where("adultUserId", "==", actorId)
+                  .limit(1),
+              ),
+            ])
+          ).some((result) => asQuery(result).docs.length > 0)
+        ) {
           // An allow list, not a list of refusals: a status added to the vocabulary is refused here
           // until somebody decides otherwise, instead of quietly letting a person hold two requests.
           if (hold !== undefined && isOpenEnrolmentRequest(hold.status))

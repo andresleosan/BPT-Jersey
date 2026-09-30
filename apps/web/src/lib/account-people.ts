@@ -38,10 +38,15 @@ export async function loadAccountPeople(): Promise<readonly AccountPerson[]> {
   const profiles = await listMyProfiles();
   const hasSelf = profiles.some((profile) => profile.via === "self");
   const hasChildren = profiles.some((profile) => profile.via === "guardian");
-  const [own, family] = await Promise.all([
+  // Each source settles on its own (review I2): one unreadable child record must not hide the
+  // holder, and the holder's record must not hide the children.
+  const [ownResult, familyResult] = await Promise.allSettled([
     hasSelf ? getClientProfile() : undefined,
     hasChildren ? getFamily() : undefined,
   ]);
+  const own = ownResult.status === "fulfilled" ? ownResult.value : undefined;
+  const family = familyResult.status === "fulfilled" ? familyResult.value : undefined;
+  if (!own && !family && profiles.length > 0) throw new Error("We couldn't load your account right now. Try again.");
   // An approval may have made this account a guardian after its token was issued; refresh it once
   // so pages that still read the role catch up. ponytail: fire-and-forget, the list never needs it.
   if (hasChildren) void getFirebaseAuth().currentUser?.getIdToken(true).catch(() => undefined);
