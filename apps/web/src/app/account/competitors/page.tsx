@@ -12,7 +12,7 @@ import {
   getCompetitors,
   type CompetitorsResponse,
 } from "../../../lib/competitors-client";
-import { listMyProfiles } from "../../../lib/family-plan-client";
+import { listMyProfiles } from "../../../lib/account-people";
 import { BeltLabel, MemberAvatar, MemberCardDialog } from "./member-card-dialog";
 
 import "../account.css";

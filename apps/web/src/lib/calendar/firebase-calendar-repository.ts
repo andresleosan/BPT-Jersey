@@ -6,8 +6,7 @@ import { studentGroupAccessSchema } from "@bpt-jersey/domain/schedule/member-cal
 import type { PlanDraft } from "@bpt-jersey/domain/memberships";
 import { listAvailableMembershipPlans } from "../membership-client";
 
-import { getFamily } from "../family-client";
-import { getClientProfile } from "../profile-client";
+import { loadAccountPeople } from "../account-people";
 import { participantBand } from "../participant-band";
 import {
   cancelBooking,
@@ -72,11 +71,8 @@ export function createFirebaseCalendarRepository(session: {
   async function loadMember(): Promise<CalendarMember> {
     membershipIds.clear();
     canonicalStudents.clear();
-    const subjectsPromise = !ordinaryRole
-      ? Promise.resolve([])
-      : session.role === "guardian"
-        ? getFamily().then((family) => family?.students ?? [])
-        : getClientProfile().then((profile) => profile ? [profile.student] : []);
+    // Everyone who trains on the account, whatever the role says (spec 2026-09-30 D14).
+    const subjectsPromise = !ordinaryRole ? Promise.resolve([]) : loadAccountPeople();
     const loadCourseParticipants = async () => {
       const rows: Awaited<ReturnType<typeof courseApi.participants>>["items"][number][] = [];
       let cursor: string | undefined;

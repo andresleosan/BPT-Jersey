@@ -8,7 +8,7 @@ function ProgressContent() {
   const { session } = useClientSession();
   // Only the people this account trains as: no catalogue of every belt, no other members.
   return (
-    <MemberProgress guardian={session?.role === "guardian"}>
+    <MemberProgress>
       {session?.role === "adultStudent" ? <RecoveredMemberHistory /> : null}
     </MemberProgress>
   );

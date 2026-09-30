@@ -7,8 +7,7 @@ import { PLAN_CATALOG, type ParticipantType, type PlanId } from "@bpt-jersey/dom
 import type { MembershipApplication } from "@bpt-jersey/domain/memberships/intro-conversion";
 
 import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../../lib/client-auth";
-import { getFamily } from "../../../lib/family-client";
-import { listMyProfiles } from "../../../lib/family-plan-client";
+import { loadAccountPeople } from "../../../lib/account-people";
 import {
   listAvailableMembershipPlans,
   listClientMemberships,
@@ -25,7 +24,6 @@ import {
 } from "../../../lib/intro-conversion-client";
 import type { TrialAccessView } from "@bpt-jersey/domain/memberships/trial-access";
 import { describePlanAccess, formatPlanPrice } from "../../../lib/plan-copy";
-import { getClientProfile } from "../../../lib/profile-client";
 import { EnrolmentBankDetails } from "../../enrol/payment-instructions";
 import { PlanPersonRequests } from "./plan-person-request";
 
@@ -84,49 +82,19 @@ function MembershipContent() {
     try {
       // "For whom" is the account's own profile list (A3): "You" when the account trains, then
       // the children. Each source is only asked for when a profile of its kind exists.
-      const subjectsPromise = listMyProfiles().then(async (profiles) => {
-        const hasSelf = profiles.some((profile) => profile.via === "self");
-        const hasChildren = profiles.some((profile) => profile.via === "guardian");
-        const [own, family] = await Promise.all([
-          hasSelf ? getClientProfile() : undefined,
-          hasChildren ? getFamily() : undefined,
-        ]);
-        const subjects = profiles.flatMap((profile): Subject[] => {
-          if (profile.via === "self") {
-            const student = own?.student.studentId === profile.studentId ? own.student : undefined;
-            return student
-              ? [
-                  {
-                    studentId: profile.studentId,
-                    displayName: "You",
-                    trainingCenter: student.trainingCenter,
-                    participantType: student.dateOfBirth
-                      ? participantBand(student.dateOfBirth)
-                      : ("adult" as const),
-                  },
-                ]
-              : [];
-          }
-          const child = family?.students.find(
-            (student) =>
-              student.studentId === profile.studentId &&
-              student.active &&
-              student.status === "active" &&
-              student.dateOfBirth !== undefined,
-          );
-          return child
-            ? [
-                {
-                  studentId: child.studentId,
-                  displayName: child.fullName,
-                  trainingCenter: child.trainingCenter,
-                  participantType: participantBand(child.dateOfBirth!),
-                },
-              ]
-            : [];
-        });
-        return { subjects, hasSelf };
-      });
+      const subjectsPromise = loadAccountPeople().then((people) => ({
+        hasSelf: people.some((person) => person.via === "self"),
+        subjects: people.map(
+          (person): Subject => ({
+            studentId: person.studentId,
+            displayName: person.via === "self" ? "You" : person.fullName,
+            trainingCenter: person.trainingCenter,
+            participantType: person.dateOfBirth
+              ? participantBand(person.dateOfBirth)
+              : ("adult" as const),
+          }),
+        ),
+      }));
       const [plans, memberships, { subjects, hasSelf }, context] = await Promise.all([
         listAvailableMembershipPlans(),
         listClientMemberships(),

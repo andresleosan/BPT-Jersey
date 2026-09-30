@@ -11,7 +11,7 @@ import {
 
 import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../../lib/client-auth";
 import { getFamily } from "../../../lib/family-client";
-import { listMyProfiles } from "../../../lib/family-plan-client";
+import { listMyProfiles } from "../../../lib/account-people";
 import { uploadIntroMembershipProof } from "../../../lib/intro-conversion-client";
 import { participantBand } from "../../../lib/participant-band";
 import { privateLessonPriceLabel } from "../../../lib/plan-copy";

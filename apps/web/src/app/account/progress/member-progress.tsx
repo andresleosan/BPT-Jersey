@@ -8,7 +8,7 @@ import type {
   StudentProgressSummary,
 } from "@bpt-jersey/domain/levels";
 
-import { getFamily } from "../../../lib/family-client";
+import { loadAccountPeople } from "../../../lib/account-people";
 import { getLevelCatalog, getStudentProgressSummary } from "../../../lib/levels-client";
 import { BeltBar } from "../../levels/levels-browser";
 import { beltPosition, groupBelts } from "../../levels/levels-grouping";
@@ -311,41 +311,32 @@ export function RankView({
 }
 
 /**
- * /account/progress: only the people this account trains as. An adult or teen sees their own rank;
- * a guardian picks one of their children, each read through the same authorised summary.
+ * /account/progress: only the people who train on this account — "You" when the holder trains, then
+ * each child — each read through the same authorised summary.
  */
-export function MemberProgress({
-  guardian,
-  children,
-}: Readonly<{ guardian: boolean; children?: React.ReactNode }>) {
-  const [people, setPeople] = useState<readonly Person[] | null>(
-    guardian ? null : [{ studentId: undefined, firstName: "You" }],
-  );
+export function MemberProgress({ children }: Readonly<{ children?: React.ReactNode }>) {
+  const [people, setPeople] = useState<readonly Person[] | null>(null);
   const [selected, setSelected] = useState(0);
 
+  // Everyone who trains on the account, whatever the role says (spec 2026-09-30 D14).
   useEffect(() => {
-    if (!guardian) return;
     let active = true;
-    getFamily().then(
-      (family) => {
-        if (!active) return;
-        const children =
-          family && "tutor" in family
-            ? family.students
-                .filter((s) => s.active && s.status === "active")
-                .map((s) => ({
-                  studentId: s.studentId,
-                  firstName: s.fullName.split(/\s+/u)[0] ?? s.fullName,
-                }))
-            : [];
-        setPeople(children);
-      },
+    loadAccountPeople().then(
+      (list) =>
+        active &&
+        setPeople(
+          list.map((person) => ({
+            studentId: person.studentId,
+            firstName:
+              person.via === "self" ? "You" : (person.fullName.split(/\s+/u)[0] ?? person.fullName),
+          })),
+        ),
       () => active && setPeople([]),
     );
     return () => {
       active = false;
     };
-  }, [guardian]);
+  }, []);
 
   const person = people?.[selected];
   return (
