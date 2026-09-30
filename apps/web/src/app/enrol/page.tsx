@@ -615,6 +615,7 @@ function EnrolContent() {
   }, []);
   const [existing, setExisting] = useState<Readonly<{ allowed: readonly Who[] }>>();
   const [existingFailed, setExistingFailed] = useState(false);
+  const seededPhone = useRef("");
   useEffect(() => {
     if (!alreadyStudent || !requestedFor) return;
     let active = true;
@@ -641,15 +642,21 @@ function EnrolContent() {
             }
           : undefined;
       if (!contact) throw new Error("No account contact");
+      seededPhone.current = contact.phoneNumber;
       if (!active) return;
       const start = allowed.includes(requestedFor) ? requestedFor : allowed[0]!;
       setForm((current) => ({
         ...withWho(current, start),
         ...contact,
         ...(own?.student.dateOfBirth ? { dateOfBirth: own.student.dateOfBirth } : {}),
-        emergencyName: contact.fullName,
-        emergencyRelationship: "Parent",
-        emergencyPhone: contact.phoneNumber,
+        // The holder is the child's emergency contact, never their own (review M4).
+        ...(start === "child"
+          ? {
+              emergencyName: contact.fullName,
+              emergencyRelationship: "Parent",
+              emergencyPhone: contact.phoneNumber,
+            }
+          : {}),
         minors: start === "self" || current.minors.length > 0 ? current.minors : [emptyMinor],
       }));
       setExisting({ allowed });
@@ -739,11 +746,11 @@ function EnrolContent() {
   // form would invite a second submission the server is going to refuse anyway.
   const openRequest = useMemo(
     () =>
-      requests?.find((request) =>
-        existing
-          ? request.status !== "withdrawn" && request.status !== "approved"
-          : request.status !== "withdrawn",
-      ),
+      // A request still in progress wins over an older approved one (review M6).
+      requests?.find(
+        (request) => request.status !== "withdrawn" && request.status !== "approved",
+      ) ??
+      (existing ? undefined : requests?.find((request) => request.status === "approved")),
     [requests, existing],
   );
 
@@ -1031,7 +1038,8 @@ function EnrolContent() {
                   <input
                     autoComplete="tel"
                     id="enrol-phone"
-                    readOnly={existing !== undefined}
+                    // An account without a phone must still be able to add one here (review M5).
+                    readOnly={existing !== undefined && Boolean(seededPhone.current)}
                     maxLength={64}
                     onChange={(event) => setForm({ ...form, phoneNumber: event.target.value })}
                     type="tel"
