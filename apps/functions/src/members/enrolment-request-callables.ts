@@ -300,6 +300,50 @@ export async function returnEnrolmentRequestHandler(
   }
 }
 
+// Denying deletes the application for good, so it stays with the people who approve.
+const denyRoles = new Set(["owner", "administrator"]);
+
+export async function denyEnrolmentRequestHandler(
+  request: CallableRequest<unknown>,
+  services: EnrolmentRequestCallableServices,
+): Promise<Readonly<{ enrolmentRequestId: string }>> {
+  const actor = actorWithRole(request, denyRoles, "Owner or administrator access is required");
+  const payload = request.data;
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    Array.isArray(payload) ||
+    Reflect.ownKeys(payload).length !== 1 ||
+    typeof (payload as { enrolmentRequestId?: unknown }).enrolmentRequestId !== "string"
+  ) {
+    throw new HttpsError("invalid-argument", "Enrolment payload is invalid");
+  }
+  let denied: Awaited<ReturnType<EnrolmentRequestStore["deny"]>>;
+  try {
+    denied = await services.store.deny({
+      academyId: actor.academyId,
+      actorId: actor.userId,
+      now: now(services),
+      enrolmentRequestId: (payload as { enrolmentRequestId: string }).enrolmentRequestId,
+    });
+  } catch (error) {
+    return mapError(error, "write");
+  }
+  if (denied.payment) {
+    const key = enrolmentProofKey(
+      actor.academyId,
+      denied.submittedBy,
+      denied.enrolmentRequestId.replace(/^enrolment-/u, ""),
+      denied.payment.proofId,
+    );
+    // ponytail: the request is already gone; a failed delete is logged with its key for cleanup.
+    await services.storage?.deleteObject(key).catch((error: unknown) => {
+      console.error("enrolment proof delete failed", key, error);
+    });
+  }
+  return { enrolmentRequestId: denied.enrolmentRequestId };
+}
+
 function officeNow(services: EnrolmentOfficeCallableServices): string {
   return services.now?.() ?? new Date().toISOString();
 }
@@ -638,6 +682,10 @@ export const listEnrolmentRequests = onCall(enrolmentRequestCallableOptions, (re
 );
 export const returnEnrolmentRequest = onCall(enrolmentRequestCallableOptions, (request) =>
   returnEnrolmentRequestHandler(request, callableServices()),
+);
+export const denyEnrolmentRequest = onCall(
+  { ...enrolmentRequestCallableOptions, secrets: enrolmentStorageSecrets },
+  (request) => denyEnrolmentRequestHandler(request, callableServices()),
 );
 export const getEnrolmentRequestDetail = onCall(enrolmentOfficeCallableOptions, (request) =>
   getEnrolmentRequestDetailHandler(request, officeCallableServices()),

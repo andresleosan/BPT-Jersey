@@ -46,6 +46,7 @@ export type EnrolmentTransaction = Readonly<{
   ) => Promise<EnrolmentDocumentSnapshot | EnrolmentQuerySnapshot>;
   create: (ref: EnrolmentDocumentReference, data: EnrolmentDocumentData) => EnrolmentTransaction;
   set: (ref: EnrolmentDocumentReference, data: EnrolmentDocumentData) => EnrolmentTransaction;
+  delete: (ref: EnrolmentDocumentReference) => EnrolmentTransaction;
 }>;
 export type EnrolmentFirestore = Readonly<{
   doc: (path: string) => EnrolmentDocumentReference;
@@ -57,6 +58,7 @@ export type EnrolmentAuditAction =
   | "enrolment.request.submitted"
   | "enrolment.request.returned"
   | "enrolment.request.withdrawn"
+  | "enrolment.request.denied"
   | "enrolment.request.approved"
   | "enrolment.request.approval.failed";
 export type EnrolmentAuditDraft = Readonly<{
@@ -158,6 +160,12 @@ export type EnrolmentRequestStore = Readonly<{
   ) => Promise<readonly EnrolmentRequestRecord[]>;
   returnForChanges: (input: ReviewEnrolmentRequestInput) => Promise<EnrolmentRequestRecord>;
   withdraw: (input: WithdrawEnrolmentRequestInput) => Promise<EnrolmentRequestRecord>;
+  /**
+   * Office denies the request: the request, the applicant's hold and any email attestation are
+   * deleted, so nothing of the application stays in the app. Returns what was deleted so the
+   * caller can also remove the payment proof from private storage.
+   */
+  deny: (input: WithdrawEnrolmentRequestInput) => Promise<EnrolmentRequestRecord>;
   /**
    * Takes the approval lock. Approving spans several commits across Firestore and Auth, so the
    * request document is what serialises reviewers: whoever moves it to `approving` owns the
@@ -673,6 +681,51 @@ export function createEnrolmentRequestStore(
         false,
         isReturnableEnrolmentRequest,
       );
+    },
+
+    async deny(input) {
+      const academyId = id(input.academyId, "academy");
+      const actorId = id(input.actorId, "actor");
+      const reference = firestore.doc(
+        `${collectionPath(academyId, "enrolmentRequests")}/${id(input.enrolmentRequestId, "enrolment request")}`,
+      );
+      return firestore.runTransaction(async (transaction) => {
+        const snapshot = asDocument(await transaction.get(reference));
+        if (!snapshot.exists)
+          throw new EnrolmentRequestStoreError("not-found", "Enrolment request not found");
+        const existing = stored(snapshot, academyId);
+        // An approved or approving request already reached the member directory; that is a member
+        // deletion, not a denial.
+        if (!isReturnableEnrolmentRequest(existing.status) && existing.status !== "withdrawn")
+          throw new EnrolmentRequestStoreError(
+            "precondition",
+            "This request was already resolved and cannot be denied",
+          );
+        const holdReference = firestore.doc(
+          `${collectionPath(academyId, "enrolmentRequestHolds")}/${enrolmentHoldId(existing.submittedBy)}`,
+        );
+        const hold = asDocument(await transaction.get(holdReference));
+        const attestations = asQuery(
+          await transaction.get(
+            firestore
+              .collection(collectionPath(academyId, "enrolmentEmailVerificationAuthorisations"))
+              .where("enrolmentRequestId", "==", existing.enrolmentRequestId)
+              .limit(50),
+          ),
+        );
+        transaction.delete(reference);
+        // The hold only blocks a second application; clearing it lets the person apply again.
+        if (hold.data()?.enrolmentRequestId === existing.enrolmentRequestId)
+          transaction.delete(holdReference);
+        for (const attestation of attestations.docs)
+          transaction.delete(
+            firestore.doc(
+              `${collectionPath(academyId, "enrolmentEmailVerificationAuthorisations")}/${attestation.id}`,
+            ),
+          );
+        audit(transaction, academyId, actorId, "enrolment.request.denied", reference.path);
+        return existing;
+      });
     },
 
     async withdraw(input) {
