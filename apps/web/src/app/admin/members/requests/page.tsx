@@ -137,6 +137,11 @@ function DetailPanel({
   const applicantLevel = levelDeclarationLabel(detail.levelDeclarations?.applicant, definitions);
   return (
     <div className="admin-request-detail">
+      {detail.existingMember ? (
+        <p className="admin-request-meta">
+          Existing member: approving adds these people to their current account and family.
+        </p>
+      ) : null}
       <h4>Applicant details</h4>
       <dl className="enrolment-facts">
         <div>
@@ -737,6 +742,7 @@ function EnrolmentRequestQueueContent() {
                   <div className="admin-request-head">
                     <strong>{request.applicantName}</strong>
                     <AdminStatusBadge status={statusLabels[request.status]} />
+                    {request.existingMember ? <AdminStatusBadge status="Existing member" /> : null}
                   </div>
                   <p className="admin-request-meta">
                     {request.applicantIsStudent ? "Adult student" : "Parent or guardian"}
