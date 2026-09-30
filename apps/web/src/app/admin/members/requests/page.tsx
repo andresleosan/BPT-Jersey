@@ -14,6 +14,7 @@ import {
   isReturnableEnrolmentRequest,
   type EnrolmentApprovalSetup,
   type EnrolmentLevelDeclaration,
+  type EnrolmentMinor,
   type EnrolmentPlanChoice,
   enrolmentNeedsPayment,
   enrolmentStudents,
@@ -125,6 +126,70 @@ function levelDeclarationLabel(
     : `${beltLabel} (declared)`;
 }
 
+const genderLabels: Readonly<Record<string, string>> = {
+  female: "Female",
+  male: "Male",
+  unknown: "Not stated",
+};
+
+/** One person who will train: who they are first (name, age, centre, gender), then the rest. */
+function StudentFacts({
+  person,
+  planId,
+  declaration,
+  definitions,
+}: Readonly<{
+  person: EnrolmentMinor | EnrolmentRequestOfficeDetail["applicant"];
+  planId: EnrolmentPlanChoice | undefined;
+  declaration: EnrolmentLevelDeclaration | undefined;
+  definitions: readonly LevelDefinitionRecord[];
+}>) {
+  const level = levelDeclarationLabel(declaration, definitions);
+  const age = ageOnDate(person.dateOfBirth, new Date().toISOString().slice(0, 10));
+  return (
+    <li>
+      <dl className="enrolment-facts">
+        <div>
+          <dt>Full name</dt>
+          <dd>{person.fullName}</dd>
+        </div>
+        <div>
+          <dt>Age</dt>
+          <dd>
+            {age} (born {person.dateOfBirth})
+          </dd>
+        </div>
+        <div>
+          <dt>Centre</dt>
+          <dd>{person.trainingCenter}</dd>
+        </div>
+        <div>
+          <dt>Gender</dt>
+          <dd>{person.gender ? (genderLabels[person.gender] ?? person.gender) : "Not stated"}</dd>
+        </div>
+        <div>
+          <dt>Training times</dt>
+          <dd>
+            {person.trainingTimePreferences.join(", ") || "Not given"}
+            {person.frequencyNote ? ` · ${person.frequencyNote}` : ""}
+          </dd>
+        </div>
+        {person.emergencyContact ? (
+          <div>
+            <dt>Emergency contact</dt>
+            <dd>
+              {person.emergencyContact.fullName} ({person.emergencyContact.relationship}),{" "}
+              {person.emergencyContact.phoneNumber}
+            </dd>
+          </div>
+        ) : null}
+      </dl>
+      <PlanPreference dateOfBirth={person.dateOfBirth} planId={planId} declaration={declaration} />
+      {level ? <p className="admin-request-meta">Level: {level}</p> : null}
+    </li>
+  );
+}
+
 function DetailPanel({
   detail,
   definitions,
@@ -133,108 +198,86 @@ function DetailPanel({
   definitions: readonly LevelDefinitionRecord[];
 }>) {
   const { applicant } = detail;
-  const applicantLevel = levelDeclarationLabel(detail.levelDeclarations?.applicant, definitions);
+  // An existing member's own details are already on file: only the guardian's name matters here,
+  // plus their own facts when they are starting to train themselves.
+  const applicantTrains = detail.applicantIsStudent;
   return (
     <div className="admin-request-detail">
       {detail.existingMember ? (
-        <p className="admin-request-meta">
-          Existing member: approving adds these people to their current account and family.
-        </p>
-      ) : null}
-      <h4>Applicant details</h4>
-      <dl className="enrolment-facts">
-        <div>
-          <dt>Full name</dt>
-          <dd>{applicant.fullName}</dd>
-        </div>
-        <div>
-          <dt>Date of birth</dt>
-          <dd>{applicant.dateOfBirth}</dd>
-        </div>
-        <div>
-          <dt>Email</dt>
-          <dd>{applicant.email || "Not provided"}</dd>
-        </div>
-        <div>
-          <dt>Phone</dt>
-          <dd>{applicant.phoneNumber}</dd>
-        </div>
-        <div>
-          <dt>Gender</dt>
-          <dd>{applicant.gender ?? "Not provided"}</dd>
-        </div>
-        <div>
-          <dt>Centre</dt>
-          <dd>{applicant.trainingCenter}</dd>
-        </div>
-        <div>
-          <dt>Training times</dt>
-          <dd>{applicant.trainingTimePreferences.join(", ") || "Not training"}</dd>
-        </div>
-        {applicant.frequencyNote ? (
-          <div>
-            <dt>Training frequency</dt>
-            <dd>{applicant.frequencyNote}</dd>
-          </div>
-        ) : null}
-        {applicant.postalAddress ? (
-          <div>
-            <dt>Address</dt>
-            <dd>
-              {applicant.postalAddress.line}, {applicant.postalAddress.postCode}
-            </dd>
-          </div>
-        ) : null}
-        <div>
-          <dt>Emergency contact</dt>
-          <dd>
-            {applicant.emergencyContact
-              ? `${applicant.emergencyContact.fullName} (${applicant.emergencyContact.relationship}), ${applicant.emergencyContact.phoneNumber}`
-              : "Not provided"}
-          </dd>
-        </div>
-      </dl>
-      {detail.applicantIsStudent ? (
         <>
-          <PlanPreference
-            dateOfBirth={applicant.dateOfBirth}
-            planId={detail.planSelections?.applicant}
-            declaration={detail.levelDeclarations?.applicant}
-          />
-          {applicantLevel ? <p className="admin-request-meta">Level: {applicantLevel}</p> : null}
+          <p className="admin-request-meta">
+            Existing member: approving adds these people to their current account and family.
+          </p>
+          <dl className="enrolment-facts">
+            <div>
+              <dt>{detail.minors.length > 0 ? "Guardian" : "Account holder"}</dt>
+              <dd>{applicant.fullName}</dd>
+            </div>
+          </dl>
         </>
-      ) : null}
-      {detail.minors.length > 0 ? (
-        <ul className="admin-request-minors" aria-label="Children in their care">
-          {detail.minors.map((minor, index) => {
-            const minorLevel = levelDeclarationLabel(
-              detail.levelDeclarations?.minors[index],
-              definitions,
-            );
-            return (
-              <li key={`${minor.fullName}-${minor.dateOfBirth}`}>
-                {minor.fullName} · born {minor.dateOfBirth} · {minor.trainingCenter}
-                {minor.frequencyNote ? ` · ${minor.frequencyNote}` : ""}
-                <p>
-                  Gender: {minor.gender ?? "Not provided"} · Training times:{" "}
-                  {minor.trainingTimePreferences.join(", ")}
-                </p>
-                {minor.emergencyContact ? (
-                  <p>
-                    Emergency contact: {minor.emergencyContact.fullName} (
-                    {minor.emergencyContact.relationship}) {minor.emergencyContact.phoneNumber}
-                  </p>
-                ) : null}
-                <PlanPreference
-                  dateOfBirth={minor.dateOfBirth}
-                  planId={detail.planSelections?.minors[index]}
-                  declaration={detail.levelDeclarations?.minors[index]}
-                />
-                {minorLevel ? <p className="admin-request-meta">Level: {minorLevel}</p> : null}
-              </li>
-            );
-          })}
-        </ul>
+      ) : (
+        <>
+          <h4>Applicant details</h4>
+          <dl className="enrolment-facts">
+            <div>
+              <dt>Full name</dt>
+              <dd>{applicant.fullName}</dd>
+            </div>
+            <div>
+              <dt>Date of birth</dt>
+              <dd>{applicant.dateOfBirth}</dd>
+            </div>
+            <div>
+              <dt>Email</dt>
+              <dd>{applicant.email || "Not provided"}</dd>
+            </div>
+            <div>
+              <dt>Phone</dt>
+              <dd>{applicant.phoneNumber}</dd>
+            </div>
+            {applicant.postalAddress ? (
+              <div>
+                <dt>Address</dt>
+                <dd>
+                  {applicant.postalAddress.line}, {applicant.postalAddress.postCode}
+                </dd>
+              </div>
+            ) : null}
+            {!applicantTrains && applicant.emergencyContact ? (
+              <div>
+                <dt>Emergency contact</dt>
+                <dd>
+                  {applicant.emergencyContact.fullName} ({applicant.emergencyContact.relationship}),{" "}
+                  {applicant.emergencyContact.phoneNumber}
+                </dd>
+              </div>
+            ) : null}
+          </dl>
+        </>
+      )}
+      {applicantTrains || detail.minors.length > 0 ? (
+        <>
+          <h4>Who will train</h4>
+          <ul className="admin-request-minors" aria-label="Who will train">
+            {applicantTrains ? (
+              <StudentFacts
+                person={applicant}
+                planId={detail.planSelections?.applicant}
+                declaration={detail.levelDeclarations?.applicant}
+                definitions={definitions}
+              />
+            ) : null}
+            {detail.minors.map((minor, index) => (
+              <StudentFacts
+                key={`${minor.fullName}-${minor.dateOfBirth}`}
+                person={minor}
+                planId={detail.planSelections?.minors[index]}
+                declaration={detail.levelDeclarations?.minors[index]}
+                definitions={definitions}
+              />
+            ))}
+          </ul>
+        </>
       ) : null}
       <p>
         Waiver:{" "}
