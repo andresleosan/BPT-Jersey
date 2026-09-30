@@ -114,9 +114,18 @@ const clientRolesEligibleForEnrolment = new Set(["shopper", "guardian", "adultSt
 
 // A guardian who also trains ends as `guardian`: the role that lets them hold a family. Their own
 // student record keeps the `self` link, because the adult writer stores their userId on it.
-function targetRoleFor(record: EnrolmentRequestRecord): "adultStudent" | "guardian" {
-  return record.minors.length > 0 ? "guardian" : "adultStudent";
+// An existing guardian who only starts training stays `guardian` (spec Review Focus 1).
+function targetRoleFor(
+  record: EnrolmentRequestRecord,
+  currentRole?: unknown,
+): "adultStudent" | "guardian" {
+  return record.minors.length > 0 || (record.existingMember === true && currentRole === "guardian")
+    ? "guardian"
+    : "adultStudent";
 }
+
+const normalizedName = (name: string) =>
+  name.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("en-GB");
 
 function currentClaims(user: EnrolmentApprovalAuthUser): Record<string, unknown> {
   const claims = user.customClaims;
@@ -311,6 +320,92 @@ export function createEnrolmentApprovalService(
     return Object.freeze(family.students.map((student) => student.studentId));
   }
 
+  /**
+   * Spec §5: an account that already holds members. Nothing account-level is created again: the
+   * holder's own student joins the same account, children join the holder's family (created only
+   * when there is none), and a retry finds what it already wrote instead of writing it twice.
+   */
+  async function approveExistingMember(
+    input: ApproveEnrolmentRequestInput,
+    record: EnrolmentRequestRecord,
+    approvalRequestId: string,
+    account: Readonly<{ userId: string; displayName: string; email: string }>,
+  ): Promise<readonly string[]> {
+    const academyId = input.actor.academyId;
+    const ids: string[] = [];
+    if (record.applicantIsStudent) {
+      const written = await dependencies.directory.createAdminAdultForAccount({
+        actor: input.actor,
+        enrolmentRequestId: record.enrolmentRequestId,
+        value: { requestId: approvalRequestId, ...record.applicant },
+        account,
+        existingClientAccount: true,
+        now: input.now,
+      });
+      ids.push(written.studentId);
+    }
+    if (record.minors.length === 0) return Object.freeze(ids);
+    await promoteClaim(account.userId, academyId, "guardian");
+    const common = {
+      academyId,
+      actorId: input.actor.actorId,
+      actorRole: input.actor.role === "owner" ? ("owner" as const) : ("administrator" as const),
+      now: input.now,
+    };
+    const matching = (
+      students: readonly Readonly<{ studentId: string; fullName: string; dateOfBirth?: string }>[],
+      minor: EnrolmentRequestRecord["minors"][number],
+    ) =>
+      students.filter(
+        (student) =>
+          normalizedName(student.fullName) === normalizedName(minor.fullName) &&
+          student.dateOfBirth === minor.dateOfBirth,
+      );
+    const one = (found: readonly Readonly<{ studentId: string }>[]): string => {
+      if (found.length !== 1)
+        throw new EnrolmentApprovalError(
+          "conflict",
+          "child_record_ambiguous",
+          "The child's record needs office review",
+        );
+      return found[0]!.studentId;
+    };
+    const family = await dependencies.families.getGuardianFamily(academyId, account.userId);
+    if (!family) {
+      const created = await dependencies.families.createFamily({
+        ...common,
+        enrolmentRequestId: record.enrolmentRequestId,
+        requestId: approvalRequestId,
+        tutorUserId: account.userId,
+        students: record.minors.map(toFamilyStudentDraft),
+      });
+      for (const minor of record.minors) ids.push(one(matching(created.students, minor)));
+      return Object.freeze(ids);
+    }
+    let students: readonly Readonly<{ studentId: string; fullName: string; dateOfBirth?: string }>[] =
+      family.students;
+    for (const [index, minor] of record.minors.entries()) {
+      const existing = matching(students, minor);
+      if (existing.length === 1) {
+        ids.push(existing[0]!.studentId);
+        continue;
+      }
+      const written = await dependencies.families.updateFamily({
+        ...common,
+        familyId: family.family.familyId,
+        // One stable key per child: a retry replays it, a second child never collides with it.
+        operation: {
+          kind: "addStudent",
+          requestId: `${approvalRequestId}-${index}`,
+          student: toFamilyStudentDraft(minor),
+        },
+      });
+      students = written.students;
+      ids.push(one(matching(students, minor)));
+    }
+    return Object.freeze(ids);
+  }
+
   return Object.freeze({
     async approve(input) {
       if (input.actor.role !== "owner" && input.actor.role !== "administrator") {
@@ -358,24 +453,33 @@ export function createEnrolmentApprovalService(
         );
       }
 
-      const role = targetRoleFor(record);
+      let role = targetRoleFor(record);
       let studentIds: readonly string[];
       let stage = "registration_validation";
       try {
         await dependencies.registration.validate(record);
         stage = "applicant_account";
         const account = await readApplicantAccount(record, input.actor.academyId);
+        role = targetRoleFor(
+          record,
+          currentClaims(await dependencies.auth.getUser(account.userId)).role,
+        );
         // D8 (2026-09-23): nobody verifies an email. The office approval vouches for the account
         // before any write, because the family writer and the member-facing checks (profile,
         // levels) refuse an unverified address.
         stage = "account_email";
         if ((await dependencies.auth.getUser(account.userId)).emailVerified !== true)
           await dependencies.auth.updateUser(account.userId, { emailVerified: true });
-        stage = role === "adultStudent" ? "member" : "family";
+        stage = record.existingMember
+          ? "existing_member"
+          : role === "adultStudent"
+            ? "member"
+            : "family";
         // The adult record first: `approveGuardian` then upserts the same users document. The order
         // matches `enrolmentStudents`, which the office setup and the subscriptions follow.
-        studentIds =
-          role === "adultStudent"
+        studentIds = record.existingMember
+          ? await approveExistingMember(input, record, approvalRequestId, account)
+          : role === "adultStudent"
             ? await approveAdult(input, record, approvalRequestId, account)
             : Object.freeze([
                 ...(record.applicantIsStudent
