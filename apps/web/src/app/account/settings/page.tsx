@@ -28,7 +28,7 @@ import {
 } from "../../../lib/account-settings-client";
 import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../../lib/client-auth";
 import { getFamily } from "../../../lib/family-client";
-import { listMyProfiles } from "../../../lib/family-plan-client";
+import { listMyProfiles } from "../../../lib/account-people";
 import { getFirebaseAuth } from "../../../lib/firebase-client";
 import { cropToSquareWebp, type CroppedAvatar } from "./avatar-cropper";
 import { EmailSection } from "./email-section";

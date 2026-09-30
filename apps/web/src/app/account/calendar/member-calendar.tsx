@@ -433,7 +433,7 @@ export function MemberCalendar({
 
   useEffect(() => {
     const others = (member?.participants ?? []).filter((p) => p.studentId !== selectedStudentId);
-    if (member?.role !== "guardian" || others.length === 0) {
+    if (others.length === 0) {
       setSiblingReady({ studentId: selectedStudentId, names: [] });
       return;
     }
