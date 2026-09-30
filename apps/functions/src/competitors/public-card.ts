@@ -21,6 +21,7 @@ import {
   createLevelCatalogStore,
   type GenericDocumentSnapshot,
 } from "../levels/level-service.js";
+import { openMatSessionIds, readProgressAdjustments } from "../levels/progress-adjustments.js";
 import type { R2Client } from "../storage/r2-client.js";
 
 /** Same "live plan" rule as the member overview's `currentMembership` (E6). */
@@ -65,6 +66,14 @@ export async function buildLeaderboardRows(
     db.collection(`${root}/memberIdentityAliases`).get(),
     db.collection(`${root}/memberPublicSettings`).get(),
     db.collection(`${root}/attendance`).where("occurredAt", ">=", seasonStartIso).get(),
+  ]);
+  const [adjustments, openMat] = await Promise.all([
+    readProgressAdjustments(db, academyId, { sinceDate: seasonStart }),
+    openMatSessionIds(
+      db,
+      academyId,
+      attendance.docs.map((document) => String(document.get("sessionId"))),
+    ),
   ]);
 
   // Historical identities count for their canonical student, as in the member's own streak panel.
@@ -124,6 +133,11 @@ export async function buildLeaderboardRows(
   for (const document of attendance.docs) {
     const identity = document.get("studentId");
     if (typeof identity !== "string") continue;
+    if (
+      adjustments.voidedAttendanceIds.has(document.id) ||
+      openMat.has(String(document.get("sessionId")))
+    )
+      continue;
     attendanceByIdentity.set(identity, [...(attendanceByIdentity.get(identity) ?? []), document]);
   }
   const settingsById = new Map(settings.docs.map((document) => [document.id, document.data()]));
@@ -169,9 +183,14 @@ export async function buildLeaderboardRows(
     const identityIds = [studentId, ...(aliasesOf.get(studentId) ?? [])];
     const docs = identityIds.flatMap((id) => attendanceByIdentity.get(id) ?? []);
     try {
-      return countedAttendance({ docs } as never, academyId, studentId, identityIds)
-        .map((record) => String(record.occurredAt))
-        .filter((occurredAt) => occurredAt <= nowIso);
+      return [
+        ...countedAttendance({ docs } as never, academyId, studentId, identityIds).map((record) =>
+          String(record.occurredAt),
+        ),
+        ...(adjustments.manualByStudent.get(studentId) ?? []),
+      ]
+        .filter((occurredAt) => occurredAt <= nowIso)
+        .sort();
     } catch {
       logError("Leaderboard attendance unavailable", { studentId });
       return [];

@@ -64,6 +64,11 @@ import {
   type LevelCatalogPublication,
 } from "./level-catalog-integrity.js";
 import type { NormalizedLevelCatalog } from "./level-source.js";
+import {
+  countedClassInstants,
+  openMatSessionIds,
+  readProgressAdjustments,
+} from "./progress-adjustments.js";
 
 export class LevelStoreError extends Error {
   public readonly code: "invalid" | "tenant" | "not-found" | "conflict";
@@ -778,7 +783,7 @@ export type PromotionRestore = Readonly<{
   importedBaseline: ImportedBaseline | null;
 }>;
 
-function promotionRestoreOf(headData: Readonly<Record<string, unknown>>): PromotionRestore {
+export function promotionRestoreOf(headData: Readonly<Record<string, unknown>>): PromotionRestore {
   return Object.freeze({
     currentDefinitionKey: headData.currentDefinitionKey as string,
     currentLevelStartedAt: (headData.currentLevelStartedAt as string | null) ?? null,
@@ -2088,7 +2093,14 @@ export function createLevelCatalogStore({
         studentId,
         attendanceSnapshot.ids,
       );
-      const sessionIds = [...new Set(attendance.map((record) => String(record.sessionId)))];
+      const counted = await countedClassInstants(
+        firestore as unknown as Firestore,
+        academyId,
+        studentId,
+        attendance,
+      );
+      const realClasses = counted.filter((record) => record.sessionId !== null);
+      const sessionIds = [...new Set(realClasses.map((record) => String(record.sessionId)))];
       const readSession = (id: string): Promise<GenericDocumentSnapshot> => {
         if (!sessionCache) return firestore.doc(`academies/${academyId}/sessions/${id}`).get();
         let pending = sessionCache.get(id);
@@ -2116,7 +2128,7 @@ export function createLevelCatalogStore({
         }),
       );
       let totalMinutes = 0;
-      for (const attendanceRecord of attendance) {
+      for (const attendanceRecord of realClasses) {
         const session = sessions.get(String(attendanceRecord.sessionId));
         if (
           session === undefined ||
@@ -2133,16 +2145,18 @@ export function createLevelCatalogStore({
         }
         totalMinutes += duration / 60_000;
       }
+      // ponytail: an owner-added date has no session; it counts as one hour.
+      totalMinutes += (counted.length - realClasses.length) * 60;
       return buildStudentProgressSummary({
         catalog,
         studentId,
         currentDefinitionKey: headData.currentDefinitionKey,
         evaluations,
-        attendedClassesCount: attendance.length,
+        attendedClassesCount: counted.length,
         totalHours: totalMinutes / 60,
         currentLevelStartedAt: headData.currentLevelStartedAt ?? null,
         classesAtLevel: countClassesAtLevel({
-          attendedAt: attendance.map((record) => record.occurredAt as string),
+          attendedAt: counted.map((record) => record.occurredAt),
           currentLevelStartedAt: (headData.currentLevelStartedAt as string | null) ?? null,
           importedBaseline: storedImportedBaseline(headData.importedBaseline),
         }),
@@ -2301,27 +2315,36 @@ export function createLevelCatalogStore({
           return record as unknown as EvaluationRecord;
         })
         .filter((record) => studentIds.has(record.studentId));
-      const attendances = withinLimit(attendanceSnapshot, "Attendance").docs.flatMap((document) => {
-        const record = document.data();
-        if (
-          record.academyId !== academyId ||
-          record.attendanceId !== document.id ||
-          typeof record.studentId !== "string" ||
-          !allStudentIds.has(record.studentId) ||
-          typeof record.occurredAt !== "string"
-        ) {
-          throw new LevelStoreError("tenant", "Attendance scope is invalid");
-        }
-        if (
-          typeof record.courseId === "string" ||
-          !studentIds.has(record.studentId) ||
-          record.correctionOf !== null ||
-          (record.state !== "attended" && record.state !== "late")
-        ) {
-          return [];
-        }
-        return [{ studentId: record.studentId, attendedAt: record.occurredAt }];
-      });
+      const rawAttendances = withinLimit(attendanceSnapshot, "Attendance").docs.flatMap(
+        (document) => {
+          const record = document.data();
+          if (
+            record.academyId !== academyId ||
+            record.attendanceId !== document.id ||
+            typeof record.studentId !== "string" ||
+            !allStudentIds.has(record.studentId) ||
+            typeof record.occurredAt !== "string"
+          ) {
+            throw new LevelStoreError("tenant", "Attendance scope is invalid");
+          }
+          if (
+            typeof record.courseId === "string" ||
+            !studentIds.has(record.studentId) ||
+            record.correctionOf !== null ||
+            (record.state !== "attended" && record.state !== "late")
+          ) {
+            return [];
+          }
+          return [
+            {
+              studentId: record.studentId,
+              attendedAt: record.occurredAt,
+              attendanceId: document.id,
+              sessionId: String(record.sessionId),
+            },
+          ];
+        },
+      );
       const medicalLeaves = withinLimit(leaveSnapshot, "Medical leaves")
         .docs.map((document) => {
           const record = document.data();
@@ -2336,6 +2359,29 @@ export function createLevelCatalogStore({
           return record as unknown as MedicalLeaveRecord;
         })
         .filter((record) => studentIds.has(record.studentId));
+      const [adjustments, openMat] = await Promise.all([
+        readProgressAdjustments(firestore as unknown as Firestore, academyId, { sinceDate: null }),
+        openMatSessionIds(
+          firestore as unknown as Firestore,
+          academyId,
+          rawAttendances.map((record) => record.sessionId),
+        ),
+      ]);
+      // Spec §A: the same rule as countedClassInstants, for every student at once.
+      const attendances = [
+        ...rawAttendances
+          .filter(
+            (record) =>
+              !adjustments.voidedAttendanceIds.has(record.attendanceId) &&
+              !openMat.has(record.sessionId),
+          )
+          .map(({ studentId, attendedAt }) => ({ studentId, attendedAt })),
+        ...[...adjustments.manualByStudent]
+          .filter(([studentId]) => studentIds.has(studentId))
+          .flatMap(([studentId, instants]) =>
+            instants.map((attendedAt) => ({ studentId, attendedAt })),
+          ),
+      ];
       return generateRecognitionCandidates({
         catalog,
         students,
@@ -2603,12 +2649,14 @@ export function createLevelCatalogStore({
           MAX_LEVEL_RECORDS,
         ),
       ]);
-      const attendedAt = countedAttendance(
-        attendanceSnapshot,
-        academyId,
-        input.studentId,
-        attendanceSnapshot.ids,
-      ).map((record) => record.occurredAt as string);
+      const attendedAt = (
+        await countedClassInstants(
+          firestore as unknown as Firestore,
+          academyId,
+          input.studentId,
+          countedAttendance(attendanceSnapshot, academyId, input.studentId, attendanceSnapshot.ids),
+        )
+      ).map((record) => record.occurredAt);
       return firestore.runTransaction(async (transaction) => {
         await assertTransactionalActor(transaction, firestore, {
           academyId,

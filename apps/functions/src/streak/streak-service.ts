@@ -3,6 +3,7 @@ import { warn } from "firebase-functions/logger";
 import type { AttendedSession } from "@bpt-jersey/domain/members/engagement";
 
 import { countedAttendance } from "../levels/level-service.js";
+import { countedClassInstants } from "../levels/progress-adjustments.js";
 import { readCanonicalMemberIdentityIds } from "../members/member-identity-firestore.js";
 
 /** Same bound as the level store's safe read; the newest records are kept when it is reached. */
@@ -29,13 +30,23 @@ export async function readAttendedSessions(
     .orderBy("occurredAt", "desc")
     .limit(maxAttendanceRecords)
     .get();
-  const records = countedAttendance(snapshot, academyId, studentId, identityIds);
+  const records = (
+    await countedClassInstants(
+      db,
+      academyId,
+      studentId,
+      countedAttendance(snapshot, academyId, studentId, identityIds),
+    )
+  ).filter((record) => record.occurredAt >= sinceIso);
   if (records.length === 0) return [];
 
-  const sessionIds = [...new Set(records.map((record) => String(record.sessionId)))];
-  const sessions = await db.getAll(
-    ...sessionIds.map((id) => db.doc(`academies/${academyId}/sessions/${id}`)),
-  );
+  const sessionIds = [
+    ...new Set(records.flatMap((record) => (record.sessionId === null ? [] : [record.sessionId]))),
+  ];
+  const sessions =
+    sessionIds.length === 0
+      ? []
+      : await db.getAll(...sessionIds.map((id) => db.doc(`academies/${academyId}/sessions/${id}`)));
   const minutesBySession = new Map<string, number>();
   for (const snapshot of sessions) {
     const value = snapshot.data();
@@ -56,7 +67,9 @@ export async function readAttendedSessions(
     }
   }
   return records.map((record) => ({
-    occurredAt: String(record.occurredAt),
-    durationMinutes: minutesBySession.get(String(record.sessionId)) ?? defaultDurationMinutes,
+    occurredAt: record.occurredAt,
+    durationMinutes:
+      (record.sessionId === null ? undefined : minutesBySession.get(record.sessionId)) ??
+      defaultDurationMinutes,
   }));
 }
