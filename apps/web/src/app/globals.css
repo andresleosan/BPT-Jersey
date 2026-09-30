@@ -3515,20 +3515,63 @@ button:focus-visible {
   padding: 1.5rem;
 }
 
-.enrol-form fieldset,
-.enrol-minor {
-  border: 1px solid var(--line);
+/* Sections are ruled groups, not boxes inside boxes: on a phone every nested border and padding
+   was width taken from the fields (2026-10-01). Only a child is a card, because it is one object. */
+.enrol-form fieldset {
+  border: 0;
+  border-top: 1px solid var(--paper-edge);
   display: grid;
   gap: 0.9rem;
-  padding: 1rem;
+  margin: 0;
+  padding: 1.25rem 0 0;
+}
+
+.enrol-form fieldset fieldset {
+  border-top: 0;
+  gap: 0.5rem;
+  padding-top: 0;
+}
+
+.enrol-form .enrol-minor {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  border-top: 0.35rem solid var(--bpt-purple);
+  padding: 1.1rem 1rem 1rem;
 }
 
 .enrol-form legend {
+  color: var(--mat-ink);
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.08em;
-  padding: 0 0.4rem;
+  padding: 0 0 0.75rem;
   text-transform: uppercase;
+}
+
+.enrol-form fieldset fieldset > legend {
+  color: var(--muted);
+  padding-bottom: 0.5rem;
+}
+
+/* A question is read as a sentence, not shouted as a tracked label (DESIGN.md §4: body 600). */
+.enrol-form .enrol-experience > legend {
+  color: var(--mat-ink);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: normal;
+  line-height: 1.35;
+  text-transform: none;
+}
+
+.enrol-form .enrol-minor > legend {
+  color: var(--bpt-purple);
+  float: left;
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.5rem;
+  letter-spacing: 0.035em;
+  line-height: 1;
+  padding: 0 0 0.25rem;
+  width: 100%;
 }
 
 .enrol-plans {
@@ -3557,12 +3600,46 @@ button:focus-visible {
   border-radius: 0;
   color: var(--mat-ink);
   font: inherit;
+  font-size: 1rem;
+  font-weight: 400;
   letter-spacing: normal;
-  min-height: 2.9rem;
+  min-height: 3rem;
   min-width: 0;
   padding: 0.65rem 0.7rem;
   text-transform: none;
   width: 100%;
+}
+
+/* iOS Safari gives a date field its own intrinsic width, which pushed it past the panel edge. */
+.enrol-field input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  line-height: 1.5;
+  max-width: 100%;
+  text-align: left;
+}
+
+.enrol-field input[type="date"]::-webkit-date-and-time-value {
+  min-height: 1.5em;
+  text-align: left;
+}
+
+.enrol-field input[type="file"] {
+  padding: 0.45rem;
+}
+
+.enrol-field input[type="file"]::file-selector-button {
+  background: var(--gi-white);
+  border: 1px solid var(--bpt-purple);
+  border-radius: 0;
+  color: var(--bpt-purple-dark);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  margin-right: 0.75rem;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.9rem;
 }
 
 .enrol-field input:focus-visible,
@@ -3571,19 +3648,56 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
+/* Every answer is its own full-width tap target (>= 48px), ticked in BPT purple, never system blue. */
 .enrol-preferences label,
-.enrol-who label {
+.enrol-who label,
+.enrol-experience label {
   align-items: center;
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  color: var(--mat-ink);
+  cursor: pointer;
   display: flex;
-  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  gap: 0.75rem;
   letter-spacing: normal;
+  min-height: 3rem;
+  padding: 0.6rem 0.85rem;
   text-transform: none;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease;
+}
+
+.enrol-preferences label:has(input:checked),
+.enrol-who label:has(input:checked),
+.enrol-experience label:has(input:checked) {
+  background: #f0efff;
+  border-color: var(--bpt-purple);
+  box-shadow: inset 0 0 0 1px var(--bpt-purple);
+}
+
+.enrol-preferences label:focus-within,
+.enrol-who label:focus-within,
+.enrol-experience label:focus-within {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 2px;
 }
 
 .enrol-preferences input,
-.enrol-who input {
+.enrol-who input,
+.enrol-experience input {
+  flex: none;
+  height: 1.25rem;
+  margin: 0;
   min-height: auto;
-  width: auto;
+  width: 1.25rem;
+}
+
+.enrol-page input[type="radio"],
+.enrol-page input[type="checkbox"] {
+  accent-color: var(--bpt-purple);
 }
 
 .enrol-hint {
@@ -3674,6 +3788,33 @@ button:focus-visible {
 .enrol-minors {
   display: grid;
   gap: 1rem;
+}
+
+.enrol-remove-child {
+  justify-self: start;
+}
+
+/* Phone: the white form runs edge to edge; the canvas gutter beside it carried nothing. */
+@media (max-width: 47.99rem) {
+  .enrol-page {
+    padding: 2rem 1rem 3rem;
+  }
+
+  .enrol-form,
+  .enrol-status {
+    margin-inline: -1rem;
+    padding: 1.25rem 1rem 1.5rem;
+  }
+
+  .enrol-form .enrol-minor {
+    padding: 1rem 0.85rem 0.85rem;
+  }
+
+  .enrol-form .hero-actions,
+  .enrol-form .hero-actions .button,
+  .enrol-form > .button {
+    width: 100%;
+  }
 }
 
 /* /account back buttons: every way back inside the member area leads to /account and reads as one
