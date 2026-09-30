@@ -31,7 +31,6 @@ import {
 } from "../../../../lib/enrolment-client";
 import { useAdminOrStaffSession } from "../../admin-gate";
 import { AdminSectionHeader, AdminStatusBadge } from "../../admin-ui";
-import { PlanRequestsPanel } from "./plan-requests-panel";
 
 import "../../admin.css";
 import "./requests.css";
@@ -1032,7 +1031,6 @@ function EnrolmentRequestQueueContent() {
           </ul>
         ) : null}
       </section>
-      {office ? <PlanRequestsPanel /> : null}
       {office ? (
         <section
           aria-labelledby="membership-requests-title"
