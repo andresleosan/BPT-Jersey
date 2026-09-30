@@ -564,7 +564,8 @@ export function parseEnrolmentRequestSubmission(
   if (!isPlainData(value)) return err(issue([], "invalid_plain_data"));
   const parsed = enrolmentRequestSubmissionSchema.safeParse(value);
   if (!parsed.success) return err(issues(parsed.error));
-  const { planSelections, levelDeclarations, payment, ...details } = parsed.data;
+  const { planSelections, levelDeclarations, payment, existingMember: _existingMember, ...details } =
+    parsed.data;
   const checkedDetails = parseEnrolmentRequestDetails(details, effectiveDate);
   if (!checkedDetails.ok) return checkedDetails;
   const { applicantIsStudent, applicant, minors } = details;
