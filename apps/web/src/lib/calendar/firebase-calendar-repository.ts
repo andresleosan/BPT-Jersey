@@ -120,6 +120,7 @@ export function createFirebaseCalendarRepository(session: {
     const participants: CalendarParticipant[] = [];
     for (const subject of subjects) {
       canonicalStudents.add(subject.studentId);
+      const birth = subject.dateOfBirth ? { dateOfBirth: subject.dateOfBirth } : {};
       const membership = current.find((candidate) => candidate.studentId === subject.studentId);
       const plan = membership
         ? plans.find((candidate) => candidate.planId === membership.planId)
@@ -139,7 +140,9 @@ export function createFirebaseCalendarRepository(session: {
         introSite: subject.trainingCenter,
         hasAttendedIntro: introAttendance.get(subject.studentId) ?? false,
         hasActiveMembership: true,
+        ...birth,
       } : {
+        ...birth,
         studentId: subject.studentId,
         firstName: firstName(subject.fullName),
         membershipId: null,

@@ -348,10 +348,11 @@ export function MemberCalendar({
             planPending: selectedWeek.access.planPending,
           }
         : {}),
+      ...(participant.dateOfBirth ? { dateOfBirth: participant.dateOfBirth } : {}),
       ...(selectedWeek.groupAccess
         ? {
             additionalProgramIds: selectedWeek.groupAccess.programIds,
-            dateOfBirth: selectedWeek.groupAccess.dateOfBirth,
+            dateOfBirth: selectedWeek.groupAccess.dateOfBirth ?? participant.dateOfBirth,
           }
         : {}),
     };
