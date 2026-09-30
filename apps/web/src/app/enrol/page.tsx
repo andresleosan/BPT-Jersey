@@ -31,6 +31,9 @@ import {
 import { ageOnDate } from "@bpt-jersey/domain/schedule/member-calendar";
 import type { LevelDefinitionRecord } from "@bpt-jersey/domain/levels";
 import { getLevelCatalog } from "../../lib/levels-client";
+import { loadAccountPeople } from "../../lib/account-people";
+import { getFamily } from "../../lib/family-client";
+import { getClientProfile } from "../../lib/profile-client";
 import { beltsForAge, LevelDeclaration } from "./level-declaration";
 import { EnrolmentBankDetails, useEnrolmentBankDetails } from "./payment-instructions";
 import { EnrolmentPlanChoices } from "./plan-choices";
@@ -132,6 +135,21 @@ const emptyForm: ApplicantForm = {
   minors: [],
   waiverAccepted: false,
 };
+
+/** The three ways to join (spec 2026-09-30 D5). */
+type Who = "self" | "child" | "both";
+const allWhoOptions: readonly Readonly<{ value: Who; label: string }>[] = [
+  { value: "self", label: "Just me" },
+  { value: "child", label: "My child or children" },
+  { value: "both", label: "Me and my child or children" },
+];
+const who = (form: ApplicantForm): Who =>
+  !form.guardian ? "self" : form.applicantIsStudent ? "both" : "child";
+const withWho = (form: ApplicantForm, next: Who): ApplicantForm => ({
+  ...form,
+  guardian: next !== "self",
+  applicantIsStudent: next !== "child",
+});
 
 // An applicant is told the truth about every state, including the two the approval introduced: a
 // request being processed is not "waiting", and one whose approval stopped is not "approved".
@@ -590,6 +608,61 @@ function EnrolContent() {
     signedIn && session ? `${session.uid}:${session.role ?? ""}` : undefined,
   );
   const alreadyStudent = session?.role === "guardian" || session?.role === "adultStudent";
+  // Existing-member mode (spec 2026-09-30 §2): My plan links here with `?for=`.
+  const requestedFor = useMemo((): Who | undefined => {
+    const value = new URLSearchParams(globalThis.location?.search ?? "").get("for");
+    return value === "child" || value === "self" || value === "both" ? value : undefined;
+  }, []);
+  const [existing, setExisting] = useState<Readonly<{ allowed: readonly Who[] }>>();
+  const [existingFailed, setExistingFailed] = useState(false);
+  useEffect(() => {
+    if (!alreadyStudent || !requestedFor) return;
+    let active = true;
+    void (async () => {
+      const people = await loadAccountPeople();
+      const trains = people.some((person) => person.via === "self");
+      const allowed: readonly Who[] = trains ? ["child"] : ["self", "child", "both"];
+      // The holder's contact: their own client record when they train, else the family tutor.
+      const [own, family] = await Promise.all([
+        trains ? getClientProfile() : undefined,
+        trains ? undefined : getFamily(),
+      ]);
+      const contact = own
+        ? {
+            fullName: own.user.displayName,
+            email: own.user.email ?? "",
+            phoneNumber: own.user.phoneNumber ?? "",
+          }
+        : family
+          ? {
+              fullName: family.tutor.displayName,
+              email: family.tutor.email ?? "",
+              phoneNumber: family.tutor.phoneNumber ?? "",
+            }
+          : undefined;
+      if (!contact) throw new Error("No account contact");
+      if (!active) return;
+      const start = allowed.includes(requestedFor) ? requestedFor : allowed[0]!;
+      setForm((current) => ({
+        ...withWho(current, start),
+        ...contact,
+        ...(own?.student.dateOfBirth ? { dateOfBirth: own.student.dateOfBirth } : {}),
+        emergencyName: contact.fullName,
+        emergencyRelationship: "Parent",
+        emergencyPhone: contact.phoneNumber,
+        minors: start === "self" || current.minors.length > 0 ? current.minors : [emptyMinor],
+      }));
+      setExisting({ allowed });
+    })().catch(() => {
+      if (active) setExistingFailed(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [alreadyStudent, requestedFor]);
+  const whoOptions = existing
+    ? allWhoOptions.filter((option) => existing.allowed.includes(option.value))
+    : allWhoOptions;
 
   // The belts need a signed-in account: ask once the session is ready, not while it is restoring.
   useEffect(() => {
@@ -647,6 +720,8 @@ function EnrolContent() {
   const seededFullName = useRef<string | undefined>(undefined);
 
   useEffect(() => {
+    // Existing-member mode fills these from the account instead.
+    if (requestedFor && alreadyStudent) return;
     const email = session?.email;
     if (email && seededEmail.current !== email) {
       seededEmail.current = email;
@@ -657,14 +732,19 @@ function EnrolContent() {
       seededFullName.current = displayName;
       setForm((current) => ({ ...current, fullName: displayName }));
     }
-  }, [session?.email, session?.displayName]);
+  }, [session?.email, session?.displayName, requestedFor, alreadyStudent]);
 
   // Anything the applicant still holds, not only what they can still act on. A request the academy
   // is processing, or one whose approval stopped, has to show its state: dropping back to a blank
   // form would invite a second submission the server is going to refuse anyway.
   const openRequest = useMemo(
-    () => requests?.find((request) => request.status !== "withdrawn"),
-    [requests],
+    () =>
+      requests?.find((request) =>
+        existing
+          ? request.status !== "withdrawn" && request.status !== "approved"
+          : request.status !== "withdrawn",
+      ),
+    [requests, existing],
   );
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -731,6 +811,7 @@ function EnrolContent() {
       const parsed = parseEnrolmentRequestSubmission(
         {
           ...toDetails(form, requestId),
+          ...(existing ? { existingMember: true } : {}),
           planSelections: selections,
           levelDeclarations,
           ...(uploaded
@@ -823,7 +904,27 @@ function EnrolContent() {
       </main>
     );
   }
-  if (alreadyStudent && (!openRequest || openRequest.status === "approved")) {
+  if (alreadyStudent && requestedFor && existingFailed) {
+    return (
+      <main className="enrol-page" id="main-content">
+        <p role="alert">
+          We could not load your account details. Reload this page to try again, or contact the
+          academy.
+        </p>
+        <a className="button button-primary" href="/account/membership">
+          Back to My plan
+        </a>
+      </main>
+    );
+  }
+  if (alreadyStudent && requestedFor && !existing) {
+    return (
+      <main className="enrol-page" id="main-content">
+        <p role="status">Loading your details…</p>
+      </main>
+    );
+  }
+  if (alreadyStudent && !existing && (!openRequest || openRequest.status === "approved")) {
     return (
       <main className="enrol-page" id="main-content" aria-labelledby="enrol-title">
         <p className="account-eyebrow">BPT Jersey / Join</p>
@@ -841,10 +942,11 @@ function EnrolContent() {
   return (
     <main className="enrol-page" id="main-content" aria-labelledby="enrol-title">
       <p className="account-eyebrow">BPT Jersey / Join</p>
-      <h1 id="enrol-title">Join the academy</h1>
+      <h1 id="enrol-title">{existing ? "Add to your account" : "Join the academy"}</h1>
       <p className="client-destination-intro">
-        Complete your details, then choose a plan for each student. The academy reviews your request
-        before confirming your registration.
+        {existing
+          ? "Your details are filled in from your account. Add who is joining, accept the waiver and choose a plan. The academy reviews it before confirming."
+          : "Complete your details, then choose a plan for each student. The academy reviews your request before confirming your registration."}
       </p>
 
       {message ? (
@@ -875,35 +977,33 @@ function EnrolContent() {
             <>
               <fieldset className="enrol-who">
                 <legend>Who is joining</legend>
-                <label htmlFor="enrol-self">
-                  <input
-                    checked={!form.guardian}
-                    id="enrol-self"
-                    name="enrol-who"
-                    onChange={() => setForm({ ...form, guardian: false, applicantIsStudent: true })}
-                    type="radio"
-                  />
-                  I am joining as an adult student
-                </label>
-                <label htmlFor="enrol-guardian">
-                  <input
-                    checked={form.guardian}
-                    id="enrol-guardian"
-                    name="enrol-who"
-                    onChange={() => setForm({ ...form, guardian: true, applicantIsStudent: false })}
-                    type="radio"
-                  />
-                  I am a parent or guardian enrolling a child
-                </label>
+                {whoOptions.map((option) => (
+                  <label htmlFor={`enrol-who-${option.value}`} key={option.value}>
+                    <input
+                      checked={who(form) === option.value}
+                      id={`enrol-who-${option.value}`}
+                      name="enrol-who"
+                      onChange={() => setForm(withWho(form, option.value))}
+                      type="radio"
+                    />
+                    {option.label}
+                  </label>
+                ))}
               </fieldset>
 
               <fieldset className="enrol-applicant">
                 <legend>{form.guardian ? "Your details as the guardian" : "Your details"}</legend>
+                {existing ? (
+                  <p className="enrol-hint">
+                    Name, phone and email come from your account. To change them, go to Settings.
+                  </p>
+                ) : null}
                 <label className="enrol-field" htmlFor="enrol-name">
                   Full name
                   <input
                     autoComplete="name"
                     id="enrol-name"
+                    readOnly={existing !== undefined}
                     maxLength={160}
                     onChange={(event) => setForm({ ...form, fullName: event.target.value })}
                     value={form.fullName}
@@ -931,6 +1031,7 @@ function EnrolContent() {
                   <input
                     autoComplete="tel"
                     id="enrol-phone"
+                    readOnly={existing !== undefined}
                     maxLength={64}
                     onChange={(event) => setForm({ ...form, phoneNumber: event.target.value })}
                     type="tel"
@@ -942,6 +1043,7 @@ function EnrolContent() {
                   <input
                     autoComplete="email"
                     id="enrol-email"
+                    readOnly={existing !== undefined}
                     maxLength={320}
                     onChange={(event) => setForm({ ...form, email: event.target.value })}
                     type="email"
@@ -962,19 +1064,6 @@ function EnrolContent() {
                     ))}
                   </select>
                 </label>
-                {form.guardian ? (
-                  <label className="enrol-also-train" htmlFor="enrol-guardian-trains">
-                    <input
-                      checked={form.applicantIsStudent}
-                      id="enrol-guardian-trains"
-                      onChange={(event) =>
-                        setForm({ ...form, applicantIsStudent: event.target.checked })
-                      }
-                      type="checkbox"
-                    />
-                    I also want to train (my own membership)
-                  </label>
-                ) : null}
                 {form.applicantIsStudent ? (
                   <>
                     <ExperienceQuestion
