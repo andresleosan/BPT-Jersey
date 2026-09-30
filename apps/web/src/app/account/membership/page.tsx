@@ -25,7 +25,6 @@ import {
 import type { TrialAccessView } from "@bpt-jersey/domain/memberships/trial-access";
 import { describePlanAccess, formatPlanPrice } from "../../../lib/plan-copy";
 import { EnrolmentBankDetails } from "../../enrol/payment-instructions";
-import { PlanPersonRequests } from "./plan-person-request";
 
 import "./membership.css";
 
@@ -263,7 +262,7 @@ function MembershipContent() {
         workspace.subjects.length === 0 ? (
           <section className="client-membership-state">
             <h2>No member on this account</h2>
-            <p>Add a child or train yourself below, or ask the academy to link your account.</p>
+            <p>Add a child or train yourself below.</p>
           </section>
         ) : (
           <>
@@ -437,9 +436,27 @@ function MembershipContent() {
         )
       ) : null}
       {state === "ready" && workspace ? (
-        <PlanPersonRequests
-          canTrainYourself={!workspace.hasSelf}
-        />
+        <section className="client-plan-people" aria-labelledby="plan-people-title">
+          <h2 id="plan-people-title">Add someone</h2>
+          <div className="client-plan-people-actions">
+            <Link className="client-plan-people-card" href="/enrol?for=child">
+              <strong>Add a child</strong>
+              <span>Register a child under 18 on your account, with their plan and waiver.</span>
+            </Link>
+            {workspace.hasSelf ? null : (
+              <>
+                <Link className="client-plan-people-card" href="/enrol?for=self">
+                  <strong>Train yourself</strong>
+                  <span>Join as a member on this account, with your own plan.</span>
+                </Link>
+                <Link className="client-plan-people-card" href="/enrol?for=both">
+                  <strong>Me and a child</strong>
+                  <span>Join yourself and register a child in one request.</span>
+                </Link>
+              </>
+            )}
+          </div>
+        </section>
       ) : null}
       {notice ? (
         <p
