@@ -12,7 +12,6 @@ import { z } from "zod";
 import { participantBandAt } from "../memberships/participant-band";
 import { memberAgeOn } from "./member-access-contracts";
 import { emergencyContactSchema } from "./member-directory-contracts";
-import { enrolmentTrainingFields } from "./enrolment-request-contracts";
 
 export type AttendedSession = Readonly<{
   occurredAt: string;
@@ -305,10 +304,4 @@ export const ownEmergencyContactInputSchema = z.strictObject({
   studentId: id,
   contact: emergencyContactSchema,
   requestId: z.uuid(),
-});
-export const memberPlanRequestInputSchema = z.strictObject({
-  kind: z.enum(["self", "child"]),
-  fullName: z.string().trim().min(2).max(160),
-  dateOfBirth: z.iso.date(),
-  ...enrolmentTrainingFields, // same centre enum and time slots as /enrol
 });

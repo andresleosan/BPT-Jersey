@@ -287,6 +287,11 @@ export const enrolmentRequestSubmissionSchema = z
     planSelections: enrolmentPlanSelectionsSchema,
     levelDeclarations: enrolmentLevelDeclarationsSchema.optional(),
     payment: enrolmentPaymentSchema.optional(),
+    /**
+     * Sent from My plan by an account that already holds members (spec D1/D5). The server
+     * re-derives it from Firestore before storing it; the client's word only asks.
+     */
+    existingMember: z.literal(true).optional(),
   })
   .readonly();
 export type EnrolmentRequestSubmission = Readonly<z.infer<typeof enrolmentRequestSubmissionSchema>>;
@@ -304,6 +309,11 @@ export const enrolmentRequestRecordSchema = z
     planSelections: enrolmentPlanSelectionsSchema.optional(),
     levelDeclarations: enrolmentLevelDeclarationsSchema.optional(),
     payment: enrolmentPaymentSchema.optional(),
+    /**
+     * Sent from My plan by an account that already holds members (spec D1/D5). The server
+     * re-derives it from Firestore before storing it; the client's word only asks.
+     */
+    existingMember: z.literal(true).optional(),
     approvalSetup: enrolmentApprovalSetupSchema.optional(),
     approvalStartedAt: auditDateTimeSchema.optional(),
     approvalActorId: opaqueIdentifierSchema.optional(),
@@ -397,6 +407,7 @@ export type EnrolmentRequestRow = Readonly<{
   applicantName: string;
   applicantIsStudent: boolean;
   minorCount: number;
+  existingMember?: true;
   trainingCenter: EnrolmentApplicant["trainingCenter"];
   status: EnrolmentRequestStatus;
   submittedAt: string;
@@ -414,6 +425,7 @@ export type EnrolmentRequestDetail = Readonly<{
   enrolmentRequestId: string;
   status: EnrolmentRequestStatus;
   applicantIsStudent: boolean;
+  existingMember?: true;
   applicant: EnrolmentApplicant;
   minors: readonly EnrolmentMinor[];
   planSelections?: EnrolmentPlanSelections;
@@ -633,6 +645,7 @@ export function toEnrolmentRequestRow(record: EnrolmentRequestRecord): Enrolment
     applicantName: record.applicant.fullName,
     applicantIsStudent: record.applicantIsStudent,
     minorCount: record.minors.length,
+    ...(record.existingMember ? { existingMember: true as const } : {}),
     trainingCenter: record.applicant.trainingCenter,
     status: record.status,
     submittedAt: record.submittedAt,
@@ -658,6 +671,7 @@ export function toEnrolmentRequestDetail(record: EnrolmentRequestRecord): Enrolm
     applicantIsStudent: record.applicantIsStudent,
     applicant: record.applicant,
     minors: Object.freeze([...record.minors]),
+    ...(record.existingMember ? { existingMember: true as const } : {}),
     ...(record.planSelections === undefined ? {} : { planSelections: record.planSelections }),
     ...(record.levelDeclarations === undefined
       ? {}
