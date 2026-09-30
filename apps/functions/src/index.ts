@@ -105,6 +105,13 @@ export {
   rejectPromotion,
   voidPromotion,
 } from "./levels/level-callables.js";
+export {
+  addManualAttendance,
+  getProgressManagement,
+  setAttendanceVoid,
+  setProgressClassCount,
+  setProgressLevel,
+} from "./levels/progress-management-callables.js";
 export { getProgressReport } from "./levels/progress-report-callables.js";
 export { getFamilyAchievementSummary } from "./levels/family-achievement-callables.js";
 export {
