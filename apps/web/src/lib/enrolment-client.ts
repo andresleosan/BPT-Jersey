@@ -119,6 +119,7 @@ function row(value: unknown, message: string): EnrolmentRequestRow {
     status,
     submittedAt,
     reviewedAt,
+    existingMember,
   } = value;
   if (
     typeof enrolmentRequestId !== "string" ||
@@ -129,7 +130,8 @@ function row(value: unknown, message: string): EnrolmentRequestRow {
     typeof status !== "string" ||
     !(enrolmentRequestStatuses as readonly string[]).includes(status) ||
     typeof submittedAt !== "string" ||
-    (reviewedAt !== undefined && typeof reviewedAt !== "string")
+    (reviewedAt !== undefined && typeof reviewedAt !== "string") ||
+    (existingMember !== undefined && existingMember !== true)
   ) {
     throw new Error(message);
   }
@@ -138,6 +140,7 @@ function row(value: unknown, message: string): EnrolmentRequestRow {
     applicantName,
     applicantIsStudent,
     minorCount,
+    ...(existingMember === true ? { existingMember: true as const } : {}),
     trainingCenter: trainingCenter as EnrolmentRequestRow["trainingCenter"],
     status: status as EnrolmentRequestStatus,
     submittedAt,
