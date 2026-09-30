@@ -5281,3 +5281,90 @@ a.admin-birthday-badge:focus-visible,
 .member-history-group h4 {
   margin: 0 0 0.5rem;
 }
+
+/* Progress management tab (owner) */
+.progress-manage {
+  display: grid;
+  gap: 1.25rem;
+}
+.progress-manage-name {
+  margin: 0;
+}
+.progress-manage-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+}
+.progress-manage-block {
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  min-width: 0;
+  padding: 1rem;
+}
+.progress-manage-block legend,
+.progress-manage-block h4 {
+  font-weight: 700;
+  margin: 0;
+}
+.progress-manage-head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+.progress-manage-note {
+  color: var(--muted);
+  margin: 0;
+}
+.progress-manage-error {
+  color: #721626;
+  margin: 0;
+}
+.progress-manage-matches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.progress-manage meter {
+  width: 100%;
+}
+.progress-attendance,
+.progress-history {
+  display: grid;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.progress-attendance li {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding: 0.4rem 0;
+}
+.progress-attendance li.is-voided > span:not(.progress-tag) {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.progress-attendance-date {
+  font-variant-numeric: tabular-nums;
+  min-width: 6.5rem;
+}
+.progress-tag {
+  background: var(--canvas);
+  border-left: 0.25rem solid var(--bpt-purple);
+  font-size: 0.8rem;
+  padding: 0.1rem 0.4rem;
+}
+.progress-history li {
+  display: grid;
+  gap: 0.15rem;
+}

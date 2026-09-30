@@ -4,12 +4,14 @@ import Link from "next/link";
 import { startTransition, useEffect, useMemo, useState } from "react";
 import type { MemberOverview, MemberOverviewRow } from "@bpt-jersey/domain/members/overview";
 import { deleteMemberAccount, getMemberOverview } from "../../../lib/member-overview-client";
+import { useAdminGateSession } from "../admin-gate";
 import { AdminSectionHeader } from "../admin-ui";
 import { AdminDataTable } from "../admin-data-table";
 import { MemberNameSearch } from "./member-name-search";
 import { DataReview } from "./data-review";
 import { flagLabels, levelLabel } from "./member-overview-labels";
 import { FamiliesView } from "./families-view";
+import { ProgressManagementTab } from "./progress-management";
 import { recordHref } from "./profile/member-record";
 
 import "../admin.css";
@@ -18,6 +20,7 @@ export const memberViews = [
   { value: "all", label: "All members" },
   { value: "families", label: "Families" },
   { value: "review", label: "Data review" },
+  { value: "progress", label: "Progress management" },
 ] as const;
 export type MemberView = (typeof memberViews)[number]["value"];
 
@@ -131,6 +134,7 @@ function readView(search: string): MemberView {
 }
 
 export function MembersWorkspace() {
+  const isOwner = useAdminGateSession().role === "owner";
   const [state, setState] = useState<WorkspaceState>({ status: "loading" });
   const [reloadToken, setReloadToken] = useState(0);
   const [view, setView] = useState<MemberView>("all");
@@ -333,22 +337,24 @@ export function MembersWorkspace() {
 
       <nav aria-label="Members views" className="members-tabs">
         <ul role="tablist">
-          {memberViews.map((item) => (
-            <li key={item.value} role="presentation">
-              <button
-                aria-selected={view === item.value}
-                className="members-tab"
-                onClick={() => selectView(item.value)}
-                role="tab"
-                type="button"
-              >
-                {item.label}
-                {item.value === "review" && counters ? (
-                  <span className="members-tab-count">{counters.review}</span>
-                ) : null}
-              </button>
-            </li>
-          ))}
+          {memberViews
+            .filter((item) => item.value !== "progress" || isOwner)
+            .map((item) => (
+              <li key={item.value} role="presentation">
+                <button
+                  aria-selected={view === item.value}
+                  className="members-tab"
+                  onClick={() => selectView(item.value)}
+                  role="tab"
+                  type="button"
+                >
+                  {item.label}
+                  {item.value === "review" && counters ? (
+                    <span className="members-tab-count">{counters.review}</span>
+                  ) : null}
+                </button>
+              </li>
+            ))}
         </ul>
       </nav>
 
@@ -365,6 +371,8 @@ export function MembersWorkspace() {
             Try again
           </button>
         </div>
+      ) : view === "progress" && isOwner ? (
+        <ProgressManagementTab rows={state.overview.rows} />
       ) : view === "families" ? (
         <FamiliesView rows={state.overview.rows} />
       ) : view === "review" ? (
