@@ -382,8 +382,7 @@
   padding: 0.6rem 1rem;
 }
 
-.client-membership-person input,
-.client-plan-people-times input {
+.client-membership-person input {
   accent-color: var(--bpt-purple);
 }
 
@@ -420,6 +419,7 @@
   min-height: 3.15rem;
   padding: 1rem;
   text-align: left;
+  text-decoration: none;
 }
 
 .client-plan-people-card:hover,
@@ -427,9 +427,7 @@
   border-color: var(--bpt-purple);
 }
 
-.client-plan-people-card:focus-visible,
-.client-plan-people-form input:focus-visible,
-.client-plan-people-form select:focus-visible {
+.client-plan-people-card:focus-visible {
   outline: 3px solid var(--bpt-purple);
   outline-offset: 2px;
 }
@@ -438,78 +436,3 @@
   color: var(--muted);
 }
 
-.client-plan-people-dialog::backdrop {
-  background: rgba(26, 26, 24, 0.6);
-}
-
-/* A native modal leaves the page scrollable behind it; hold it still while one is open. */
-html:has(dialog[open]:modal) {
-  overflow: hidden;
-}
-
-.client-plan-people-dialog {
-  border: 0;
-  border-radius: 1rem;
-  max-width: min(32rem, calc(100vw - 2rem));
-  padding: 0;
-  width: 100%;
-}
-
-.client-plan-people-form {
-  display: grid;
-  gap: 0.5rem;
-  padding: 1.25rem;
-}
-
-.client-plan-people-form label {
-  font-weight: 800;
-}
-
-.client-plan-people-form input:not([type="checkbox"]),
-.client-plan-people-form select {
-  background: var(--gi-white);
-  border: 1px solid var(--line);
-  border-radius: 1rem;
-  color: var(--mat-ink);
-  font: inherit;
-  min-height: 3.15rem;
-  padding: 0.6rem 0.8rem;
-}
-
-.client-plan-people-times {
-  border: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem 1.25rem;
-  margin: 0.5rem 0 0;
-  padding: 0;
-}
-
-.client-plan-people-times legend {
-  font-weight: 800;
-  margin-bottom: 0.4rem;
-}
-
-.client-plan-people-times label {
-  align-items: center;
-  display: inline-flex;
-  gap: 0.45rem;
-}
-
-.client-plan-people-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 0.75rem;
-}
-
-.client-plan-people-buttons .button {
-  border-radius: 999px;
-  font: inherit;
-  font-weight: 700;
-  min-height: 3.15rem;
-}
-
-.client-plan-people .client-membership-notice:empty {
-  display: none;
-}
