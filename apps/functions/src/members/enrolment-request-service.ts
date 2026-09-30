@@ -9,6 +9,8 @@ import {
   type EnrolmentRequestSubmission,
 } from "@bpt-jersey/domain/members/enrolment-requests";
 import { enrolmentWaiverTermsContentHash } from "@bpt-jersey/domain/consents/enrolment-waiver";
+import { parseUserProfile } from "@bpt-jersey/domain/profiles";
+import { memberAccessInStoreTransaction } from "./member-access-service.js";
 
 export type EnrolmentDocumentData = Readonly<Record<string, unknown>>;
 export type EnrolmentDocumentReference = Readonly<{ id: string; path: string }>;
@@ -506,9 +508,51 @@ export function createEnrolmentRequestStore(
           return existing;
         }
         const hold = storedHold(asDocument(await transaction.get(holdReference)));
-        // An allow list, not a list of refusals: a status added to the vocabulary is refused here
-        // until somebody decides otherwise, instead of quietly letting a person hold two requests.
-        if (!canSubmitEnrolmentRequest(hold?.status)) {
+        let submission = input.submission;
+        if (submission.existingMember) {
+          // Spec §3: an existing member may apply again once their earlier request is settled,
+          // never while one is still open or being approved. The server, not the form, decides
+          // that this account already holds members.
+          if (hold !== undefined && !["approved", "withdrawn"].includes(hold.status))
+            throw new EnrolmentRequestStoreError(
+              "precondition",
+              "You already have a request waiting for the academy to review",
+            );
+          const user = parseUserProfile(
+            asDocument(
+              await transaction.get(firestore.doc(`${collectionPath(academyId, "users")}/${actorId}`)),
+            ).data(),
+          );
+          if (!user.ok || user.value.active !== true || user.value.status !== "active")
+            throw new EnrolmentRequestStoreError(
+              "precondition",
+              "Your account details are incomplete. Contact the office.",
+            );
+          const profiles = await memberAccessInStoreTransaction(
+            firestore,
+            transaction,
+            now,
+          ).listProfiles(academyId, actorId);
+          if (profiles.length === 0)
+            throw new EnrolmentRequestStoreError(
+              "precondition",
+              "Use the registration form to join the academy.",
+            );
+          if (submission.applicantIsStudent && profiles.some((profile) => profile.via === "self"))
+            throw new EnrolmentRequestStoreError("precondition", "You already train on this account.");
+          // The holder's contact comes from the account, not from the form (spec D10).
+          submission = {
+            ...submission,
+            applicant: {
+              ...submission.applicant,
+              fullName: user.value.displayName,
+              ...(user.value.email ? { email: user.value.email } : {}),
+              phoneNumber: user.value.phoneNumber ?? submission.applicant.phoneNumber,
+            },
+          };
+        } else if (!canSubmitEnrolmentRequest(hold?.status)) {
+          // An allow list, not a list of refusals: a status added to the vocabulary is refused here
+          // until somebody decides otherwise, instead of quietly letting a person hold two requests.
           if (hold !== undefined && isOpenEnrolmentRequest(hold.status))
             throw new EnrolmentRequestStoreError(
               "precondition",
@@ -525,15 +569,16 @@ export function createEnrolmentRequestStore(
         const candidate = parseEnrolmentRequestRecord({
           enrolmentRequestId: reference.id,
           academyId,
-          requestId: input.submission.requestId,
+          requestId: submission.requestId,
           status: "submitted",
-          applicantIsStudent: input.submission.applicantIsStudent,
-          applicant: input.submission.applicant,
-          minors: input.submission.minors,
-          planSelections: input.submission.planSelections,
-          ...(input.submission.payment ? { payment: input.submission.payment } : {}),
-          ...(input.submission.levelDeclarations
-            ? { levelDeclarations: input.submission.levelDeclarations }
+          applicantIsStudent: submission.applicantIsStudent,
+          applicant: submission.applicant,
+          minors: submission.minors,
+          planSelections: submission.planSelections,
+          ...(submission.payment ? { payment: submission.payment } : {}),
+          ...(submission.existingMember ? { existingMember: true as const } : {}),
+          ...(submission.levelDeclarations
+            ? { levelDeclarations: submission.levelDeclarations }
             : {}),
           submittedBy: actorId,
           submittedAt: now,
@@ -541,7 +586,7 @@ export function createEnrolmentRequestStore(
           // server's, so an acceptance names words the server can reproduce rather than words the
           // client claims were on screen.
           waiverAcceptance: {
-            version: input.submission.waiverAcceptance.version,
+            version: submission.waiverAcceptance.version,
             contentHash: enrolmentWaiverTermsContentHash,
             acceptedAt: now,
             acceptedBy: actorId,
