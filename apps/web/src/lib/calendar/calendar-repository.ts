@@ -40,6 +40,11 @@ export type CalendarParticipant = Readonly<{
   hasActiveMembership?: boolean;
   /** The free trial a student without a membership is training on, when they have one. */
   trial?: TrialAccessView;
+  /**
+   * The participant's own date of birth. The week only carries it with an active membership, so
+   * without it a child on a Free Trial was judged as a 16-year-old beginner (2026-09-30).
+   */
+  dateOfBirth?: string;
 }>;
 
 export type CalendarMember = Readonly<{
