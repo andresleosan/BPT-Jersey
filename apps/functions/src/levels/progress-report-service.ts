@@ -5,7 +5,9 @@ import {
   type ProgressReportStudent,
 } from "@bpt-jersey/domain/levels";
 import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
+import type { Firestore } from "firebase-admin/firestore";
 import type { LevelCatalogStore, GenericFirestore } from "./level-service.js";
+import { openMatSessionIds, readProgressAdjustments } from "./progress-adjustments.js";
 
 export class ProgressReportStoreError extends Error {
   public readonly code: "invalid" | "tenant" | "not-found";
@@ -105,7 +107,7 @@ export function createFirestoreProgressReportStore(params: {
         });
 
       const activeStudentIds = new Set(students.map((student) => student.studentId));
-      const attendances = attendanceSnapshot.docs.flatMap((document) => {
+      const rawAttendances = attendanceSnapshot.docs.flatMap((document) => {
         const data = document.data();
         if (
           data.academyId !== academyId ||
@@ -124,8 +126,39 @@ export function createFirestoreProgressReportStore(params: {
         ) {
           return [];
         }
-        return [{ studentId: data.studentId, attendedAt: data.occurredAt }];
+        return [
+          {
+            studentId: data.studentId,
+            attendedAt: data.occurredAt,
+            attendanceId: document.id,
+            sessionId: String(data.sessionId),
+          },
+        ];
       });
+      const firestore = params.firestore as unknown as Firestore;
+      const [adjustments, openMat] = await Promise.all([
+        readProgressAdjustments(firestore, academyId, { sinceDate: null }),
+        openMatSessionIds(
+          firestore,
+          academyId,
+          rawAttendances.map((record) => record.sessionId),
+        ),
+      ]);
+      // Spec §A: the same rule as countedClassInstants, for every student at once.
+      const attendances = [
+        ...rawAttendances
+          .filter(
+            (record) =>
+              !adjustments.voidedAttendanceIds.has(record.attendanceId) &&
+              !openMat.has(record.sessionId),
+          )
+          .map(({ studentId, attendedAt }) => ({ studentId, attendedAt })),
+        ...[...adjustments.manualByStudent]
+          .filter(([studentId]) => activeStudentIds.has(studentId))
+          .flatMap(([studentId, instants]) =>
+            instants.map((attendedAt) => ({ studentId, attendedAt })),
+          ),
+      ];
       const evaluations = assessmentsSnapshot.docs.flatMap((document) => {
         const data = document.data();
         if (
