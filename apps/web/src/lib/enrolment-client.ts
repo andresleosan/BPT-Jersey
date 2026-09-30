@@ -182,6 +182,24 @@ export async function returnEnrolmentRequest(
   }
 }
 
+/** Deletes the request and everything the applicant sent with it. Owner or administrator only. */
+export async function denyEnrolmentRequest(enrolmentRequestId: string): Promise<void> {
+  try {
+    const callable = httpsCallable<{ enrolmentRequestId: string }, unknown>(
+      getFirebaseFunctions(),
+      "denyEnrolmentRequest",
+    );
+    await callable({ enrolmentRequestId });
+  } catch (error) {
+    const code = isRecord(error) && typeof error.code === "string" ? error.code : "";
+    throw new Error(
+      code.endsWith("failed-precondition") && error instanceof Error
+        ? error.message
+        : "Unable to deny this request.",
+    );
+  }
+}
+
 export type EnrolmentRequestOfficeDetail = EnrolmentRequestDetail & Readonly<{
   applicantAccount?: Readonly<{ email: string; emailVerified: boolean; disabled: boolean }>;
 }>;

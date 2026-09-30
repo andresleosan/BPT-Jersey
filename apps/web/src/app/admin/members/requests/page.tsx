@@ -23,6 +23,7 @@ import {
 } from "@bpt-jersey/domain/members/enrolment-requests";
 import {
   approveEnrolmentRequest,
+  denyEnrolmentRequest,
   getEnrolmentRequestDetail,
   listEnrolmentRequests,
   returnEnrolmentRequest,
@@ -542,6 +543,40 @@ function EnrolmentRequestQueueContent() {
     }
   }
 
+  async function deny(request: EnrolmentRequestRow): Promise<void> {
+    if (
+      !window.confirm(
+        `Deny the enrolment of ${request.applicantName}? The request and everything sent with it will be permanently deleted.`,
+      )
+    )
+      return;
+    setBusyId(request.enrolmentRequestId);
+    setNotice(undefined);
+    try {
+      await denyEnrolmentRequest(request.enrolmentRequestId);
+      setState((current) =>
+        current.status === "ready"
+          ? {
+              status: "ready",
+              truncated: current.truncated,
+              requests: current.requests.filter(
+                (item) => item.enrolmentRequestId !== request.enrolmentRequestId,
+              ),
+            }
+          : current,
+      );
+      if (openDetailId === request.enrolmentRequestId) setOpenDetailId(undefined);
+      setNotice({ tone: "success", text: `Enrolment of ${request.applicantName} denied and deleted.` });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Unable to deny this request.",
+      });
+    } finally {
+      setBusyId(undefined);
+    }
+  }
+
   const visibleRequests =
     state.status === "ready"
       ? state.requests.filter(
@@ -764,6 +799,18 @@ function EnrolmentRequestQueueContent() {
                           </button>
                         </div>
                       </details>
+                    </div>
+                  ) : null}
+                  {office && (open || request.status === "withdrawn") ? (
+                    <div className="admin-request-actions">
+                      <button
+                        className="family-danger-button"
+                        disabled={busyId !== undefined}
+                        onClick={() => void deny(request)}
+                        type="button"
+                      >
+                        {busyId === request.enrolmentRequestId ? "Please wait..." : "Deny Enrolment"}
+                      </button>
                     </div>
                   ) : null}
                   {office &&

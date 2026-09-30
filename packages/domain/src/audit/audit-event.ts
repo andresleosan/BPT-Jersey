@@ -87,6 +87,7 @@ export const auditActions = Object.freeze([
   "enrolment.request.submitted",
   "enrolment.request.returned",
   "enrolment.request.withdrawn",
+  "enrolment.request.denied",
   "enrolment.request.approved",
   "enrolment.request.approval.failed",
   "enrolment.request.detail.read",
@@ -343,6 +344,7 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "enrolment.request.submitted"
           | "enrolment.request.returned"
           | "enrolment.request.withdrawn"
+          | "enrolment.request.denied"
           | "enrolment.request.approved"
           | "enrolment.request.approval.failed"
           | "member.directory.initialized";
@@ -539,6 +541,7 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "enrolment.request.submitted": commonFields,
   "enrolment.request.returned": commonFields,
   "enrolment.request.withdrawn": commonFields,
+  "enrolment.request.denied": commonFields,
   "enrolment.request.approved": commonFields,
   "enrolment.request.approval.failed": commonFields,
   "enrolment.request.detail.read": restrictedMemberReadFields,
