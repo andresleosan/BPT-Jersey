@@ -70,6 +70,10 @@ type Experience = EnrolmentLevelDeclaration["experience"];
 
 const westBeginnerNotice =
   "Beginners start with the Introduction Class in Town. West is open once you have trained before or hold a paid plan.";
+// Adults only (Luis, 2026-10-01): the adult Free Trial for beginners is the Introduction Class,
+// which runs only in Town. Adults who have trained before get one regular class at their centre.
+const westAdultTrialNotice =
+  "Free Trial in West: adults who have never trained can only attend the Introduction Class, and it runs only in Town. If you have trained before, choose that above to use your free class in West.";
 
 type MinorForm = {
   selectedPlan: EnrolmentPlanChoice | "";
@@ -354,10 +358,10 @@ function ExperienceQuestion({
   );
 }
 
-function TownNotice({ shown }: Readonly<{ shown: boolean }>) {
+function TownNotice({ shown, adult = false }: Readonly<{ shown: boolean; adult?: boolean }>) {
   return shown ? (
     <p className="enrol-message enrol-centre-notice" role="status">
-      {westBeginnerNotice}
+      {adult ? westAdultTrialNotice : westBeginnerNotice}
     </p>
   ) : null;
 }
@@ -1112,7 +1116,10 @@ function EnrolContent() {
                         ))}
                       </select>
                     </label>
-                    <TownNotice shown={form.movedToTown} />
+                    <TownNotice
+                      adult={!form.dateOfBirth || ageOnDate(form.dateOfBirth, effectiveDate) >= 16}
+                      shown={form.movedToTown}
+                    />
                     <fieldset className="enrol-preferences">
                       <legend>Training times</legend>
                       {preferenceOptions.map((option) => (
