@@ -20,7 +20,9 @@ export type AccountPerson = Readonly<{
   trainingCenter: TrainingCenter;
 }>;
 
-const profilesSchema = z.object({ profiles: z.array(accountMemberProfileSchema) });
+let tokenRefreshed = false;
+
+const profilesSchema =z.object({ profiles: z.array(accountMemberProfileSchema) });
 
 export async function listMyProfiles(): Promise<readonly AccountMemberProfile[]> {
   try {
@@ -48,8 +50,19 @@ export async function loadAccountPeople(): Promise<readonly AccountPerson[]> {
   const family = familyResult.status === "fulfilled" ? familyResult.value : undefined;
   if (!own && !family && profiles.length > 0) throw new Error("We couldn't load your account right now. Try again.");
   // An approval may have made this account a guardian after its token was issued; refresh it once
-  // so pages that still read the role catch up. ponytail: fire-and-forget, the list never needs it.
-  if (hasChildren) void getFirebaseAuth().currentUser?.getIdToken(true).catch(() => undefined);
+  // so pages that still read the role catch up. Only when the token is behind, and once per page
+  // load: a refresh re-creates the session, which reloads the pages that call this (2026-10-01 loop).
+  if (hasChildren && !tokenRefreshed) {
+    const user = getFirebaseAuth().currentUser;
+    void user
+      ?.getIdTokenResult()
+      .then((token) => {
+        if (token.claims.role === "guardian" || tokenRefreshed) return;
+        tokenRefreshed = true;
+        return user.getIdToken(true);
+      })
+      .catch(() => undefined);
+  }
   return profiles.flatMap((profile): AccountPerson[] => {
     const student =
       profile.via === "self"
