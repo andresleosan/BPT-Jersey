@@ -63,7 +63,7 @@ const gapsSchema = z.array(boundedFreeText(1, 120)).max(10);
 export const importedBaselineSchema = z.strictObject({
   classes: countSchema,
   cutoff: dateOnlySchema,
-  source: z.literal("regyfit-import"),
+  source: z.enum(["regyfit-import", "owner-set"]),
 });
 
 export const assignLevelInputSchema = z.strictObject({

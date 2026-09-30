@@ -13,6 +13,7 @@ import {
 export * from "./level-catalog-v2";
 export * from "./level-progress";
 export * from "./level-manage-contracts";
+export * from "./progress-management-contracts";
 
 export const levelDefinitionKinds = Object.freeze(["belt", "stripe"] as const);
 export type LevelDefinitionKind = (typeof levelDefinitionKinds)[number];

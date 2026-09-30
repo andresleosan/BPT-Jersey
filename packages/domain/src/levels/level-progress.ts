@@ -7,10 +7,11 @@ import type {
 
 const dayMs = 86_400_000;
 
+/** `owner-set` (spec D12): the owner's count up to today; `cutoff` is tomorrow (Jersey). */
 export type ImportedBaseline = Readonly<{
   classes: number;
   cutoff: string;
-  source: "regyfit-import";
+  source: "regyfit-import" | "owner-set";
 }>;
 export type ClassesAtLevel = Readonly<{ imported: number; bpt: number; total: number }>;
 
