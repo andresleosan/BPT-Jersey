@@ -320,6 +320,7 @@ function ExperienceQuestion({
   id,
   child,
   childName = "",
+  childGender = "unknown",
   experience,
   onChange,
 }: Readonly<{
@@ -327,14 +328,18 @@ function ExperienceQuestion({
   child: boolean;
   /** The child's first name once typed, so each child's question reads as theirs. */
   childName?: string;
+  /** Picks "he" or "she" for the answers; without it the child's first name is used. */
+  childGender?: Gender;
   experience: Experience;
   onChange: (next: Experience) => void;
 }>) {
+  const firstName = childName.trim().split(/\s+/u)[0] || "this child";
+  const pronoun = childGender === "male" ? "he" : childGender === "female" ? "she" : firstName;
   return (
     <fieldset className="enrol-experience">
       <legend>
         {child
-          ? `Does ${childName.trim().split(/\s+/u)[0] || "this child"} have Brazilian Jiu-Jitsu experience?`
+          ? `Does ${firstName} have Brazilian Jiu-Jitsu experience?`
           : "Do you have Brazilian Jiu-Jitsu experience?"}
       </legend>
       <label htmlFor={`${id}-beginner`}>
@@ -345,7 +350,7 @@ function ExperienceQuestion({
           onChange={() => onChange("beginner")}
           type="radio"
         />
-        {child ? "No, they are new" : "No, I'm new"}
+        {child ? `No, ${pronoun} does not have any experience` : "No, I'm new"}
       </label>
       <label htmlFor={`${id}-experienced`}>
         <input
@@ -355,7 +360,7 @@ function ExperienceQuestion({
           onChange={() => onChange("experienced")}
           type="radio"
         />
-        {child ? "Yes, they have trained before" : "Yes, I have trained before"}
+        {child ? `Yes, ${pronoun} has trained before` : "Yes, I have trained before"}
       </label>
     </fieldset>
   );
@@ -514,6 +519,7 @@ function MinorFields({
         id={`${prefix}-experience`}
         child
         childName={minor.fullName}
+        childGender={minor.gender}
         experience={minor.declaration.experience}
         onChange={(experience) => onChange(placeStudent(minor, experience, minor.trainingCenter))}
       />
