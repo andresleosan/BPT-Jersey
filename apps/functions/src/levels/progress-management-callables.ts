@@ -53,6 +53,16 @@ function tomorrowInJersey(now: string): string {
 
 type Owner = Awaited<ReturnType<typeof requireOwner>>;
 
+const roleLabels: Record<string, string> = {
+  owner: "Owner",
+  administrator: "Administrator",
+  headCoach: "Head coach",
+};
+
+function roleLabel(role: unknown): string {
+  return typeof role === "string" ? (roleLabels[role] ?? role) : "Unknown";
+}
+
 /** The tab's history row (spec deviation 2): who, when, what, reason. */
 function logChange(
   writer: Transaction | WriteBatch,
@@ -179,7 +189,7 @@ export const getProgressManagement = onCall(browserAdminCallableOptions, async (
     )
     .map((document) => ({
       at: String(document.get("decidedAt")),
-      by: "Owner",
+      by: roleLabel(document.get("decidedByRole")),
       summary: "Level change undone",
       reason: (document.get("reason") as string | null) ?? null,
     }));
@@ -245,6 +255,13 @@ export const setProgressLevel = onCall(browserAdminCallableOptions, async (reque
       throw new HttpsError(
         "failed-precondition",
         "Open this member's level first from their record, then set it here.",
+      );
+    }
+    // Without a start date the restore snapshot is invalid and the change could never be undone.
+    if (typeof headData.currentLevelStartedAt !== "string") {
+      throw new HttpsError(
+        "failed-precondition",
+        "This member's level has no start date yet; set it from their record first.",
       );
     }
     // Same shape as an assignLevel promotion, so the level history shows it and voidPromotion
