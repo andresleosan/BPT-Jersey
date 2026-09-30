@@ -59,6 +59,11 @@ const roleLabels: Record<string, string> = {
   headCoach: "Head coach",
 };
 
+/** Stored free text can be longer than the response schema allows (voidPromotion takes 500). */
+function clip(value: unknown, max: number): string | null {
+  return typeof value === "string" ? value.slice(0, max) : null;
+}
+
 function roleLabel(role: unknown): string {
   return typeof role === "string" ? (roleLabels[role] ?? role) : "Unknown";
 }
@@ -150,7 +155,7 @@ export const getProgressManagement = onCall(browserAdminCallableOptions, async (
   const voidReason = new Map(
     voids.docs
       .filter((document) => document.get("voided") === true)
-      .map((document) => [document.id, (document.get("reason") as string | null) ?? null]),
+      .map((document) => [document.id, clip(document.get("reason"), 300)]),
   );
   const attendance = [
     ...real.map((record) => ({
@@ -171,7 +176,7 @@ export const getProgressManagement = onCall(browserAdminCallableOptions, async (
         label: "Added by owner",
         openMat: false,
         voided: progressVoid !== null && progressVoid !== undefined,
-        reason: (progressVoid ? progressVoid.reason : document.get("reason")) ?? null,
+        reason: clip(progressVoid ? progressVoid.reason : document.get("reason"), 300),
       };
     }),
   ]
@@ -189,16 +194,16 @@ export const getProgressManagement = onCall(browserAdminCallableOptions, async (
     )
     .map((document) => ({
       at: String(document.get("decidedAt")),
-      by: roleLabel(document.get("decidedByRole")),
+      by: roleLabel(document.get("decidedByRole")).slice(0, 200),
       summary: "Level change undone",
-      reason: (document.get("reason") as string | null) ?? null,
+      reason: clip(document.get("reason"), 300),
     }));
   const history = [
     ...changes.docs.map((document) => ({
       at: String(document.get("at")),
-      by: String(document.get("byName") ?? document.get("by")),
-      summary: String(document.get("summary")),
-      reason: (document.get("reason") as string | null) ?? null,
+      by: String(document.get("byName") ?? document.get("by")).slice(0, 200),
+      summary: String(document.get("summary")).slice(0, 300),
+      reason: clip(document.get("reason"), 300),
     })),
     ...undone,
   ]

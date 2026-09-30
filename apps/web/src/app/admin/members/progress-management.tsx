@@ -105,6 +105,7 @@ export function ProgressManagementTab({ rows }: { rows: readonly MemberOverviewR
     if (!data || !member) return;
     const levelChanged =
       definitionKey !== data.currentDefinitionKey || startedOn !== data.startedOn;
+    if (!levelChanged && classes === data.classesAtLevel) return;
     void run(() =>
       levelChanged
         ? setProgressLevel({
@@ -130,7 +131,7 @@ export function ProgressManagementTab({ rows }: { rows: readonly MemberOverviewR
   function undoLevel() {
     if (!member || !data?.undoPromotionId) return;
     const why = window.prompt(
-      "Why undo this level change? (at least 10 characters)",
+      "Undo the last level change? This also restores the class count from before it. Reason (at least 10 characters):",
       "Undone from Progress management",
     );
     if (!why) return;
@@ -200,8 +201,11 @@ export function ProgressManagementTab({ rows }: { rows: readonly MemberOverviewR
                 Belt / stripe
                 <select
                   onChange={(event) => {
-                    setDefinitionKey(event.target.value);
-                    setClasses(0); // D12: a new level restarts the count unless you type one.
+                    const key = event.target.value;
+                    setDefinitionKey(key);
+                    // D12: a new level restarts the count unless you type one; back to the
+                    // current level shows its real count again.
+                    setClasses(key === data.currentDefinitionKey ? data.classesAtLevel : 0);
                   }}
                   value={definitionKey}
                 >
@@ -338,7 +342,7 @@ export function ProgressManagementTab({ rows }: { rows: readonly MemberOverviewR
               </p>
             ) : null}
             <p className="members-count" role="status">
-              {visible.filter((row) => !row.voided && !row.openMat).length} counted classes shown
+              {visible.length} dates listed
             </p>
             <ul className="progress-attendance">
               {visible.map((row) => (
