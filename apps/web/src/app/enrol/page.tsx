@@ -489,6 +489,20 @@ function MinorFields({
           value={minor.dateOfBirth}
         />
       </label>
+      <label className="enrol-field" htmlFor={`${prefix}-gender`}>
+        Gender
+        <select
+          id={`${prefix}-gender`}
+          onChange={(event) => onChange({ ...minor, gender: event.target.value as Gender })}
+          value={minor.gender}
+        >
+          {genderOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
       <ExperienceQuestion
         id={`${prefix}-experience`}
         child
