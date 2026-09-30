@@ -427,14 +427,14 @@ function EnrolmentRequestQueueContent() {
           enrolmentStudents(detail).map(({ plan: planId, declaration, person }) => {
             const dateOfBirth = person.dateOfBirth;
             const age = dateOfBirth ? ageOnDate(dateOfBirth, today) : 0;
-            // The belt a student declared is preselected on any plan. Otherwise only a trial gets
-            // the white belt: a paid beginner still starts empty, so the "choose every student's
-            // level" guard in `approve()` keeps firing for it.
+            // The belt a student declared is preselected on any plan; a beginner (no experience,
+            // or no declaration at all) starts on the white belt of their age, whatever the plan
+            // (Luis, 2026-10-01). The office can still change it before approving.
             return {
               planId: planId ?? "town-adult",
               definitionKey:
                 declaration?.declaredLevelKey ??
-                (planId === trialPlanChoice
+                (declaration?.experience !== "experienced"
                   ? (defaultWhiteBelt(loadedCatalog.definitions, age) ?? "")
                   : ""),
               startsOn: today,
