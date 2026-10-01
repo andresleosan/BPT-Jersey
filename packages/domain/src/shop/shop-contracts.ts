@@ -163,6 +163,9 @@ export const shopCheckoutRequestSchema = z
       });
   });
 
+/** The buyer's sign-in email as an order stores it; the callable checks the token against it. */
+export const shopContactEmailSchema = z.email().max(254);
+
 const shopOrderLineSchema = z.strictObject({
   productId: productIdSchema,
   productName: boundedText(120),
@@ -187,7 +190,7 @@ const shopOrderBaseSchema = z.strictObject({
   contactName: boundedText(160),
   contactPhone: boundedText(64).nullable(),
   // Taken from the verified sign-in token on the server, never from the checkout request.
-  contactEmail: z.email().max(254).nullable(),
+  contactEmail: shopContactEmailSchema.nullable(),
   note: boundedText(500).nullable(),
   status: shopOrderStatusSchema,
   paymentStatus: shopPaymentStatusSchema,

@@ -8,6 +8,7 @@ import {
   parseShopOrderStatusUpdate,
   parseShopProductDraft,
   parseShopProductStatusInput,
+  shopContactEmailSchema,
   toShopOrderProjection,
   toShopProductProjection,
   type ShopOrderProjection,
@@ -197,8 +198,9 @@ export async function setShopProductActiveHandler(
 // The office contacts the buyer at the address Auth verified at sign-in; the checkout payload never
 // carries an email, so a client cannot put someone else's address on an order.
 function tokenEmail(request: CallableRequest<unknown>): string | null {
-  const email: unknown = request.auth?.token?.email;
-  return typeof email === "string" ? email : null;
+  // Auth accepts some addresses the order's email rule does not; the order still goes through.
+  const email = shopContactEmailSchema.safeParse(request.auth?.token?.email);
+  return email.success ? email.data : null;
 }
 
 export async function placeShopOrderHandler(
