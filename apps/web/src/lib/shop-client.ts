@@ -134,8 +134,9 @@ export async function uploadShopOrderProof(requestId: string, file: File): Promi
     for (const byte of bytes) binary += String.fromCharCode(byte);
     const data = await call("uploadShopOrderProof", { requestId, contentType: file.type, base64: btoa(binary) });
     return z.strictObject({ proofId: z.string().regex(/^[a-f0-9]{64}$/u) }).parse(data).proofId;
-  } catch {
-    throw new Error(proofError);
+  } catch (error) {
+    // The callable says what is wrong with the file (type, size, not a real image).
+    throw new Error(callableMessage(error, "invalid-argument") ?? proofError);
   }
 }
 

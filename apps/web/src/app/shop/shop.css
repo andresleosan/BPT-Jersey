@@ -75,7 +75,7 @@
 .shop-page .button:disabled {
   background: var(--canvas);
   border-color: var(--line);
-  color: #65635d;
+  color: var(--muted);
   cursor: not-allowed;
   transform: none;
 }
@@ -222,7 +222,7 @@
 }
 
 .shop-field-hint {
-  color: #65635d;
+  color: var(--muted);
   font-size: 0.9rem;
   margin: 0;
 }
@@ -325,7 +325,7 @@
 }
 
 .shop-order-meta {
-  color: #65635d;
+  color: var(--muted);
   margin: 0;
 }
 
