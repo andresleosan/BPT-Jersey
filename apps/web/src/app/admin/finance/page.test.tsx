@@ -249,6 +249,57 @@ describe("finance page", () => {
     expect(membershipApi.listMemberships).toHaveBeenCalledTimes(1);
   });
 
+  it("names an invoice by its description when the member has no known name", async () => {
+    membershipApi.listMemberships.mockResolvedValue([
+      {
+        membershipId: "membership-9",
+        familyId: "f9",
+        studentId: "stu-nameless",
+        planId: "adult",
+        status: "active",
+        startsAt: "2026-09-01T00:00:00.000Z",
+        endsAt: null,
+        nextBillingAt: null,
+      },
+    ]);
+    billingApi.listFinancialAccount.mockResolvedValue({
+      invoices: [
+        {
+          balanceMinor: 5_000,
+          invoice: {
+            invoiceId: "invoice-9",
+            academyId: "academy-1",
+            familyId: "f9",
+            membershipId: "membership-9",
+            status: "open",
+            totalMinor: 5_000,
+            currency: "GBP",
+            dueAt: "2026-10-20T12:00:00.000Z",
+            paidAt: null,
+            schemaVersion: 1,
+            createdAt: "2026-10-03T12:00:00.000Z",
+            createdBy: "owner-1",
+            updatedAt: "2026-10-03T12:00:00.000Z",
+            updatedBy: "owner-1",
+            chargeKind: "membership",
+            sourceRef: null,
+            invoiceReference: "INV-009",
+            description: "October membership",
+          },
+          payments: [],
+        },
+      ],
+      balanceMinor: 5_000,
+      paygDebtMinor: 0,
+      paymentInstructions: null,
+    });
+    window.history.replaceState(null, "", "/admin/finance?tab=invoices");
+    render(<FinancePage />);
+    const table = await screen.findByRole("table", { name: "All invoices" });
+    await waitFor(() => expect(within(table).getByText("October membership")).toBeInTheDocument());
+    expect(within(table).queryByText("stu-nameless")).toBeNull();
+  });
+
   it("offers a retry when the dashboard fails", async () => {
     financeApi.getFinancialDashboard.mockRejectedValueOnce(new Error("down"));
     render(<FinancePage />);
