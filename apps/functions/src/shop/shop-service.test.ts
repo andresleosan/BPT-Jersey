@@ -227,6 +227,18 @@ describe("shop Firestore store", () => {
     expect(audits[0]?.targetRef).toBe("academies/academy-1/shopProducts/bpt-gi-blue");
   });
 
+  it("stores a made-to-order lead time and still reads a product saved without one", async () => {
+    const { store } = fakeFirestore();
+    await store.saveProduct({ ...base, draft: gi });
+    await store.saveProduct({
+      ...base,
+      draft: { ...backpack, stockStatus: "made-to-order", leadTimeWeeks: 6 },
+    });
+    const products = await store.listProducts("academy-1");
+    expect(products.find((item) => item.productId === gi.productId)?.leadTimeWeeks).toBeUndefined();
+    expect(products.find((item) => item.productId === backpack.productId)?.leadTimeWeeks).toBe(6);
+  });
+
   it("lists tenant products in catalog order and toggles publication", async () => {
     const { store } = fakeFirestore();
     await store.saveProduct({ ...base, draft: gi });

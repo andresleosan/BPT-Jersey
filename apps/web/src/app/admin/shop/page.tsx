@@ -9,6 +9,7 @@ import {
   shopPaymentMethodLabels,
   shopProductCategories,
   shopProductCategoryLabels,
+  shopLeadTimeMaximumWeeks,
   shopStockStatuses,
   type ShopOrderProjection,
   type ShopOrderStatus,
@@ -52,6 +53,7 @@ type EditorValues = Readonly<{
   sizes: string;
   imageUrl: string;
   stockStatus: ShopStockStatus;
+  leadTimeWeeks: string;
   sortOrder: string;
 }>;
 
@@ -64,6 +66,7 @@ const emptyEditor: EditorValues = {
   sizes: "",
   imageUrl: "",
   stockStatus: "in-stock",
+  leadTimeWeeks: "",
   sortOrder: "100",
 };
 
@@ -172,6 +175,7 @@ function editorFromProduct(product: ShopProductProjection): EditorValues {
     sizes: product.sizes.join(", "),
     imageUrl: product.imageUrl ?? "",
     stockStatus: product.stockStatus,
+    leadTimeWeeks: product.leadTimeWeeks ? String(product.leadTimeWeeks) : "",
     sortOrder: String(product.sortOrder),
   };
 }
@@ -193,6 +197,16 @@ function draftFromEditor(values: EditorValues): ShopProductDraft | string {
     .map((size) => size.trim())
     .filter((size) => size.length > 0);
   if (new Set(sizes).size !== sizes.length) return "Sizes must not repeat.";
+  // A lead time only means something for made-to-order products; other statuses drop it.
+  const leadTimeText = values.stockStatus === "made-to-order" ? values.leadTimeWeeks.trim() : "";
+  const leadTimeWeeks = leadTimeText.length === 0 ? null : Number(leadTimeText);
+  if (
+    leadTimeWeeks !== null &&
+    (!Number.isInteger(leadTimeWeeks) ||
+      leadTimeWeeks < 1 ||
+      leadTimeWeeks > shopLeadTimeMaximumWeeks)
+  )
+    return `Lead time must be a whole number of weeks between 1 and ${shopLeadTimeMaximumWeeks}.`;
   const description = values.description.trim();
   const imageUrl = values.imageUrl.trim();
   return {
@@ -205,6 +219,7 @@ function draftFromEditor(values: EditorValues): ShopProductDraft | string {
     sizes,
     imageUrl: imageUrl.length === 0 ? null : imageUrl,
     stockStatus: values.stockStatus,
+    leadTimeWeeks,
     sortOrder,
   };
 }
@@ -782,6 +797,22 @@ export function ShopAdminPage() {
                     ))}
                   </select>
                 </label>
+                {editor.stockStatus === "made-to-order" ? (
+                  <label className="shop-admin-field" htmlFor="shop-product-lead-time">
+                    Lead time (weeks)
+                    <input
+                      disabled={busy !== undefined}
+                      id="shop-product-lead-time"
+                      inputMode="numeric"
+                      max={shopLeadTimeMaximumWeeks}
+                      min={1}
+                      onChange={(event) => updateEditor("leadTimeWeeks", event.target.value)}
+                      placeholder="Optional"
+                      type="number"
+                      value={editor.leadTimeWeeks}
+                    />
+                  </label>
+                ) : null}
                 <label className="shop-admin-field" htmlFor="shop-product-sort">
                   Sort order
                   <input

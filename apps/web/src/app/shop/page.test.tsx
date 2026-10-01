@@ -432,6 +432,14 @@ describe("client shop", () => {
     expect(screen.getByText(hint)).toBeVisible();
   });
 
+  it("shows the lead time on a made-to-order card when the academy set one", async () => {
+    shopApi.listPublicShopCatalog.mockResolvedValue([gi, { ...rashguard, leadTimeWeeks: 1 }]);
+    render(<ShopPage />);
+    const products = await screen.findByRole("list", { name: "Products" });
+    expect(within(products).getByText("Made to order · about 1 week")).toBeVisible();
+    expect(within(products).getByText("In stock")).toBeVisible();
+  });
+
   it("names the contact email only when the account has one", async () => {
     signIn();
     shopApi.listShopCatalog.mockResolvedValue([gi]);

@@ -9,6 +9,7 @@ import {
   parseShopOrderStatusUpdate,
   parseShopProductDraft,
   parseShopProductRecord,
+  shopMadeToOrderLabel,
   shopOrderReference,
   sortShopProducts,
   toShopOrderProjection,
@@ -66,7 +67,22 @@ describe("shop product contracts", () => {
 
   it("projects records without tenant or authorship fields", () => {
     expect(parseShopProductRecord(productRecord).ok).toBe(true);
-    expect(toShopProductProjection(productRecord)).toEqual({ ...draft, active: true });
+    expect(toShopProductProjection(productRecord)).toEqual({
+      ...draft,
+      leadTimeWeeks: null,
+      active: true,
+    });
+  });
+
+  it("keeps products without a lead time valid and bounds the lead time to 1-26 whole weeks", () => {
+    expect(parseShopProductRecord(productRecord).ok).toBe(true);
+    expect(parseShopProductDraft({ ...draft, leadTimeWeeks: null }).ok).toBe(true);
+    expect(parseShopProductDraft({ ...draft, leadTimeWeeks: 1 }).ok).toBe(true);
+    expect(parseShopProductDraft({ ...draft, leadTimeWeeks: 26 }).ok).toBe(true);
+    expect(parseShopProductDraft({ ...draft, leadTimeWeeks: 0 }).ok).toBe(false);
+    expect(parseShopProductDraft({ ...draft, leadTimeWeeks: 27 }).ok).toBe(false);
+    expect(parseShopProductDraft({ ...draft, leadTimeWeeks: 2.5 }).ok).toBe(false);
+    expect(toShopProductProjection({ ...productRecord, leadTimeWeeks: 4 }).leadTimeWeeks).toBe(4);
   });
 
   it("sorts products by sort order then name", () => {
@@ -239,6 +255,12 @@ describe("shop helpers", () => {
     expect(isShopProductPurchasable({ active: true, stockStatus: "made-to-order" })).toBe(true);
     expect(isShopProductPurchasable({ active: true, stockStatus: "sold-out" })).toBe(false);
     expect(isShopProductPurchasable({ active: false, stockStatus: "in-stock" })).toBe(false);
+  });
+  it("labels made-to-order products with their lead time", () => {
+    expect(shopMadeToOrderLabel(null)).toBe("Made to order");
+    expect(shopMadeToOrderLabel(undefined)).toBe("Made to order");
+    expect(shopMadeToOrderLabel(1)).toBe("Made to order · about 1 week");
+    expect(shopMadeToOrderLabel(6)).toBe("Made to order · about 6 weeks");
   });
   it("derives the same reference from the order id or the request id", () => {
     expect(shopOrderReference("order-6f1c2a7e-1111")).toBe("SHOP-6F1C2A7E");

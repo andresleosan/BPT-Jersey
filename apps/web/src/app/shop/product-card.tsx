@@ -5,6 +5,7 @@ import { useState, type FormEvent } from "react";
 import {
   formatShopPrice,
   isShopProductPurchasable,
+  shopMadeToOrderLabel,
   shopOrderMaximumQuantity,
   shopProductCategoryLabels,
   type ShopProductProjection,
@@ -69,7 +70,9 @@ export function ProductCard({
           {formatShopPrice(product.priceMinor, product.currency)}
         </p>
         <span className={`shop-stock-badge shop-stock-${product.stockStatus}`}>
-          {stockLabels[product.stockStatus]}
+          {product.stockStatus === "made-to-order"
+            ? shopMadeToOrderLabel(product.leadTimeWeeks)
+            : stockLabels[product.stockStatus]}
         </span>
         <p className="shop-product-lead">
           {product.stockStatus === "made-to-order"
