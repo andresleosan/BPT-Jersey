@@ -74,7 +74,19 @@ export const getEnrolmentPaymentInstructions = onCall(
   async (request) => {
     if (!request.app) throw new HttpsError("unauthenticated", "Verified application required.");
     const actor = requireUserActor(request);
-    if (!["shopper", "adultStudent", "guardian"].includes(actor.role))
+    // Bank details are shown to every account: enrolment and the club shop checkout share them.
+    if (
+      ![
+        "owner",
+        "administrator",
+        "headCoach",
+        "coach",
+        "guardian",
+        "adultStudent",
+        "teenStudent",
+        "shopper",
+      ].includes(actor.role)
+    )
       throw new HttpsError("permission-denied", "A client account is required.");
     if (!z.strictObject({}).safeParse(request.data).success)
       throw new HttpsError("invalid-argument", "This request takes no fields.");

@@ -1,9 +1,10 @@
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
+import { z } from "zod";
 
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import {
-  parseShopOrderRequest,
+  parseShopCheckoutRequest,
   parseShopOrderStatusUpdate,
   parseShopProductDraft,
   parseShopProductStatusInput,
@@ -15,19 +16,45 @@ import {
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { requireUserActor } from "../auth/user-authorization.js";
+import { enrolmentStorageSecrets } from "../members/enrolment-payment-proof.js";
+import { validateIntroProof } from "../memberships/intro-payment-proof.js";
+import { createPrivateStorageR2Client } from "../storage/r2-client.js";
+import {
+  readShopProof,
+  shopProofContentType,
+  shopProofKey,
+  type ShopProofStorage,
+} from "./shop-proof.js";
 import { createShopStore, ShopStoreError, type ShopStore } from "./shop-service.js";
 
 export type ShopCallableServices = Readonly<{
   store: ShopStore;
+  /** Private screenshot storage; resolved lazily so catalogue reads never touch R2. */
+  storage?: () => ShopProofStorage;
   now?: () => string;
 }>;
 
-// A shopper is a buyer with no student record. The shop is the only place the role reaches, and
-// inside it a shopper does exactly what a client does: browse the catalogue and order their own
-// items. Administration stays with owner and administrator.
-const catalogRoles = new Set(["owner", "administrator", "guardian", "adultStudent", "shopper"]);
-const customerRoles = new Set(["guardian", "adultStudent", "shopper"]);
+// Every signed-in account may buy: a shopper (buyer with no student record), members, coaches and
+// the office. Administration and payment screenshots stay with owner and administrator.
+const accountRoles = new Set([
+  "owner",
+  "administrator",
+  "headCoach",
+  "coach",
+  "guardian",
+  "adultStudent",
+  "teenStudent",
+  "shopper",
+]);
+const catalogRoles = accountRoles;
+const customerRoles = accountRoles;
 const adminRoles = new Set(["owner", "administrator"]);
+const evidenceUnavailable = "Payment evidence is unavailable.";
+
+function storageOf(services: ShopCallableServices): ShopProofStorage {
+  if (!services.storage) throw new HttpsError("failed-precondition", evidenceUnavailable);
+  return services.storage();
+}
 
 function invalid(): never {
   throw new HttpsError("invalid-argument", "Shop payload is invalid");
@@ -168,10 +195,23 @@ export async function placeShopOrderHandler(
   request: CallableRequest<unknown>,
   services: ShopCallableServices,
 ): Promise<ShopOrderProjection> {
-  const actor = actorWithRole(request, customerRoles, "Shop orders require a client account");
-  const parsed = parseShopOrderRequest(request.data);
+  const actor = actorWithRole(request, customerRoles, "Sign in to order");
+  const parsed = parseShopCheckoutRequest(request.data);
   if (!parsed.ok) return invalid();
   try {
+    if (parsed.value.paymentMethod === "bank_transfer") {
+      const key = shopProofKey(
+        actor.academyId,
+        actor.userId,
+        parsed.value.requestId,
+        parsed.value.proofId!,
+      );
+      if (!(await readShopProof(storageOf(services), key, parsed.value.proofId!)))
+        throw new HttpsError(
+          "failed-precondition",
+          "Upload the transfer screenshot again before placing the order.",
+        );
+    }
     return toShopOrderProjection(
       await services.store.placeOrder({
         academyId: actor.academyId,
@@ -235,6 +275,66 @@ export async function updateShopOrderHandler(
   }
 }
 
+const proofUploadSchema = z.strictObject({
+  requestId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u),
+  contentType: z.enum(["image/png", "image/jpeg"]),
+  base64: z
+    .string()
+    .min(4)
+    .max(Math.ceil((2 * 1024 * 1024) / 3) * 4),
+});
+
+export async function uploadShopOrderProofHandler(
+  request: CallableRequest<unknown>,
+  services: ShopCallableServices,
+): Promise<{ proofId: string }> {
+  const actor = actorWithRole(request, customerRoles, "Sign in to order");
+  const input = proofUploadSchema.safeParse(request.data);
+  if (!input.success)
+    throw new HttpsError("invalid-argument", "Choose a PNG or JPEG screenshot up to 2 MB.");
+  const validated = validateIntroProof(input.data.contentType, input.data.base64);
+  await storageOf(services).putObject(
+    shopProofKey(actor.academyId, actor.userId, input.data.requestId, validated.proofId),
+    validated.bytes,
+    input.data.contentType,
+  );
+  return { proofId: validated.proofId };
+}
+
+export async function getShopOrderProofUrlHandler(
+  request: CallableRequest<unknown>,
+  services: ShopCallableServices,
+): Promise<{ url: string; expiresAt: string }> {
+  const actor = actorWithRole(request, adminRoles, "Shop administration is not permitted");
+  const input = z
+    .strictObject({ orderId: z.string().regex(/^order-[A-Za-z0-9._:-]{1,128}$/u) })
+    .safeParse(request.data);
+  if (!input.success) invalid();
+  let order;
+  try {
+    order = await services.store.getOrder(actor.academyId, input.data.orderId);
+  } catch (error) {
+    return mapError(error, "read");
+  }
+  if (order.paymentMethod !== "bank_transfer" || !order.proofId)
+    throw new HttpsError("failed-precondition", evidenceUnavailable);
+  const storage = storageOf(services);
+  const objectKey = shopProofKey(
+    actor.academyId,
+    order.customerUserId,
+    order.requestId,
+    order.proofId,
+  );
+  const bytes = await readShopProof(storage, objectKey, order.proofId);
+  const contentType = bytes ? shopProofContentType(bytes) : undefined;
+  if (!contentType || !storage.createPrivateImageUrl)
+    throw new HttpsError("failed-precondition", evidenceUnavailable);
+  return {
+    url: await storage.createPrivateImageUrl({ objectKey, expiresInSeconds: 60, contentType }),
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+  };
+}
+
 function callableServices(): ShopCallableServices {
   const firestore = getFirestore() as unknown as Parameters<typeof createShopStore>[0]["firestore"];
   return {
@@ -243,6 +343,7 @@ function callableServices(): ShopCallableServices {
       appendAudit: (transaction, reference, draft) =>
         appendAuditEventInTransaction(transaction, reference, draft as AuditEventDraft),
     }),
+    storage: () => createPrivateStorageR2Client(),
   };
 }
 
@@ -263,8 +364,15 @@ export const saveShopProduct = onCall(shopCallableOptions, (request) =>
 export const setShopProductActive = onCall(shopCallableOptions, (request) =>
   setShopProductActiveHandler(request, callableServices()),
 );
-export const placeShopOrder = onCall(shopCallableOptions, (request) =>
+const shopProofCallableOptions = { ...shopCallableOptions, secrets: enrolmentStorageSecrets };
+export const placeShopOrder = onCall(shopProofCallableOptions, (request) =>
   placeShopOrderHandler(request, callableServices()),
+);
+export const uploadShopOrderProof = onCall(shopProofCallableOptions, (request) =>
+  uploadShopOrderProofHandler(request, callableServices()),
+);
+export const getShopOrderProofUrl = onCall(shopProofCallableOptions, (request) =>
+  getShopOrderProofUrlHandler(request, callableServices()),
 );
 export const listMyShopOrders = onCall(shopCallableOptions, (request) =>
   listMyShopOrdersHandler(request, callableServices()),
