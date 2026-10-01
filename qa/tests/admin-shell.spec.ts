@@ -145,7 +145,8 @@ test.describe("admin shell @smoke", () => {
     ).toBeVisible();
     // Verify that office-only and billing modules are absent
     await expect(page.getByRole("link", { name: "Members" })).not.toBeVisible();
-    await expect(page.getByRole("link", { name: "Billing" })).not.toBeVisible();
+    // Not merely hidden: the coach shell must not render a Financial dashboard link at all.
+    await expect(page.locator("a", { hasText: /Financial dashboard/u })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Shop" })).not.toBeVisible();
     await expect(page.getByRole("link", { name: "Staff" })).not.toBeVisible();
     await expect(page.getByRole("link", { name: "Reports" })).not.toBeVisible();
