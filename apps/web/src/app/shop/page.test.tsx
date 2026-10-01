@@ -242,6 +242,25 @@ describe("client shop", () => {
     expect(screen.queryByText(/BPT backpack was removed/)).not.toBeInTheDocument();
   });
 
+  it("counts removed items it can no longer name instead of repeating a placeholder", async () => {
+    localStorage.setItem(
+      "bpt-shop-basket",
+      JSON.stringify([
+        { productId: "bpt-hidden-one", size: null, quantity: 1 },
+        { productId: "bpt-hidden-two", size: null, quantity: 1 },
+        { productId: "bpt-backpack", size: null, quantity: 1 },
+      ]),
+    );
+    authState.status = "signed-out";
+    shopApi.listPublicShopCatalog.mockResolvedValue([gi, backpack]);
+    render(<ShopPage />);
+    expect(
+      await screen.findByText(
+        "BPT backpack and 2 other items were removed from your basket because they are no longer available.",
+      ),
+    ).toBeVisible();
+  });
+
   it("explains made-to-order items on the card and at checkout", async () => {
     signIn();
     shopApi.listShopCatalog.mockResolvedValue([gi, rashguard]);

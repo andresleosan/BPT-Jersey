@@ -39,9 +39,20 @@ type LoadState =
 type CategoryFilter = "all" | ShopProductCategory;
 type Notice = Readonly<{ tone: "error" | "success" | "warning"; text: string }>;
 
+/** Hidden products are no longer in the catalogue, so their names are unknown ("An item"). */
 function removedNotice(removed: readonly string[]): string {
+  const named = removed.filter((name) => name !== "An item");
+  const unknown = removed.length - named.length;
+  const parts = [...named];
+  if (unknown > 0) {
+    const other = named.length > 0 ? " other" : "";
+    parts.push(
+      unknown === 1 && !other ? "An item" : `${unknown}${other} item${unknown === 1 ? "" : "s"}`,
+    );
+  }
+  const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0];
   const one = removed.length === 1;
-  return `${removed.join(", ")} ${one ? "was" : "were"} removed from your basket because ${one ? "it is" : "they are"} no longer available.`;
+  return `${list} ${one ? "was" : "were"} removed from your basket because ${one ? "it is" : "they are"} no longer available.`;
 }
 
 function ShopContent() {
