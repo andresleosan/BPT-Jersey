@@ -4495,6 +4495,19 @@ a.admin-birthday-badge:focus-visible,
   color: #176b49;
 }
 
+/* Phones stack each row (admin-wide rule) with the column name from data-label beside the value; a
+   cell holding several pieces keeps them all in the value column. */
+@media (max-width: 47.99rem) {
+  .shop-admin-page .admin-data-table thead {
+    display: none;
+  }
+
+  .shop-admin-page .admin-data-table td > * {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
 @media (max-width: 47.99rem) {
   .shop-admin-form-grid {
     grid-template-columns: 1fr;

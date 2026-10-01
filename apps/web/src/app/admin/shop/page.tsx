@@ -480,19 +480,19 @@ export function ShopAdminPage() {
                   <tbody>
                     {visibleOrders.map((order) => (
                       <tr key={order.orderId}>
-                        <td>
+                        <td data-label="Order">
                           <strong>{shopOrderReference(order.orderId)}</strong>
                           <small className="shop-admin-secondary">
                             {new Date(order.createdAt).toLocaleString("en-GB")}
                           </small>
                         </td>
-                        <td>
+                        <td data-label="Customer">
                           {order.contactName}
                           {order.contactPhone ? (
                             <small className="shop-admin-secondary">{order.contactPhone}</small>
                           ) : null}
                         </td>
-                        <td>
+                        <td data-label="Items">
                           <div className="shop-admin-order-lines">
                             {order.lines.map((line) => (
                               <span key={`${line.productId}-${line.size ?? ""}`}>
@@ -504,11 +504,11 @@ export function ShopAdminPage() {
                             <small className="shop-admin-secondary">{order.note}</small>
                           ) : null}
                         </td>
-                        <td>{pickupNames[order.pickupLocationId]}</td>
-                        <td className="shop-admin-money">
+                        <td data-label="Collect from">{pickupNames[order.pickupLocationId]}</td>
+                        <td data-label="Total" className="shop-admin-money">
                           {formatShopPrice(order.totalMinor, order.currency)}
                         </td>
-                        <td>
+                        <td data-label="Payment">
                           <span className="shop-admin-payment-method">
                             {shopPaymentMethodLabels[order.paymentMethod]}
                           </span>
@@ -516,10 +516,10 @@ export function ShopAdminPage() {
                             status={order.paymentStatus === "paid" ? "Paid" : "Unpaid"}
                           />
                         </td>
-                        <td>
+                        <td data-label="Status">
                           <AdminStatusBadge status={orderStatusLabels[order.status]} />
                         </td>
-                        <td>
+                        <td data-label="Actions">
                           <div className="shop-admin-row-actions">
                             {shopOrderTransitions[order.status].map((target) => (
                               <button
@@ -618,23 +618,27 @@ export function ShopAdminPage() {
                     <tbody>
                       {workspace.products.map((product) => (
                         <tr key={product.productId}>
-                          <td>
+                          <td data-label="Image">
                             <ProductThumbnail imageUrl={product.imageUrl} name={product.name} />
                           </td>
-                          <td>
+                          <td data-label="Product">
                             <strong>{product.name}</strong>
                             <small className="shop-admin-secondary">{product.productId}</small>
                           </td>
-                          <td>{shopProductCategoryLabels[product.category]}</td>
-                          <td className="shop-admin-money">
+                          <td data-label="Category">
+                            {shopProductCategoryLabels[product.category]}
+                          </td>
+                          <td data-label="Price" className="shop-admin-money">
                             {formatShopPrice(product.priceMinor, product.currency)}
                           </td>
-                          <td>{product.sizes.length > 0 ? product.sizes.join(", ") : "-"}</td>
-                          <td>{stockLabels[product.stockStatus]}</td>
-                          <td>
+                          <td data-label="Sizes">
+                            {product.sizes.length > 0 ? product.sizes.join(", ") : "-"}
+                          </td>
+                          <td data-label="Stock">{stockLabels[product.stockStatus]}</td>
+                          <td data-label="Visible in shop">
                             <AdminStatusBadge status={product.active ? "Visible" : "Hidden"} />
                           </td>
-                          <td>
+                          <td data-label="Actions">
                             <div className="shop-admin-row-actions">
                               <button
                                 className="shop-admin-table-button"
