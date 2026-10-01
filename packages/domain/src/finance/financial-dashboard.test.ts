@@ -293,6 +293,17 @@ describe("buildFinancialDashboard", () => {
     expect(dashboard.metrics.outstandingMinor).toBe(12 * 9500);
   });
 
+  it("accepts an offset without a colon, as the record parsers do", () => {
+    const dashboard = buildFinancialDashboard(
+      source({
+        invoices: [invoice({ status: "open", paidAt: null, dueAt: "2026-10-01T10:00:00+0100" })],
+        payments: [],
+      }),
+    );
+    expect(dashboard.balances[0]?.dueAt).toBe("2026-10-01T10:00:00+0100");
+    expect(financialDashboardSchema.safeParse(dashboard).success).toBe(true);
+  });
+
   it("still refuses an orphan payment", () => {
     expect(() => buildFinancialDashboard(source({ invoices: [] }))).toThrow(/orphan/u);
   });

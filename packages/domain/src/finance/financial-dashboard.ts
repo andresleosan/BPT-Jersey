@@ -4,7 +4,11 @@ import type { MembershipRecord } from "../memberships/membership-contracts";
 import type { InvoiceRecord, ManualPaymentRecord, VoidedPaymentRecord } from "./finance-contracts";
 
 const renewalWindowMs = 30 * 24 * 60 * 60 * 1000;
-const instant = z.iso.datetime({ offset: true });
+// Same shape the record parsers admit, including offsets without a colon (+0100).
+const instant = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:?\d{2})$/u)
+  .refine((value) => !Number.isNaN(Date.parse(value)), "Invalid timestamp");
 const id = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u);
 const minor = z.number().int().nonnegative();
 
