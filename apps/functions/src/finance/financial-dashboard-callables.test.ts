@@ -8,9 +8,14 @@ import { FinancialDashboardStoreError } from "./financial-dashboard-service";
 
 const dashboard = buildFinancialDashboard({
   generatedAt: "2026-08-24T12:00:00.000Z",
+  month: "2026-08",
   memberships: [],
   invoices: [],
   payments: [],
+  voidedPayments: [],
+  shopPayments: [],
+  studentByInvoiceId: new Map(),
+  planNames: new Map(),
 });
 
 function request(
@@ -42,7 +47,7 @@ describe("financial dashboard callable", () => {
       const handler = createGetFinancialDashboardHandler(current);
 
       await expect(handler(request(null, role))).resolves.toEqual({ dashboard });
-      expect(current.store.getFinancialDashboard).toHaveBeenCalledWith("academy-1");
+      expect(current.store.getFinancialDashboard).toHaveBeenCalledWith("academy-1", undefined);
       expect(current.isActorActive).toHaveBeenCalledWith(
         expect.objectContaining({ userId: "owner-1", academyId: "academy-1", role }),
       );
@@ -54,7 +59,6 @@ describe("financial dashboard callable", () => {
       request(null, "coach"),
       request(null, "guardian"),
       request(null, "owner", null),
-      request({}),
       request({ academyId: "academy-other" }),
     ]) {
       const current = services();
@@ -69,6 +73,42 @@ describe("financial dashboard callable", () => {
       },
     );
     expect(inactive.store.getFinancialDashboard).not.toHaveBeenCalled();
+  });
+
+  it("passes a requested month to the store and accepts an empty object", async () => {
+    const current = services();
+    const handler = createGetFinancialDashboardHandler(current);
+
+    await expect(handler(request({ month: "2026-09" }))).resolves.toEqual({ dashboard });
+    await expect(handler(request({}))).resolves.toEqual({ dashboard });
+    expect(current.store.getFinancialDashboard).toHaveBeenNthCalledWith(1, "academy-1", "2026-09");
+    expect(current.store.getFinancialDashboard).toHaveBeenNthCalledWith(2, "academy-1", undefined);
+  });
+
+  it("rejects a malformed month or unknown fields as invalid-argument", async () => {
+    for (const data of [{ month: "Sept" }, { month: "2026-13" }, { extra: 1 }, "2026-09"]) {
+      const current = services();
+      await expect(
+        createGetFinancialDashboardHandler(current)(request(data)),
+      ).rejects.toMatchObject({ code: "invalid-argument" });
+      expect(current.store.getFinancialDashboard).not.toHaveBeenCalled();
+    }
+  });
+
+  it("maps a month that has not started to invalid-argument", async () => {
+    const current = services({
+      store: {
+        getFinancialDashboard: vi.fn(async () => {
+          throw new FinancialDashboardStoreError("month", "The month has not started yet");
+        }),
+      },
+    });
+    await expect(
+      createGetFinancialDashboardHandler(current)(request({ month: "2026-12" })),
+    ).rejects.toMatchObject({
+      code: "invalid-argument",
+      message: "That month has not started yet",
+    });
   });
 
   it("maps tenant mismatches to denial and hides invalid source details", async () => {

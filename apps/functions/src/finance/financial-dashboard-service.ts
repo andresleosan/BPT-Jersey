@@ -1,14 +1,19 @@
 import {
   buildFinancialDashboard,
+  currentFinancialMonth,
+  type DashboardShopPayment,
   type FinancialDashboard,
 } from "@bpt-jersey/domain/finance/dashboard";
 import {
   parseInvoiceRecord,
   sameInvoicePayer,
   parseManualPaymentRecord,
+  parseVoidedPaymentRecord,
   type InvoiceRecord,
   type ManualPaymentRecord,
+  type VoidedPaymentRecord,
 } from "@bpt-jersey/domain/finance";
+import { parseShopOrderRecord } from "@bpt-jersey/domain/shop";
 import {
   parseMembershipRecord,
   type MembershipRecord,
@@ -23,11 +28,11 @@ export type FinancialDashboardFirestore = Readonly<{
 }>;
 
 export type FinancialDashboardStore = Readonly<{
-  getFinancialDashboard: (academyId: string) => Promise<FinancialDashboard>;
+  getFinancialDashboard: (academyId: string, month?: string) => Promise<FinancialDashboard>;
 }>;
 
 export class FinancialDashboardStoreError extends Error {
-  public readonly code: "invalid" | "tenant" | "source-limit";
+  public readonly code: "invalid" | "tenant" | "source-limit" | "month";
 
   public constructor(code: FinancialDashboardStoreError["code"], message: string) {
     super(message);
@@ -135,6 +140,64 @@ function paymentsFrom(
   });
 }
 
+function voidedFrom(
+  documents: readonly DashboardDocument[],
+  academyId: string,
+): readonly VoidedPaymentRecord[] {
+  return documents.map((document) => {
+    const parsed = parseVoidedPaymentRecord(document.data());
+    if (!parsed.ok || parsed.value.payment.paymentId !== document.id) {
+      throw new FinancialDashboardStoreError("invalid", "Invalid voided payment source");
+    }
+    if (parsed.value.payment.academyId !== academyId) {
+      throw new FinancialDashboardStoreError("tenant", "Voided payment tenant mismatch");
+    }
+    return parsed.value;
+  });
+}
+
+function shopPaymentsFrom(
+  documents: readonly DashboardDocument[],
+  academyId: string,
+): readonly DashboardShopPayment[] {
+  const rows: DashboardShopPayment[] = [];
+  for (const document of documents) {
+    const parsed = parseShopOrderRecord(document.data());
+    if (!parsed.ok || parsed.value.orderId !== document.id) {
+      throw new FinancialDashboardStoreError("invalid", "Invalid shop order source");
+    }
+    const order = parsed.value;
+    if (order.academyId !== academyId) {
+      throw new FinancialDashboardStoreError("tenant", "Shop order tenant mismatch");
+    }
+    // A zero total collected nothing, and dashboard rows carry positive amounts only.
+    if (order.paymentStatus !== "paid" || order.status === "cancelled" || order.totalMinor === 0) {
+      continue;
+    }
+    rows.push({
+      orderId: order.orderId,
+      orderNumber: order.orderNumber ?? null,
+      contactName: order.contactName,
+      totalMinor: order.totalMinor,
+      // ponytail: orders paid before paidAt existed (none in prod on 2026-10-01) fall back to updatedAt.
+      paidAt: order.paidAt ?? order.updatedAt,
+      paymentMethod: order.paymentMethod,
+    });
+  }
+  return rows;
+}
+
+// Lookups only: a plan name or a lesson's student. Tolerant on purpose so a plan/lesson schema
+// change never takes the money page down; a missing value falls back to the id / the invoice label.
+function stringField(document: DashboardDocument, field: string): string | undefined {
+  const data = document.data();
+  const value =
+    typeof data === "object" && data !== null
+      ? (data as Record<string, unknown>)[field]
+      : undefined;
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
 function validateRelationships(
   memberships: readonly MembershipRecord[],
   invoices: readonly InvoiceRecord[],
@@ -183,31 +246,62 @@ export function createFirestoreFinancialDashboardStore(options: {
   now?: () => string;
 }): FinancialDashboardStore {
   return Object.freeze({
-    async getFinancialDashboard(academyIdInput) {
+    async getFinancialDashboard(academyIdInput, monthInput) {
       const academyId = identifier(academyIdInput, "academy");
-      const [membershipSnapshot, invoiceSnapshot, paymentSnapshot] = await Promise.all([
-        options.firestore
-          .collection(collectionPath(academyId, "memberships"))
-          .limit(sourceReadLimit)
-          .get(),
-        options.firestore
-          .collection(collectionPath(academyId, "invoices"))
-          .limit(sourceReadLimit)
-          .get(),
-        options.firestore
-          .collection(collectionPath(academyId, "payments"))
-          .limit(sourceReadLimit)
-          .get(),
+      const generatedAt = timestamp(options.now?.() ?? new Date().toISOString());
+      const month = monthInput ?? currentFinancialMonth(generatedAt);
+      if (month > currentFinancialMonth(generatedAt)) {
+        throw new FinancialDashboardStoreError("month", "The month has not started yet");
+      }
+      // ponytail: full scans of every source (about 60 docs each on 2026-10-01); move to
+      // month-ranged queries plus a running aggregate when any collection nears
+      // financialDashboardSourceLimit.
+      const read = (name: string) =>
+        options.firestore.collection(collectionPath(academyId, name)).limit(sourceReadLimit).get();
+      const [
+        membershipSnapshot,
+        invoiceSnapshot,
+        paymentSnapshot,
+        voidedSnapshot,
+        shopSnapshot,
+        planSnapshot,
+        lessonSnapshot,
+      ] = await Promise.all([
+        read("memberships"),
+        read("invoices"),
+        read("payments"),
+        read("voidedPayments"),
+        read("shopOrders"),
+        read("plans"),
+        read("privateLessonPurchases"),
       ]);
       const memberships = membershipsFrom(boundedDocuments(membershipSnapshot), academyId);
       const invoices = invoicesFrom(boundedDocuments(invoiceSnapshot), academyId);
       const payments = paymentsFrom(boundedDocuments(paymentSnapshot), academyId);
       validateRelationships(memberships, invoices, payments);
+      const voidedPayments = voidedFrom(boundedDocuments(voidedSnapshot), academyId);
+      const shopPayments = shopPaymentsFrom(boundedDocuments(shopSnapshot), academyId);
+      const planNames = new Map<string, string>();
+      for (const document of boundedDocuments(planSnapshot)) {
+        const name = stringField(document, "displayName");
+        if (name) planNames.set(document.id, name);
+      }
+      const studentByInvoiceId = new Map<string, string>();
+      for (const document of boundedDocuments(lessonSnapshot)) {
+        const invoiceId = stringField(document, "invoiceId");
+        const studentId = stringField(document, "studentId");
+        if (invoiceId && studentId) studentByInvoiceId.set(invoiceId, studentId);
+      }
       return buildFinancialDashboard({
-        generatedAt: timestamp(options.now?.() ?? new Date().toISOString()),
+        generatedAt,
+        month,
         memberships,
         invoices,
         payments,
+        voidedPayments,
+        shopPayments,
+        studentByInvoiceId,
+        planNames,
       });
     },
   });
