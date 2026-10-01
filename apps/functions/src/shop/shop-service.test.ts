@@ -307,6 +307,37 @@ describe("shop Firestore store", () => {
     expect(withEmail.contactEmail).toBe("sam@example.com");
   });
 
+  it.each([
+    ["lines", { lines: [giLine] }],
+    ["quantity", { lines: [{ ...giLine, quantity: 3 }, checkout.lines[1]!] }],
+    ["size", { lines: [{ ...giLine, size: "A1" }, checkout.lines[1]!] }],
+    ["line order", { lines: [checkout.lines[1]!, giLine] }],
+    ["centre", { pickupLocationId: "town" as const }],
+    ["payment method", { paymentMethod: "bank_transfer" as const, proofId: "b".repeat(64) }],
+  ])("refuses a reused request id with a different %s", async (_label, change) => {
+    const { store, records } = seededStore();
+    const input = { academyId: "academy-1", actorId: "client-1", now, contactEmail: null };
+    await store.placeOrder({ ...input, request: checkout });
+    await expect(
+      store.placeOrder({ ...input, request: { ...checkout, ...change } }),
+    ).rejects.toMatchObject({ code: "conflict" });
+    expect([...records.keys()].filter((path) => path.includes("/shopOrders/"))).toHaveLength(1);
+  });
+
+  it("refuses a reused request id with a different screenshot", async () => {
+    const { store } = seededStore();
+    const input = { academyId: "academy-1", actorId: "client-1", now, contactEmail: null };
+    const transfer = {
+      ...checkout,
+      paymentMethod: "bank_transfer" as const,
+      proofId: "a".repeat(64),
+    };
+    await store.placeOrder({ ...input, request: transfer });
+    await expect(
+      store.placeOrder({ ...input, request: { ...transfer, proofId: "c".repeat(64) } }),
+    ).rejects.toMatchObject({ code: "conflict" });
+  });
+
   it("refuses a request id used by another customer", async () => {
     const { store } = seededStore();
     await store.placeOrder({
