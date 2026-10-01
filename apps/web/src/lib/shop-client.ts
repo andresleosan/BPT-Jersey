@@ -144,8 +144,11 @@ export async function getShopOrderProofUrl(orderId: string): Promise<string> {
   try {
     const data = await call("getShopOrderProofUrl", { orderId });
     return z.object({ url: z.url() }).parse(data).url;
-  } catch {
-    throw new Error("The transfer screenshot is unavailable.");
+  } catch (error) {
+    // not-found means R2's 90-day rule already deleted it; the callable says so.
+    throw new Error(
+      callableMessage(error, "not-found") ?? "The transfer screenshot is unavailable.",
+    );
   }
 }
 

@@ -562,6 +562,32 @@ describe("shop callables", () => {
     });
   });
 
+  it("says the screenshot is gone once R2 has deleted it", async () => {
+    const { services: s, storage, store } = services();
+    store.getOrder.mockResolvedValue({
+      ...order,
+      paymentMethod: "bank_transfer" as const,
+      proofId: pngProofId,
+    });
+    storage.readObject.mockRejectedValueOnce(
+      Object.assign(new Error("The specified key does not exist."), {
+        name: "NoSuchKey",
+        $metadata: { httpStatusCode: 404 },
+      }),
+    );
+    await expect(
+      getShopOrderProofUrlHandler(request({ orderId: order.orderId }, "owner"), s),
+    ).rejects.toMatchObject({
+      code: "not-found",
+      message: "Screenshot no longer kept (deleted after 90 days).",
+    });
+    // Any other read failure stays a generic, unexplained unavailability.
+    storage.readObject.mockRejectedValueOnce(new Error("R2 timeout"));
+    await expect(
+      getShopOrderProofUrlHandler(request({ orderId: order.orderId }, "owner"), s),
+    ).rejects.toMatchObject({ code: "failed-precondition" });
+  });
+
   it("reports no screenshot for a pay-on-collection order", async () => {
     const { services: s, store } = services();
     store.getOrder.mockResolvedValue({ ...order, paymentMethod: "at_collection", proofId: null });

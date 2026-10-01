@@ -384,8 +384,11 @@ export function ShopAdminPage() {
       const url = await getShopOrderProofUrl(order.orderId);
       proofTrigger.current = trigger;
       setProof({ reference: shopOrderReference(order.orderId), url });
-    } catch {
-      setNotice({ tone: "error", text: "The transfer screenshot is unavailable." });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text: error instanceof Error ? error.message : "The transfer screenshot is unavailable.",
+      });
     } finally {
       setBusy(undefined);
     }

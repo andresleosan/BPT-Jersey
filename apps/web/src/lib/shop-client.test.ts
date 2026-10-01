@@ -5,7 +5,7 @@ const api = vi.hoisted(() => ({ httpsCallable: vi.fn(), invoke: vi.fn() }));
 vi.mock("./callable", () => ({ httpsCallable: api.httpsCallable }));
 vi.mock("./firebase-client", () => ({ getFirebaseFunctions: () => ({}) }));
 
-import { placeShopOrder, uploadShopOrderProof } from "./shop-client";
+import { getShopOrderProofUrl, placeShopOrder, uploadShopOrderProof } from "./shop-client";
 
 describe("shop client proof upload", () => {
   beforeEach(() => {
@@ -75,5 +75,27 @@ describe("shop client place order", () => {
       Object.assign(new Error("raw internal detail"), { code: "functions/internal" }),
     );
     await expect(placeShopOrder(checkout)).rejects.toThrow("Unable to place the order.");
+  });
+});
+
+describe("shop client transfer screenshot", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.httpsCallable.mockReturnValue(api.invoke);
+  });
+
+  it("says the screenshot was deleted when the server reports it missing", async () => {
+    const message = "Screenshot no longer kept (deleted after 90 days).";
+    api.invoke.mockRejectedValue(Object.assign(new Error(message), { code: "functions/not-found" }));
+    await expect(getShopOrderProofUrl("order-1")).rejects.toThrow(message);
+  });
+
+  it("keeps the generic message for any other failure", async () => {
+    api.invoke.mockRejectedValue(
+      Object.assign(new Error("raw detail"), { code: "functions/failed-precondition" }),
+    );
+    await expect(getShopOrderProofUrl("order-1")).rejects.toThrow(
+      "The transfer screenshot is unavailable.",
+    );
   });
 });
