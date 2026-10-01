@@ -259,7 +259,9 @@ describe("club shop admin page", () => {
   });
 
   it("says so when the transfer screenshot cannot be opened", async () => {
-    shopApi.getShopOrderProofUrl.mockRejectedValue(new Error("gone"));
+    shopApi.getShopOrderProofUrl.mockRejectedValue(
+      new Error("The transfer screenshot is unavailable."),
+    );
     render(<ShopAdminPage />);
     await userEvent
       .setup()
@@ -270,9 +272,22 @@ describe("club shop admin page", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("says when the screenshot was deleted after 90 days", async () => {
+    shopApi.getShopOrderProofUrl.mockRejectedValue(
+      new Error("Screenshot no longer kept (deleted after 90 days)."),
+    );
+    render(<ShopAdminPage />);
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: /View transfer screenshot/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Screenshot no longer kept (deleted after 90 days).",
+    );
+  });
+
   it("clears an earlier notice when the screenshot is opened again", async () => {
     shopApi.getShopOrderProofUrl
-      .mockRejectedValueOnce(new Error("gone"))
+      .mockRejectedValueOnce(new Error("The transfer screenshot is unavailable."))
       .mockResolvedValueOnce("https://signed.test/proof");
     const user = userEvent.setup();
     render(<ShopAdminPage />);

@@ -21,6 +21,7 @@ import { enrolmentStorageSecrets } from "../members/enrolment-payment-proof.js";
 import { validateIntroProof } from "../memberships/intro-payment-proof.js";
 import { createPrivateStorageR2Client } from "../storage/r2-client.js";
 import {
+  loadShopProof,
   readShopProof,
   shopProofContentType,
   shopProofKey,
@@ -51,6 +52,7 @@ const catalogRoles = accountRoles;
 const customerRoles = accountRoles;
 const adminRoles = new Set(["owner", "administrator"]);
 const evidenceUnavailable = "Payment evidence is unavailable.";
+const evidenceExpired = "Screenshot no longer kept (deleted after 90 days).";
 
 function storageOf(services: ShopCallableServices): ShopProofStorage {
   if (!services.storage) throw new HttpsError("failed-precondition", evidenceUnavailable);
@@ -343,8 +345,9 @@ export async function getShopOrderProofUrlHandler(
     order.requestId,
     order.proofId,
   );
-  const bytes = await readShopProof(storage, objectKey, order.proofId);
-  const contentType = bytes ? shopProofContentType(bytes) : undefined;
+  const proof = await loadShopProof(storage, objectKey, order.proofId);
+  if (proof.status === "missing") throw new HttpsError("not-found", evidenceExpired);
+  const contentType = proof.status === "ok" ? shopProofContentType(proof.bytes) : undefined;
   if (!contentType || !storage.createPrivateImageUrl)
     throw new HttpsError("failed-precondition", evidenceUnavailable);
   let url: string;
