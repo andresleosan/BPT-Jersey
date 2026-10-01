@@ -267,7 +267,7 @@ export function FinancePage() {
           (candidate) => candidate.membershipId === view.invoice.membershipId,
         );
         return membership
-          ? nameOf(membership.studentId, membership.studentId)
+          ? nameOf(membership.studentId, view.invoice.description)
           : view.invoice.description;
       },
     },
