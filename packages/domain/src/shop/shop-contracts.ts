@@ -181,6 +181,9 @@ const shopOrderLineSchema = z.strictObject({
 
 const shopOrderBaseSchema = z.strictObject({
   orderId: safeIdSchema,
+  // Sequential per academy (SHOP-000001). Optional: orders placed before numbering carry none
+  // until the first numbered checkout numbers them by date.
+  orderNumber: z.number().int().min(1).max(999_999).optional(),
   academyId: safeIdSchema,
   requestId: safeIdSchema,
   customerUserId: safeIdSchema,
@@ -355,6 +358,7 @@ export function toShopProductProjection(record: ShopProductRecord): ShopProductP
 export function toShopOrderProjection(record: ShopOrderRecord): ShopOrderProjection {
   return shopOrderProjectionSchema.parse({
     orderId: record.orderId,
+    ...(record.orderNumber === undefined ? {} : { orderNumber: record.orderNumber }),
     customerUserId: record.customerUserId,
     lines: record.lines,
     totalMinor: record.totalMinor,
@@ -400,9 +404,12 @@ export function shopMadeToOrderLabel(leadTimeWeeks: number | null | undefined): 
   return `Made to order · about ${leadTimeWeeks} ${leadTimeWeeks === 1 ? "week" : "weeks"}`;
 }
 
-/** Short, human reference shared by the bank transfer and the office. */
-export function shopOrderReference(orderOrRequestId: string): string {
-  return `SHOP-${orderOrRequestId
+/** SHOP-000001 once numbered; an order not numbered yet keeps its id-based reference. */
+export function shopOrderReference(
+  order: Readonly<{ orderId: string; orderNumber?: number | undefined }>,
+): string {
+  if (order.orderNumber !== undefined) return `SHOP-${String(order.orderNumber).padStart(6, "0")}`;
+  return `SHOP-${order.orderId
     .replace(/^order-/u, "")
     .slice(0, 8)
     .toUpperCase()}`;

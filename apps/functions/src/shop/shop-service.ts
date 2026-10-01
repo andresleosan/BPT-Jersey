@@ -122,6 +122,7 @@ const dateTimePattern =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:?\d{2})$/u;
 export const SHOP_PRODUCT_QUERY_LIMIT = 200;
 export const SHOP_ORDER_QUERY_LIMIT = 500;
+export const SHOP_ORDER_NUMBERING_BACKFILL_LIMIT = 400;
 export const SHOP_CUSTOMER_ORDER_QUERY_LIMIT = 100;
 
 function id(value: string, label: string): string {
@@ -337,7 +338,35 @@ export function createShopStore(dependencies: ShopStoreDependencies): ShopStore 
             throw new ShopStoreError("conflict", "Order request id reused with a different basket");
           return stored;
         }
-        // Every read happens before the single write, as Firestore transactions require.
+        // Every read happens before any write, as Firestore transactions require.
+        const counterReference = firestore.doc(
+          `${collectionPath(academyId, "shopCounters")}/orders`,
+        );
+        const counter = asDocument(await transaction.get(counterReference));
+        let lastOrderNumber = 0;
+        let unnumbered: readonly ShopOrderRecord[] = [];
+        if (counter.exists) {
+          const stored = counter.data()?.lastOrderNumber;
+          if (typeof stored !== "number" || !Number.isInteger(stored) || stored < 0)
+            throw new ShopStoreError("invalid", "Stored order counter rejected");
+          lastOrderNumber = stored;
+        } else {
+          // ponytail: the first checkout without a counter numbers every earlier order by date, once.
+          // One transaction holds 500 writes, so this stops at 400 earlier orders (none come close).
+          const earlier = asQuery(
+            await transaction.get(
+              firestore
+                .collection(collectionPath(academyId, "shopOrders"))
+                .where("academyId", "==", academyId)
+                .limit(SHOP_ORDER_NUMBERING_BACKFILL_LIMIT),
+            ),
+          );
+          if (earlier.docs.length >= SHOP_ORDER_NUMBERING_BACKFILL_LIMIT)
+            throw new ShopStoreError("invalid", "Too many earlier orders to number at once");
+          unnumbered = [
+            ...sortOrders(earlier.docs.map((document) => storedOrder(document, academyId))),
+          ].reverse();
+        }
         const products = new Map<string, ShopProductRecord>();
         for (const productId of productIds) {
           const snapshot = asDocument(
@@ -377,8 +406,15 @@ export function createShopStore(dependencies: ShopStoreDependencies): ShopStore 
             lineTotalMinor: product.priceMinor * line.quantity,
           };
         });
+        const numbered = unnumbered.map((order, index) => {
+          const parsed = parseShopOrderRecord({ ...order, orderNumber: index + 1 });
+          if (!parsed.ok) throw new ShopStoreError("invalid", "Order contract rejected");
+          return parsed.value;
+        });
+        const orderNumber = lastOrderNumber + numbered.length + 1;
         const candidate = parseShopOrderRecord({
           orderId: orderReference.id,
+          orderNumber,
           academyId,
           requestId: request.requestId,
           customerUserId: actorId,
@@ -402,6 +438,12 @@ export function createShopStore(dependencies: ShopStoreDependencies): ShopStore 
           updatedBy: actorId,
         });
         if (!candidate.ok) throw new ShopStoreError("invalid", "Order contract rejected");
+        for (const order of numbered)
+          transaction.set(
+            firestore.doc(`${collectionPath(academyId, "shopOrders")}/${order.orderId}`),
+            order,
+          );
+        transaction.set(counterReference, { lastOrderNumber: orderNumber, updatedAt: now });
         transaction.create(orderReference, candidate.value);
         appendAudit(
           dependencies,

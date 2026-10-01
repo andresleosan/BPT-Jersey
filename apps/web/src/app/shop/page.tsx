@@ -246,7 +246,7 @@ function ShopContent() {
               tabIndex={-1}
             >
               <p className="account-eyebrow">Order placed</p>
-              <h2>{shopOrderReference(placed.orderId)}</h2>
+              <h2>{shopOrderReference(placed)}</h2>
               <p>
                 <span className="shop-money">{formatShopPrice(placed.totalMinor)}</span> · collect
                 from {pickupNames[placed.pickupLocationId]}.{" "}

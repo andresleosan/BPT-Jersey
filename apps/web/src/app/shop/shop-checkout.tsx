@@ -5,7 +5,6 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   formatShopPrice,
   shopOrderMaximumQuantity,
-  shopOrderReference,
   type ShopOrderProjection,
   type ShopPaymentMethod,
   type ShopPickupLocationId,
@@ -19,6 +18,8 @@ import {
   setBasketQuantity,
   type BasketLine,
 } from "../../lib/shop-basket";
+import { getGuardianProfile } from "../../lib/guardian-profile-client";
+import { getClientProfile } from "../../lib/profile-client";
 import { placeShopOrder, uploadShopOrderProof } from "../../lib/shop-client";
 import { EnrolmentBankDetails, useEnrolmentBankDetails } from "../enrol/payment-instructions";
 
@@ -65,13 +66,36 @@ export function ShopCheckout({
     (line) => byId.get(line.productId)?.stockStatus === "made-to-order",
   );
 
-  // Prefill once from the account name; a customer who clears the field keeps it cleared.
-  const prefilled = useRef(Boolean(session?.displayName));
+  // Prefill from what the academy already holds: the member or guardian profile, else the account
+  // name. A field the customer has typed in is never overwritten.
+  const typed = useRef({ name: false, phone: false });
+  const sessionUid = session?.uid;
+  const sessionRole = session?.role;
+  const sessionName = session?.displayName;
   useEffect(() => {
-    if (prefilled.current || !session?.displayName) return;
-    prefilled.current = true;
-    setContactName(session.displayName);
-  }, [session?.displayName]);
+    if (!sessionUid) return;
+    let active = true;
+    const fill = (name: string | undefined, phone: string | undefined): void => {
+      if (!active) return;
+      if (name && !typed.current.name) setContactName(name);
+      if (phone && !typed.current.phone) setContactPhone(phone);
+    };
+    fill(sessionName, undefined);
+    const role = sessionRole;
+    const lookup =
+      role === "adultStudent" || role === "teenStudent"
+        ? getClientProfile().then((profile) =>
+            fill(profile?.student.fullName, profile?.student.phoneNumber),
+          )
+        : role === "guardian"
+          ? getGuardianProfile().then((profile) => fill(profile?.displayName, profile?.phoneNumber))
+          : Promise.resolve();
+    // A failed lookup leaves the fields as they are; the customer can still type them.
+    lookup.catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [sessionUid, sessionRole, sessionName]);
 
   useEffect(() => {
     if (!file) {
@@ -205,7 +229,10 @@ export function ShopCheckout({
                 id="shop-contact-name"
                 maxLength={160}
                 name="contactName"
-                onChange={(event) => setContactName(event.target.value)}
+                onChange={(event) => {
+                  typed.current.name = true;
+                  setContactName(event.target.value);
+                }}
                 required
                 value={contactName}
               />
@@ -219,7 +246,10 @@ export function ShopCheckout({
                 autoComplete="tel"
                 id="shop-contact-phone"
                 maxLength={64}
-                onChange={(event) => setContactPhone(event.target.value)}
+                onChange={(event) => {
+                  typed.current.phone = true;
+                  setContactPhone(event.target.value);
+                }}
                 type="tel"
                 value={contactPhone}
               />
@@ -288,8 +318,15 @@ export function ShopCheckout({
               <div className="shop-transfer">
                 <EnrolmentBankDetails {...bank} />
                 <p>
-                  Use the reference <strong>{shopOrderReference(requestId)}</strong> and transfer{" "}
-                  <strong className="shop-money">{formatShopPrice(total)}</strong>.
+                  Use your name
+                  {contactName.trim() ? (
+                    <>
+                      , <strong>{contactName.trim()}</strong>,
+                    </>
+                  ) : null}{" "}
+                  as the reference and transfer{" "}
+                  <strong className="shop-money">{formatShopPrice(total)}</strong>. Your order
+                  number arrives as soon as you place it.
                 </p>
                 <label className="shop-field" htmlFor="shop-proof">
                   Transfer screenshot (required)

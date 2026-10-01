@@ -5525,3 +5525,8 @@ a.admin-birthday-badge:focus-visible,
   display: grid;
   gap: 0.15rem;
 }
+
+/* SHOP-000001 broke after the hyphen in the narrow Order column. */
+.shop-admin-page td[data-label="Order"] strong {
+  white-space: nowrap;
+}
