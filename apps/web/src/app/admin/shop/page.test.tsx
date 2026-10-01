@@ -199,6 +199,18 @@ describe("club shop admin page", () => {
     expect(other.textContent).toBe("Tia Transfer07700 900000");
   });
 
+  it("names every select for autofill and form tools", async () => {
+    render(<ShopAdminPage />);
+    await screen.findByRole("table", { name: "Club shop orders" });
+    const selects = [...document.querySelectorAll("select")];
+    expect(selects.map((select) => select.getAttribute("name"))).toEqual([
+      "orderFilter",
+      "centreFilter",
+      "category",
+      "stockStatus",
+    ]);
+  });
+
   it("says how many products are hidden and uses shop wording", async () => {
     render(<ShopAdminPage />);
     expect(await screen.findByText("1 product is hidden. Clients cannot see it.")).toBeVisible();

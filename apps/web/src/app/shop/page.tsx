@@ -12,7 +12,7 @@ import {
 } from "@bpt-jersey/domain/shop";
 import { academyContent } from "../../content/academy";
 import { publicAcademyId } from "../../lib/academy";
-import { ClientAuthProvider, useClientSession } from "../../lib/client-auth";
+import { ClientAuthProvider, useClientSession, type ClientSession } from "../../lib/client-auth";
 import {
   addToBasket,
   basketTotalMinor,
@@ -39,6 +39,13 @@ type LoadState =
 type CategoryFilter = "all" | ShopProductCategory;
 type Notice = Readonly<{ tone: "error" | "success" | "warning"; text: string }>;
 
+function productName(
+  products: readonly ShopProductProjection[],
+  productId: string,
+): string | undefined {
+  return products.find((product) => product.productId === productId)?.name;
+}
+
 /** Hidden products are no longer in the catalogue, so their names are unknown ("An item"). */
 function removedNotice(removed: readonly string[]): string {
   const named = removed.filter((name) => name !== "An item");
@@ -53,6 +60,16 @@ function removedNotice(removed: readonly string[]): string {
   const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0];
   const one = removed.length === 1;
   return `${list} ${one ? "was" : "were"} removed from your basket because ${one ? "it is" : "they are"} no longer available.`;
+}
+
+/** Staff open the shop from their own area, so the back link returns them there. */
+function backLink(session: ClientSession | undefined): Readonly<{ href: string; label: string }> {
+  if (!session) return { href: "/", label: "Back to home" };
+  if (session.staffRole === "owner" || session.staffRole === "administrator")
+    return { href: "/admin", label: "Back to admin" };
+  if (session.staffRole === "headCoach" || session.staffRole === "coach")
+    return { href: "/coach", label: "Back to coach" };
+  return { href: "/account", label: "Back to account" };
 }
 
 function ShopContent() {
@@ -131,6 +148,7 @@ function ShopContent() {
     ].filter((key) => key === "all" || present.has(key));
   }, [state]);
 
+  const back = backLink(signedIn ? session : undefined);
   const itemCount = lines.reduce((count, line) => count + line.quantity, 0);
 
   function changeLines(next: readonly BasketLine[]): void {
@@ -142,9 +160,13 @@ function ShopContent() {
 
   function add(line: BasketLine): void {
     const result = addToBasket(lines, line);
-    if (result.full)
+    if (result.full) {
       setNotice({ tone: "error", text: "Your basket holds up to 10 different items." });
-    else changeLines(result.lines);
+      return;
+    }
+    changeLines(result.lines);
+    const name = state.status === "ready" ? productName(state.products, line.productId) : undefined;
+    if (name) setNotice({ tone: "success", text: `Added ${name} to your basket.` });
   }
 
   function handlePlaced(order: ShopOrderProjection): void {
@@ -157,8 +179,8 @@ function ShopContent() {
 
   return (
     <main className="shop-page" id="main-content" aria-labelledby="shop-title">
-      <a className="shop-back-link" href={signedIn ? "/account" : "/"}>
-        <span aria-hidden="true">&larr;</span> {signedIn ? "Back to account" : "Back to home"}
+      <a className="shop-back-link" href={back.href}>
+        <span aria-hidden="true">&larr;</span> {back.label}
       </a>
       <p className="account-eyebrow">BPT Jersey / Club shop</p>
       <h1 id="shop-title">Club shop</h1>

@@ -433,6 +433,7 @@ export function ShopAdminPage() {
                   Show
                   <select
                     id="shop-order-filter"
+                    name="orderFilter"
                     onChange={(event) => setOrderFilter(event.target.value as "open" | "all")}
                     value={orderFilter}
                   >
@@ -444,6 +445,7 @@ export function ShopAdminPage() {
                   Centre
                   <select
                     id="shop-order-centre"
+                    name="centreFilter"
                     onChange={(event) =>
                       setCentreFilter(event.target.value as "all" | ShopPickupLocationId)
                     }
@@ -725,6 +727,7 @@ export function ShopAdminPage() {
                   <select
                     disabled={busy !== undefined}
                     id="shop-product-category"
+                    name="category"
                     onChange={(event) =>
                       updateEditor("category", event.target.value as ShopProductCategory)
                     }
@@ -766,6 +769,7 @@ export function ShopAdminPage() {
                   <select
                     disabled={busy !== undefined}
                     id="shop-product-stock"
+                    name="stockStatus"
                     onChange={(event) =>
                       updateEditor("stockStatus", event.target.value as ShopStockStatus)
                     }

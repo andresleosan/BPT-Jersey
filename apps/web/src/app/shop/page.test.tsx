@@ -10,6 +10,7 @@ const authState = vi.hoisted(() => ({
         email: string;
         displayName: string;
         role?: "guardian" | "adultStudent" | "shopper";
+        staffRole?: "owner" | "administrator" | "headCoach" | "coach";
       }
     | undefined,
   signOut: vi.fn(),
@@ -156,9 +157,116 @@ describe("client shop", () => {
     expect(shopApi.listMyShopOrders).not.toHaveBeenCalled();
 
     // Nothing that belongs to an account is rendered for a visitor.
-    expect(screen.queryByLabelText("Name for the order")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Name for the order/)).not.toBeInTheDocument();
     expect(screen.queryByText("Order history")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Back to home/ })).toHaveAttribute("href", "/");
+  });
+
+  it.each([
+    ["coach", "/coach", "Back to coach"],
+    ["headCoach", "/coach", "Back to coach"],
+    ["owner", "/admin", "Back to admin"],
+    ["administrator", "/admin", "Back to admin"],
+  ] as const)("sends a %s back to their own area", async (staffRole, href, text) => {
+    authState.status = "signed-in";
+    authState.session = {
+      uid: "staff-1",
+      email: "staff@example.test",
+      displayName: "Staff",
+      staffRole,
+    };
+    shopApi.listShopCatalog.mockResolvedValue([gi]);
+    shopApi.listMyShopOrders.mockResolvedValue([]);
+    render(<ShopPage />);
+    expect(await screen.findByRole("link", { name: new RegExp(text) })).toHaveAttribute(
+      "href",
+      href,
+    );
+  });
+
+  it("sends a client back to their account", async () => {
+    signIn();
+    shopApi.listShopCatalog.mockResolvedValue([gi]);
+    shopApi.listMyShopOrders.mockResolvedValue([]);
+    render(<ShopPage />);
+    expect(await screen.findByRole("link", { name: /Back to account/ })).toHaveAttribute(
+      "href",
+      "/account",
+    );
+  });
+
+  it("announces each item added to the basket", async () => {
+    authState.status = "signed-out";
+    shopApi.listPublicShopCatalog.mockResolvedValue([gi, rashguard]);
+    render(<ShopPage />);
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", { name: "Add BPT competition gi to basket" }),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Added BPT competition gi to your basket.",
+    );
+    await user.click(screen.getByRole("button", { name: "Add BPT rashguard to basket" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Added BPT rashguard to your basket.");
+    const basket = screen.getByRole("region", { name: "Your basket" });
+    await user.click(within(basket).getByRole("button", { name: "Remove BPT rashguard" }));
+    expect(screen.queryByText(/Added .* to your basket/)).not.toBeInTheDocument();
+  });
+
+  it("says what the checkout still needs, in order, until it is ready", async () => {
+    signIn();
+    shopApi.listShopCatalog.mockResolvedValue([gi]);
+    shopApi.listMyShopOrders.mockResolvedValue([]);
+    render(<ShopPage />);
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", { name: "Add BPT competition gi to basket" }),
+    );
+    const place = screen.getByRole("button", { name: /Place order/ });
+    const name = screen.getByLabelText("Name for the order (required)");
+    expect(name).toBeRequired();
+    const missing = () => document.getElementById("shop-checkout-missing");
+    expect(place).toHaveAttribute("aria-describedby", "shop-checkout-missing");
+    expect(missing()).toHaveAttribute("aria-live", "polite");
+
+    await user.clear(name);
+    expect(missing()).toHaveTextContent("Enter a name for the order to place it.");
+    await user.type(name, "Sam Client");
+    expect(missing()).toHaveTextContent("Choose a centre to place the order.");
+    await user.click(screen.getByRole("radio", { name: /West/ }));
+    expect(missing()).toHaveTextContent("Choose how you will pay to place the order.");
+    await user.click(screen.getByRole("radio", { name: "Bank transfer now" }));
+    expect(missing()).toHaveTextContent("Add the transfer screenshot to place the order.");
+    expect(screen.getByText("Required: PNG or JPEG, up to 2 MB.")).toBeVisible();
+    await user.upload(
+      screen.getByLabelText("Transfer screenshot (required)"),
+      new File([new Uint8Array([137, 80, 78, 71])], "proof.png", { type: "image/png" }),
+    );
+    expect(missing()).toBeNull();
+    expect(place).not.toHaveAttribute("aria-describedby");
+    expect(place).toBeEnabled();
+  });
+
+  it("names every shop form control for autofill and form tools", async () => {
+    signIn();
+    shopApi.listShopCatalog.mockResolvedValue([gi]);
+    shopApi.listMyShopOrders.mockResolvedValue([]);
+    render(<ShopPage />);
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", { name: "Add BPT competition gi to basket" }),
+    );
+    for (const select of document.querySelectorAll("select"))
+      expect(select.getAttribute("name")).toBeTruthy();
+    const payment = screen
+      .getAllByRole("radio")
+      .filter((radio) => radio.getAttribute("name") === "shop-payment");
+    expect(payment.map((radio) => radio.getAttribute("value"))).toEqual([
+      "bank_transfer",
+      "at_collection",
+    ]);
+    for (const radio of screen.getAllByRole("radio"))
+      expect(radio.getAttribute("value")).toBeTruthy();
   });
 
   it("filters the catalog by category", async () => {
@@ -351,7 +459,7 @@ describe("client shop", () => {
     const user = userEvent.setup();
     await user.selectOptions(await screen.findByLabelText("Size for BPT competition gi"), "A2");
     await user.click(screen.getByRole("button", { name: "Add BPT competition gi to basket" }));
-    const name = screen.getByLabelText("Name for the order");
+    const name = screen.getByLabelText("Name for the order (required)");
     expect(name).toHaveValue("Sam Client");
     await user.clear(name);
     expect(name).toHaveValue("");
@@ -361,7 +469,7 @@ describe("client shop", () => {
     const place = screen.getByRole("button", { name: /Place order/ });
     expect(place).toBeDisabled();
     await user.upload(
-      screen.getByLabelText("Transfer screenshot"),
+      screen.getByLabelText("Transfer screenshot (required)"),
       new File([new Uint8Array([137, 80, 78, 71])], "proof.png", { type: "image/png" }),
     );
     await user.click(place);
@@ -435,7 +543,7 @@ describe("client shop", () => {
     await user.click(screen.getByRole("radio", { name: /West/ }));
     await user.click(screen.getByRole("radio", { name: "Bank transfer now" }));
     await user.upload(
-      screen.getByLabelText("Transfer screenshot"),
+      screen.getByLabelText("Transfer screenshot (required)"),
       new File([new Uint8Array([137, 80, 78, 71])], "proof.png", { type: "image/png" }),
     );
     await user.click(screen.getByRole("button", { name: /Place order/ }));
