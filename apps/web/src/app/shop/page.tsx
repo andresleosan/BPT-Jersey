@@ -25,6 +25,7 @@ import { listMyShopOrders, listPublicShopCatalog, listShopCatalog } from "../../
 import { ProductCard } from "./product-card";
 import { ShopCheckout } from "./shop-checkout";
 import { pickupNames, ShopOrders } from "./shop-orders";
+import { ShopReadyNotice } from "./shop-ready-notice";
 import "./shop.css";
 
 type LoadState =
@@ -219,6 +220,7 @@ function ShopContent() {
 
       {state.status === "ready" ? (
         <>
+          {signedIn ? <ShopReadyNotice orders={state.orders} /> : null}
           {placed ? (
             <section
               aria-label="Order placed"

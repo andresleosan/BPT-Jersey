@@ -6,6 +6,7 @@ import { createCalendarRepository, type CalendarRole } from "../../lib/calendar"
 import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../lib/client-auth";
 import { requireClientSession } from "../../lib/login-flow";
 import { AdultClaimGate } from "./adult-claim";
+import { MyShopReadyNotice } from "../shop/shop-ready-notice";
 import { MemberCalendar } from "./calendar/member-calendar";
 import { IntroNotices } from "./intro-notices";
 import { StreakPanel } from "./streak/streak-panel";
@@ -56,6 +57,7 @@ function AccountContent() {
             topSlot={(studentId) => (
               <>
                 <IntroNotices />
+                <MyShopReadyNotice />
                 <PendingTermsBanner studentId={studentId} />
                 <StreakPanel key={studentId} studentId={studentId} />
               </>
