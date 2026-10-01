@@ -43,7 +43,7 @@ export function setBasketQuantity(
   key: string,
   quantity: number,
 ): readonly BasketLine[] {
-  if (quantity < 1) return lines.filter((item) => basketLineKey(item) !== key);
+  if (!(quantity >= 1)) return lines.filter((item) => basketLineKey(item) !== key);
   const capped = Math.min(shopOrderMaximumQuantity, Math.trunc(quantity));
   return lines.map((item) => (basketLineKey(item) === key ? { ...item, quantity: capped } : item));
 }
@@ -96,7 +96,11 @@ export function writeBasket(
 ): void {
   try {
     if (lines.length === 0) storage?.removeItem(basketStorageKey);
-    else storage?.setItem(basketStorageKey, JSON.stringify(lines));
+    else
+      storage?.setItem(
+        basketStorageKey,
+        JSON.stringify(lines.map(({ productId, size, quantity }) => ({ productId, size, quantity }))),
+      );
   } catch {
     // Private mode or blocked storage: the basket simply lives in memory for this visit.
   }

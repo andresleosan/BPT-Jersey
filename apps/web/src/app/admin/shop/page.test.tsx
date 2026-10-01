@@ -209,6 +209,20 @@ describe("club shop admin page", () => {
     expect(screen.queryByRole("img", { name: /Transfer screenshot/ })).not.toBeInTheDocument();
   });
 
+  it("returns focus to the screenshot button when the dialog closes", async () => {
+    shopApi.getShopOrderProofUrl.mockResolvedValue("https://signed.test/proof");
+    const user = userEvent.setup();
+    render(<ShopAdminPage />);
+    const trigger = await screen.findByRole("button", { name: /View transfer screenshot/ });
+    await user.click(trigger);
+    const reference = shopOrderReference(transferOrder.orderId);
+    const dialog = await screen.findByRole("dialog", { name: reference });
+    await user.click(within(dialog).getByRole("button", { name: "Close" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /View transfer screenshot/ })).toHaveFocus(),
+    );
+  });
+
   it("offers no screenshot for orders paid on collection", async () => {
     shopApi.listShopOrders.mockResolvedValue([order]);
     render(<ShopAdminPage />);

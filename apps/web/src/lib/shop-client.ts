@@ -127,10 +127,10 @@ const proofError = "The payment screenshot could not be uploaded.";
 export async function uploadShopOrderProof(requestId: string, file: File): Promise<string> {
   if (!["image/png", "image/jpeg"].includes(file.type) || file.size < 1 || file.size > 2 * 1024 * 1024)
     throw new Error("Choose a PNG or JPEG screenshot up to 2 MB.");
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
   try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
     const data = await call("uploadShopOrderProof", { requestId, contentType: file.type, base64: btoa(binary) });
     return z.strictObject({ proofId: z.string().regex(/^[a-f0-9]{64}$/u) }).parse(data).proofId;
   } catch {

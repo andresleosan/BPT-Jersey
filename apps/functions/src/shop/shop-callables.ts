@@ -334,10 +334,13 @@ export async function getShopOrderProofUrlHandler(
   const contentType = bytes ? shopProofContentType(bytes) : undefined;
   if (!contentType || !storage.createPrivateImageUrl)
     throw new HttpsError("failed-precondition", evidenceUnavailable);
-  return {
-    url: await storage.createPrivateImageUrl({ objectKey, expiresInSeconds: 60, contentType }),
-    expiresAt: new Date(Date.now() + 60_000).toISOString(),
-  };
+  let url: string;
+  try {
+    url = await storage.createPrivateImageUrl({ objectKey, expiresInSeconds: 60, contentType });
+  } catch {
+    throw new HttpsError("failed-precondition", evidenceUnavailable);
+  }
+  return { url, expiresAt: new Date(Date.now() + 60_000).toISOString() };
 }
 
 function callableServices(): ShopCallableServices {

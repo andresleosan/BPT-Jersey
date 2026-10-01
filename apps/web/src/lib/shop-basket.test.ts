@@ -38,6 +38,16 @@ describe("shop basket", () => {
     expect(setBasketQuantity(lines, "bpt-gi|A2", 0)).toEqual([]);
     expect(setBasketQuantity(lines, "bpt-gi|A2", 3)).toEqual([{ productId: "bpt-gi", size: "A2", quantity: 3 }]);
   });
+  it("removes a line when the quantity is not a number", () => {
+    const lines = [{ productId: "bpt-gi", size: "A2", quantity: 2 }];
+    expect(setBasketQuantity(lines, "bpt-gi|A2", Number.NaN)).toEqual([]);
+  });
+  it("stores only product, size and quantity for each line", () => {
+    const storage = memoryStorage();
+    const line = { productId: "bpt-gi", size: "A2", quantity: 2, name: "BPT gi", priceMinor: 1 };
+    writeBasket([line as BasketLine], storage);
+    expect(JSON.parse(storage.values.get(basketStorageKey) ?? "null")).toEqual([{ productId: "bpt-gi", size: "A2", quantity: 2 }]);
+  });
   it("drops hidden, sold-out, missing and wrong-size lines and names them", () => {
     const lines = [
       { productId: "bpt-gi", size: "A2", quantity: 1 },

@@ -312,7 +312,7 @@ describe("shop Firestore store", () => {
   });
 
   it("writes nothing when one line fails", async () => {
-    const { store, records } = seededStore();
+    const { store, records, audits } = seededStore();
     const request = {
       ...checkout,
       lines: [giLine, { productId: "bpt-sold", size: null, quantity: 1 }],
@@ -321,6 +321,7 @@ describe("shop Firestore store", () => {
       store.placeOrder({ academyId: "academy-1", actorId: "client-1", now, request }),
     ).rejects.toThrow();
     expect([...records.keys()].some((path) => path.includes("/shopOrders/"))).toBe(false);
+    expect(audits).toEqual([]);
   });
 
   it("reads one order and reports a missing one", async () => {

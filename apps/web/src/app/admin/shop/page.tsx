@@ -242,6 +242,7 @@ export function ShopAdminPage() {
   const [notice, setNotice] = useState<Notice>();
   const [orderFilter, setOrderFilter] = useState<"open" | "all">("open");
   const [proof, setProof] = useState<ProofView>();
+  const proofTrigger = useRef<HTMLButtonElement | null>(null);
   const [centreFilter, setCentreFilter] = useState<"all" | ShopPickupLocationId>("all");
 
   useEffect(() => {
@@ -355,11 +356,18 @@ export function ShopAdminPage() {
     }
   }
 
-  async function viewProof(order: ShopOrderProjection): Promise<void> {
+  useEffect(() => {
+    if (proof || !proofTrigger.current) return;
+    proofTrigger.current.focus();
+    proofTrigger.current = null;
+  }, [proof]);
+
+  async function viewProof(order: ShopOrderProjection, trigger: HTMLButtonElement): Promise<void> {
     setBusy(`proof-${order.orderId}`);
     setNotice(undefined);
     try {
       const url = await getShopOrderProofUrl(order.orderId);
+      proofTrigger.current = trigger;
       setProof({ reference: shopOrderReference(order.orderId), url });
     } catch {
       setNotice({ tone: "error", text: "The transfer screenshot is unavailable." });
@@ -543,7 +551,7 @@ export function ShopAdminPage() {
                               <button
                                 className="shop-admin-table-button"
                                 disabled={busy !== undefined}
-                                onClick={() => void viewProof(order)}
+                                onClick={(event) => void viewProof(order, event.currentTarget)}
                                 type="button"
                               >
                                 View transfer screenshot
