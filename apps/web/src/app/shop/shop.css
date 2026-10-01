@@ -45,6 +45,11 @@
 }
 
 /* The global .button-primary is white for dark hero bands; on the canvas it read as plain text. */
+/* .button is styled for links; a <button> would otherwise fall back to the browser's Arial. */
+.shop-page .button {
+  font-family: inherit;
+}
+
 .shop-page .button-primary {
   background: var(--bpt-purple);
   border-color: var(--bpt-purple);
