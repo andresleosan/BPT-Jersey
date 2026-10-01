@@ -40,7 +40,7 @@ export function ShopOrders({ orders }: { orders: readonly ShopOrderProjection[] 
           {orders.map((order) => (
             <li className={`shop-order-item shop-order-${order.status}`} key={order.orderId}>
               <div className="shop-order-item-head">
-                <strong>{shopOrderReference(order.orderId)}</strong>
+                <strong>{shopOrderReference(order)}</strong>
                 <span className={`shop-order-status shop-status-${order.status}`}>
                   {statusText(order)}
                 </span>

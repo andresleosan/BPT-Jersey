@@ -45,7 +45,7 @@ type WorkspaceState =
 
 type Notice = Readonly<{ tone: "error" | "success"; text: string }>;
 
-type ShopAdminView = "orders" | "products" | "editor";
+type ShopAdminView = "orders" | "history" | "products" | "editor";
 
 type EditorValues = Readonly<{
   productId: string;
@@ -258,7 +258,6 @@ export function ShopAdminPage() {
   const [editingId, setEditingId] = useState<string>();
   const [busy, setBusy] = useState<string>();
   const [notice, setNotice] = useState<Notice>();
-  const [orderFilter, setOrderFilter] = useState<"open" | "all">("open");
   const [proof, setProof] = useState<ProofView>();
   const proofTrigger = useRef<HTMLButtonElement | null>(null);
   const [centreFilter, setCentreFilter] = useState<"all" | ShopPickupLocationId>("all");
@@ -370,7 +369,7 @@ export function ShopAdminPage() {
           ? { ...current, orders: replaceOrder(current.orders, updated) }
           : current,
       );
-      setNotice({ tone: "success", text: `Order ${shopOrderReference(updated.orderId)} updated.` });
+      setNotice({ tone: "success", text: `Order ${shopOrderReference(updated)} updated.` });
     } catch {
       setNotice({ tone: "error", text: "Unable to update the order. Please try again." });
     } finally {
@@ -390,7 +389,7 @@ export function ShopAdminPage() {
     try {
       const url = await getShopOrderProofUrl(order.orderId);
       proofTrigger.current = trigger;
-      setProof({ reference: shopOrderReference(order.orderId), url });
+      setProof({ reference: shopOrderReference(order), url });
     } catch (error) {
       setNotice({
         tone: "error",
@@ -405,8 +404,9 @@ export function ShopAdminPage() {
     workspace.status === "ready"
       ? workspace.orders.filter(
           (order) =>
-            (orderFilter === "all" ||
-              (order.status !== "collected" && order.status !== "cancelled")) &&
+            // Collected and cancelled orders are finished: they live in History, not the queue.
+            (order.status === "collected" || order.status === "cancelled") ===
+              (view === "history") &&
             (centreFilter === "all" || order.pickupLocationId === centreFilter),
         )
       : [];
@@ -462,6 +462,17 @@ export function ShopAdminPage() {
               </li>
               <li role="presentation">
                 <button
+                  aria-selected={view === "history"}
+                  className="shop-admin-tab"
+                  onClick={() => setView("history")}
+                  role="tab"
+                  type="button"
+                >
+                  History
+                </button>
+              </li>
+              <li role="presentation">
+                <button
                   aria-selected={view === "products"}
                   className="shop-admin-tab"
                   onClick={() => setView("products")}
@@ -484,26 +495,16 @@ export function ShopAdminPage() {
               </li>
             </ul>
           </nav>
-          {view === "orders" ? (
+          {view === "orders" || view === "history" ? (
             <section className="admin-panel-card" aria-labelledby="shop-orders-title">
               <div className="admin-panel-card-heading">
                 <div>
-                  <p className="admin-eyebrow">Collection orders</p>
-                  <h3 id="shop-orders-title">Orders</h3>
+                  <p className="admin-eyebrow">
+                    {view === "history" ? "Collected and cancelled" : "Collection orders"}
+                  </p>
+                  <h3 id="shop-orders-title">{view === "history" ? "Order history" : "Orders"}</h3>
                 </div>
                 <div className="shop-admin-order-filters">
-                  <label className="admin-filter-control" htmlFor="shop-order-filter">
-                    Show
-                    <select
-                      id="shop-order-filter"
-                      name="orderFilter"
-                      onChange={(event) => setOrderFilter(event.target.value as "open" | "all")}
-                      value={orderFilter}
-                    >
-                      <option value="open">Open orders</option>
-                      <option value="all">All orders</option>
-                    </select>
-                  </label>
                   <label className="admin-filter-control" htmlFor="shop-order-centre">
                     Centre
                     <select
@@ -523,8 +524,14 @@ export function ShopAdminPage() {
               </div>
               {visibleOrders.length === 0 ? (
                 <div className="admin-empty-state">
-                  <strong>No orders match this filter.</strong>
-                  <p>Client requests appear here as soon as they are placed.</p>
+                  <strong>
+                    {view === "history" ? "No finished orders yet." : "No open orders."}
+                  </strong>
+                  <p>
+                    {view === "history"
+                      ? "Orders move here once they are collected or cancelled."
+                      : "Client requests appear here as soon as they are placed."}
+                  </p>
                 </div>
               ) : (
                 <AdminDataTableWrap label="Club shop orders">
@@ -546,7 +553,7 @@ export function ShopAdminPage() {
                       {visibleOrders.map((order) => (
                         <tr key={order.orderId}>
                           <td data-label="Order">
-                            <strong>{shopOrderReference(order.orderId)}</strong>
+                            <strong>{shopOrderReference(order)}</strong>
                             <small className="shop-admin-secondary">
                               {new Date(order.createdAt).toLocaleString("en-GB", {
                                 dateStyle: "short",
@@ -629,7 +636,7 @@ export function ShopAdminPage() {
                                   screenshot
                                   <span className="visually-hidden">
                                     {" "}
-                                    for {shopOrderReference(order.orderId)}
+                                    for {shopOrderReference(order)}
                                   </span>
                                 </button>
                               ) : null}

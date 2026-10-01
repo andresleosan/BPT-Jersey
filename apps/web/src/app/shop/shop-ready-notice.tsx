@@ -16,7 +16,7 @@ export function ShopReadyNotice({ orders }: { orders: readonly ShopOrderProjecti
     <div className="shop-ready-notice" role="status">
       {ready.map((order) => (
         <p key={order.orderId}>
-          Your order <strong>{shopOrderReference(order.orderId)}</strong> is ready to collect at{" "}
+          Your order <strong>{shopOrderReference(order)}</strong> is ready to collect at{" "}
           {pickupNames[order.pickupLocationId]}.
         </p>
       ))}
