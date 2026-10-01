@@ -200,6 +200,8 @@ const shopOrderBaseSchema = z.strictObject({
   note: boundedText(500).nullable(),
   status: shopOrderStatusSchema,
   paymentStatus: shopPaymentStatusSchema,
+  // Optional: orders paid before 2026-10 carry no field; the dashboard dates those by updatedAt.
+  paidAt: dateTimeSchema.nullable().optional(),
   staffNote: boundedText(500).nullable(),
   schemaVersion: z.literal("2"),
   createdAt: dateTimeSchema,

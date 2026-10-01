@@ -248,6 +248,12 @@ describe("shop order v2", () => {
     delete withoutEmail.contactEmail;
     expect(parseShopOrderRecord(withoutEmail).ok).toBe(false);
   });
+  it("keeps orders without paidAt valid and requires an ISO timestamp when present", () => {
+    expect(parseShopOrderRecord(orderV2).ok).toBe(true);
+    expect(parseShopOrderRecord({ ...orderV2, paidAt: "2026-10-01T10:00:00.000Z" }).ok).toBe(true);
+    expect(parseShopOrderRecord({ ...orderV2, paidAt: null }).ok).toBe(true);
+    expect(parseShopOrderRecord({ ...orderV2, paidAt: "yesterday" }).ok).toBe(false);
+  });
 });
 
 describe("shop helpers", () => {

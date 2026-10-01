@@ -490,6 +490,37 @@ describe("shop Firestore store", () => {
     expect(audits.filter((audit) => audit.action === "shop.order.status.changed")).toHaveLength(2);
   });
 
+  it("records when an order was marked paid and clears it when unpaid", async () => {
+    const { store } = fakeFirestore({
+      "academies/academy-1/shopOrders/order-req-1": orderV2,
+    });
+    const orderId = "order-req-1";
+    const third = "2026-09-04T12:00:00.000Z";
+    const paid = await store.updateOrder({
+      ...base,
+      update: { orderId, paymentStatus: "paid" },
+    });
+    expect(paid.paidAt).toBe(now);
+    const statusOnly = await store.updateOrder({
+      ...base,
+      now: later,
+      update: { orderId, status: "confirmed" },
+    });
+    expect(statusOnly.paidAt).toBe(now);
+    const unpaid = await store.updateOrder({
+      ...base,
+      now: later,
+      update: { orderId, paymentStatus: "unpaid" },
+    });
+    expect(unpaid.paidAt).toBeNull();
+    const repaid = await store.updateOrder({
+      ...base,
+      now: third,
+      update: { orderId, paymentStatus: "paid" },
+    });
+    expect(repaid.paidAt).toBe(third);
+  });
+
   it("refuses records from another tenant", async () => {
     const { store } = fakeFirestore({
       "academies/academy-1/shopProducts/foreign": {

@@ -498,10 +498,18 @@ export function createShopStore(dependencies: ShopStoreDependencies): ShopStore 
         const nextStatus = update.status ?? existing.status;
         if (nextStatus !== existing.status && !canTransitionShopOrder(existing.status, nextStatus))
           throw new ShopStoreError("precondition", "Order status transition is not allowed");
+        const nextPayment = update.paymentStatus ?? existing.paymentStatus;
+        const paidAt =
+          nextPayment === "paid"
+            ? existing.paymentStatus === "paid"
+              ? existing.paidAt
+              : now
+            : null;
         const candidate = parseShopOrderRecord({
           ...existing,
           status: nextStatus,
-          paymentStatus: update.paymentStatus ?? existing.paymentStatus,
+          paymentStatus: nextPayment,
+          ...(paidAt === undefined ? {} : { paidAt }),
           staffNote: update.staffNote === undefined ? existing.staffNote : update.staffNote,
           updatedAt: now,
           updatedBy: actorId,
