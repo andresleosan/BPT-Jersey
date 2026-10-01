@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -215,6 +215,35 @@ describe("client shop", () => {
     await user.click(within(basket).getByRole("button", { name: "Remove BPT competition gi A1" }));
     expect(basket).toHaveTextContent("Your basket is empty");
     expect(localStorage.getItem("bpt-shop-basket")).toBeNull();
+  });
+
+  it("hides the phone basket bar while the basket itself is on screen", async () => {
+    let report: ((entries: { isIntersecting: boolean }[]) => void) | undefined;
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback: (entries: { isIntersecting: boolean }[]) => void) {
+          report = callback;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    try {
+      authState.status = "signed-out";
+      shopApi.listPublicShopCatalog.mockResolvedValue([gi, backpack]);
+      render(<ShopPage />);
+      await userEvent
+        .setup()
+        .click(await screen.findByRole("button", { name: "Add BPT competition gi to basket" }));
+      expect(screen.getByRole("link", { name: /^Basket · 1 item ·/ })).toBeVisible();
+      act(() => report?.([{ isIntersecting: true }]));
+      expect(screen.queryByRole("link", { name: /^Basket · 1 item ·/ })).not.toBeInTheDocument();
+      act(() => report?.([{ isIntersecting: false }]));
+      expect(screen.getByRole("link", { name: /^Basket · 1 item ·/ })).toBeVisible();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("keeps a sold-out product visible but not addable", async () => {
