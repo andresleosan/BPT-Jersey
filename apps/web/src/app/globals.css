@@ -1792,13 +1792,14 @@ button:focus-visible {
   margin: 0;
 }
 
+/* Status is text plus a coloured left rule, never a boxed pill (DESIGN.md). */
 .shop-stock-badge {
-  border: 1px solid currentColor;
+  border-left: 0.3rem solid currentColor;
   display: inline-flex;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.08em;
-  padding: 0.2rem 0.45rem;
+  padding: 0.1rem 0 0.1rem 0.5rem;
   text-transform: uppercase;
   width: fit-content;
 }
@@ -1915,6 +1916,11 @@ button:focus-visible {
   .shop-collection-form,
   .shop-product-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* A 4:5 photo filled a whole phone screen per product; square keeps the price in view. */
+  .shop-product-figure {
+    aspect-ratio: 1;
   }
 }
 

@@ -503,7 +503,10 @@ export function ShopAdminPage() {
                         <td data-label="Order">
                           <strong>{shopOrderReference(order.orderId)}</strong>
                           <small className="shop-admin-secondary">
-                            {new Date(order.createdAt).toLocaleString("en-GB")}
+                            {new Date(order.createdAt).toLocaleString("en-GB", {
+                              dateStyle: "short",
+                              timeStyle: "short",
+                            })}
                           </small>
                         </td>
                         <td data-label="Customer">
@@ -577,7 +580,8 @@ export function ShopAdminPage() {
                                 onClick={(event) => void viewProof(order, event.currentTarget)}
                                 type="button"
                               >
-                                View transfer screenshot
+                                View <span className="visually-hidden">transfer </span>
+                                screenshot
                                 <span className="visually-hidden">
                                   {" "}
                                   for {shopOrderReference(order.orderId)}
@@ -669,7 +673,7 @@ export function ShopAdminPage() {
                                 onClick={() => editProduct(product)}
                                 type="button"
                               >
-                                Edit {product.name}
+                                Edit<span className="visually-hidden"> {product.name}</span>
                               </button>
                               <button
                                 className="shop-admin-table-button"
@@ -677,9 +681,12 @@ export function ShopAdminPage() {
                                 onClick={() => void togglePublished(product)}
                                 type="button"
                               >
-                                {product.active
-                                  ? `Hide ${product.name} from shop`
-                                  : `Show ${product.name} in shop`}
+                                {product.active ? "Hide" : "Show"}
+                                <span className="visually-hidden">
+                                  {product.active
+                                    ? ` ${product.name} from shop`
+                                    : ` ${product.name} in shop`}
+                                </span>
                               </button>
                             </div>
                           </td>
