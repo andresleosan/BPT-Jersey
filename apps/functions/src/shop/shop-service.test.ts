@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { ShopProductDraft } from "@bpt-jersey/domain/shop";
+import type { ShopOrderRecord, ShopProductDraft } from "@bpt-jersey/domain/shop";
 import {
   createShopStore,
   ShopStoreError,
-  shopOrderId,
   type ShopAuditDraft,
   type ShopDocumentData,
   type ShopFirestore,
@@ -102,15 +101,99 @@ const backpack: ShopProductDraft = {
   sortOrder: 5,
 };
 
-const orderRequest = {
+const productRecord = (
+  productId: string,
+  name: string,
+  overrides: Partial<ShopDocumentData> = {},
+): ShopDocumentData => ({
+  productId,
+  academyId: "academy-1",
+  name,
+  category: "gi",
+  description: null,
+  priceMinor: 9500,
+  currency: "GBP",
+  sizes: [],
+  imageUrl: null,
+  stockStatus: "in-stock",
+  sortOrder: 10,
+  active: true,
+  schemaVersion: "1",
+  createdAt: now,
+  createdBy: "admin-1",
+  updatedAt: now,
+  updatedBy: "admin-1",
+  ...overrides,
+});
+
+function seededStore() {
+  const shop = "academies/academy-1/shopProducts";
+  return fakeFirestore({
+    [`${shop}/bpt-gi`]: productRecord("bpt-gi", "BPT gi", { sizes: ["A1", "A2"] }),
+    [`${shop}/bpt-backpack`]: productRecord("bpt-backpack", "BPT backpack", {
+      category: "backpack",
+      priceMinor: 5500,
+      stockStatus: "made-to-order",
+    }),
+    [`${shop}/bpt-hidden`]: productRecord("bpt-hidden", "BPT hidden", { active: false }),
+    [`${shop}/bpt-sold`]: productRecord("bpt-sold", "BPT sold", { stockStatus: "sold-out" }),
+  });
+}
+
+const giLine = { productId: "bpt-gi", size: "A2", quantity: 2 };
+const checkout = {
   requestId: "req-1",
-  productId: "bpt-gi-blue",
-  size: "A2",
-  quantity: 2,
+  lines: [giLine, { productId: "bpt-backpack", size: null, quantity: 1 }],
+  pickupLocationId: "west" as const,
+  paymentMethod: "at_collection" as const,
+  proofId: null,
   contactName: "Sam Client",
   contactPhone: null,
   note: null,
-} as const;
+};
+
+const orderV2: ShopOrderRecord = {
+  orderId: "order-req-1",
+  academyId: "academy-1",
+  requestId: "req-1",
+  customerUserId: "client-1",
+  lines: [
+    {
+      productId: "bpt-gi",
+      productName: "BPT gi",
+      category: "gi",
+      size: "A2",
+      quantity: 1,
+      unitPriceMinor: 9500,
+      lineTotalMinor: 9500,
+    },
+    {
+      productId: "bpt-backpack",
+      productName: "BPT backpack",
+      category: "backpack",
+      size: null,
+      quantity: 2,
+      unitPriceMinor: 5500,
+      lineTotalMinor: 11000,
+    },
+  ],
+  totalMinor: 20500,
+  currency: "GBP",
+  pickupLocationId: "town",
+  paymentMethod: "bank_transfer",
+  proofId: "a".repeat(64),
+  contactName: "Sam Client",
+  contactPhone: null,
+  note: null,
+  status: "requested",
+  paymentStatus: "unpaid",
+  staffNote: null,
+  schemaVersion: "2",
+  createdAt: now,
+  createdBy: "client-1",
+  updatedAt: now,
+  updatedBy: "client-1",
+};
 
 describe("shop Firestore store", () => {
   it("creates a product, keeps creation authorship on update and audits both writes", async () => {
@@ -163,83 +246,109 @@ describe("shop Firestore store", () => {
     ).rejects.toMatchObject({ code: "not-found" });
   });
 
-  it("places an idempotent order snapshotting price and validating size and stock", async () => {
-    const { store, audits } = fakeFirestore();
-    await store.saveProduct({ ...base, draft: gi });
+  it("freezes names and prices from Firestore and sums the lines", async () => {
+    const { store } = seededStore();
     const order = await store.placeOrder({
-      ...base,
+      academyId: "academy-1",
       actorId: "client-1",
-      request: orderRequest,
+      now,
+      request: checkout,
     });
-    expect(order).toMatchObject({
-      orderId: shopOrderId("req-1"),
-      customerUserId: "client-1",
-      productName: "BPT competition gi",
-      unitPriceMinor: 9500,
-      totalMinor: 19000,
-      status: "requested",
-      paymentStatus: "unpaid",
-    });
-    const replay = await store.placeOrder({
-      ...base,
-      actorId: "client-1",
-      request: orderRequest,
-    });
-    expect(replay).toEqual(order);
-    await expect(
-      store.placeOrder({ ...base, actorId: "client-2", request: orderRequest }),
-    ).rejects.toMatchObject({ code: "conflict" });
-    await expect(
-      store.placeOrder({
-        ...base,
-        actorId: "client-1",
-        request: { ...orderRequest, requestId: "req-2", size: "A9" },
-      }),
-    ).rejects.toMatchObject({ code: "precondition" });
-    await store.saveProduct({ ...base, draft: { ...gi, stockStatus: "sold-out" } });
-    await expect(
-      store.placeOrder({
-        ...base,
-        actorId: "client-1",
-        request: { ...orderRequest, requestId: "req-3" },
-      }),
-    ).rejects.toMatchObject({ code: "precondition" });
-    expect(audits.filter((audit) => audit.action === "shop.order.placed")).toHaveLength(1);
+    expect(
+      order.lines.map((line) => [line.productName, line.unitPriceMinor, line.lineTotalMinor]),
+    ).toEqual([
+      ["BPT gi", 9500, 19000],
+      ["BPT backpack", 5500, 5500],
+    ]);
+    expect(order.totalMinor).toBe(24500);
+    expect(order.pickupLocationId).toBe("west");
+    expect(order.schemaVersion).toBe("2");
   });
 
-  it("rejects orders for unpublished products or unknown products", async () => {
-    const { store } = fakeFirestore();
-    await store.saveProduct({ ...base, draft: backpack });
-    await store.setProductActive({ ...base, productId: "bpt-backpack", active: false });
+  it("returns the stored order when the same request is retried", async () => {
+    const { store, records } = seededStore();
+    const first = await store.placeOrder({
+      academyId: "academy-1",
+      actorId: "client-1",
+      now,
+      request: checkout,
+    });
+    const second = await store.placeOrder({
+      academyId: "academy-1",
+      actorId: "client-1",
+      now,
+      request: checkout,
+    });
+    expect(second).toEqual(first);
+    expect([...records.keys()].filter((path) => path.includes("/shopOrders/"))).toHaveLength(1);
+  });
+
+  it("refuses a request id used by another customer", async () => {
+    const { store } = seededStore();
+    await store.placeOrder({ academyId: "academy-1", actorId: "client-1", now, request: checkout });
     await expect(
-      store.placeOrder({
-        ...base,
-        actorId: "client-1",
-        request: { ...orderRequest, productId: "bpt-backpack", size: null },
-      }),
-    ).rejects.toMatchObject({ code: "precondition" });
+      store.placeOrder({ academyId: "academy-1", actorId: "client-2", now, request: checkout }),
+    ).rejects.toMatchObject({ code: "conflict" });
+  });
+
+  it.each([
+    ["bpt-hidden", "is no longer available"],
+    ["bpt-sold", "is no longer available"],
+    ["bpt-missing", "no longer available"],
+  ])("refuses %s with a message naming the problem", async (productId, message) => {
+    const { store } = seededStore();
+    const request = { ...checkout, lines: [{ productId, size: null, quantity: 1 }] };
     await expect(
-      store.placeOrder({
-        ...base,
-        actorId: "client-1",
-        request: { ...orderRequest, productId: "nope" },
-      }),
-    ).rejects.toMatchObject({ code: "not-found" });
+      store.placeOrder({ academyId: "academy-1", actorId: "client-1", now, request }),
+    ).rejects.toMatchObject({ code: "precondition", message: expect.stringContaining(message) });
+  });
+
+  it("refuses a size the product does not offer", async () => {
+    const { store } = seededStore();
+    const request = { ...checkout, lines: [{ productId: "bpt-gi", size: "XXL", quantity: 1 }] };
+    await expect(
+      store.placeOrder({ academyId: "academy-1", actorId: "client-1", now, request }),
+    ).rejects.toMatchObject({ code: "precondition", message: "Choose a size offered for BPT gi" });
+  });
+
+  it("writes nothing when one line fails", async () => {
+    const { store, records } = seededStore();
+    const request = {
+      ...checkout,
+      lines: [giLine, { productId: "bpt-sold", size: null, quantity: 1 }],
+    };
+    await expect(
+      store.placeOrder({ academyId: "academy-1", actorId: "client-1", now, request }),
+    ).rejects.toThrow();
+    expect([...records.keys()].some((path) => path.includes("/shopOrders/"))).toBe(false);
+  });
+
+  it("reads one order and reports a missing one", async () => {
+    const { store } = seededStore();
+    const placed = await store.placeOrder({
+      academyId: "academy-1",
+      actorId: "client-1",
+      now,
+      request: checkout,
+    });
+    await expect(store.getOrder("academy-1", placed.orderId)).resolves.toEqual(placed);
+    await expect(store.getOrder("academy-1", "order-nope")).rejects.toMatchObject({
+      code: "not-found",
+    });
   });
 
   it("lists orders per tenant and per customer, newest first", async () => {
-    const { store } = fakeFirestore();
-    await store.saveProduct({ ...base, draft: backpack });
+    const { store } = seededStore();
     await store.placeOrder({
       ...base,
       actorId: "client-1",
-      request: { ...orderRequest, requestId: "a", productId: "bpt-backpack", size: null },
+      request: { ...checkout, requestId: "a" },
     });
     await store.placeOrder({
       ...base,
       actorId: "client-2",
       now: later,
-      request: { ...orderRequest, requestId: "b", productId: "bpt-backpack", size: null },
+      request: { ...checkout, requestId: "b" },
     });
     expect((await store.listOrders("academy-1")).map((order) => order.orderId)).toEqual([
       "order-b",
@@ -252,9 +361,9 @@ describe("shop Firestore store", () => {
   });
 
   it("moves orders forward through the lifecycle and blocks invalid transitions", async () => {
-    const { store, audits } = fakeFirestore();
-    await store.saveProduct({ ...base, draft: gi });
-    await store.placeOrder({ ...base, actorId: "client-1", request: orderRequest });
+    const { store, audits } = fakeFirestore({
+      "academies/academy-1/shopOrders/order-req-1": orderV2,
+    });
     const confirmed = await store.updateOrder({
       ...base,
       now: later,
@@ -264,6 +373,7 @@ describe("shop Firestore store", () => {
       status: "confirmed",
       staffNote: "Ordered from supplier",
       updatedBy: "admin-1",
+      lines: orderV2.lines,
     });
     await expect(
       store.updateOrder({ ...base, update: { orderId: "order-req-1", status: "collected" } }),
