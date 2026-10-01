@@ -231,7 +231,7 @@
 }
 
 .shop-order-requested {
-  border-left-color: #8a5a00;
+  border-left-color: #c98b00;
 }
 
 .shop-order-collected {
@@ -239,11 +239,25 @@
 }
 
 .shop-order-cancelled {
-  border-left-color: #9b2c2c;
+  border-left-color: #8d1c2f;
 }
 
 .shop-order-status {
   font-weight: 700;
+}
+
+.shop-order-status.shop-status-requested {
+  color: #765400;
+}
+
+.shop-order-status.shop-status-cancelled {
+  color: #721626;
+}
+
+.shop-message-warning {
+  background: #fff8e6;
+  border-left: 0.35rem solid #c98b00;
+  color: #765400;
 }
 
 .shop-order-item-head,

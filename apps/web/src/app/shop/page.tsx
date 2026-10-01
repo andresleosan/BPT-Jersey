@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   formatShopPrice,
@@ -37,7 +37,7 @@ type LoadState =
   | Readonly<{ status: "error" }>;
 
 type CategoryFilter = "all" | ShopProductCategory;
-type Notice = Readonly<{ tone: "error" | "success"; text: string }>;
+type Notice = Readonly<{ tone: "error" | "success" | "warning"; text: string }>;
 
 function removedNotice(removed: readonly string[]): string {
   const one = removed.length === 1;
@@ -53,6 +53,14 @@ function ShopContent() {
   const [notice, setNotice] = useState<Notice>();
   const [lines, setLines] = useState<readonly BasketLine[]>([]);
   const [placed, setPlaced] = useState<ShopOrderProjection>();
+  const confirmationRef = useRef<HTMLElement>(null);
+
+  // On a phone the confirmation sits above the catalogue, far from the checkout that was just used.
+  useEffect(() => {
+    if (!placed) return;
+    confirmationRef.current?.focus();
+    confirmationRef.current?.scrollIntoView?.({ block: "start" });
+  }, [placed]);
 
   useEffect(() => {
     let active = true;
@@ -67,7 +75,7 @@ function ShopContent() {
         setLines(reconciled.lines);
         writeBasket(reconciled.lines);
         if (reconciled.removed.length > 0)
-          setNotice({ tone: "success", text: removedNotice(reconciled.removed) });
+          setNotice({ tone: "warning", text: removedNotice(reconciled.removed) });
         setState({ status: "ready", products, orders: [...orders] });
       })
       .catch(() => {
@@ -95,10 +103,13 @@ function ShopContent() {
     ].filter((key) => key === "all" || present.has(key));
   }, [state]);
 
+  const itemCount = lines.reduce((count, line) => count + line.quantity, 0);
+
   function changeLines(next: readonly BasketLine[]): void {
     setLines(next);
     writeBasket(next);
     setPlaced(undefined);
+    setNotice(undefined);
   }
 
   function add(line: BasketLine): void {
@@ -159,7 +170,13 @@ function ShopContent() {
       {state.status === "ready" ? (
         <>
           {placed ? (
-            <section aria-label="Order placed" className="shop-confirmation" role="status">
+            <section
+              aria-label="Order placed"
+              className="shop-confirmation"
+              ref={confirmationRef}
+              role="status"
+              tabIndex={-1}
+            >
               <p className="account-eyebrow">Order placed</p>
               <h2>{shopOrderReference(placed.orderId)}</h2>
               <p>
@@ -217,7 +234,7 @@ function ShopContent() {
           </div>
           {lines.length > 0 ? (
             <a className="shop-basket-bar" href="#shop-basket-title">
-              Basket · {lines.reduce((count, line) => count + line.quantity, 0)} items ·{" "}
+              Basket · {itemCount} {itemCount === 1 ? "item" : "items"} ·{" "}
               <span className="shop-money">
                 {formatShopPrice(basketTotalMinor(lines, state.products))}
               </span>

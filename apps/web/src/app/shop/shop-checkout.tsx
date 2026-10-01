@@ -65,9 +65,13 @@ export function ShopCheckout({
     (line) => byId.get(line.productId)?.stockStatus === "made-to-order",
   );
 
+  // Prefill once from the account name; a customer who clears the field keeps it cleared.
+  const prefilled = useRef(Boolean(session?.displayName));
   useEffect(() => {
-    if (session?.displayName && contactName.length === 0) setContactName(session.displayName);
-  }, [session?.displayName, contactName.length]);
+    if (prefilled.current || !session?.displayName) return;
+    prefilled.current = true;
+    setContactName(session.displayName);
+  }, [session?.displayName]);
 
   useEffect(() => {
     if (!file) {

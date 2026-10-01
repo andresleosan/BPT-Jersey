@@ -186,6 +186,7 @@ describe("client shop", () => {
       await screen.findByRole("button", { name: "Add BPT competition gi to basket" }),
     );
     expect(screen.getByRole("region", { name: "Your basket" })).toHaveTextContent("£95.00");
+    expect(screen.getByRole("link", { name: /^Basket · 1 item ·/ })).toBeVisible();
     expect(screen.getByRole("link", { name: "Sign in or create a buyer account" })).toHaveAttribute(
       "href",
       "/login?returnTo=%2Fshop",
@@ -231,8 +232,14 @@ describe("client shop", () => {
     authState.status = "signed-out";
     shopApi.listPublicShopCatalog.mockResolvedValue([gi, backpack]);
     render(<ShopPage />);
-    expect(await screen.findByText(/BPT backpack was removed from your basket/)).toBeVisible();
+    const notice = await screen.findByText(/BPT backpack was removed from your basket/);
+    expect(notice).toBeVisible();
+    expect(notice).toHaveClass("shop-message-warning");
     expect(localStorage.getItem("bpt-shop-basket")).toBeNull();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Add BPT competition gi to basket" }));
+    expect(screen.queryByText(/BPT backpack was removed/)).not.toBeInTheDocument();
   });
 
   it("explains made-to-order items on the card and at checkout", async () => {
@@ -270,7 +277,11 @@ describe("client shop", () => {
     const user = userEvent.setup();
     await user.selectOptions(await screen.findByLabelText("Size for BPT competition gi"), "A2");
     await user.click(screen.getByRole("button", { name: "Add BPT competition gi to basket" }));
-    expect(screen.getByLabelText("Name for the order")).toHaveValue("Sam Client");
+    const name = screen.getByLabelText("Name for the order");
+    expect(name).toHaveValue("Sam Client");
+    await user.clear(name);
+    expect(name).toHaveValue("");
+    await user.type(name, "Sam Client");
     await user.click(screen.getByRole("radio", { name: /West/ }));
     await user.click(screen.getByRole("radio", { name: "Bank transfer now" }));
     const place = screen.getByRole("button", { name: /Place order/ });
@@ -290,6 +301,7 @@ describe("client shop", () => {
       }),
     );
     const confirmation = await screen.findByRole("status", { name: "Order placed" });
+    expect(confirmation).toHaveFocus();
     expect(confirmation).toHaveTextContent("West");
     expect(confirmation).toHaveTextContent(
       "We will check your transfer. Check this page for its status; the academy may also contact you.",
@@ -327,6 +339,47 @@ describe("client shop", () => {
     expect(confirmation).toHaveTextContent(
       "Pay when you collect. Check this page for its status; the academy may also contact you.",
     );
+  });
+
+  it("keeps one requestId per order across a retry and starts a new one after success", async () => {
+    signIn();
+    let next = 0;
+    const uuid = vi
+      .spyOn(globalThis.crypto, "randomUUID")
+      .mockImplementation(() => `00000000-0000-4000-8000-00000000000${++next}` as const);
+    shopApi.listShopCatalog.mockResolvedValue([gi]);
+    shopApi.listMyShopOrders.mockResolvedValue([]);
+    shopApi.uploadShopOrderProof.mockResolvedValue("a".repeat(64));
+    shopApi.placeShopOrder
+      .mockRejectedValueOnce(new Error("Network trouble. Try again."))
+      .mockResolvedValueOnce(placedOrder)
+      .mockResolvedValueOnce({ ...placedOrder, orderId: "order-second01" });
+    render(<ShopPage />);
+    const user = userEvent.setup();
+    const add = await screen.findByRole("button", { name: "Add BPT competition gi to basket" });
+    await user.click(add);
+    await user.click(screen.getByRole("radio", { name: /West/ }));
+    await user.click(screen.getByRole("radio", { name: "Bank transfer now" }));
+    await user.upload(
+      screen.getByLabelText("Transfer screenshot"),
+      new File([new Uint8Array([137, 80, 78, 71])], "proof.png", { type: "image/png" }),
+    );
+    await user.click(screen.getByRole("button", { name: /Place order/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Network trouble");
+    const first = shopApi.placeShopOrder.mock.calls[0]![0].requestId as string;
+    expect(shopApi.uploadShopOrderProof.mock.calls[0]![0]).toBe(first);
+
+    await user.click(screen.getByRole("button", { name: /Place order/ }));
+    await screen.findByRole("status", { name: "Order placed" });
+    expect(shopApi.placeShopOrder.mock.calls[1]![0].requestId).toBe(first);
+    expect(shopApi.uploadShopOrderProof.mock.calls[1]![0]).toBe(first);
+
+    await user.click(add);
+    await user.click(screen.getByRole("radio", { name: "Pay when you collect" }));
+    await user.click(screen.getByRole("button", { name: /Place order/ }));
+    await screen.findByRole("status", { name: "Order placed" });
+    expect(shopApi.placeShopOrder.mock.calls[2]![0].requestId).not.toBe(first);
+    uuid.mockRestore();
   });
 
   it("shows the server's reason when an item became unavailable", async () => {
