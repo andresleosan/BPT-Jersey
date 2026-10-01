@@ -57,6 +57,7 @@ const navigationGroups: readonly NavigationGroup[] = [
       { label: "Billing", href: "/admin/billing" },
       { label: "Financial dashboard", href: "/admin/finance", ownerOnly: true },
       { label: "Shop", href: "/admin/shop" },
+      { label: "Visit the shop", href: "/shop" },
     ],
   },
   {
