@@ -23,6 +23,7 @@ const accountLinks = [
   { href: "/account/private-lessons", label: "Private lessons" },
   { href: "/account/progress", label: "Progress" },
   { href: "/account/competitors", label: "Competitors" },
+  { href: "/shop", label: "Club shop" },
   { href: "/account/settings", label: "Settings" },
 ] as const;
 

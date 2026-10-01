@@ -81,6 +81,7 @@ describe("CalendarHeader", () => {
       "href",
       "/account/settings",
     );
+    expect(screen.getByRole("link", { name: "Club shop" })).toHaveAttribute("href", "/shop");
   });
 
   it("renders chips for a guardian with several children and reports selection", async () => {
