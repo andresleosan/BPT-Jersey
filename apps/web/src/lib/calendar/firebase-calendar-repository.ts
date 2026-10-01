@@ -17,6 +17,7 @@ import {
   requestBooking,
   selfCheckIn,
   walkInCheckIn,
+  warmAccountHomeFunctions,
   warmMemberCalendarWeek,
 } from "../schedule-client";
 import type { TrialAccessView } from "@bpt-jersey/domain/memberships/trial-access";
@@ -182,6 +183,7 @@ export function createFirebaseCalendarRepository(session: {
         void warmMemberCalendarWeek().catch(() => undefined);
         // Same for the course calendar read beside it; the empty query is refused after sign-in checks.
         void courseApi.calendar({ studentId: "", from: "", to: "" }).catch(() => undefined);
+        warmAccountHomeFunctions();
       }
       const load = loadMember();
       memberLoad = load;
