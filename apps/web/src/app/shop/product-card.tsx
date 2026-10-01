@@ -81,12 +81,12 @@ export function ProductCard({
         </p>
         <p className="shop-product-description">{product.description ?? ""}</p>
         <form className="shop-order-form" onSubmit={submit}>
-          {product.sizes.length > 0 ? (
+          {/* A sold-out product keeps only its disabled button: no controls that cannot be used. */}
+          {purchasable && product.sizes.length > 0 ? (
             <label className="shop-field">
               Size
               <select
                 aria-label={`Size for ${product.name}`}
-                disabled={!purchasable}
                 name="size"
                 onChange={(event) => setSize(event.target.value)}
                 value={size}
@@ -99,20 +99,21 @@ export function ProductCard({
               </select>
             </label>
           ) : null}
-          <label className="shop-field">
-            Quantity
-            <input
-              aria-label={`Quantity of ${product.name}`}
-              disabled={!purchasable}
-              inputMode="numeric"
-              max={shopOrderMaximumQuantity}
-              min={1}
-              name="quantity"
-              onChange={(event) => setQuantity(event.target.value)}
-              type="number"
-              value={quantity}
-            />
-          </label>
+          {purchasable ? (
+            <label className="shop-field">
+              Quantity
+              <input
+                aria-label={`Quantity of ${product.name}`}
+                inputMode="numeric"
+                max={shopOrderMaximumQuantity}
+                min={1}
+                name="quantity"
+                onChange={(event) => setQuantity(event.target.value)}
+                type="number"
+                value={quantity}
+              />
+            </label>
+          ) : null}
           <button
             aria-label={
               purchasable ? `Add ${product.name} to basket` : `${product.name} is sold out`

@@ -183,12 +183,28 @@ function ShopContent() {
       <a className="shop-back-link" href={back.href}>
         <span aria-hidden="true">&larr;</span> {back.label}
       </a>
-      <p className="account-eyebrow">BPT Jersey / Club shop</p>
-      <h1 id="shop-title">Club shop</h1>
-      <p className="client-destination-intro">
-        Official Brazilian Power Team gis, rashguards, shorts, backpacks and casual wear. Pay by
-        bank transfer or when you collect at Town or West.
-      </p>
+      <div className="shop-intro">
+        <div>
+          <p className="account-eyebrow">BPT Jersey / Club shop</p>
+          <h1 id="shop-title">Club shop</h1>
+          <p className="client-destination-intro">
+            Official Brazilian Power Team gis, rashguards, shorts, backpacks and casual wear. Pay by
+            bank transfer or when you collect at Town or West.
+          </p>
+        </div>
+        <ol aria-label="How ordering works" className="shop-steps">
+          <li>
+            <strong>Choose your kit</strong> Pick the size and add it to your basket.
+          </li>
+          <li>
+            <strong>Pay your way</strong> Bank transfer now, or pay when you collect.
+          </li>
+          <li>
+            <strong>Collect at the academy</strong> Town or West. This page tells you when it is
+            ready.
+          </li>
+        </ol>
+      </div>
 
       {notice ? (
         <p
