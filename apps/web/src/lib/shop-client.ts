@@ -1,15 +1,17 @@
+import { z } from "zod";
+
 import { httpsCallable } from "./callable";
 
 import {
   parseShopOrderProjection,
-  parseShopOrderRequest,
+  parseShopCheckoutRequest,
   parseShopOrderStatusUpdate,
   parseShopProductDraft,
   parseShopProductProjection,
   parseShopProductStatusInput,
   sortShopProducts,
+  type ShopCheckoutRequest,
   type ShopOrderProjection,
-  type ShopOrderRequest,
   type ShopOrderStatusUpdate,
   type ShopProductDraft,
   type ShopProductProjection,
@@ -100,9 +102,9 @@ export async function setShopProductActive(
   }
 }
 
-export async function placeShopOrder(input: ShopOrderRequest): Promise<ShopOrderProjection> {
+export async function placeShopOrder(input: ShopCheckoutRequest): Promise<ShopOrderProjection> {
   try {
-    const parsed = parseShopOrderRequest(input);
+    const parsed = parseShopCheckoutRequest(input);
     if (!parsed.ok) throw new Error(orderError);
     return order(await call("placeShopOrder", parsed.value), orderError);
   } catch (error) {
@@ -116,6 +118,32 @@ export async function placeShopOrder(input: ShopOrderRequest): Promise<ShopOrder
         : "";
     if (code.endsWith("failed-precondition") && message) throw new Error(message);
     throw new Error(orderError);
+  }
+}
+
+const proofError = "The payment screenshot could not be uploaded.";
+
+/** Same base64 hand-off as the PAYG and intro receipts; the server re-checks the bytes. */
+export async function uploadShopOrderProof(requestId: string, file: File): Promise<string> {
+  if (!["image/png", "image/jpeg"].includes(file.type) || file.size < 1 || file.size > 2 * 1024 * 1024)
+    throw new Error("Choose a PNG or JPEG screenshot up to 2 MB.");
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  try {
+    const data = await call("uploadShopOrderProof", { requestId, contentType: file.type, base64: btoa(binary) });
+    return z.strictObject({ proofId: z.string().regex(/^[a-f0-9]{64}$/u) }).parse(data).proofId;
+  } catch {
+    throw new Error(proofError);
+  }
+}
+
+export async function getShopOrderProofUrl(orderId: string): Promise<string> {
+  try {
+    const data = await call("getShopOrderProofUrl", { orderId });
+    return z.object({ url: z.url() }).parse(data).url;
+  } catch {
+    throw new Error("The transfer screenshot is unavailable.");
   }
 }
 
