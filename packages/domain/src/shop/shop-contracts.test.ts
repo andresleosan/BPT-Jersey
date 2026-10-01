@@ -146,6 +146,7 @@ const orderV2: ShopOrderRecord = {
   proofId: "a".repeat(64),
   contactName: "Sam Client",
   contactPhone: null,
+  contactEmail: "sam@example.com",
   note: null,
   status: "requested",
   paymentStatus: "unpaid",
@@ -190,6 +191,11 @@ describe("shop checkout request", () => {
     expect(parseShopCheckoutRequest({ ...checkout, lines: many }).ok).toBe(false);
     expect(parseShopCheckoutRequest({ ...checkout, pickupLocationId: "north" }).ok).toBe(false);
   });
+  it("never takes the contact email from the client", () => {
+    expect(parseShopCheckoutRequest({ ...checkout, contactEmail: "sam@example.com" }).ok).toBe(
+      false,
+    );
+  });
   it("rejects client-supplied prices", () => {
     const lines = [{ ...checkout.lines[0], unitPriceMinor: 1 }];
     expect(parseShopCheckoutRequest({ ...checkout, lines }).ok).toBe(false);
@@ -217,6 +223,14 @@ describe("shop order v2", () => {
     expect(projection.paymentMethod).toBe("bank_transfer");
     expect(projection).not.toHaveProperty("academyId");
     expect(projection).not.toHaveProperty("requestId");
+  });
+  it("keeps the buyer's email on the record and the projection", () => {
+    expect(toShopOrderProjection(orderV2).contactEmail).toBe("sam@example.com");
+    expect(parseShopOrderRecord({ ...orderV2, contactEmail: null }).ok).toBe(true);
+    expect(parseShopOrderRecord({ ...orderV2, contactEmail: "not-an-email" }).ok).toBe(false);
+    const withoutEmail: Record<string, unknown> = { ...orderV2 };
+    delete withoutEmail.contactEmail;
+    expect(parseShopOrderRecord(withoutEmail).ok).toBe(false);
   });
 });
 

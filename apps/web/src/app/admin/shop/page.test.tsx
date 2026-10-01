@@ -58,6 +58,7 @@ const order = {
   proofId: null,
   contactName: "Sam Client",
   contactPhone: "07700 900000",
+  contactEmail: "sam@example.com",
   note: "Collect Tuesday",
   status: "requested" as const,
   paymentStatus: "unpaid" as const,
@@ -84,6 +85,7 @@ const transferOrder = {
   paymentMethod: "bank_transfer" as const,
   proofId: "proof-1",
   contactName: "Tia Transfer",
+  contactEmail: "tia@example.com",
   note: null,
 };
 
@@ -184,6 +186,17 @@ describe("club shop admin page", () => {
     expect(within(table).getByText("West")).toBeVisible();
     expect(within(table).getByText("Bank transfer")).toBeVisible();
     expect(within(table).getByText(/1 × BPT gi \(A2\)/)).toBeVisible();
+  });
+
+  it("shows the buyer's sign-in email under the name and phone", async () => {
+    shopApi.listShopOrders.mockResolvedValue([order, { ...transferOrder, contactEmail: null }]);
+    render(<ShopAdminPage />);
+    const table = await screen.findByRole("table", { name: "Club shop orders" });
+    const cell = within(table).getByText("Sam Client").closest("td")!;
+    expect(within(cell).getByText("07700 900000")).toBeVisible();
+    expect(within(cell).getByText("sam@example.com")).toBeVisible();
+    const other = within(table).getByText("Tia Transfer").closest("td")!;
+    expect(other.textContent).toBe("Tia Transfer07700 900000");
   });
 
   it("says how many products are hidden and uses shop wording", async () => {

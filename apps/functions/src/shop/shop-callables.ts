@@ -191,6 +191,13 @@ export async function setShopProductActiveHandler(
   }
 }
 
+// The office contacts the buyer at the address Auth verified at sign-in; the checkout payload never
+// carries an email, so a client cannot put someone else's address on an order.
+function tokenEmail(request: CallableRequest<unknown>): string | null {
+  const email: unknown = request.auth?.token?.email;
+  return typeof email === "string" ? email : null;
+}
+
 export async function placeShopOrderHandler(
   request: CallableRequest<unknown>,
   services: ShopCallableServices,
@@ -217,6 +224,7 @@ export async function placeShopOrderHandler(
         academyId: actor.academyId,
         actorId: actor.userId,
         now: now(services),
+        contactEmail: tokenEmail(request),
         request: parsed.value,
       }),
     );

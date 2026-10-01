@@ -186,6 +186,8 @@ const shopOrderBaseSchema = z.strictObject({
   proofId: proofIdSchema.nullable(),
   contactName: boundedText(160),
   contactPhone: boundedText(64).nullable(),
+  // Taken from the verified sign-in token on the server, never from the checkout request.
+  contactEmail: z.email().max(254).nullable(),
   note: boundedText(500).nullable(),
   status: shopOrderStatusSchema,
   paymentStatus: shopPaymentStatusSchema,
@@ -355,6 +357,7 @@ export function toShopOrderProjection(record: ShopOrderRecord): ShopOrderProject
     proofId: record.proofId,
     contactName: record.contactName,
     contactPhone: record.contactPhone,
+    contactEmail: record.contactEmail,
     note: record.note,
     status: record.status,
     paymentStatus: record.paymentStatus,

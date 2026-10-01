@@ -74,6 +74,7 @@ const order: ShopOrderRecord = {
   proofId: "a".repeat(64),
   contactName: "Sam Client",
   contactPhone: null,
+  contactEmail: "sam@example.com",
   note: null,
   status: "requested",
   paymentStatus: "unpaid",
@@ -90,10 +91,12 @@ function request(
   role: string | undefined = undefined,
   uid = "actor-1",
   academyId = "academy-1",
+  email?: unknown,
 ): CallableRequest<unknown> {
+  const token = email === undefined ? { academyId, role } : { academyId, role, email };
   return {
     data,
-    auth: role === undefined ? undefined : { uid, token: { academyId, role } },
+    auth: role === undefined ? undefined : { uid, token },
   } as unknown as CallableRequest<unknown>;
 }
 
@@ -278,6 +281,7 @@ describe("shop callables", () => {
       academyId: "academy-1",
       actorId: "client-1",
       now,
+      contactEmail: null,
       request: collectionCheckout,
     });
     await expect(
@@ -295,6 +299,38 @@ describe("shop callables", () => {
     await expect(
       placeShopOrderHandler(request({ ...transferCheckout, proofId: null }, "guardian"), current),
     ).rejects.toMatchObject({ code: "invalid-argument" });
+  });
+
+  it("stores the sign-in email from the token and never one sent by the client", async () => {
+    const { services: current } = services();
+    await placeShopOrderHandler(
+      request(collectionCheckout, "shopper", "buyer-1", "academy-1", "sam@example.com"),
+      current,
+    );
+    expect(current.store.placeOrder).toHaveBeenLastCalledWith(
+      expect.objectContaining({ contactEmail: "sam@example.com", request: collectionCheckout }),
+    );
+    await placeShopOrderHandler(
+      request(collectionCheckout, "shopper", "buyer-1", "academy-1", 42),
+      current,
+    );
+    expect(current.store.placeOrder).toHaveBeenLastCalledWith(
+      expect.objectContaining({ contactEmail: null }),
+    );
+    current.store.placeOrder.mockClear();
+    await expect(
+      placeShopOrderHandler(
+        request(
+          { ...collectionCheckout, contactEmail: "spoof@example.com" },
+          "shopper",
+          "buyer-1",
+          "academy-1",
+          "sam@example.com",
+        ),
+        current,
+      ),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
+    expect(current.store.placeOrder).not.toHaveBeenCalled();
   });
 
   it("maps store failures to callable error codes", async () => {

@@ -82,6 +82,8 @@ export type PlaceShopOrderInput = Readonly<{
   academyId: string;
   actorId: string;
   now: string;
+  /** The verified sign-in email, never a value the client typed. */
+  contactEmail: string | null;
   request: ShopCheckoutRequest;
 }>;
 export type UpdateShopOrderInput = Readonly<{
@@ -367,6 +369,7 @@ export function createShopStore(dependencies: ShopStoreDependencies): ShopStore 
           proofId: request.proofId,
           contactName: request.contactName,
           contactPhone: request.contactPhone,
+          contactEmail: input.contactEmail,
           note: request.note,
           status: "requested",
           paymentStatus: "unpaid",

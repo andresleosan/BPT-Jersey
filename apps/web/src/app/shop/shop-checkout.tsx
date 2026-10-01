@@ -201,7 +201,9 @@ export function ShopCheckout({
                 value={contactName}
               />
             </label>
-            <p className="shop-field-hint">We will contact you at {session?.email}.</p>
+            {session?.email ? (
+              <p className="shop-field-hint">We will contact you at {session.email}.</p>
+            ) : null}
             <label className="shop-field" htmlFor="shop-contact-phone">
               Phone (optional)
               <input
