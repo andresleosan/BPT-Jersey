@@ -75,6 +75,17 @@
   transform: none;
 }
 
+/* Touch targets of at least 44px (DESIGN.md): the category filters measured 39px, the back link 24px. */
+.shop-page .shop-filter-button {
+  min-height: 2.75rem;
+}
+
+.shop-page .shop-back-link {
+  align-items: center;
+  display: inline-flex;
+  min-height: 2.75rem;
+}
+
 /* Controls stay at 16px so phones do not zoom into them. */
 .shop-page .shop-field input,
 .shop-page .shop-field select {
