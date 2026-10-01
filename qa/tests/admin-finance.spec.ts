@@ -119,6 +119,42 @@ function dashboardFor(month: string) {
   };
 }
 
+const audit = {
+  schemaVersion: 1,
+  createdAt: "2026-08-19T10:00:00.000Z",
+  createdBy: "admin-1",
+  updatedAt: "2026-08-19T10:00:00.000Z",
+  updatedBy: "admin-1",
+};
+
+function openInvoice(invoiceId: string, invoiceReference: string, totalMinor: number) {
+  return {
+    invoiceId,
+    academyId: "synthetic-academy",
+    familyId: "f1",
+    membershipId: "membership-1",
+    status: "open",
+    totalMinor,
+    currency: "GBP",
+    dueAt: "2026-09-20T23:59:59.000Z",
+    paidAt: null,
+    chargeKind: "membership",
+    sourceRef: null,
+    invoiceReference,
+    description: "Monthly membership",
+    ...audit,
+  };
+}
+
+const financialAccount = {
+  invoices: [
+    { invoice: openInvoice("invoice-1", "INV-1", 1500), payments: [], balanceMinor: 1500 },
+  ],
+  balanceMinor: 1500,
+  paygDebtMinor: 0,
+  paymentInstructions: null,
+};
+
 const members = [
   { studentId: "student-ana", fullName: "Ana Coelho", familyId: "f1" },
   { studentId: "student-bruno", fullName: "Bruno Silva", familyId: "f2" },
@@ -137,6 +173,53 @@ function financeCallables(calls: CallableCall[]): {
         return { dashboard: dashboardFor(data?.month ?? currentMonth) };
       },
       listMemberNames: { members },
+      listFinancialAccount: financialAccount,
+      listMemberships: [],
+      getFamilyFinancialAccount: financialAccount,
+      getInvoice: (body: unknown) => {
+        const { invoiceId } = (body as { data: { invoiceId: string } }).data;
+        return {
+          invoice: openInvoice(invoiceId, "INV-BRUNO-1", 6_000),
+          payments: [],
+          balanceMinor: 6_000,
+        };
+      },
+      issueManualInvoice: (body: unknown) => {
+        const data = (body as { data: Record<string, unknown> }).data;
+        return {
+          invoiceId: "invoice-2",
+          academyId: "synthetic-academy",
+          familyId: data.familyId,
+          membershipId: data.membershipId,
+          status: "open",
+          totalMinor: data.totalMinor,
+          currency: "GBP",
+          dueAt: data.dueAt,
+          paidAt: null,
+          chargeKind: data.chargeKind,
+          sourceRef: null,
+          invoiceReference: data.invoiceReference,
+          description: data.description,
+          ...audit,
+        };
+      },
+      recordManualPayment: (body: unknown) => {
+        const data = (body as { data: Record<string, unknown> }).data;
+        return {
+          paymentId: "payment-new",
+          academyId: "synthetic-academy",
+          familyId: "f1",
+          invoiceId: data.invoiceId,
+          status: "recorded",
+          amountMinor: data.amountMinor,
+          currency: "GBP",
+          method: data.method,
+          manualReference: data.manualReference,
+          providerReference: null,
+          occurredAt: data.occurredAt,
+          ...audit,
+        };
+      },
       voidManualPayment: (body: unknown) => {
         const data = (body as { data: { paymentId: string } }).data;
         return { paymentId: data.paymentId, invoiceId: "invoice-ana", invoiceStatus: "open" };
@@ -238,6 +321,101 @@ test.describe("admin financial dashboard", () => {
     const planLinks = panel.getByRole("link", { name: "Open plan" });
     await expect(planLinks).toHaveCount(2);
     await expect(planLinks.first()).toHaveAttribute("href", /id=student-carla.*tab=plan/u);
+  });
+
+  test("logs no browser errors and puts no card or internal ids in the page", async ({ page }) => {
+    const browserErrors: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "error") browserErrors.push(message.text());
+    });
+    page.on("pageerror", (error) => browserErrors.push(error.message));
+    await installAdminFixture(page, financeCallables([]));
+    await page.goto("/admin/finance?adminTestRole=owner");
+
+    const panel = page.getByRole("tabpanel");
+    await expect(panel.locator("tbody tr")).toHaveCount(3);
+    const pii = /card number|cvv|providerReference|familyId|studentId|membershipId/iu;
+    expect(await page.locator("body").innerText()).not.toMatch(pii);
+    for (const tab of ["Owed", "Renewals", "Invoices"]) {
+      await page.getByRole("tab", { name: tab }).click();
+      await expect(panel.getByRole("table").first()).toBeVisible();
+      expect(await page.locator("body").innerText()).not.toMatch(pii);
+    }
+    expect(browserErrors).toEqual([]);
+  });
+
+  test("issues an invoice with no membership", async ({ page }) => {
+    const calls: CallableCall[] = [];
+    await installAdminFixture(page, financeCallables(calls));
+    await page.goto("/admin/finance?adminTestRole=owner");
+
+    await page.getByRole("button", { name: "Issue invoice" }).click();
+    const dialog = page.getByRole("dialog", { name: "Issue invoice" });
+    await dialog.getByRole("searchbox", { name: "Find a member" }).fill("ana");
+    await dialog.getByRole("option", { name: "Ana Coelho" }).click();
+    await dialog.getByRole("radio", { name: "No membership · custom charge" }).click();
+    await dialog.getByLabel("Invoice amount (GBP)").fill("15");
+    await dialog.getByLabel("Due date").fill("2026-09-30");
+    await dialog.getByLabel("Invoice reference").fill("INV-CUSTOM-1");
+    await dialog.getByLabel("Description").fill("Custom charge for gi replacement");
+    await dialog.getByRole("button", { name: "Issue invoice" }).click();
+
+    await expect(page.getByRole("status").filter({ hasText: "Invoice issued." })).toBeVisible();
+    await expect(dialog).toHaveCount(0);
+    const call = calls.find((c) => c.name === "issueManualInvoice");
+    expect(call?.body).toMatchObject({
+      data: { membershipId: null, dueAt: "2026-09-30T23:59:59.000Z" },
+    });
+  });
+
+  test("records a cash payment from the header for a member's open invoice", async ({ page }) => {
+    const calls: CallableCall[] = [];
+    await installAdminFixture(page, financeCallables(calls));
+    await page.goto("/admin/finance?adminTestRole=owner");
+
+    await page.getByRole("button", { name: "Record payment" }).click();
+    const dialog = page.getByRole("dialog", { name: "Record payment" });
+    await dialog.getByRole("searchbox", { name: "Find a member" }).fill("ana");
+    await dialog.getByRole("option", { name: "Ana Coelho" }).click();
+    await dialog.getByRole("radio", { name: /INV-1 · Monthly membership/u }).check();
+    await dialog.getByRole("radio", { name: "Cash" }).click();
+    await dialog.getByLabel("Payment reference").fill("cash-1");
+    await dialog.getByRole("button", { name: "Save payment" }).click();
+
+    await expect(page.getByRole("status").filter({ hasText: "Payment recorded." })).toBeVisible();
+    expect(calls.find((c) => c.name === "getFamilyFinancialAccount")?.body).toMatchObject({
+      data: { familyId: "f1" },
+    });
+    expect(calls.find((c) => c.name === "recordManualPayment")?.body).toMatchObject({
+      data: {
+        invoiceId: "invoice-1",
+        amountMinor: 1500,
+        method: "cash",
+        manualReference: "cash-1",
+      },
+    });
+  });
+
+  test("records a payment from an Owed row", async ({ page }) => {
+    const calls: CallableCall[] = [];
+    await installAdminFixture(page, financeCallables(calls));
+    await page.goto("/admin/finance?adminTestRole=owner&tab=owed");
+
+    const panel = page.getByRole("tabpanel");
+    await panel.getByRole("button", { name: "Record payment" }).click();
+    const dialog = page.getByRole("dialog", { name: "Record payment" });
+    await expect(dialog.getByText("INV-BRUNO-1")).toBeVisible();
+    await dialog.getByRole("radio", { name: "Bank transfer" }).click();
+    await dialog.getByLabel("Payment reference").fill("BRUNO-OCT");
+    await dialog.getByRole("button", { name: "Save payment" }).click();
+
+    await expect(page.getByRole("status").filter({ hasText: "Payment recorded." })).toBeVisible();
+    expect(calls.find((c) => c.name === "getInvoice")?.body).toMatchObject({
+      data: { invoiceId: "invoice-bruno" },
+    });
+    expect(calls.find((c) => c.name === "recordManualPayment")?.body).toMatchObject({
+      data: { invoiceId: "invoice-bruno", amountMinor: 6_000, method: "bank_transfer" },
+    });
   });
 
   test("has no horizontal scroll at 390px", async ({ page }) => {
