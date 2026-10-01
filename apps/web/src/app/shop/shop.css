@@ -341,7 +341,9 @@
   z-index: 20;
 }
 
-@media (max-width: 47.99rem) {
+/* The basket stays below the catalogue until the two-column layout at 64rem, so tablets need the
+   bar too. */
+@media (max-width: 63.99rem) {
   .shop-basket-bar {
     display: block;
   }
