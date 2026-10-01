@@ -4249,16 +4249,11 @@ a.admin-birthday-badge:focus-visible,
   max-width: 90rem;
 }
 
+/* Products table above the editor: beside it, at 1440px the table clipped "Visible in shop" and
+   hid the row actions behind a horizontal scroll. */
 .shop-admin-catalog {
   display: grid;
   gap: 1.5rem;
-}
-
-@media (min-width: 80rem) {
-  .shop-admin-catalog {
-    grid-template-columns: minmax(0, 1fr) minmax(22rem, 26rem);
-    align-items: start;
-  }
 }
 
 .shop-admin-hidden-note {
@@ -4522,6 +4517,7 @@ a.admin-birthday-badge:focus-visible,
 
 .shop-admin-thumbnail {
   background: var(--canvas);
+  flex-shrink: 0;
   border: 1px solid var(--line);
   display: block;
   object-fit: cover;
