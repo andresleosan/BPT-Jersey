@@ -18,4 +18,6 @@ export const scheduleCallableOptions = Object.freeze({
 export const scheduleReadCallableOptions = Object.freeze({
   ...browserAdminCallableOptions,
   enforceAppCheck: true,
+  // Loading the whole functions bundle leaves little of 256MiB; concurrent reads ran out (OOM).
+  memory: "512MiB" as const,
 });

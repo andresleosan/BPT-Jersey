@@ -48,7 +48,8 @@ const memberRegion = "europe-west9";
  * consumed, so the browser reuses its cached token instead of minting one per call.
  */
 export const getMemberCalendarWeek = onCall(
-  { ...browserAdminCallableOptions, region: memberRegion },
+  // 256MiB ran out under concurrent member loads (OOM kills since 2026-09-29).
+  { ...browserAdminCallableOptions, region: memberRegion, memory: "512MiB" },
   async (request) => {
     const actor = requireUserActor(request);
     const data = (request.data ?? {}) as Record<string, unknown>;
