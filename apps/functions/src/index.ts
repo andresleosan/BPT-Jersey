@@ -240,6 +240,7 @@ export {
   listCrmLeadTimeline,
 } from "./crm/crm-callables.js";
 export {
+  getShopOrderProofUrl,
   listManagedShopProducts,
   listMyShopOrders,
   listPublicShopCatalog,
@@ -249,6 +250,7 @@ export {
   saveShopProduct,
   setShopProductActive,
   updateShopOrder,
+  uploadShopOrderProof,
 } from "./shop/shop-callables.js";
 
 // Member engagement features, one file per team (phase 0, T041V2).
