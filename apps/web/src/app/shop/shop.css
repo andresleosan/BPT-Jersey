@@ -44,6 +44,37 @@
   max-width: 90rem;
 }
 
+/* The global .button-primary is white for dark hero bands; on the canvas it read as plain text. */
+.shop-page .button-primary {
+  background: var(--bpt-purple);
+  border-color: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+.shop-page .button-primary:hover {
+  background: var(--bpt-purple-dark);
+  border-color: var(--bpt-purple-dark);
+}
+
+.shop-page .button-secondary {
+  background: transparent;
+  border-color: var(--bpt-purple);
+  color: var(--bpt-purple-dark);
+}
+
+.shop-page .button-secondary:hover {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+.shop-page .button:disabled {
+  background: var(--canvas);
+  border-color: var(--line);
+  color: #65635d;
+  cursor: not-allowed;
+  transform: none;
+}
+
 /* Controls stay at 16px so phones do not zoom into them. */
 .shop-page .shop-field input,
 .shop-page .shop-field select {
