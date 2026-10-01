@@ -244,3 +244,23 @@
     grid-template-columns: minmax(0, 1fr) auto;
   }
 }
+
+.billing-danger-button {
+  background: #8d1c2f;
+  border-color: #8d1c2f;
+  color: #fff;
+}
+
+.billing-danger-button:hover:not(:disabled) {
+  background: #721626;
+  border-color: #721626;
+}
+
+.billing-form textarea {
+  border: 1px solid var(--line, #8a8880);
+  border-radius: 0;
+  font: inherit;
+  font-size: max(1rem, 16px);
+  min-height: 3rem;
+  padding: 0.65rem;
+}

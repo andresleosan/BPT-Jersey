@@ -14,8 +14,13 @@ import "../../billing/billing.css";
 
 type BillingInvoice = SubscriptionBilling["invoices"][number];
 
-const reasonLimit = 280;
-const reasonMinimum = 10;
+export type EditablePayment = Pick<
+  SubscriptionBillingPayment,
+  "paymentId" | "amountMinor" | "method" | "reference" | "occurredAt"
+>;
+
+export const reasonLimit = 280;
+export const reasonMinimum = 10;
 
 function localDateTime(value: string): string {
   const date = new Date(value);
@@ -31,7 +36,7 @@ export function invoiceBalance(invoice: BillingInvoice): number {
 }
 
 /** A native modal: the browser contains focus and Escape closes it through onCancel. */
-function ModalDialog({
+export function ModalDialog({
   titleId,
   onClose,
   children,
@@ -61,7 +66,7 @@ function ModalDialog({
   );
 }
 
-function DialogHeading({
+export function DialogHeading({
   id,
   eyebrow,
   title,
@@ -239,7 +244,7 @@ export function EditPaymentDialog({
   onClose,
   onSaved,
 }: {
-  payment: SubscriptionBillingPayment;
+  payment: EditablePayment;
   onClose: () => void;
   onSaved: () => void;
 }) {
