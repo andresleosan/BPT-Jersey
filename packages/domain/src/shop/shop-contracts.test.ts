@@ -3,11 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   canTransitionShopOrder,
   formatShopPrice,
+  isShopProductPurchasable,
+  parseShopCheckoutRequest,
   parseShopOrderRecord,
-  parseShopOrderRequest,
   parseShopOrderStatusUpdate,
   parseShopProductDraft,
   parseShopProductRecord,
+  shopOrderReference,
   sortShopProducts,
   toShopOrderProjection,
   toShopProductProjection,
@@ -40,32 +42,6 @@ const productRecord: ShopProductRecord = {
   createdBy: "admin-1",
   updatedAt: now,
   updatedBy: "admin-1",
-};
-
-const orderRecord: ShopOrderRecord = {
-  orderId: "order-req-1",
-  academyId: "academy-1",
-  requestId: "req-1",
-  customerUserId: "client-1",
-  productId: "bpt-gi-blue",
-  productName: "BPT competition gi",
-  category: "gi",
-  size: "A2",
-  quantity: 2,
-  unitPriceMinor: 9500,
-  totalMinor: 19000,
-  currency: "GBP",
-  contactName: "Sam Client",
-  contactPhone: null,
-  note: null,
-  status: "requested",
-  paymentStatus: "unpaid",
-  staffNote: null,
-  schemaVersion: "1",
-  createdAt: now,
-  createdBy: "client-1",
-  updatedAt: now,
-  updatedBy: "client-1",
 };
 
 describe("shop product contracts", () => {
@@ -108,34 +84,6 @@ describe("shop product contracts", () => {
 });
 
 describe("shop order contracts", () => {
-  it("accepts a bounded order request and rejects quantities above the limit", () => {
-    const request = {
-      requestId: "req-1",
-      productId: "bpt-gi-blue",
-      size: "A2",
-      quantity: 2,
-      contactName: "Sam Client",
-      contactPhone: null,
-      note: null,
-    };
-    expect(parseShopOrderRequest(request).ok).toBe(true);
-    expect(parseShopOrderRequest({ ...request, quantity: 11 }).ok).toBe(false);
-    expect(parseShopOrderRequest({ ...request, quantity: 0 }).ok).toBe(false);
-    expect(parseShopOrderRequest({ ...request, contactName: " padded " }).ok).toBe(false);
-  });
-
-  it("requires the stored total to match unit price and quantity", () => {
-    expect(parseShopOrderRecord(orderRecord).ok).toBe(true);
-    expect(parseShopOrderRecord({ ...orderRecord, totalMinor: 9500 }).ok).toBe(false);
-  });
-
-  it("projects orders with customer id but without tenant or authorship", () => {
-    const projection = toShopOrderProjection(orderRecord);
-    expect(projection.customerUserId).toBe("client-1");
-    expect(projection).not.toHaveProperty("academyId");
-    expect(projection).not.toHaveProperty("createdBy");
-  });
-
   it("only allows forward lifecycle transitions", () => {
     expect(canTransitionShopOrder("requested", "confirmed")).toBe(true);
     expect(canTransitionShopOrder("confirmed", "ready")).toBe(true);
@@ -149,5 +97,137 @@ describe("shop order contracts", () => {
     expect(parseShopOrderStatusUpdate({ orderId: "order-1" }).ok).toBe(false);
     expect(parseShopOrderStatusUpdate({ orderId: "order-1", paymentStatus: "paid" }).ok).toBe(true);
     expect(parseShopOrderStatusUpdate({ orderId: "order-1", status: "lost" }).ok).toBe(false);
+  });
+});
+
+const checkout = {
+  requestId: "6f1c2a7e-1111-4222-8333-944445555666",
+  lines: [
+    { productId: "bpt-gi", size: "A2", quantity: 1 },
+    { productId: "bpt-backpack", size: null, quantity: 2 },
+  ],
+  pickupLocationId: "town",
+  paymentMethod: "bank_transfer",
+  proofId: "a".repeat(64),
+  contactName: "Sam Client",
+  contactPhone: null,
+  note: null,
+};
+
+const orderV2: ShopOrderRecord = {
+  orderId: "order-6f1c2a7e-1111-4222-8333-944445555666",
+  academyId: "academy-1",
+  requestId: "6f1c2a7e-1111-4222-8333-944445555666",
+  customerUserId: "client-1",
+  lines: [
+    {
+      productId: "bpt-gi",
+      productName: "BPT gi",
+      category: "gi",
+      size: "A2",
+      quantity: 1,
+      unitPriceMinor: 9500,
+      lineTotalMinor: 9500,
+    },
+    {
+      productId: "bpt-backpack",
+      productName: "BPT backpack",
+      category: "backpack",
+      size: null,
+      quantity: 2,
+      unitPriceMinor: 5500,
+      lineTotalMinor: 11000,
+    },
+  ],
+  totalMinor: 20500,
+  currency: "GBP",
+  pickupLocationId: "town",
+  paymentMethod: "bank_transfer",
+  proofId: "a".repeat(64),
+  contactName: "Sam Client",
+  contactPhone: null,
+  note: null,
+  status: "requested",
+  paymentStatus: "unpaid",
+  staffNote: null,
+  schemaVersion: "2",
+  createdAt: "2026-10-01T10:00:00.000Z",
+  createdBy: "client-1",
+  updatedAt: "2026-10-01T10:00:00.000Z",
+  updatedBy: "client-1",
+};
+
+describe("shop checkout request", () => {
+  it("accepts a transfer checkout with a proof", () => {
+    expect(parseShopCheckoutRequest(checkout).ok).toBe(true);
+  });
+  it("requires a proof for a bank transfer", () => {
+    expect(parseShopCheckoutRequest({ ...checkout, proofId: null }).ok).toBe(false);
+  });
+  it("forbids a proof when paying on collection", () => {
+    expect(parseShopCheckoutRequest({ ...checkout, paymentMethod: "at_collection" }).ok).toBe(
+      false,
+    );
+    expect(
+      parseShopCheckoutRequest({ ...checkout, paymentMethod: "at_collection", proofId: null }).ok,
+    ).toBe(true);
+  });
+  it("rejects the same product and size twice", () => {
+    const lines = [checkout.lines[0], { ...checkout.lines[0], quantity: 3 }];
+    expect(parseShopCheckoutRequest({ ...checkout, lines }).ok).toBe(false);
+  });
+  it("allows the same product in two sizes", () => {
+    const lines = [checkout.lines[0], { ...checkout.lines[0], size: "A3" }];
+    expect(parseShopCheckoutRequest({ ...checkout, lines }).ok).toBe(true);
+  });
+  it("rejects an empty basket, more than 10 lines and an unknown centre", () => {
+    expect(parseShopCheckoutRequest({ ...checkout, lines: [] }).ok).toBe(false);
+    const many = Array.from({ length: 11 }, (_, index) => ({
+      productId: `p-${index}0`,
+      size: null,
+      quantity: 1,
+    }));
+    expect(parseShopCheckoutRequest({ ...checkout, lines: many }).ok).toBe(false);
+    expect(parseShopCheckoutRequest({ ...checkout, pickupLocationId: "north" }).ok).toBe(false);
+  });
+  it("rejects client-supplied prices", () => {
+    const lines = [{ ...checkout.lines[0], unitPriceMinor: 1 }];
+    expect(parseShopCheckoutRequest({ ...checkout, lines }).ok).toBe(false);
+  });
+});
+
+describe("shop order v2", () => {
+  it("accepts consistent totals", () => {
+    expect(parseShopOrderRecord(orderV2).ok).toBe(true);
+  });
+  it("rejects a line total that does not match", () => {
+    const lines = [{ ...orderV2.lines[0], lineTotalMinor: 1 }, orderV2.lines[1]];
+    expect(parseShopOrderRecord({ ...orderV2, lines }).ok).toBe(false);
+  });
+  it("rejects an order total that is not the sum of lines", () => {
+    expect(parseShopOrderRecord({ ...orderV2, totalMinor: 9500 }).ok).toBe(false);
+  });
+  it("rejects schema version 1", () => {
+    expect(parseShopOrderRecord({ ...orderV2, schemaVersion: "1" }).ok).toBe(false);
+  });
+  it("projects lines, centre and payment without tenant fields", () => {
+    const projection = toShopOrderProjection(orderV2);
+    expect(projection.lines).toHaveLength(2);
+    expect(projection.pickupLocationId).toBe("town");
+    expect(projection.paymentMethod).toBe("bank_transfer");
+    expect(projection).not.toHaveProperty("academyId");
+    expect(projection).not.toHaveProperty("requestId");
+  });
+});
+
+describe("shop helpers", () => {
+  it("only active, not sold-out products are purchasable", () => {
+    expect(isShopProductPurchasable({ active: true, stockStatus: "made-to-order" })).toBe(true);
+    expect(isShopProductPurchasable({ active: true, stockStatus: "sold-out" })).toBe(false);
+    expect(isShopProductPurchasable({ active: false, stockStatus: "in-stock" })).toBe(false);
+  });
+  it("derives the same reference from the order id or the request id", () => {
+    expect(shopOrderReference("order-6f1c2a7e-1111")).toBe("SHOP-6F1C2A7E");
+    expect(shopOrderReference("6f1c2a7e-1111")).toBe("SHOP-6F1C2A7E");
   });
 });

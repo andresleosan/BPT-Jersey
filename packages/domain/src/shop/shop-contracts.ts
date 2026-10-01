@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { err, ok, type Result } from "../result";
+import { locationIds } from "../schedule/schedule-contracts";
 
 export const shopProductCategories = Object.freeze([
   "gi",
@@ -29,9 +30,17 @@ export const shopOrderStatuses = Object.freeze([
   "cancelled",
 ] as const);
 export const shopPaymentStatuses = Object.freeze(["unpaid", "paid"] as const);
-export const shopPaymentMethodNote =
-  "Orders are paid at the academy on collection. No online payment is taken.";
 export const shopOrderMaximumQuantity = 10;
+export const shopCheckoutMaximumLines = 10;
+export const shopPaymentMethods = Object.freeze(["bank_transfer", "at_collection"] as const);
+export type ShopPaymentMethod = (typeof shopPaymentMethods)[number];
+export const shopPaymentMethodLabels: Readonly<Record<ShopPaymentMethod, string>> = Object.freeze({
+  bank_transfer: "Bank transfer",
+  at_collection: "Pay on collection",
+});
+// The pickup centres are the academy's two venues; the schedule owns the list.
+export const shopPickupLocationIds = locationIds;
+export type ShopPickupLocationId = (typeof shopPickupLocationIds)[number];
 export type ShopOrderStatus = (typeof shopOrderStatuses)[number];
 export const shopOrderTransitions: Readonly<Record<ShopOrderStatus, readonly ShopOrderStatus[]>> =
   Object.freeze({
@@ -78,6 +87,10 @@ export const shopProductCategorySchema = z.enum(shopProductCategories);
 export const shopStockStatusSchema = z.enum(shopStockStatuses);
 export const shopOrderStatusSchema = z.enum(shopOrderStatuses);
 export const shopPaymentStatusSchema = z.enum(shopPaymentStatuses);
+export const shopPaymentMethodSchema = z.enum(shopPaymentMethods);
+export const shopPickupLocationSchema = z.enum(shopPickupLocationIds);
+const proofIdSchema = z.string().regex(/^[a-f0-9]{64}$/u);
+const quantitySchema = z.number().int().min(1).max(shopOrderMaximumQuantity);
 
 const sizesSchema = z
   .array(boundedText(16))
@@ -117,14 +130,47 @@ export const shopProductStatusInputSchema = z.strictObject({
   active: z.boolean(),
 });
 
-export const shopOrderRequestSchema = z.strictObject({
-  requestId: safeIdSchema,
+export const shopCheckoutLineSchema = z.strictObject({
   productId: productIdSchema,
   size: boundedText(16).nullable(),
-  quantity: z.number().int().min(1).max(shopOrderMaximumQuantity),
-  contactName: boundedText(160),
-  contactPhone: boundedText(64).nullable(),
-  note: boundedText(500).nullable(),
+  quantity: quantitySchema,
+});
+
+export const shopCheckoutRequestSchema = z
+  .strictObject({
+    requestId: safeIdSchema,
+    lines: z.array(shopCheckoutLineSchema).min(1).max(shopCheckoutMaximumLines),
+    pickupLocationId: shopPickupLocationSchema,
+    paymentMethod: shopPaymentMethodSchema,
+    proofId: proofIdSchema.nullable(),
+    contactName: boundedText(160),
+    contactPhone: boundedText(64).nullable(),
+    note: boundedText(500).nullable(),
+  })
+  .superRefine((value, context) => {
+    const keys = value.lines.map((line) => `${line.productId}\u0000${line.size ?? ""}`);
+    if (new Set(keys).size !== keys.length)
+      context.addIssue({
+        code: "custom",
+        message: "Basket lines must not repeat",
+        path: ["lines"],
+      });
+    if ((value.paymentMethod === "bank_transfer") !== (value.proofId !== null))
+      context.addIssue({
+        code: "custom",
+        message: "A transfer needs its screenshot",
+        path: ["proofId"],
+      });
+  });
+
+const shopOrderLineSchema = z.strictObject({
+  productId: productIdSchema,
+  productName: boundedText(120),
+  category: shopProductCategorySchema,
+  size: boundedText(16).nullable(),
+  quantity: quantitySchema,
+  unitPriceMinor: minorAmountSchema,
+  lineTotalMinor: minorAmountSchema,
 });
 
 const shopOrderBaseSchema = z.strictObject({
@@ -132,56 +178,53 @@ const shopOrderBaseSchema = z.strictObject({
   academyId: safeIdSchema,
   requestId: safeIdSchema,
   customerUserId: safeIdSchema,
-  productId: productIdSchema,
-  productName: boundedText(120),
-  category: shopProductCategorySchema,
-  size: boundedText(16).nullable(),
-  quantity: z.number().int().min(1).max(shopOrderMaximumQuantity),
-  unitPriceMinor: minorAmountSchema,
+  lines: z.array(shopOrderLineSchema).min(1).max(shopCheckoutMaximumLines),
   totalMinor: minorAmountSchema,
   currency: z.literal("GBP"),
+  pickupLocationId: shopPickupLocationSchema,
+  paymentMethod: shopPaymentMethodSchema,
+  proofId: proofIdSchema.nullable(),
   contactName: boundedText(160),
   contactPhone: boundedText(64).nullable(),
   note: boundedText(500).nullable(),
   status: shopOrderStatusSchema,
   paymentStatus: shopPaymentStatusSchema,
   staffNote: boundedText(500).nullable(),
-  schemaVersion: z.literal("1"),
+  schemaVersion: z.literal("2"),
   createdAt: dateTimeSchema,
   createdBy: safeIdSchema,
   updatedAt: dateTimeSchema,
   updatedBy: safeIdSchema,
 });
 
-export const shopOrderRecordSchema = shopOrderBaseSchema.superRefine((value, context) => {
-  if (value.totalMinor !== value.unitPriceMinor * value.quantity)
+function orderTotalsIssue(
+  value: z.infer<typeof shopOrderBaseSchema>,
+  context: z.RefinementCtx,
+): void {
+  value.lines.forEach((line, index) => {
+    if (line.lineTotalMinor !== line.unitPriceMinor * line.quantity)
+      context.addIssue({
+        code: "custom",
+        message: "Line total mismatch",
+        path: ["lines", index, "lineTotalMinor"],
+      });
+  });
+  const sum = value.lines.reduce((total, line) => total + line.lineTotalMinor, 0);
+  if (value.totalMinor !== sum)
     context.addIssue({
       code: "custom",
-      message: "Order total must equal unit price times quantity",
+      message: "Order total must equal the sum of its lines",
       path: ["totalMinor"],
     });
-});
+}
 
-export const shopOrderProjectionSchema = shopOrderBaseSchema.pick({
-  orderId: true,
-  customerUserId: true,
-  productId: true,
-  productName: true,
-  category: true,
-  size: true,
-  quantity: true,
-  unitPriceMinor: true,
-  totalMinor: true,
-  currency: true,
-  contactName: true,
-  contactPhone: true,
-  note: true,
-  status: true,
-  paymentStatus: true,
-  staffNote: true,
-  createdAt: true,
-  updatedAt: true,
-});
+export const shopOrderRecordSchema = shopOrderBaseSchema.superRefine(orderTotalsIssue);
+
+export const shopOrderProjectionSchema = shopOrderBaseSchema
+  .omit({ academyId: true, requestId: true, createdBy: true, updatedBy: true, schemaVersion: true })
+  .superRefine((value, context) =>
+    orderTotalsIssue(value as z.infer<typeof shopOrderBaseSchema>, context),
+  );
 
 export const shopOrderStatusUpdateSchema = z
   .strictObject({
@@ -204,7 +247,9 @@ export type ShopProductDraft = z.infer<typeof shopProductDraftSchema>;
 export type ShopProductRecord = z.infer<typeof shopProductRecordSchema>;
 export type ShopProductProjection = z.infer<typeof shopProductProjectionSchema>;
 export type ShopProductStatusInput = z.infer<typeof shopProductStatusInputSchema>;
-export type ShopOrderRequest = z.infer<typeof shopOrderRequestSchema>;
+export type ShopCheckoutLine = z.infer<typeof shopCheckoutLineSchema>;
+export type ShopCheckoutRequest = z.infer<typeof shopCheckoutRequestSchema>;
+export type ShopOrderLine = z.infer<typeof shopOrderLineSchema>;
 export type ShopOrderRecord = z.infer<typeof shopOrderRecordSchema>;
 export type ShopOrderProjection = z.infer<typeof shopOrderProjectionSchema>;
 export type ShopOrderStatusUpdate = z.infer<typeof shopOrderStatusUpdateSchema>;
@@ -269,8 +314,8 @@ export const parseShopProductProjection = (value: unknown) =>
   parseWithSchema(shopProductProjectionSchema, value);
 export const parseShopProductStatusInput = (value: unknown) =>
   parseWithSchema(shopProductStatusInputSchema, value);
-export const parseShopOrderRequest = (value: unknown) =>
-  parseWithSchema(shopOrderRequestSchema, value);
+export const parseShopCheckoutRequest = (value: unknown) =>
+  parseWithSchema(shopCheckoutRequestSchema, value);
 export const parseShopOrderRecord = (value: unknown) =>
   parseWithSchema(shopOrderRecordSchema, value);
 export const parseShopOrderProjection = (value: unknown) =>
@@ -302,14 +347,12 @@ export function toShopOrderProjection(record: ShopOrderRecord): ShopOrderProject
   return shopOrderProjectionSchema.parse({
     orderId: record.orderId,
     customerUserId: record.customerUserId,
-    productId: record.productId,
-    productName: record.productName,
-    category: record.category,
-    size: record.size,
-    quantity: record.quantity,
-    unitPriceMinor: record.unitPriceMinor,
+    lines: record.lines,
     totalMinor: record.totalMinor,
     currency: record.currency,
+    pickupLocationId: record.pickupLocationId,
+    paymentMethod: record.paymentMethod,
+    proofId: record.proofId,
     contactName: record.contactName,
     contactPhone: record.contactPhone,
     note: record.note,
@@ -333,4 +376,18 @@ export function sortShopProducts<T extends Pick<ShopProductDraft, "sortOrder" | 
 
 export function formatShopPrice(priceMinor: number, currency: "GBP" = "GBP"): string {
   return new Intl.NumberFormat("en-GB", { style: "currency", currency }).format(priceMinor / 100);
+}
+
+export function isShopProductPurchasable(
+  product: Readonly<{ active: boolean; stockStatus: ShopStockStatus }>,
+): boolean {
+  return product.active && product.stockStatus !== "sold-out";
+}
+
+/** Short, human reference shared by the bank transfer and the office. */
+export function shopOrderReference(orderOrRequestId: string): string {
+  return `SHOP-${orderOrRequestId
+    .replace(/^order-/u, "")
+    .slice(0, 8)
+    .toUpperCase()}`;
 }
