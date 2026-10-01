@@ -1,10 +1,12 @@
 import {
   canTransitionShopOrder,
+  isShopProductPurchasable,
   parseShopOrderRecord,
   parseShopProductRecord,
   sortShopProducts,
+  type ShopCheckoutRequest,
+  type ShopOrderLine,
   type ShopOrderRecord,
-  type ShopOrderRequest,
   type ShopOrderStatusUpdate,
   type ShopProductDraft,
   type ShopProductRecord,
@@ -80,7 +82,7 @@ export type PlaceShopOrderInput = Readonly<{
   academyId: string;
   actorId: string;
   now: string;
-  request: ShopOrderRequest;
+  request: ShopCheckoutRequest;
 }>;
 export type UpdateShopOrderInput = Readonly<{
   academyId: string;
@@ -94,6 +96,7 @@ export type ShopStore = Readonly<{
   saveProduct: (input: SaveShopProductInput) => Promise<ShopProductRecord>;
   setProductActive: (input: SetShopProductActiveInput) => Promise<ShopProductRecord>;
   placeOrder: (input: PlaceShopOrderInput) => Promise<ShopOrderRecord>;
+  getOrder: (academyId: string, orderId: string) => Promise<ShopOrderRecord>;
   listOrders: (academyId: string) => Promise<readonly ShopOrderRecord[]>;
   listCustomerOrders: (academyId: string, userId: string) => Promise<readonly ShopOrderRecord[]>;
   updateOrder: (input: UpdateShopOrderInput) => Promise<ShopOrderRecord>;
@@ -299,12 +302,10 @@ export function createShopStore(dependencies: ShopStoreDependencies): ShopStore 
       const actorId = id(input.actorId, "actor");
       const now = timestamp(input.now);
       const { request } = input;
-      const productReference = firestore.doc(
-        `${collectionPath(academyId, "shopProducts")}/${id(request.productId, "product")}`,
-      );
       const orderReference = firestore.doc(
         `${collectionPath(academyId, "shopOrders")}/${shopOrderId(id(request.requestId, "request"))}`,
       );
+      const productIds = [...new Set(request.lines.map((line) => id(line.productId, "product")))];
       return firestore.runTransaction(async (transaction) => {
         const existingOrder = asDocument(await transaction.get(orderReference));
         if (existingOrder.exists) {
@@ -313,38 +314,64 @@ export function createShopStore(dependencies: ShopStoreDependencies): ShopStore 
             throw new ShopStoreError("conflict", "Order request id already used");
           return stored;
         }
-        const productSnapshot = asDocument(await transaction.get(productReference));
-        if (!productSnapshot.exists) throw new ShopStoreError("not-found", "Product not found");
-        const product = storedProduct(productSnapshot, academyId);
-        if (!product.active) throw new ShopStoreError("precondition", "Product is not published");
-        if (product.stockStatus === "sold-out")
-          throw new ShopStoreError("precondition", "Product is sold out");
-        if (product.sizes.length > 0) {
-          if (request.size === null || !product.sizes.includes(request.size))
-            throw new ShopStoreError("precondition", "Choose a size offered for this product");
-        } else if (request.size !== null) {
-          throw new ShopStoreError("precondition", "This product has no size options");
+        // Every read happens before the single write, as Firestore transactions require.
+        const products = new Map<string, ShopProductRecord>();
+        for (const productId of productIds) {
+          const snapshot = asDocument(
+            await transaction.get(
+              firestore.doc(`${collectionPath(academyId, "shopProducts")}/${productId}`),
+            ),
+          );
+          if (!snapshot.exists)
+            throw new ShopStoreError(
+              "precondition",
+              "An item in your basket is no longer available",
+            );
+          products.set(productId, storedProduct(snapshot, academyId));
         }
+        const lines: ShopOrderLine[] = request.lines.map((line) => {
+          const product = products.get(line.productId);
+          if (!product)
+            throw new ShopStoreError(
+              "precondition",
+              "An item in your basket is no longer available",
+            );
+          if (!isShopProductPurchasable(product))
+            throw new ShopStoreError("precondition", `${product.name} is no longer available`);
+          const sizeOk =
+            product.sizes.length > 0
+              ? line.size !== null && product.sizes.includes(line.size)
+              : line.size === null;
+          if (!sizeOk)
+            throw new ShopStoreError("precondition", `Choose a size offered for ${product.name}`);
+          return {
+            productId: product.productId,
+            productName: product.name,
+            category: product.category,
+            size: line.size,
+            quantity: line.quantity,
+            unitPriceMinor: product.priceMinor,
+            lineTotalMinor: product.priceMinor * line.quantity,
+          };
+        });
         const candidate = parseShopOrderRecord({
           orderId: orderReference.id,
           academyId,
           requestId: request.requestId,
           customerUserId: actorId,
-          productId: product.productId,
-          productName: product.name,
-          category: product.category,
-          size: request.size,
-          quantity: request.quantity,
-          unitPriceMinor: product.priceMinor,
-          totalMinor: product.priceMinor * request.quantity,
-          currency: product.currency,
+          lines,
+          totalMinor: lines.reduce((total, line) => total + line.lineTotalMinor, 0),
+          currency: "GBP",
+          pickupLocationId: request.pickupLocationId,
+          paymentMethod: request.paymentMethod,
+          proofId: request.proofId,
           contactName: request.contactName,
           contactPhone: request.contactPhone,
           note: request.note,
           status: "requested",
           paymentStatus: "unpaid",
           staffNote: null,
-          schemaVersion: "1",
+          schemaVersion: "2",
           createdAt: now,
           createdBy: actorId,
           updatedAt: now,
@@ -361,6 +388,18 @@ export function createShopStore(dependencies: ShopStoreDependencies): ShopStore 
           orderReference.path,
         );
         return candidate.value;
+      });
+    },
+
+    async getOrder(academyId, orderId) {
+      const academy = id(academyId, "academy");
+      const reference = firestore.doc(
+        `${collectionPath(academy, "shopOrders")}/${id(orderId, "order")}`,
+      );
+      return firestore.runTransaction(async (transaction) => {
+        const snapshot = asDocument(await transaction.get(reference));
+        if (!snapshot.exists) throw new ShopStoreError("not-found", "Order not found");
+        return storedOrder(snapshot, academy);
       });
     },
 
