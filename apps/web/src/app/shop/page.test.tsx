@@ -242,6 +242,14 @@ describe("client shop", () => {
     expect(screen.queryByText(/BPT backpack was removed/)).not.toBeInTheDocument();
   });
 
+  it("waits for Auth before loading the catalogue so each visit makes one call", () => {
+    authState.status = "loading";
+    render(<ShopPage />);
+    expect(shopApi.listPublicShopCatalog).not.toHaveBeenCalled();
+    expect(shopApi.listShopCatalog).not.toHaveBeenCalled();
+    expect(screen.getByText("Loading the club shop...")).toBeVisible();
+  });
+
   it("counts removed items it can no longer name instead of repeating a placeholder", async () => {
     localStorage.setItem(
       "bpt-shop-basket",

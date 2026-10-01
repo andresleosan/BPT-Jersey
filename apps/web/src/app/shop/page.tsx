@@ -74,6 +74,8 @@ function ShopContent() {
   }, [placed]);
 
   useEffect(() => {
+    // Wait for Auth: loading the public catalogue first would cost a second call for every member.
+    if (status === "loading") return;
     let active = true;
     setState({ status: "loading" });
     const load = signedIn
@@ -95,7 +97,7 @@ function ShopContent() {
     return () => {
       active = false;
     };
-  }, [reloadToken, signedIn]);
+  }, [reloadToken, signedIn, status]);
 
   const visibleProducts = useMemo(
     () =>
