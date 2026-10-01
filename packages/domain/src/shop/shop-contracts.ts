@@ -32,6 +32,7 @@ export const shopOrderStatuses = Object.freeze([
 export const shopPaymentStatuses = Object.freeze(["unpaid", "paid"] as const);
 export const shopOrderMaximumQuantity = 10;
 export const shopCheckoutMaximumLines = 10;
+export const shopLeadTimeMaximumWeeks = 26;
 export const shopPaymentMethods = Object.freeze(["bank_transfer", "at_collection"] as const);
 export type ShopPaymentMethod = (typeof shopPaymentMethods)[number];
 export const shopPaymentMethodLabels: Readonly<Record<ShopPaymentMethod, string>> = Object.freeze({
@@ -109,6 +110,8 @@ export const shopProductDraftSchema = z.strictObject({
   imageUrl: imageSourceSchema.nullable(),
   stockStatus: shopStockStatusSchema,
   sortOrder: z.number().int().min(0).max(999),
+  // Optional: products saved before lead times existed carry no field at all.
+  leadTimeWeeks: z.number().int().min(1).max(shopLeadTimeMaximumWeeks).nullable().optional(),
 });
 
 export const shopProductRecordSchema = shopProductDraftSchema.extend({
@@ -344,6 +347,7 @@ export function toShopProductProjection(record: ShopProductRecord): ShopProductP
     imageUrl: record.imageUrl,
     stockStatus: record.stockStatus,
     sortOrder: record.sortOrder,
+    leadTimeWeeks: record.leadTimeWeeks ?? null,
     active: record.active,
   });
 }
@@ -388,6 +392,12 @@ export function isShopProductPurchasable(
   product: Readonly<{ active: boolean; stockStatus: ShopStockStatus }>,
 ): boolean {
   return product.active && product.stockStatus !== "sold-out";
+}
+
+/** "Made to order · about 3 weeks" when a lead time is set; plain "Made to order" otherwise. */
+export function shopMadeToOrderLabel(leadTimeWeeks: number | null | undefined): string {
+  if (!leadTimeWeeks) return "Made to order";
+  return `Made to order · about ${leadTimeWeeks} ${leadTimeWeeks === 1 ? "week" : "weeks"}`;
 }
 
 /** Short, human reference shared by the bank transfer and the office. */

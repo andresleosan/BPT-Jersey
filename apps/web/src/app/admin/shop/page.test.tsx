@@ -145,6 +145,7 @@ describe("club shop admin page", () => {
         sizes: ["S", "M", "L"],
         imageUrl: null,
         stockStatus: "in-stock",
+        leadTimeWeeks: null,
         sortOrder: 100,
       }),
     );
@@ -328,6 +329,27 @@ describe("club shop admin page", () => {
     await userEvent.setup().click(await screen.findByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(shopApi.updateShopOrder).toHaveBeenCalledTimes(1));
     expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("saves a lead time in weeks for a made-to-order product only", async () => {
+    shopApi.listManagedShopProducts.mockResolvedValue([gi]);
+    shopApi.listShopOrders.mockResolvedValue([]);
+    shopApi.saveShopProduct.mockImplementation(async (draft) => ({ ...draft, active: true }));
+    const user = userEvent.setup();
+    render(<ShopAdminPage />);
+    await screen.findByRole("table", { name: "Club shop products" });
+
+    expect(screen.queryByLabelText("Lead time (weeks)")).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("Name"), "BPT kids gi");
+    await user.type(screen.getByLabelText("Price in pounds"), "60");
+    await user.selectOptions(screen.getByLabelText("Stock"), "made-to-order");
+    await user.type(screen.getByLabelText("Lead time (weeks)"), "4");
+    await user.click(screen.getByRole("button", { name: "Create product" }));
+    await waitFor(() =>
+      expect(shopApi.saveShopProduct).toHaveBeenCalledWith(
+        expect.objectContaining({ stockStatus: "made-to-order", leadTimeWeeks: 4 }),
+      ),
+    );
   });
 
   it("rejects invalid editor input before calling the backend", async () => {
