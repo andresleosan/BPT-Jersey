@@ -4,10 +4,14 @@ import Link from "next/link";
 import type { MemberOverviewRow } from "@bpt-jersey/domain/members/overview";
 import { recordHref } from "./profile/member-record";
 
-/** One card per guardian: the profiles that account (or office contact) manages. */
+/** One card per guardian: only the minors that account (or office contact) looks after. */
 export function FamiliesView({ rows }: { rows: readonly MemberOverviewRow[] }) {
   const families = new Map<string, { online: boolean; members: MemberOverviewRow[] }>();
-  for (const row of rows) {
+  // Adults (including a self-registered member who is their own contact) are not children here.
+  const children = rows.filter(
+    (row) => row.guardian && (row.ageBand === "kids" || row.ageBand === "teens"),
+  );
+  for (const row of children) {
     if (!row.guardian) continue;
     const key = row.guardian.fullName;
     const family = families.get(key) ?? { online: row.guardian.online, members: [] };
@@ -18,16 +22,16 @@ export function FamiliesView({ rows }: { rows: readonly MemberOverviewRow[] }) {
   if (list.length === 0) {
     return (
       <p aria-live="polite" className="admin-no-results" role="status">
-        No guardians are linked yet. Assign a guardian from Data review or approve a family request
-        in Enrolment requests.
+        No guardians with registered children yet. Assign a guardian from Data review or approve a
+        family request in Enrolment requests.
       </p>
     );
   }
   return (
     <section className="admin-panel-card" aria-label="Families">
       <p className="members-count" role="status">
-        {list.length} guardians · {rows.filter((row) => row.guardian).length} linked profiles.
-        Family operations live in <Link href="/admin/families">Families and minors</Link>.
+        {list.length} guardians · {children.length} children. Family operations live in{" "}
+        <Link href="/admin/families">Families and minors</Link>.
       </p>
       <ul className="members-family-list">
         {list.map(([guardian, family]) => (
