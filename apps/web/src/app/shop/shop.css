@@ -2,19 +2,9 @@
  * T15: shop catalogue on tablet and desktop. Phones (< 48rem) keep the single column from
  * globals.css untouched. From 48rem each card becomes a subgrid row set, so the category, name,
  * price and stock rows line up across the cards of a row whatever the length of each name, and the
- * order controls sit on the card's last row.
+ * order controls sit on the card's last row (figure + 7 body rows: label, name, price, stock,
+ * made-to-order lead, description, form; lead and description always render, empty when absent).
  */
-/* The shared secondary button is white-on-dark; on the white product card it must be dark ink. */
-.shop-page .shop-signin-link {
-  border-color: var(--bpt-purple);
-  color: var(--bpt-purple);
-}
-
-.shop-page .shop-signin-link:hover {
-  background: var(--bpt-purple);
-  color: var(--gi-white);
-}
-
 @media (min-width: 48rem) {
   .shop-page .shop-product-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -22,7 +12,7 @@
 
   .shop-page .shop-product-card {
     display: grid;
-    grid-row: span 7;
+    grid-row: span 8;
     grid-template-rows: subgrid;
     padding-bottom: 1.5rem;
     row-gap: 0.6rem;
@@ -41,7 +31,7 @@
   }
 
   .shop-page .shop-product-body > :last-child {
-    grid-row: 7;
+    grid-row: 8;
   }
 
   .shop-page .shop-product-price {
@@ -49,7 +39,275 @@
   }
 }
 
+/* Basket, checkout and order history. */
+.shop-page {
+  max-width: 90rem;
+}
+
+/* Controls stay at 16px so phones do not zoom into them. */
+.shop-page .shop-field input,
+.shop-page .shop-field select {
+  font-size: 1rem;
+}
+
+.shop-product-lead {
+  color: var(--bpt-purple);
+  font-weight: 700;
+  margin: 0;
+}
+
+.shop-layout {
+  display: grid;
+  gap: clamp(1.5rem, 3vw, 2.5rem);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.shop-basket {
+  align-self: start;
+  background: var(--gi-white);
+  border-top: 0.35rem solid var(--bpt-purple);
+  display: grid;
+  gap: 1.5rem;
+  margin-top: 3rem;
+  padding: 1.25rem;
+}
+
+.shop-basket h2 {
+  font-family: var(--font-display), Impact, sans-serif;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.shop-basket-lines {
+  display: grid;
+  gap: 0.75rem;
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+}
+
+.shop-basket-lines li {
+  align-items: center;
+  border-bottom: 1px solid var(--line, #8a8880);
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: minmax(0, 1fr) 4.5rem auto;
+  padding-bottom: 0.75rem;
+}
+
+.shop-basket-lines select {
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  font: inherit;
+  font-size: 1rem;
+  min-height: 2.75rem;
+  width: 100%;
+}
+
+.shop-basket-lines .shop-text-button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+.shop-money,
+.shop-basket-total strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.shop-basket-total {
+  display: flex;
+  font-size: 1.15rem;
+  justify-content: space-between;
+  margin: 1rem 0 0;
+}
+
+.shop-text-button {
+  background: none;
+  border: 0;
+  color: var(--bpt-purple);
+  cursor: pointer;
+  font-weight: 700;
+  min-height: 2.75rem;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.shop-checkout {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.shop-checkout fieldset {
+  border: 0;
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.shop-checkout legend {
+  color: var(--bpt-purple);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+}
+
+.shop-choice {
+  align-items: start;
+  border: 1px solid var(--line, #8a8880);
+  cursor: pointer;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 3rem;
+  padding: 0.75rem;
+}
+
+.shop-choice:has(input:checked) {
+  background: #f0efff;
+  border-color: var(--bpt-purple);
+  border-left-width: 0.35rem;
+}
+
+.shop-field-hint {
+  color: #65635d;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.shop-transfer {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.shop-proof-preview {
+  border: 1px solid var(--line, #8a8880);
+  max-height: 14rem;
+  object-fit: contain;
+  width: 100%;
+}
+
+.shop-place-order {
+  width: 100%;
+}
+
+.shop-checkout-signin {
+  border-left: 0.35rem solid var(--bpt-purple);
+  display: grid;
+  gap: 0.75rem;
+  padding-left: 1rem;
+}
+
+.shop-confirmation {
+  background: #e7f6ee;
+  border-left: 0.35rem solid #176b49;
+  margin-top: 2rem;
+  padding: 1rem 1.25rem;
+}
+
+.shop-confirmation h2 {
+  font-family: var(--font-display), Impact, sans-serif;
+  margin: 0.25rem 0;
+}
+
+.shop-order-list {
+  display: grid;
+  gap: 1rem;
+  list-style: none;
+  margin: 1.25rem 0 0;
+  padding: 0;
+}
+
+/* Status reads as text plus the coloured left rule of the order, never a pill alone. */
+.shop-order-item {
+  background: var(--gi-white);
+  border-left: 0.35rem solid var(--bpt-purple);
+  padding: 1rem 1.25rem;
+}
+
+.shop-order-requested {
+  border-left-color: #8a5a00;
+}
+
+.shop-order-collected {
+  border-left-color: #176b49;
+}
+
+.shop-order-cancelled {
+  border-left-color: #9b2c2c;
+}
+
+.shop-order-status {
+  font-weight: 700;
+}
+
+.shop-order-item-head,
+.shop-order-lines li {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.shop-order-lines {
+  list-style: none;
+  margin: 0.75rem 0;
+  padding: 0;
+}
+
+.shop-order-lines span {
+  font-variant-numeric: tabular-nums;
+}
+
+.shop-order-meta {
+  color: #65635d;
+  margin: 0;
+}
+
+.shop-basket-bar {
+  background: var(--bpt-purple);
+  bottom: 0;
+  color: var(--gi-white);
+  display: none;
+  font-weight: 700;
+  inset-inline: 0;
+  padding: 1rem clamp(1.25rem, 4vw, 4.5rem) calc(1rem + env(safe-area-inset-bottom));
+  position: fixed;
+  z-index: 20;
+}
+
+@media (max-width: 47.99rem) {
+  .shop-basket-bar {
+    display: block;
+  }
+
+  .shop-page {
+    padding-bottom: 6rem;
+  }
+}
+
 @media (min-width: 64rem) {
+  .shop-layout {
+    grid-template-columns: minmax(0, 1fr) 24rem;
+  }
+
+  .shop-basket {
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+    position: sticky;
+    top: 1rem;
+  }
+
+  .shop-page .shop-product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 90rem) {
   .shop-page .shop-product-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }

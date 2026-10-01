@@ -1644,14 +1644,6 @@ button:focus-visible {
   text-underline-offset: 0.2em;
 }
 
-.shop-payment-note {
-  background: var(--gi-white);
-  border-left: 0.35rem solid var(--bpt-lime);
-  margin: 1.75rem 0 0;
-  max-width: 40rem;
-  padding: 1rem 1.25rem;
-}
-
 .shop-section {
   margin-top: 3rem;
 }
