@@ -293,11 +293,16 @@ export async function uploadShopOrderProofHandler(
   if (!input.success)
     throw new HttpsError("invalid-argument", "Choose a PNG or JPEG screenshot up to 2 MB.");
   const validated = validateIntroProof(input.data.contentType, input.data.base64);
-  await storageOf(services).putObject(
-    shopProofKey(actor.academyId, actor.userId, input.data.requestId, validated.proofId),
-    validated.bytes,
-    input.data.contentType,
-  );
+  const storage = storageOf(services);
+  try {
+    await storage.putObject(
+      shopProofKey(actor.academyId, actor.userId, input.data.requestId, validated.proofId),
+      validated.bytes,
+      input.data.contentType,
+    );
+  } catch {
+    throw new HttpsError("internal", "The payment screenshot could not be uploaded.");
+  }
   return { proofId: validated.proofId };
 }
 

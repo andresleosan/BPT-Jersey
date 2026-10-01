@@ -78,7 +78,7 @@ const AVATAR_KEY_PATTERN = /^academies\/[^/]+\/avatars\/[^/]+\/[0-9a-f-]{36}\.we
 /** Payment proofs: jpeg/png read for 60 s. Profile avatars: webp read for 900 s. Nothing else. */
 function isPrivateImageRequest(input: Readonly<{ objectKey: string; expiresInSeconds: number; contentType: string }>): boolean {
   if (AVATAR_KEY_PATTERN.test(input.objectKey)) return input.contentType === "image/webp" && input.expiresInSeconds === 900;
-  return (input.objectKey.includes("/course-proofs/") || input.objectKey.includes("/membership-application-proofs/")) &&
+  return (input.objectKey.includes("/course-proofs/") || input.objectKey.includes("/membership-application-proofs/") || input.objectKey.includes("/shop-proofs/")) &&
     input.expiresInSeconds === 60 && ["image/jpeg", "image/png"].includes(input.contentType);
 }
 
@@ -86,7 +86,7 @@ function isPrivateImageRequest(input: Readonly<{ objectKey: string; expiresInSec
 function isPrivateImageObject(objectKey: string, contentType: string, byteLength: number): boolean {
   if (byteLength > MAX_PRIVATE_IMAGE_BYTES) return false;
   if (AVATAR_KEY_PATTERN.test(objectKey)) return contentType === "image/webp";
-  return (objectKey.includes("/enrolment-proofs/") || objectKey.includes("/course-proofs/") || objectKey.includes("/membership-application-proofs/")) &&
+  return (objectKey.includes("/enrolment-proofs/") || objectKey.includes("/course-proofs/") || objectKey.includes("/membership-application-proofs/") || objectKey.includes("/shop-proofs/")) &&
     ["image/png", "image/jpeg"].includes(contentType);
 }
 
