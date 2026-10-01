@@ -4282,6 +4282,13 @@ a.admin-birthday-badge:focus-visible,
   color: var(--gi-white);
 }
 
+/* "View the shop" measured 18px tall; keep it a 44px touch target on this page. */
+.shop-admin-page .admin-text-link {
+  align-items: center;
+  display: inline-flex;
+  min-height: 2.75rem;
+}
+
 .shop-admin-order-filters {
   display: flex;
   flex-wrap: wrap;
