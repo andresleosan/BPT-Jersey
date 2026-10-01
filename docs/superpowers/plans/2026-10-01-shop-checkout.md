@@ -25,6 +25,16 @@
 - Account roles that may buy (verbatim): `owner`, `administrator`, `headCoach`, `coach`, `guardian`, `adultStudent`, `teenStudent`, `shopper`. Administration and screenshots: only `owner`/`administrator`.
 - Commit message trailer: `Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>`.
 
+## Decisions from the grill (2026-10-01, binding)
+
+1. **Live catalogue:** admins edit price, sizes, description, image and visibility in `/admin/shop` and the shop reflects it on next load (already true: the catalogue is read live, the basket stores ids only). No extra work.
+2. **Frozen order prices:** a placed order keeps the price of each line at order time; later price edits never touch existing orders.
+3. **Cancellation:** customers cannot cancel on the web. In `/admin/shop`, "Cancel" on an order with `paymentStatus === "paid"` first asks `window.confirm("This order is marked paid. Refund the customer outside the platform before cancelling.")` and aborts on Cancel. In the customer's history a cancelled + paid order reads `Cancelled · refund handled by the academy`.
+4. **No notifications:** the confirmation copy must not promise a message. Use exactly: transfer → `"We will check your transfer. Check this page for its status; the academy may also contact you."`; collection → `"Pay when you collect. Check this page for its status; the academy may also contact you."`
+5. **Orphan screenshots accepted:** add in `shop-proof.ts` above `shopProofKey`: `// ponytail: orphan screenshots possible when checkout is abandoned; add an R2 lifecycle rule on shop-proofs/ if volume matters.`
+6. **Made to order copy:** on a card with `stockStatus === "made-to-order"`, under the badge: `<p className="shop-product-lead">Made for you after you order. The academy confirms when it will be ready.</p>` (render an empty `<p>` otherwise so the subgrid row count stays constant, like the description). In the checkout payment fieldset, when any basket line's product is made-to-order: `<p className="shop-field-hint">Some items are made to order and take longer. You can still pay now or when you collect.</p>`. No lead-time field.
+7. **Publishing the 5 production products is approved by the operator:** after the deploy in Task 11, show all five in the shop.
+
 ## Review Focus
 
 1. **Two tabs / stale basket:** a product hidden or sold out after it was added must be removed from the basket on next load with a visible notice naming it, and the server must refuse it with a message naming the product (Task 2 + Task 6 tests).
@@ -1666,7 +1676,7 @@ Keep the existing load effect, category filter, error/Retry and loading blocks. 
   <section aria-label="Order placed" className="shop-confirmation" role="status">
     <p className="account-eyebrow">Order placed</p>
     <h2>{shopOrderReference(placed.orderId)}</h2>
-    <p>{formatShopPrice(placed.totalMinor)} · collect from {pickupNames[placed.pickupLocationId]}. {placed.paymentMethod === "bank_transfer" ? "We will check your transfer and tell you when it is ready." : "Pay when you collect; we will tell you when it is ready."}</p>
+    <p>{formatShopPrice(placed.totalMinor)} · collect from {pickupNames[placed.pickupLocationId]}. {placed.paymentMethod === "bank_transfer" ? "We will check your transfer. Check this page for its status; the academy may also contact you." : "Pay when you collect. Check this page for its status; the academy may also contact you."}</p>
   </section>
 ) : null}
 <div className="shop-layout">
@@ -2214,5 +2224,5 @@ Stop the dev server. Commit the screenshots folder only if the repo already trac
 - [ ] **Step 1:** Report to the operator in Spanish: commits (`git log --oneline 0ad9c4a..HEAD`), tests run and results, Playwright evidence, open issues.
 - [ ] **Step 2:** Ask explicitly before `git push origin main` (Cloudflare Pages auto-publishes the web on push; the new web calls `uploadShopOrderProof`/new `placeShopOrder` payload, so **functions must deploy in the same window**).
 - [ ] **Step 3:** After the OK, deploy only the affected functions, one batch: `placeShopOrder, uploadShopOrderProof, getShopOrderProofUrl, listShopCatalog, listMyShopOrders, listShopOrders, updateShopOrder, listPublicShopCatalog, listManagedShopProducts, saveShopProduct, setShopProductActive, getEnrolmentPaymentInstructions` (`firebase deploy --only functions:<name>,…`), from the operator's terminal per memory (the classifier blocks `firebase deploy` here). Then push. Verify both SHAs (`git rev-parse HEAD origin/main`).
-- [ ] **Step 4:** Publishing the 5 production products: the owner presses "Show … in shop" in the new panel, or, with explicit confirmation, run `setShopProductActive` for each from the panel session. Never write prod Firestore directly without that confirmation.
+- [ ] **Step 4:** Publish the 5 production products (operator approved 2026-10-01, Decision 7) through the product's own path: `setShopProductActive(productId, true)` for `bpt-gi`, `bpt-rashguard`, `bpt-shorts`, `bpt-backpack`, `bpt-joggers` from an owner session in `/admin/shop` ("Show … in shop"), so the audit trail records it. Verify with a read of `academies/demo-academy/shopProducts` that all five have `active: true`.
 - [ ] **Step 5:** Update memory (`project` type) with the shipped state and pointer to this plan.
