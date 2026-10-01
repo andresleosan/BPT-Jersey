@@ -83,12 +83,18 @@ export function ShopCheckout({
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  const ready =
-    lines.length > 0 &&
-    contactName.trim().length > 0 &&
-    pickup !== undefined &&
-    method !== undefined &&
-    (method === "at_collection" || file !== undefined);
+  // The first thing still missing, in the order the form asks for it; undefined once ready.
+  const missing =
+    contactName.trim().length === 0
+      ? "Enter a name for the order to place it."
+      : pickup === undefined
+        ? "Choose a centre to place the order."
+        : method === undefined
+          ? "Choose how you will pay to place the order."
+          : method === "bank_transfer" && file === undefined
+            ? "Add the transfer screenshot to place the order."
+            : undefined;
+  const ready = lines.length > 0 && missing === undefined;
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -146,6 +152,7 @@ export function ShopCheckout({
                   <select
                     disabled={busy}
                     id={`basket-${key}`}
+                    name={`quantity-${key}`}
                     onChange={(event) =>
                       onLinesChange(setBasketQuantity(lines, key, Number(event.target.value)))
                     }
@@ -192,12 +199,14 @@ export function ShopCheckout({
           <fieldset disabled={busy}>
             <legend>Your details</legend>
             <label className="shop-field" htmlFor="shop-contact-name">
-              Name for the order
+              Name for the order (required)
               <input
                 autoComplete="name"
                 id="shop-contact-name"
                 maxLength={160}
+                name="contactName"
                 onChange={(event) => setContactName(event.target.value)}
+                required
                 value={contactName}
               />
             </label>
@@ -258,6 +267,7 @@ export function ShopCheckout({
                 name="shop-payment"
                 onChange={() => setMethod("bank_transfer")}
                 type="radio"
+                value="bank_transfer"
               />
               <span>Bank transfer now</span>
             </label>
@@ -270,6 +280,7 @@ export function ShopCheckout({
                   setFile(undefined);
                 }}
                 type="radio"
+                value="at_collection"
               />
               <span>Pay when you collect</span>
             </label>
@@ -281,7 +292,7 @@ export function ShopCheckout({
                   <strong className="shop-money">{formatShopPrice(total)}</strong>.
                 </p>
                 <label className="shop-field" htmlFor="shop-proof">
-                  Transfer screenshot
+                  Transfer screenshot (required)
                   <input
                     accept="image/png,image/jpeg"
                     id="shop-proof"
@@ -289,7 +300,7 @@ export function ShopCheckout({
                     type="file"
                   />
                 </label>
-                <p className="shop-field-hint">PNG or JPEG, up to 2 MB.</p>
+                <p className="shop-field-hint">Required: PNG or JPEG, up to 2 MB.</p>
                 {preview ? (
                   // eslint-disable-next-line @next/next/no-img-element -- local object URL preview
                   <img
@@ -310,7 +321,13 @@ export function ShopCheckout({
               {error}
             </p>
           ) : null}
+          {missing ? (
+            <p aria-live="polite" className="shop-field-hint" id="shop-checkout-missing">
+              {missing}
+            </p>
+          ) : null}
           <button
+            aria-describedby={missing ? "shop-checkout-missing" : undefined}
             className="button button-primary shop-place-order"
             disabled={!ready || busy}
             type="submit"

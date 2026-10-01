@@ -84,6 +84,7 @@ export function ProductCard({
               <select
                 aria-label={`Size for ${product.name}`}
                 disabled={!purchasable}
+                name="size"
                 onChange={(event) => setSize(event.target.value)}
                 value={size}
               >
@@ -103,6 +104,7 @@ export function ProductCard({
               inputMode="numeric"
               max={shopOrderMaximumQuantity}
               min={1}
+              name="quantity"
               onChange={(event) => setQuantity(event.target.value)}
               type="number"
               value={quantity}
