@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { z } from "zod";
 import {
   parseMembershipRecord,
   type MembershipRecord,
@@ -501,7 +502,8 @@ function paymentPayload(
   id: string,
   now: string,
 ): ManualPaymentRecord {
-  if (invoice.schemaVersion === 2) throw new FinanceStoreError("precondition", "Manage course payments in Courses & Seminars");
+  if (invoice.schemaVersion === 2)
+    throw new FinanceStoreError("precondition", "Manage course payments in Courses & Seminars");
   const record: ManualPaymentRecord = {
     paymentId: id,
     academyId: invoice.academyId,
@@ -627,7 +629,8 @@ export async function readFinancialAccountInTransaction(input: {
     .docs.map((document) => parseScopedStoredInvoice(document, academy))
     .filter(
       (invoice) =>
-        input.scope.familyIds === undefined || (invoice.familyId !== null && input.scope.familyIds.includes(invoice.familyId)),
+        input.scope.familyIds === undefined ||
+        (invoice.familyId !== null && input.scope.familyIds.includes(invoice.familyId)),
     );
   const scopedInvoices: InvoiceRecord[] = [];
   for (const invoice of invoices) {
@@ -904,7 +907,8 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
         ),
         input.academyId,
       );
-      if (invoice.schemaVersion === 2) throw new FinanceStoreError("precondition", "Manage course payments in Courses & Seminars");
+      if (invoice.schemaVersion === 2)
+        throw new FinanceStoreError("precondition", "Manage course payments in Courses & Seminars");
       const existingByReference = await paymentByReference(
         transaction,
         input.academyId,
@@ -1222,6 +1226,9 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
     const id = pathSegment(input.paymentId, "payment");
     const reason = editPaymentReasonSchema.safeParse(input.reason);
     if (!reason.success) throw new FinanceStoreError("invalid", "Invalid void reason");
+    if (!z.uuid().safeParse(input.requestId).success) {
+      throw new FinanceStoreError("invalid", "Invalid request id");
+    }
     const actorName = input.actorName.trim().slice(0, 160);
     if (actorName.length === 0 || /[\u0000-\u001f\u007f]/u.test(actorName)) {
       throw new FinanceStoreError("invalid", "Invalid editor name");
@@ -1352,7 +1359,8 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
         ),
         input.academyId,
       );
-      if (invoice.schemaVersion === 2) throw new FinanceStoreError("precondition", "Manage course refunds in Courses & Seminars");
+      if (invoice.schemaVersion === 2)
+        throw new FinanceStoreError("precondition", "Manage course refunds in Courses & Seminars");
       const payments = await paymentsFor(transaction, input.academyId, invoice);
       if (invoice.status !== "open" || payments.length > 0) {
         throw new FinanceStoreError("precondition", "Invoice cannot be voided");
@@ -1395,7 +1403,10 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
         ),
         academy,
       );
-      if (scope.familyIds !== undefined && (invoice.familyId === null || !scope.familyIds.includes(invoice.familyId))) {
+      if (
+        scope.familyIds !== undefined &&
+        (invoice.familyId === null || !scope.familyIds.includes(invoice.familyId))
+      ) {
         throw new FinanceStoreError("not-found", "Invoice not found");
       }
       if (!(await matchesStudentScope(transaction, scope, invoice))) {
@@ -1491,7 +1502,10 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
           method: payment.method,
           manualReference: payment.manualReference,
           invoiceReference: invoice.invoiceReference,
-          description: invoice.schemaVersion === 2 ? `Course · ${invoice.description}`.slice(0, 200) : invoice.description,
+          description:
+            invoice.schemaVersion === 2
+              ? `Course · ${invoice.description}`.slice(0, 200)
+              : invoice.description,
           familyId: payment.familyId,
           memberName:
             invoice.membershipId === null ? null : (names.get(invoice.membershipId) ?? null),

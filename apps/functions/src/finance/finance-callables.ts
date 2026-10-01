@@ -366,6 +366,13 @@ export async function voidManualPaymentHandler(
     if (error instanceof FinanceStoreError && Object.hasOwn(voidRefusals, error.message)) {
       throw new FinanceCallableError("failed-precondition", voidRefusals[error.message]!);
     }
+    // Gone means another office session voided it first; that is not a session problem.
+    if (error instanceof FinanceStoreError && error.code === "not-found") {
+      throw new FinanceCallableError(
+        "failed-precondition",
+        "This payment was changed by someone else. Refresh and try again.",
+      );
+    }
     return mapStoreError(error, "write");
   }
 }

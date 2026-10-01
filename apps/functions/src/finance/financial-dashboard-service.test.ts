@@ -365,6 +365,30 @@ describe("financial dashboard Firestore store", () => {
     expect(dashboard.balances.find((row) => row.invoiceId === "inv-l")?.studentId).toBe("stu-9");
   });
 
+  it("ignores a private lesson purchase whose student id is malformed", async () => {
+    const dashboard = await storeFor({
+      ...validFixtures(),
+      [`academies/${academyId}/invoices`]: [
+        document("invoice-1", invoice()),
+        document(
+          "inv-l",
+          invoice({
+            invoiceId: "inv-l",
+            membershipId: null,
+            chargeKind: "private-lesson",
+            status: "open",
+            invoiceReference: "INV-L",
+          }),
+        ),
+      ],
+      [`academies/${academyId}/privateLessonPurchases`]: [
+        document("p-1", { invoiceId: "inv-l", studentId: "bad id" }),
+      ],
+    }).getFinancialDashboard(academyId);
+
+    expect(dashboard.balances.find((row) => row.invoiceId === "inv-l")?.studentId).toBeNull();
+  });
+
   it("fails closed on cross-tenant records and relationship mismatches", async () => {
     for (const fixtures of [
       {

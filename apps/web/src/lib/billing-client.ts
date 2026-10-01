@@ -399,6 +399,7 @@ const safePaymentVoidError = "The payment could not be voided. Refresh and try a
 const paymentVoidRefusals = new Set([
   "Only membership and adjustment payments can be voided here.",
   "This void was already sent for another payment.",
+  "This payment was changed by someone else. Refresh and try again.",
 ]);
 
 /** Office void of a recorded payment. Never throws: the dialog shows the message. */
