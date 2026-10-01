@@ -32,9 +32,9 @@ const linkedTabs: Readonly<Record<Exclude<RecordEmptyTabKey, "notes">, LinkedEmp
   payments: {
     eyebrow: "Payments",
     headline: "Payments are on their way",
-    sentence: "Invoices and payments for this member are in Billing for now.",
-    action: "Open Billing",
-    href: () => "/admin/billing",
+    sentence: "Invoices and payments for this member are in the Financial dashboard for now.",
+    action: "Open the Financial dashboard",
+    href: () => "/admin/finance",
   },
   classes: {
     eyebrow: "Classes",

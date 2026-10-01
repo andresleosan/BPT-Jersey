@@ -161,10 +161,10 @@ export function PrivateLessonScheduler({
         <h3>No private lessons to arrange</h3>
         <p className="cs-session-help">
           Only members with an approved private lesson payment and lessons left appear here. Approve
-          the payment in Billing first.
+          the payment in the Financial dashboard first.
         </p>
-        <a className="cs-button" href="/admin/billing">
-          Go to Billing
+        <a className="cs-button" href="/admin/finance?tab=settings">
+          Go to the Financial dashboard
         </a>
       </div>
     );
