@@ -351,6 +351,10 @@ test.describe("admin financial dashboard", () => {
 
     await page.getByRole("button", { name: "Issue invoice" }).click();
     const dialog = page.getByRole("dialog", { name: "Issue invoice" });
+    // With no member chosen the submit is disabled and must look it, not keep the purple fill.
+    const submit = dialog.getByRole("button", { name: "Issue invoice" });
+    await expect(submit).toBeDisabled();
+    await expect(submit).not.toHaveCSS("background-color", "rgb(47, 36, 131)");
     await dialog.getByRole("searchbox", { name: "Find a member" }).fill("ana");
     await dialog.getByRole("option", { name: "Ana Coelho" }).click();
     await dialog.getByRole("radio", { name: "No membership · custom charge" }).click();
@@ -358,7 +362,8 @@ test.describe("admin financial dashboard", () => {
     await dialog.getByLabel("Due date").fill("2026-09-30");
     await dialog.getByLabel("Invoice reference").fill("INV-CUSTOM-1");
     await dialog.getByLabel("Description").fill("Custom charge for gi replacement");
-    await dialog.getByRole("button", { name: "Issue invoice" }).click();
+    await expect(submit).toHaveCSS("background-color", "rgb(47, 36, 131)");
+    await submit.click();
 
     await expect(page.getByRole("status").filter({ hasText: "Invoice issued." })).toBeVisible();
     await expect(dialog).toHaveCount(0);
