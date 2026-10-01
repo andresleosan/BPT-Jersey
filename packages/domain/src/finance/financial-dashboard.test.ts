@@ -1,265 +1,299 @@
 import { describe, expect, it } from "vitest";
+import type { InvoiceRecord, ManualPaymentRecord, VoidedPaymentRecord } from "./finance-contracts";
 import type { MembershipRecord } from "../memberships/membership-contracts";
-import type { InvoiceRecord, ManualPaymentRecord } from "./finance-contracts";
 import {
   buildFinancialDashboard,
-  financialDashboardListLimit,
-  isFinancialDashboard,
+  currentFinancialMonth,
+  financialDashboardSchema,
+  shiftFinancialMonth,
+  type FinancialDashboardSource,
 } from "./financial-dashboard";
 
-const generatedAt = "2026-08-24T12:00:00.000Z";
+const academyId = "academy-a";
+const now = "2026-10-15T12:00:00.000Z";
+const audit = {
+  createdAt: "2026-09-01T00:00:00.000Z",
+  createdBy: "owner-1",
+  updatedAt: "2026-09-01T00:00:00.000Z",
+  updatedBy: "owner-1",
+};
 
-function membership(
-  membershipId: string,
-  overrides: Partial<MembershipRecord> = {},
-): MembershipRecord {
+function membership(overrides: Partial<MembershipRecord> = {}): MembershipRecord {
   return {
-    membershipId,
-    academyId: "academy-a",
-    familyId: "family-a",
-    studentId: `student-${membershipId}`,
+    membershipId: "m-1",
+    academyId,
+    familyId: "fam-1",
+    studentId: "stu-1",
     planId: "bpt-jersey-adult",
     status: "active",
     startsAt: "2026-01-01T00:00:00.000Z",
     endsAt: null,
-    nextBillingAt: "2026-08-30T00:00:00.000Z",
+    nextBillingAt: "2026-10-20T00:00:00.000Z",
     schemaVersion: "1",
-    createdAt: "2026-01-01T00:00:00.000Z",
-    createdBy: "owner-a",
-    updatedAt: "2026-08-01T00:00:00.000Z",
-    updatedBy: "owner-a",
+    ...audit,
     ...overrides,
-  };
+  } as MembershipRecord;
 }
-
-function invoice(
-  invoiceId: string,
-  membershipId: string,
-  overrides: Partial<InvoiceRecord> = {},
-): InvoiceRecord {
+function invoice(overrides: Partial<InvoiceRecord> = {}): InvoiceRecord {
   return {
-    invoiceId,
-    academyId: "academy-a",
-    familyId: "family-a",
-    membershipId,
-    status: "open",
-    totalMinor: 10_000,
+    invoiceId: "inv-1",
+    academyId,
+    familyId: "fam-1",
+    membershipId: "m-1",
+    status: "paid",
+    totalMinor: 9500,
     currency: "GBP",
-    dueAt: "2026-08-10T00:00:00.000Z",
-    paidAt: null,
+    dueAt: "2026-10-01T00:00:00.000Z",
+    paidAt: "2026-10-02T00:00:00.000Z",
     schemaVersion: 1,
-    createdAt: "2026-08-01T00:00:00.000Z",
-    createdBy: "owner-a",
-    updatedAt: "2026-08-01T00:00:00.000Z",
-    updatedBy: "owner-a",
     chargeKind: "membership",
     sourceRef: null,
-    invoiceReference: `INV-${invoiceId}`,
+    invoiceReference: "INV-1",
     description: "Monthly membership",
+    ...audit,
+    ...overrides,
+  } as InvoiceRecord;
+}
+function payment(overrides: Partial<ManualPaymentRecord> = {}): ManualPaymentRecord {
+  return {
+    paymentId: "pay-1",
+    academyId,
+    familyId: "fam-1",
+    invoiceId: "inv-1",
+    status: "recorded",
+    amountMinor: 9500,
+    currency: "GBP",
+    method: "bank_transfer",
+    manualReference: "REF-1",
+    providerReference: null,
+    occurredAt: "2026-10-02T00:00:00.000Z",
+    schemaVersion: 1,
+    ...audit,
+    ...overrides,
+  } as ManualPaymentRecord;
+}
+function source(overrides: Partial<FinancialDashboardSource> = {}): FinancialDashboardSource {
+  return {
+    generatedAt: now,
+    month: "2026-10",
+    memberships: [membership()],
+    invoices: [invoice()],
+    payments: [payment()],
+    voidedPayments: [],
+    shopPayments: [],
+    studentByInvoiceId: new Map(),
+    planNames: new Map([["bpt-jersey-adult", "Adult unlimited"]]),
     ...overrides,
   };
 }
 
-function payment(
-  paymentId: string,
-  invoiceId: string,
-  amountMinor: number,
-  occurredAt: string,
-): ManualPaymentRecord {
-  return {
-    paymentId,
-    academyId: "academy-a",
-    familyId: "family-a",
-    invoiceId,
-    status: "recorded",
-    amountMinor,
-    currency: "GBP",
-    method: "bank_transfer",
-    manualReference: `PAY-${paymentId}`,
-    providerReference: null,
-    occurredAt,
-    schemaVersion: 1,
-    createdAt: occurredAt,
-    createdBy: "owner-a",
-    updatedAt: occurredAt,
-    updatedBy: "owner-a",
-  };
-}
+describe("month helpers", () => {
+  it("reads and shifts UTC months", () => {
+    expect(currentFinancialMonth(now)).toBe("2026-10");
+    expect(shiftFinancialMonth("2026-01", -1)).toBe("2025-12");
+    expect(shiftFinancialMonth("2026-12", 1)).toBe("2027-01");
+  });
+});
 
-function dashboardFixture() {
-  const memberships = [
-    membership("membership-1"),
-    membership("membership-2", { nextBillingAt: "2026-10-01T00:00:00.000Z" }),
-    membership("membership-3", {
-      status: "trial",
-      nextBillingAt: "2026-09-10T00:00:00.000Z",
-    }),
-    membership("membership-4", {
-      status: "paused",
-      nextBillingAt: "2026-08-28T00:00:00.000Z",
-    }),
-  ];
-  const invoices = [
-    invoice("invoice-1", "membership-1", { status: "partially_paid" }),
-    invoice("invoice-2", "membership-2", {
-      status: "paid",
-      totalMinor: 5_000,
-      paidAt: "2026-08-10T00:00:00.000Z",
-    }),
-    invoice("invoice-3", "membership-3", {
-      totalMinor: 2_000,
-      dueAt: "2026-09-01T00:00:00.000Z",
-    }),
-    invoice("invoice-4", "membership-4", { status: "void", totalMinor: 3_000 }),
-  ];
-  const payments = [
-    payment("payment-1", "invoice-1", 4_000, "2026-08-05T00:00:00.000Z"),
-    payment("payment-2", "invoice-2", 5_000, "2026-08-10T00:00:00.000Z"),
-  ];
-  return buildFinancialDashboard({ generatedAt, memberships, invoices, payments });
-}
-
-describe("financial dashboard projection", () => {
-  it("derives current-month receipts, balances, and a fixed renewal horizon", () => {
-    const dashboard = dashboardFixture();
-
-    expect(dashboard.period).toEqual({
-      from: "2026-08-01T00:00:00.000Z",
-      to: generatedAt,
-    });
-    expect(dashboard.renewalWindow).toEqual({
-      from: generatedAt,
-      to: "2026-09-23T12:00:00.000Z",
-    });
-    expect(dashboard.metrics).toEqual({
-      collectedMinor: 9_000,
-      activeMemberships: 2,
-      outstandingMinor: 8_000,
-      paymentsReceived: 2,
-      overdueBalances: 1,
-      renewalsDue: 2,
-    });
-    expect(dashboard.balanceAttention).toEqual([
+describe("buildFinancialDashboard", () => {
+  it("lists the month's payments with member, source and edit/void flags", () => {
+    const dashboard = buildFinancialDashboard(source());
+    expect(financialDashboardSchema.safeParse(dashboard).success).toBe(true);
+    expect(dashboard.metrics.collectedMinor).toBe(9500);
+    expect(dashboard.metrics.paymentsReceived).toBe(1);
+    expect(dashboard.payments).toEqual([
       expect.objectContaining({
-        invoiceReference: "INV-invoice-1",
-        balanceMinor: 6_000,
-        overdue: true,
-      }),
-      expect.objectContaining({
-        invoiceReference: "INV-invoice-3",
-        balanceMinor: 2_000,
-        overdue: false,
+        rowId: "payment:pay-1",
+        source: "membership",
+        studentId: "stu-1",
+        label: "Monthly membership",
+        paymentId: "pay-1",
+        invoiceId: "inv-1",
+        shopOrderId: null,
+        reference: "REF-1",
+        editable: true,
+        voidable: true,
+        voided: null,
       }),
     ]);
-    expect(dashboard.upcomingRenewals.map((row) => row.planId)).toEqual([
-      "bpt-jersey-adult",
-      "bpt-jersey-adult",
-    ]);
-    expect(dashboard.recentPayments.map((row) => row.amountMinor)).toEqual([5_000, 4_000]);
-    expect(isFinancialDashboard(dashboard)).toBe(true);
   });
 
-  it("keeps lists deterministic and capped while preserving aggregate counts", () => {
-    const memberships = Array.from({ length: financialDashboardListLimit + 2 }, (_, index) =>
-      membership(`membership-${index}`, {
-        nextBillingAt: new Date(Date.UTC(2026, 7, 25 + index)).toISOString(),
+  it("filters by the requested month only", () => {
+    const dashboard = buildFinancialDashboard(source({ month: "2026-09" }));
+    expect(dashboard.metrics.collectedMinor).toBe(0);
+    expect(dashboard.payments).toEqual([]);
+  });
+
+  it("empty month: zero metrics, empty lists, still schema-valid", () => {
+    const dashboard = buildFinancialDashboard(
+      source({ month: "2025-01", memberships: [], invoices: [], payments: [] }),
+    );
+    expect(dashboard.metrics).toMatchObject({
+      collectedMinor: 0,
+      paymentsReceived: 0,
+      outstandingMinor: 0,
+    });
+    expect(financialDashboardSchema.safeParse(dashboard).success).toBe(true);
+  });
+
+  it("refuses a month after the current one", () => {
+    expect(() => buildFinancialDashboard(source({ month: "2026-11" }))).toThrow(RangeError);
+  });
+
+  it("shows a voided payment struck out and never sums it", () => {
+    const voided: VoidedPaymentRecord = {
+      payment: payment(),
+      voidedAt: "2026-10-03T00:00:00.000Z",
+      voidedBy: "owner-1",
+      voidedByName: "Owner",
+      reason: "Recorded twice by mistake",
+      requestId: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+    };
+    const dashboard = buildFinancialDashboard(
+      source({
+        invoices: [invoice({ status: "open", paidAt: null })],
+        payments: [],
+        voidedPayments: [voided],
       }),
     );
-    const dashboard = buildFinancialDashboard({
-      generatedAt,
-      memberships,
-      invoices: [],
-      payments: [],
+    expect(dashboard.metrics.collectedMinor).toBe(0);
+    expect(dashboard.metrics.paymentsReceived).toBe(0);
+    expect(dashboard.payments[0]).toMatchObject({
+      rowId: "voided:pay-1",
+      editable: false,
+      voidable: false,
+      voided: {
+        voidedAt: "2026-10-03T00:00:00.000Z",
+        voidedByName: "Owner",
+        reason: "Recorded twice by mistake",
+      },
     });
-
-    expect(dashboard.metrics.renewalsDue).toBe(financialDashboardListLimit + 2);
-    expect(dashboard.upcomingRenewals).toHaveLength(financialDashboardListLimit);
-  });
-
-  it("keeps an invoice without a membership in balanceAttention", () => {
-    const dashboard = buildFinancialDashboard({
-      generatedAt,
-      memberships: [],
-      invoices: [
-        invoice("invoice-no-membership", "membership-1", {
-          membershipId: null,
-          totalMinor: 2_000,
-        }),
-      ],
-      payments: [],
-    });
-
-    expect(dashboard.balanceAttention).toEqual([
-      expect.objectContaining({
-        invoiceReference: "INV-invoice-no-membership",
-        balanceMinor: 2_000,
-      }),
+    expect(dashboard.balances).toEqual([
+      expect.objectContaining({ invoiceId: "inv-1", balanceMinor: 9500, studentId: "stu-1" }),
     ]);
   });
 
-  it("rejects duplicate or orphan source records", () => {
-    const current = membership("membership-1");
-    expect(() =>
-      buildFinancialDashboard({
-        generatedAt,
-        memberships: [current, current],
+  it("counts a paid shop order on its paidAt month", () => {
+    const dashboard = buildFinancialDashboard(
+      source({
+        shopPayments: [
+          {
+            orderId: "order-1",
+            orderNumber: 7,
+            contactName: "Ana Coelho",
+            totalMinor: 3500,
+            paidAt: "2026-10-05T10:00:00.000Z",
+            paymentMethod: "at_collection",
+          },
+        ],
+      }),
+    );
+    expect(dashboard.metrics.collectedMinor).toBe(13000);
+    expect(dashboard.payments[0]).toMatchObject({
+      rowId: "shop:order-1",
+      source: "shop",
+      label: "SHOP-000007 · Ana Coelho",
+      method: "at_collection",
+      shopOrderId: "order-1",
+      paymentId: null,
+      editable: false,
+      voidable: false,
+    });
+  });
+
+  it("flags PAYG as neither editable nor voidable and private lessons as editable only", () => {
+    const dashboard = buildFinancialDashboard(
+      source({
+        memberships: [],
+        invoices: [
+          invoice({
+            invoiceId: "inv-p",
+            membershipId: null,
+            chargeKind: "payg_session",
+            sourceRef: "s-1",
+            totalMinor: 1000,
+          }),
+          invoice({
+            invoiceId: "inv-l",
+            membershipId: null,
+            chargeKind: "private-lesson",
+            sourceRef: "p-1",
+            totalMinor: 6500,
+          }),
+        ],
+        payments: [
+          payment({ paymentId: "pay-p", invoiceId: "inv-p", amountMinor: 1000, method: "cash" }),
+          payment({ paymentId: "pay-l", invoiceId: "inv-l", amountMinor: 6500 }),
+        ],
+        studentByInvoiceId: new Map([["inv-l", "stu-9"]]),
+      }),
+    );
+    const byId = new Map(dashboard.payments.map((row) => [row.paymentId, row]));
+    expect(byId.get("pay-p")).toMatchObject({
+      source: "payg",
+      editable: false,
+      voidable: false,
+      studentId: null,
+    });
+    expect(byId.get("pay-l")).toMatchObject({
+      source: "private_lesson",
+      editable: true,
+      voidable: false,
+      studentId: "stu-9",
+    });
+  });
+
+  it("splits renewals into overdue and due soon, with plan names", () => {
+    const dashboard = buildFinancialDashboard(
+      source({
+        memberships: [
+          membership({ membershipId: "m-1", nextBillingAt: "2026-10-20T00:00:00.000Z" }),
+          membership({
+            membershipId: "m-2",
+            studentId: "stu-2",
+            nextBillingAt: "2026-10-01T00:00:00.000Z",
+          }),
+          membership({
+            membershipId: "m-3",
+            studentId: "stu-3",
+            status: "overdue",
+            nextBillingAt: null,
+          }),
+          membership({ membershipId: "m-4", studentId: "stu-4", nextBillingAt: null }),
+          membership({
+            membershipId: "m-5",
+            studentId: "stu-5",
+            nextBillingAt: "2026-12-30T00:00:00.000Z",
+          }),
+        ],
         invoices: [],
         payments: [],
       }),
-    ).toThrow(/duplicate/u);
-    expect(() =>
-      buildFinancialDashboard({
-        generatedAt,
-        memberships: [current],
-        invoices: [],
-        payments: [payment("payment-1", "missing-invoice", 100, generatedAt)],
-      }),
-    ).toThrow(/orphan/u);
-  });
-
-  it("strictly rejects expanded, incoherent, accessor, and prototype responses", () => {
-    const dashboard = dashboardFixture();
-    expect(isFinancialDashboard({ ...dashboard, studentIds: ["private-student"] })).toBe(false);
-    expect(
-      isFinancialDashboard({
-        ...dashboard,
-        metrics: { ...dashboard.metrics, outstandingMinor: 1 },
-      }),
-    ).toBe(false);
-    expect(
-      isFinancialDashboard({
-        ...dashboard,
-        upcomingRenewals: [{ ...dashboard.upcomingRenewals[0], planId: "unapproved-plan" }],
-      }),
-    ).toBe(false);
-    expect(
-      isFinancialDashboard({
-        ...dashboard,
-        metrics: { ...dashboard.metrics, outstandingMinor: Number.MAX_SAFE_INTEGER },
-        balanceAttention: [
-          { ...dashboard.balanceAttention[0], balanceMinor: Number.MAX_SAFE_INTEGER },
-          { ...dashboard.balanceAttention[1], balanceMinor: Number.MAX_SAFE_INTEGER },
-        ],
-      }),
-    ).toBe(false);
-    expect(isFinancialDashboard(Object.assign(Object.create(null), dashboard))).toBe(false);
-    expect(
-      isFinancialDashboard(
-        Object.defineProperty({ ...dashboard }, "generatedAt", {
-          enumerable: true,
-          get: () => generatedAt,
-        }),
-      ),
-    ).toBe(false);
-  });
-
-  it("returns an immutable least-data projection", () => {
-    const dashboard = dashboardFixture();
-    expect(Object.isFrozen(dashboard)).toBe(true);
-    expect(Object.isFrozen(dashboard.metrics)).toBe(true);
-    expect(Object.isFrozen(dashboard.balanceAttention)).toBe(true);
-    expect(JSON.stringify(dashboard)).not.toMatch(
-      /familyId|studentId|membershipId|description|manualReference|providerReference|createdBy|updatedBy|card|cvv|cvc/u,
     );
+    expect(dashboard.renewals.dueSoon.map((row) => row.membershipId)).toEqual(["m-1"]);
+    expect(dashboard.renewals.overdue.map((row) => row.membershipId)).toEqual(["m-3", "m-2"]);
+    expect(dashboard.renewals.dueSoon[0]).toMatchObject({
+      planName: "Adult unlimited",
+      studentId: "stu-1",
+    });
+    expect(dashboard.metrics).toMatchObject({ renewalsDue: 1, renewalsOverdue: 2 });
+  });
+
+  it("keeps every balance row (no cap of 10)", () => {
+    const invoices = Array.from({ length: 12 }, (_, index) =>
+      invoice({
+        invoiceId: `inv-${index}`,
+        invoiceReference: `INV-${index}`,
+        status: "open",
+        paidAt: null,
+      }),
+    );
+    const dashboard = buildFinancialDashboard(source({ invoices, payments: [] }));
+    expect(dashboard.balances).toHaveLength(12);
+    expect(dashboard.metrics.outstandingMinor).toBe(12 * 9500);
+  });
+
+  it("still refuses an orphan payment", () => {
+    expect(() => buildFinancialDashboard(source({ invoices: [] }))).toThrow(/orphan/u);
   });
 });
