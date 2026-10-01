@@ -4270,6 +4270,7 @@ a.admin-birthday-badge:focus-visible,
 
 /* The global .button-secondary is white-on-dark; inside a white admin card it was invisible. */
 .shop-admin-page .button-secondary {
+  font-family: inherit;
   background: var(--gi-white);
   border-color: var(--bpt-purple);
   color: var(--bpt-purple);
