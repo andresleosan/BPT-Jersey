@@ -93,7 +93,10 @@ function mapError(error: unknown, operation: "read" | "write"): never {
     if (error.code === "forbidden" || error.code === "tenant")
       throw new HttpsError("permission-denied", "Shop access is not permitted");
     if (error.code === "conflict")
-      throw new HttpsError("already-exists", "Shop request already used");
+      throw new HttpsError(
+        "already-exists",
+        "This order was already placed. Refresh the page to start a new one.",
+      );
     if (error.code === "precondition") throw new HttpsError("failed-precondition", error.message);
   }
   throw new HttpsError(

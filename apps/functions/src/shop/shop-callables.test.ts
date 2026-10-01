@@ -341,6 +341,15 @@ describe("shop callables", () => {
     await expect(
       placeShopOrderHandler(request(collectionCheckout, "guardian"), current),
     ).rejects.toMatchObject({ code: "failed-precondition", message: "Product is sold out" });
+    current.store.placeOrder.mockRejectedValueOnce(
+      new ShopStoreError("conflict", "Order request id reused with a different basket"),
+    );
+    await expect(
+      placeShopOrderHandler(request(collectionCheckout, "guardian"), current),
+    ).rejects.toMatchObject({
+      code: "already-exists",
+      message: "This order was already placed. Refresh the page to start a new one.",
+    });
     current.store.updateOrder.mockRejectedValueOnce(new ShopStoreError("not-found", "missing"));
     await expect(
       updateShopOrderHandler(

@@ -188,6 +188,24 @@ function appendAudit(
   });
 }
 
+function sameCheckout(stored: ShopOrderRecord, request: ShopCheckoutRequest): boolean {
+  return (
+    stored.pickupLocationId === request.pickupLocationId &&
+    stored.paymentMethod === request.paymentMethod &&
+    stored.proofId === request.proofId &&
+    stored.lines.length === request.lines.length &&
+    stored.lines.every((line, index) => {
+      const asked = request.lines[index];
+      return (
+        asked !== undefined &&
+        line.productId === asked.productId &&
+        line.size === asked.size &&
+        line.quantity === asked.quantity
+      );
+    })
+  );
+}
+
 export function shopOrderId(requestId: string): string {
   return `order-${requestId}`;
 }
@@ -314,6 +332,9 @@ export function createShopStore(dependencies: ShopStoreDependencies): ShopStore 
           const stored = storedOrder(existingOrder, academyId);
           if (stored.customerUserId !== actorId)
             throw new ShopStoreError("conflict", "Order request id already used");
+          // A retry must be the same order; a reused id with another basket is a client bug.
+          if (!sameCheckout(stored, request))
+            throw new ShopStoreError("conflict", "Order request id reused with a different basket");
           return stored;
         }
         // Every read happens before the single write, as Firestore transactions require.

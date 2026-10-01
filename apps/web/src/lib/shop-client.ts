@@ -39,6 +39,13 @@ function list(value: unknown, message: string): readonly unknown[] {
   if (!Array.isArray(value)) throw new Error(message);
   return value;
 }
+/** The callable's own message, only when the error carries the given code and a message. */
+function callableMessage(error: unknown, code: string): string | undefined {
+  if (typeof error !== "object" || error === null) return undefined;
+  const actual = "code" in error ? String((error as { code: unknown }).code) : "";
+  const message = "message" in error ? String((error as { message: unknown }).message) : "";
+  return actual.endsWith(code) && message ? message : undefined;
+}
 async function call<Input, Output>(name: string, input: Input): Promise<Output> {
   const callable = httpsCallable<Input, Output>(getFirebaseFunctions(), name);
   return (await callable(input)).data;
@@ -108,16 +115,10 @@ export async function placeShopOrder(input: ShopCheckoutRequest): Promise<ShopOr
     if (!parsed.ok) throw new Error(orderError);
     return order(await call("placeShopOrder", parsed.value), orderError);
   } catch (error) {
-    const code =
-      typeof error === "object" && error !== null && "code" in error
-        ? String((error as { code: unknown }).code)
-        : "";
+    // Both codes carry a message written for the customer by the callable.
     const message =
-      typeof error === "object" && error !== null && "message" in error
-        ? String((error as { message: unknown }).message)
-        : "";
-    if (code.endsWith("failed-precondition") && message) throw new Error(message);
-    throw new Error(orderError);
+      callableMessage(error, "failed-precondition") ?? callableMessage(error, "already-exists");
+    throw new Error(message ?? orderError);
   }
 }
 

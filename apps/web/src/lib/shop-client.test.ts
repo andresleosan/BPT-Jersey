@@ -5,7 +5,7 @@ const api = vi.hoisted(() => ({ httpsCallable: vi.fn(), invoke: vi.fn() }));
 vi.mock("./callable", () => ({ httpsCallable: api.httpsCallable }));
 vi.mock("./firebase-client", () => ({ getFirebaseFunctions: () => ({}) }));
 
-import { uploadShopOrderProof } from "./shop-client";
+import { placeShopOrder, uploadShopOrderProof } from "./shop-client";
 
 describe("shop client proof upload", () => {
   beforeEach(() => {
@@ -22,5 +22,36 @@ describe("shop client proof upload", () => {
       "The payment screenshot could not be uploaded.",
     );
     expect(api.invoke).not.toHaveBeenCalled();
+  });
+});
+
+const checkout = {
+  requestId: "req-1",
+  lines: [{ productId: "bpt-gi-blue", size: "A2", quantity: 1 }],
+  pickupLocationId: "town" as const,
+  paymentMethod: "at_collection" as const,
+  proofId: null,
+  contactName: "Sam Client",
+  contactPhone: null,
+  note: null,
+};
+
+describe("shop client place order", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.httpsCallable.mockReturnValue(api.invoke);
+  });
+
+  it("passes the server's message through when the order id was already used", async () => {
+    const message = "This order was already placed. Refresh the page to start a new one.";
+    api.invoke.mockRejectedValue(Object.assign(new Error(message), { code: "functions/already-exists" }));
+    await expect(placeShopOrder(checkout)).rejects.toThrow(message);
+  });
+
+  it("hides any other server message behind the generic one", async () => {
+    api.invoke.mockRejectedValue(
+      Object.assign(new Error("raw internal detail"), { code: "functions/internal" }),
+    );
+    await expect(placeShopOrder(checkout)).rejects.toThrow("Unable to place the order.");
   });
 });
