@@ -65,6 +65,7 @@ function ShopContent() {
   const [lines, setLines] = useState<readonly BasketLine[]>([]);
   const [placed, setPlaced] = useState<ShopOrderProjection>();
   const confirmationRef = useRef<HTMLElement>(null);
+  const [basketInView, setBasketInView] = useState(false);
 
   // On a phone the confirmation sits above the catalogue, far from the checkout that was just used.
   useEffect(() => {
@@ -98,6 +99,20 @@ function ShopContent() {
       active = false;
     };
   }, [reloadToken, signedIn, status]);
+
+  // The phone basket bar is fixed to the bottom of the screen; once the basket itself is on screen
+  // it would only sit on top of Place order, and a tap there jumped back to the basket heading.
+  const ready = state.status === "ready";
+  useEffect(() => {
+    if (!ready || typeof IntersectionObserver === "undefined") return;
+    const basket = document.querySelector(".shop-basket");
+    if (!basket) return;
+    const observer = new IntersectionObserver(([entry]) =>
+      setBasketInView(entry?.isIntersecting ?? false),
+    );
+    observer.observe(basket);
+    return () => observer.disconnect();
+  }, [ready]);
 
   const visibleProducts = useMemo(
     () =>
@@ -245,7 +260,7 @@ function ShopContent() {
               signedIn={signedIn}
             />
           </div>
-          {lines.length > 0 ? (
+          {lines.length > 0 && !basketInView ? (
             <a className="shop-basket-bar" href="#shop-basket-title">
               Basket · {itemCount} {itemCount === 1 ? "item" : "items"} ·{" "}
               <span className="shop-money">
