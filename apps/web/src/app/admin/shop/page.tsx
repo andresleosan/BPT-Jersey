@@ -491,6 +491,9 @@ export function ShopAdminPage() {
                           {order.contactPhone ? (
                             <small className="shop-admin-secondary">{order.contactPhone}</small>
                           ) : null}
+                          {order.contactEmail ? (
+                            <small className="shop-admin-secondary">{order.contactEmail}</small>
+                          ) : null}
                         </td>
                         <td data-label="Items">
                           <div className="shop-admin-order-lines">

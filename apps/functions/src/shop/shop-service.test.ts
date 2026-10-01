@@ -184,6 +184,7 @@ const orderV2: ShopOrderRecord = {
   proofId: "a".repeat(64),
   contactName: "Sam Client",
   contactPhone: null,
+  contactEmail: "sam@example.com",
   note: null,
   status: "requested",
   paymentStatus: "unpaid",
@@ -249,6 +250,7 @@ describe("shop Firestore store", () => {
   it("freezes names and prices from Firestore and sums the lines", async () => {
     const { store } = seededStore();
     const order = await store.placeOrder({
+      contactEmail: "sam@example.com",
       academyId: "academy-1",
       actorId: "client-1",
       now,
@@ -268,12 +270,14 @@ describe("shop Firestore store", () => {
   it("returns the stored order when the same request is retried", async () => {
     const { store, records } = seededStore();
     const first = await store.placeOrder({
+      contactEmail: "sam@example.com",
       academyId: "academy-1",
       actorId: "client-1",
       now,
       request: checkout,
     });
     const second = await store.placeOrder({
+      contactEmail: "sam@example.com",
       academyId: "academy-1",
       actorId: "client-1",
       now,
@@ -283,11 +287,43 @@ describe("shop Firestore store", () => {
     expect([...records.keys()].filter((path) => path.includes("/shopOrders/"))).toHaveLength(1);
   });
 
+  it("keeps the buyer's email from the input on the order", async () => {
+    const { store } = seededStore();
+    const placed = await store.placeOrder({
+      academyId: "academy-1",
+      actorId: "client-1",
+      now,
+      contactEmail: null,
+      request: checkout,
+    });
+    expect(placed.contactEmail).toBeNull();
+    const withEmail = await store.placeOrder({
+      academyId: "academy-1",
+      actorId: "client-1",
+      now,
+      contactEmail: "sam@example.com",
+      request: { ...checkout, requestId: "req-2" },
+    });
+    expect(withEmail.contactEmail).toBe("sam@example.com");
+  });
+
   it("refuses a request id used by another customer", async () => {
     const { store } = seededStore();
-    await store.placeOrder({ academyId: "academy-1", actorId: "client-1", now, request: checkout });
+    await store.placeOrder({
+      contactEmail: "sam@example.com",
+      academyId: "academy-1",
+      actorId: "client-1",
+      now,
+      request: checkout,
+    });
     await expect(
-      store.placeOrder({ academyId: "academy-1", actorId: "client-2", now, request: checkout }),
+      store.placeOrder({
+        contactEmail: "sam@example.com",
+        academyId: "academy-1",
+        actorId: "client-2",
+        now,
+        request: checkout,
+      }),
     ).rejects.toMatchObject({ code: "conflict" });
   });
 
@@ -299,7 +335,13 @@ describe("shop Firestore store", () => {
     const { store } = seededStore();
     const request = { ...checkout, lines: [{ productId, size: null, quantity: 1 }] };
     await expect(
-      store.placeOrder({ academyId: "academy-1", actorId: "client-1", now, request }),
+      store.placeOrder({
+        contactEmail: "sam@example.com",
+        academyId: "academy-1",
+        actorId: "client-1",
+        now,
+        request,
+      }),
     ).rejects.toMatchObject({ code: "precondition", message: expect.stringContaining(message) });
   });
 
@@ -307,7 +349,13 @@ describe("shop Firestore store", () => {
     const { store } = seededStore();
     const request = { ...checkout, lines: [{ productId: "bpt-gi", size: "XXL", quantity: 1 }] };
     await expect(
-      store.placeOrder({ academyId: "academy-1", actorId: "client-1", now, request }),
+      store.placeOrder({
+        contactEmail: "sam@example.com",
+        academyId: "academy-1",
+        actorId: "client-1",
+        now,
+        request,
+      }),
     ).rejects.toMatchObject({ code: "precondition", message: "Choose a size offered for BPT gi" });
   });
 
@@ -318,7 +366,13 @@ describe("shop Firestore store", () => {
       lines: [giLine, { productId: "bpt-sold", size: null, quantity: 1 }],
     };
     await expect(
-      store.placeOrder({ academyId: "academy-1", actorId: "client-1", now, request }),
+      store.placeOrder({
+        contactEmail: "sam@example.com",
+        academyId: "academy-1",
+        actorId: "client-1",
+        now,
+        request,
+      }),
     ).rejects.toThrow();
     expect([...records.keys()].some((path) => path.includes("/shopOrders/"))).toBe(false);
     expect(audits).toEqual([]);
@@ -327,6 +381,7 @@ describe("shop Firestore store", () => {
   it("reads one order and reports a missing one", async () => {
     const { store } = seededStore();
     const placed = await store.placeOrder({
+      contactEmail: "sam@example.com",
       academyId: "academy-1",
       actorId: "client-1",
       now,
@@ -341,11 +396,13 @@ describe("shop Firestore store", () => {
   it("lists orders per tenant and per customer, newest first", async () => {
     const { store } = seededStore();
     await store.placeOrder({
+      contactEmail: "sam@example.com",
       ...base,
       actorId: "client-1",
       request: { ...checkout, requestId: "a" },
     });
     await store.placeOrder({
+      contactEmail: "sam@example.com",
       ...base,
       actorId: "client-2",
       now: later,

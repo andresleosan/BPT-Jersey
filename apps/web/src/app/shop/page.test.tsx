@@ -108,6 +108,7 @@ const placedOrder = {
   proofId: "a".repeat(64),
   contactName: "Sam Client",
   contactPhone: null,
+  contactEmail: "sam@example.test",
   note: null,
   status: "requested" as const,
   paymentStatus: "unpaid" as const,
@@ -321,6 +322,23 @@ describe("client shop", () => {
     expect(screen.queryByText(hint)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Add BPT rashguard to basket" }));
     expect(screen.getByText(hint)).toBeVisible();
+  });
+
+  it("names the contact email only when the account has one", async () => {
+    signIn();
+    shopApi.listShopCatalog.mockResolvedValue([gi]);
+    shopApi.listMyShopOrders.mockResolvedValue([]);
+    render(<ShopPage />);
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", { name: "Add BPT competition gi to basket" }),
+    );
+    expect(screen.getByText("We will contact you at sam@example.test.")).toBeVisible();
+    cleanup();
+    authState.session = { ...authState.session!, email: "" };
+    render(<ShopPage />);
+    await screen.findByRole("button", { name: /Place order/ });
+    expect(screen.queryByText(/We will contact you at/)).not.toBeInTheDocument();
   });
 
   it("checks out with a bank transfer, centre and screenshot", async () => {
