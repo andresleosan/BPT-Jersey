@@ -881,7 +881,7 @@ export function MembershipsAdminPage() {
                               <Link
                                 aria-label={`Issue invoice for membership ${membership.membershipId}`}
                                 className="membership-table-button"
-                                href={`/admin/billing?familyId=${encodeURIComponent(membership.familyId)}&membershipId=${encodeURIComponent(membership.membershipId)}`}
+                                href={`/admin/finance?familyId=${encodeURIComponent(membership.familyId)}&membershipId=${encodeURIComponent(membership.membershipId)}`}
                               >
                                 Issue invoice
                               </Link>

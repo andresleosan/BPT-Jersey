@@ -544,7 +544,8 @@ function SubscriptionForm({
             Recorded payments are preserved. Choose Renew for a new period.{" "}
             {outstanding ? (
               <>
-                Settle the outstanding balance in <Link href="/admin/billing">Billing</Link> first.
+                Settle the outstanding balance in the{" "}
+                <Link href="/admin/finance">Financial dashboard</Link> first.
               </>
             ) : null}
           </p>

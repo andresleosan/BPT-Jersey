@@ -169,7 +169,7 @@ describe("empty record tabs", () => {
   it.each([
     ["plan", "Open Memberships", "/admin/memberships?studentId=student-1"],
     ["documents", "Open Waivers", "/admin/waivers"],
-    ["payments", "Open Billing", "/admin/billing"],
+    ["payments", "Open the Financial dashboard", "/admin/finance"],
     ["classes", "Open Attendance", "/admin/attendance"],
     ["communication", "Open CRM", "/admin/crm"],
   ] as const)("%s links to the module that holds it today", (tab, name, href) => {

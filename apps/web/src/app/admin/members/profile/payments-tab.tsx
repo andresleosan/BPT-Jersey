@@ -59,7 +59,7 @@ export function PaymentsTab({
       <h3>Recorded invoices and payments</h3>
       <p>
         Invoices linked to this member’s memberships and their receipts. Family charges are
-        available in Billing.
+        available in the Financial dashboard.
       </p>
       <div className="member-subscription-actions">
         {state.status === "ready" ? (
@@ -71,8 +71,8 @@ export function PaymentsTab({
             Record payment
           </button>
         ) : null}
-        <Link className="member-record-link" href="/admin/billing">
-          Open Billing
+        <Link className="member-record-link" href="/admin/finance">
+          Open the Financial dashboard
         </Link>
         <button
           className="member-record-button"

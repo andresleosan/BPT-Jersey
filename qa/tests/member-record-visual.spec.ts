@@ -103,7 +103,7 @@ test.describe("member record visual (T051V2)", () => {
     await capture(page, testInfo, "details");
 
     await page.getByRole("tab", { name: "Payments" }).click();
-    await expect(page.getByRole("link", { name: "Open Billing" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Open the Financial dashboard" })).toBeVisible();
     await capture(page, testInfo, "payments-empty");
   });
 
