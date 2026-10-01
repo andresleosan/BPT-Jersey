@@ -222,11 +222,14 @@ function RenewalTable({
   rows,
   nameOf,
   empty,
+  overdue = false,
 }: {
   caption: string;
   rows: readonly FinancialDashboardRenewalRow[];
   nameOf: NameOf;
   empty: string;
+  /** Every row of the overdue table is overdue, whatever the membership's own status says. */
+  overdue?: boolean;
 }) {
   return (
     <>
@@ -257,7 +260,7 @@ function RenewalTable({
               key: "status",
               label: "Status",
               render: (row: FinancialDashboardRenewalRow) => (
-                <AdminStatusBadge status={renewalStatusLabels[row.status]} />
+                <AdminStatusBadge status={overdue ? "Overdue" : renewalStatusLabels[row.status]} />
               ),
             },
             {
@@ -291,6 +294,7 @@ export function RenewalsPanel({
         caption="Overdue"
         empty="No plan is past its renewal date."
         nameOf={nameOf}
+        overdue
         rows={renewals.overdue}
       />
       <RenewalTable

@@ -115,7 +115,8 @@ const dashboard = {
         planId: "adult",
         planName: "Adult unlimited",
         nextBillingAt: "2026-10-02T00:00:00.000Z",
-        status: "overdue",
+        // The membership is still active; only its renewal date has passed.
+        status: "active",
       },
     ],
     dueSoon: [
@@ -235,6 +236,19 @@ describe("finance page", () => {
       "href",
       "/admin/members/profile?id=stu-1&tab=plan",
     );
+    expect(within(overdueRow).getByText("Overdue")).toBeInTheDocument();
+    expect(within(overdueRow).queryByText("Active")).toBeNull();
+    const dueSoonRow = within(tables[1]!).getByText("Bruno Silva").closest("tr")!;
+    expect(within(dueSoonRow).getByText("Active")).toBeInTheDocument();
+  });
+
+  it("counts a single payment in the singular", async () => {
+    financeApi.getFinancialDashboard.mockResolvedValue({
+      ...dashboard,
+      metrics: { ...dashboard.metrics, paymentsReceived: 1 },
+    });
+    render(<FinancePage />);
+    expect(await screen.findByText("1 payment in October 2026")).toBeInTheDocument();
   });
 
   it("loads only the dashboard and the member names on first render", async () => {

@@ -355,3 +355,54 @@
   display: inline-flex;
   min-height: 44px;
 }
+/* The global .button-secondary is white-on-dark and .button has no fill; on the light page both vanished. */
+.finance-dashboard-page .button {
+  font-family: inherit;
+}
+.finance-dashboard-page .button:not(.button-secondary):not(.billing-danger-button) {
+  background: var(--bpt-purple);
+  border-color: var(--bpt-purple);
+  color: var(--gi-white);
+}
+.finance-dashboard-page .button:not(.button-secondary):not(.billing-danger-button):hover {
+  background: var(--bpt-purple-dark);
+  border-color: var(--bpt-purple-dark);
+}
+.finance-dashboard-page .button-secondary {
+  background: var(--gi-white);
+  border-color: var(--bpt-purple);
+  color: var(--bpt-purple);
+}
+.finance-dashboard-page .button-secondary:hover {
+  background: var(--bpt-purple-dark);
+  border-color: var(--bpt-purple-dark);
+  color: var(--gi-white);
+}
+.finance-dashboard-page .button-secondary:focus-visible {
+  box-shadow: none;
+  outline-color: var(--bpt-purple);
+}
+.finance-dashboard-page .button:disabled,
+.finance-dashboard-page .button:disabled:hover {
+  background: var(--canvas);
+  border-color: var(--line, #8a8880);
+  color: var(--muted, #65635d);
+  cursor: not-allowed;
+  transform: none;
+}
+.finance-dashboard-page .family-success,
+.finance-dashboard-page .family-error {
+  border-radius: 0;
+  margin: 0;
+  padding: 0.75rem 1rem;
+}
+.finance-dashboard-page .family-success {
+  background: #e7f6ee;
+  border-left: 0.35rem solid #176b49;
+  color: #176b49;
+}
+.finance-dashboard-page .family-error {
+  background: #fff0f2;
+  border-left: 0.35rem solid #8d1c2f;
+  color: #721626;
+}

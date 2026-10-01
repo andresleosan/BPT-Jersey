@@ -414,7 +414,7 @@ export function FinancePage() {
       {metrics ? (
         <div className="admin-metrics-grid">
           <AdminMetric
-            detail={`${metrics.paymentsReceived} payments in ${monthLabel}`}
+            detail={`${metrics.paymentsReceived} ${metrics.paymentsReceived === 1 ? "payment" : "payments"} in ${monthLabel}`}
             label="Collected"
             value={formatMoney(metrics.collectedMinor)}
           />
