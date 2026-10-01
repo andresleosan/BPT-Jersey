@@ -4282,11 +4282,22 @@ a.admin-birthday-badge:focus-visible,
   color: var(--gi-white);
 }
 
+/* With the sidebar beside it at tablet width the header had no room and clipped "View the shop". */
+.shop-admin-page .admin-section-header {
+  flex-wrap: wrap;
+}
+
 /* "View the shop" measured 18px tall; keep it a 44px touch target on this page. */
 .shop-admin-page .admin-text-link {
   align-items: center;
   display: inline-flex;
   min-height: 2.75rem;
+}
+
+/* The visually hidden "for SHOP-…" text inside each row's button is absolutely positioned; without a
+   positioned scroller it escaped the table's own scroll and widened the page by 300px at 768px. */
+.shop-admin-page .admin-data-table-wrap {
+  position: relative;
 }
 
 .shop-admin-order-filters {
