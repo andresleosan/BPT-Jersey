@@ -4,18 +4,22 @@ import { startTransition, useEffect, useState, type FormEvent } from "react";
 
 import {
   formatShopPrice,
+  shopOrderReference,
   shopOrderTransitions,
+  shopPaymentMethodLabels,
   shopProductCategories,
   shopProductCategoryLabels,
   shopStockStatuses,
   type ShopOrderProjection,
   type ShopOrderStatus,
+  type ShopPickupLocationId,
   type ShopProductCategory,
   type ShopProductDraft,
   type ShopProductProjection,
   type ShopStockStatus,
 } from "@bpt-jersey/domain/shop";
 import {
+  getShopOrderProofUrl,
   listManagedShopProducts,
   listShopOrders,
   saveShopProduct,
@@ -24,6 +28,7 @@ import {
 } from "../../../lib/shop-client";
 import { AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 import { AdminDataTableWrap } from "../admin-data-table";
+import { pickupNames } from "../../shop/shop-orders";
 
 import "../admin.css";
 
@@ -195,6 +200,7 @@ export function ShopAdminPage() {
   const [busy, setBusy] = useState<string>();
   const [notice, setNotice] = useState<Notice>();
   const [orderFilter, setOrderFilter] = useState<"open" | "all">("open");
+  const [centreFilter, setCentreFilter] = useState<"all" | ShopPickupLocationId>("all");
 
   useEffect(() => {
     let mounted = true;
@@ -268,8 +274,8 @@ export function ShopAdminPage() {
       setNotice({
         tone: "success",
         text: updated.active
-          ? `"${updated.name}" is now visible to clients.`
-          : `"${updated.name}" is hidden from clients.`,
+          ? `"${updated.name}" is now in the shop.`
+          : `"${updated.name}" is hidden from the shop.`,
       });
     } catch {
       setNotice({ tone: "error", text: "Unable to change product visibility." });
@@ -282,6 +288,14 @@ export function ShopAdminPage() {
     order: ShopOrderProjection,
     update: Readonly<{ status?: ShopOrderStatus; paymentStatus?: "paid" | "unpaid" }>,
   ): Promise<void> {
+    if (
+      update.status === "cancelled" &&
+      order.paymentStatus === "paid" &&
+      !window.confirm(
+        "This order is marked paid. Refund the customer outside the platform before cancelling.",
+      )
+    )
+      return;
     setBusy(`order-${order.orderId}`);
     setNotice(undefined);
     try {
@@ -291,9 +305,20 @@ export function ShopAdminPage() {
           ? { ...current, orders: replaceOrder(current.orders, updated) }
           : current,
       );
-      setNotice({ tone: "success", text: `Order for ${updated.productName} updated.` });
+      setNotice({ tone: "success", text: `Order ${shopOrderReference(updated.orderId)} updated.` });
     } catch {
       setNotice({ tone: "error", text: "Unable to update the order. Please try again." });
+    } finally {
+      setBusy(undefined);
+    }
+  }
+
+  async function viewProof(order: ShopOrderProjection): Promise<void> {
+    setBusy(`proof-${order.orderId}`);
+    try {
+      window.open(await getShopOrderProofUrl(order.orderId), "_blank", "noopener,noreferrer");
+    } catch {
+      setNotice({ tone: "error", text: "The transfer screenshot is unavailable." });
     } finally {
       setBusy(undefined);
     }
@@ -303,19 +328,25 @@ export function ShopAdminPage() {
     workspace.status === "ready"
       ? workspace.orders.filter(
           (order) =>
-            orderFilter === "all" || (order.status !== "collected" && order.status !== "cancelled"),
+            (orderFilter === "all" ||
+              (order.status !== "collected" && order.status !== "cancelled")) &&
+            (centreFilter === "all" || order.pickupLocationId === centreFilter),
         )
       : [];
+  const hiddenCount =
+    workspace.status === "ready"
+      ? workspace.products.filter((product) => !product.active).length
+      : 0;
 
   return (
     <section className="admin-module-page shop-admin-page" aria-labelledby="shop-admin-title">
       <AdminSectionHeader
-        description="Publish the club merchandise catalog shown to clients and process collection orders. Payment is taken at the academy; no online checkout exists."
+        description="Process club shop orders and choose which products clients can see. Clients pay by bank transfer or when they collect."
         eyebrow="Commerce / Club shop"
         title="Club shop"
         actions={
-          <a className="admin-text-link" href="/#shop" target="_blank" rel="noreferrer noopener">
-            View public showcase
+          <a className="admin-text-link" href="/shop" target="_blank" rel="noreferrer noopener">
+            View the shop
           </a>
         }
       />
@@ -339,7 +370,153 @@ export function ShopAdminPage() {
         </section>
       ) : (
         <>
-          <div className="shop-admin-grid">
+          <section className="admin-panel-card" aria-labelledby="shop-orders-title">
+            <div className="admin-panel-card-heading">
+              <div>
+                <p className="admin-eyebrow">Collection orders</p>
+                <h3 id="shop-orders-title">Orders</h3>
+              </div>
+              <label className="admin-filter-control" htmlFor="shop-order-filter">
+                Show
+                <select
+                  id="shop-order-filter"
+                  onChange={(event) => setOrderFilter(event.target.value as "open" | "all")}
+                  value={orderFilter}
+                >
+                  <option value="open">Open orders</option>
+                  <option value="all">All orders</option>
+                </select>
+              </label>
+              <label className="admin-filter-control" htmlFor="shop-order-centre">
+                Centre
+                <select
+                  id="shop-order-centre"
+                  onChange={(event) =>
+                    setCentreFilter(event.target.value as "all" | ShopPickupLocationId)
+                  }
+                  value={centreFilter}
+                >
+                  <option value="all">All centres</option>
+                  <option value="town">Town</option>
+                  <option value="west">West</option>
+                </select>
+              </label>
+            </div>
+            {visibleOrders.length === 0 ? (
+              <div className="admin-empty-state">
+                <strong>No orders match this filter.</strong>
+                <p>Client requests appear here as soon as they are placed.</p>
+              </div>
+            ) : (
+              <AdminDataTableWrap label="Club shop orders">
+                <table className="admin-data-table">
+                  <caption className="visually-hidden">Club shop orders</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Order</th>
+                      <th scope="col">Customer</th>
+                      <th scope="col">Items</th>
+                      <th scope="col">Collect from</th>
+                      <th scope="col">Total</th>
+                      <th scope="col">Payment</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleOrders.map((order) => (
+                      <tr key={order.orderId}>
+                        <td>
+                          <strong>{shopOrderReference(order.orderId)}</strong>
+                          <small className="shop-admin-secondary">
+                            {new Date(order.createdAt).toLocaleString("en-GB")}
+                          </small>
+                        </td>
+                        <td>
+                          {order.contactName}
+                          {order.contactPhone ? (
+                            <small className="shop-admin-secondary">{order.contactPhone}</small>
+                          ) : null}
+                        </td>
+                        <td>
+                          <div className="shop-admin-order-lines">
+                            {order.lines.map((line) => (
+                              <span key={`${line.productId}-${line.size ?? ""}`}>
+                                {`${line.quantity} × ${line.productName}${line.size ? ` (${line.size})` : ""}`}
+                              </span>
+                            ))}
+                          </div>
+                          {order.note ? (
+                            <small className="shop-admin-secondary">{order.note}</small>
+                          ) : null}
+                        </td>
+                        <td>{pickupNames[order.pickupLocationId]}</td>
+                        <td className="shop-admin-money">
+                          {formatShopPrice(order.totalMinor, order.currency)}
+                        </td>
+                        <td>
+                          <span className="shop-admin-payment-method">
+                            {shopPaymentMethodLabels[order.paymentMethod]}
+                          </span>
+                          <AdminStatusBadge
+                            status={order.paymentStatus === "paid" ? "Paid" : "Unpaid"}
+                          />
+                        </td>
+                        <td>
+                          <AdminStatusBadge status={orderStatusLabels[order.status]} />
+                        </td>
+                        <td>
+                          <div className="shop-admin-row-actions">
+                            {shopOrderTransitions[order.status].map((target) => (
+                              <button
+                                className="shop-admin-table-button"
+                                disabled={busy !== undefined}
+                                key={target}
+                                onClick={() => void changeOrder(order, { status: target })}
+                                type="button"
+                              >
+                                {transitionLabels[target]}
+                              </button>
+                            ))}
+                            {order.status !== "cancelled" ? (
+                              <button
+                                className="shop-admin-table-button"
+                                disabled={busy !== undefined}
+                                onClick={() =>
+                                  void changeOrder(order, {
+                                    paymentStatus:
+                                      order.paymentStatus === "paid" ? "unpaid" : "paid",
+                                  })
+                                }
+                                type="button"
+                              >
+                                {order.paymentStatus === "paid" ? "Mark unpaid" : "Mark paid"}
+                              </button>
+                            ) : null}
+                            {order.paymentMethod === "bank_transfer" ? (
+                              <button
+                                className="shop-admin-table-button"
+                                disabled={busy !== undefined}
+                                onClick={() => void viewProof(order)}
+                                type="button"
+                              >
+                                View transfer screenshot
+                                <span className="visually-hidden">
+                                  {" "}
+                                  for {shopOrderReference(order.orderId)}
+                                </span>
+                              </button>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </AdminDataTableWrap>
+            )}
+          </section>
+          <div className="shop-admin-catalog">
             <section className="admin-panel-card" aria-labelledby="shop-products-title">
               <div className="admin-panel-card-heading">
                 <div>
@@ -355,6 +532,13 @@ export function ShopAdminPage() {
                   New product
                 </button>
               </div>
+              {hiddenCount > 0 ? (
+                <p className="shop-admin-hidden-note">
+                  {hiddenCount === 1
+                    ? "1 product is hidden. Clients cannot see it."
+                    : `${hiddenCount} products are hidden. Clients cannot see them.`}
+                </p>
+              ) : null}
               {workspace.products.length === 0 ? (
                 <div className="admin-empty-state">
                   <strong>No products yet.</strong>
@@ -372,7 +556,7 @@ export function ShopAdminPage() {
                         <th scope="col">Price</th>
                         <th scope="col">Sizes</th>
                         <th scope="col">Stock</th>
-                        <th scope="col">Visibility</th>
+                        <th scope="col">Visible in shop</th>
                         <th scope="col">Actions</th>
                       </tr>
                     </thead>
@@ -387,11 +571,13 @@ export function ShopAdminPage() {
                             <small className="shop-admin-secondary">{product.productId}</small>
                           </td>
                           <td>{shopProductCategoryLabels[product.category]}</td>
-                          <td>{formatShopPrice(product.priceMinor, product.currency)}</td>
+                          <td className="shop-admin-money">
+                            {formatShopPrice(product.priceMinor, product.currency)}
+                          </td>
                           <td>{product.sizes.length > 0 ? product.sizes.join(", ") : "-"}</td>
                           <td>{stockLabels[product.stockStatus]}</td>
                           <td>
-                            <AdminStatusBadge status={product.active ? "Published" : "Hidden"} />
+                            <AdminStatusBadge status={product.active ? "Visible" : "Hidden"} />
                           </td>
                           <td>
                             <div className="shop-admin-row-actions">
@@ -410,8 +596,8 @@ export function ShopAdminPage() {
                                 type="button"
                               >
                                 {product.active
-                                  ? `Hide ${product.name}`
-                                  : `Publish ${product.name}`}
+                                  ? `Hide ${product.name} from shop`
+                                  : `Show ${product.name} in shop`}
                               </button>
                             </div>
                           </td>
@@ -589,108 +775,6 @@ export function ShopAdminPage() {
               </div>
             </form>
           </div>
-
-          <section className="admin-panel-card" aria-labelledby="shop-orders-title">
-            <div className="admin-panel-card-heading">
-              <div>
-                <p className="admin-eyebrow">Collection orders</p>
-                <h3 id="shop-orders-title">Orders</h3>
-              </div>
-              <label className="admin-filter-control" htmlFor="shop-order-filter">
-                Show
-                <select
-                  id="shop-order-filter"
-                  onChange={(event) => setOrderFilter(event.target.value as "open" | "all")}
-                  value={orderFilter}
-                >
-                  <option value="open">Open orders</option>
-                  <option value="all">All orders</option>
-                </select>
-              </label>
-            </div>
-            {visibleOrders.length === 0 ? (
-              <div className="admin-empty-state">
-                <strong>No orders match this filter.</strong>
-                <p>Client requests appear here as soon as they are placed.</p>
-              </div>
-            ) : (
-              <AdminDataTableWrap label="Club shop orders">
-                <table className="admin-data-table">
-                  <caption className="visually-hidden">Club shop orders</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Placed</th>
-                      <th scope="col">Item</th>
-                      <th scope="col">Customer</th>
-                      <th scope="col">Total</th>
-                      <th scope="col">Status</th>
-                      <th scope="col">Payment</th>
-                      <th scope="col">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleOrders.map((order) => (
-                      <tr key={order.orderId}>
-                        <td>{new Date(order.createdAt).toLocaleString("en-GB")}</td>
-                        <td>
-                          <strong>{order.productName}</strong>
-                          <small className="shop-admin-secondary">
-                            {order.size ? `Size ${order.size} · ` : ""}Qty {order.quantity}
-                            {order.note ? ` · ${order.note}` : ""}
-                          </small>
-                        </td>
-                        <td>
-                          {order.contactName}
-                          {order.contactPhone ? (
-                            <small className="shop-admin-secondary">{order.contactPhone}</small>
-                          ) : null}
-                        </td>
-                        <td>{formatShopPrice(order.totalMinor, order.currency)}</td>
-                        <td>
-                          <AdminStatusBadge status={orderStatusLabels[order.status]} />
-                        </td>
-                        <td>
-                          <AdminStatusBadge
-                            status={order.paymentStatus === "paid" ? "Paid" : "Unpaid"}
-                          />
-                        </td>
-                        <td>
-                          <div className="shop-admin-row-actions">
-                            {shopOrderTransitions[order.status].map((target) => (
-                              <button
-                                className="shop-admin-table-button"
-                                disabled={busy !== undefined}
-                                key={target}
-                                onClick={() => void changeOrder(order, { status: target })}
-                                type="button"
-                              >
-                                {transitionLabels[target]}
-                              </button>
-                            ))}
-                            {order.status !== "cancelled" ? (
-                              <button
-                                className="shop-admin-table-button"
-                                disabled={busy !== undefined}
-                                onClick={() =>
-                                  void changeOrder(order, {
-                                    paymentStatus:
-                                      order.paymentStatus === "paid" ? "unpaid" : "paid",
-                                  })
-                                }
-                                type="button"
-                              >
-                                {order.paymentStatus === "paid" ? "Mark unpaid" : "Mark paid"}
-                              </button>
-                            ) : null}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </AdminDataTableWrap>
-            )}
-          </section>
         </>
       )}
     </section>

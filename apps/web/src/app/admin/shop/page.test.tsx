@@ -1,6 +1,8 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { shopOrderReference } from "@bpt-jersey/domain/shop";
 
 const shopApi = vi.hoisted(() => ({
   listManagedShopProducts: vi.fn(),
@@ -8,6 +10,7 @@ const shopApi = vi.hoisted(() => ({
   saveShopProduct: vi.fn(),
   setShopProductActive: vi.fn(),
   updateShopOrder: vi.fn(),
+  getShopOrderProofUrl: vi.fn(),
 }));
 
 vi.mock("../../../lib/shop-client", () => shopApi);
@@ -27,17 +30,32 @@ const gi = {
   sortOrder: 10,
   active: true,
 };
+const hiddenProduct = {
+  ...gi,
+  productId: "bpt-hidden",
+  name: "BPT hidden",
+  sortOrder: 20,
+  active: false,
+};
 const order = {
   orderId: "order-1",
   customerUserId: "client-1",
-  productId: "bpt-gi-blue",
-  productName: "BPT competition gi",
-  category: "gi" as const,
-  size: "A2",
-  quantity: 1,
-  unitPriceMinor: 9500,
+  lines: [
+    {
+      productId: "bpt-gi-blue",
+      productName: "BPT competition gi",
+      category: "gi" as const,
+      size: "A2",
+      quantity: 1,
+      unitPriceMinor: 9500,
+      lineTotalMinor: 9500,
+    },
+  ],
   totalMinor: 9500,
   currency: "GBP" as const,
+  pickupLocationId: "town" as const,
+  paymentMethod: "at_collection" as const,
+  proofId: null,
   contactName: "Sam Client",
   contactPhone: "07700 900000",
   note: "Collect Tuesday",
@@ -47,10 +65,37 @@ const order = {
   createdAt: "2026-09-04T10:00:00.000Z",
   updatedAt: "2026-09-04T10:00:00.000Z",
 };
+const transferOrder = {
+  ...order,
+  orderId: "order-7a2b9c3d-2222",
+  customerUserId: "client-2",
+  lines: [
+    {
+      productId: "bpt-gi",
+      productName: "BPT gi",
+      category: "gi" as const,
+      size: "A2",
+      quantity: 1,
+      unitPriceMinor: 9500,
+      lineTotalMinor: 9500,
+    },
+  ],
+  pickupLocationId: "west" as const,
+  paymentMethod: "bank_transfer" as const,
+  proofId: "proof-1",
+  contactName: "Tia Transfer",
+  note: null,
+};
 
 describe("club shop admin page", () => {
+  beforeEach(() => {
+    shopApi.listManagedShopProducts.mockResolvedValue([gi, hiddenProduct]);
+    shopApi.listShopOrders.mockResolvedValue([transferOrder]);
+  });
+
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
     Object.values(shopApi).forEach((mock) => mock.mockReset());
   });
 
@@ -68,7 +113,7 @@ describe("club shop admin page", () => {
     const products = await screen.findByRole("table", { name: "Club shop products" });
     expect(within(products).getByText("BPT competition gi")).toBeVisible();
     expect(within(products).getByText("£95.00")).toBeVisible();
-    expect(within(products).getByText("Published")).toBeVisible();
+    expect(within(products).getByText("Visible")).toBeVisible();
     expect(
       within(products).getByRole("img", { name: "BPT competition gi product image" }),
     ).toHaveAttribute("src", "/shop/gis.jpg");
@@ -104,7 +149,7 @@ describe("club shop admin page", () => {
     expect(await screen.findByRole("status")).toHaveTextContent('Product "BPT rashguard" saved.');
     expect(within(products).getByText("BPT rashguard")).toBeVisible();
 
-    await user.click(screen.getByRole("button", { name: "Hide BPT competition gi" }));
+    await user.click(screen.getByRole("button", { name: "Hide BPT competition gi from shop" }));
     await waitFor(() =>
       expect(shopApi.setShopProductActive).toHaveBeenCalledWith("bpt-gi-blue", false),
     );
@@ -125,6 +170,105 @@ describe("club shop admin page", () => {
     );
     expect(await within(orders).findByText("Confirmed")).toBeVisible();
     expect(within(orders).getByRole("button", { name: "Mark ready" })).toBeVisible();
+  });
+
+  it("puts orders first and shows centre, payment method and lines", async () => {
+    render(<ShopAdminPage />);
+    const orders = await screen.findByRole("region", { name: "Orders" });
+    const products = screen.getByRole("region", { name: "Products" });
+    expect(
+      orders.compareDocumentPosition(products) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // The centre filter in the same region also offers "West", so read the cell from the table.
+    const table = within(orders).getByRole("table", { name: "Club shop orders" });
+    expect(within(table).getByText("West")).toBeVisible();
+    expect(within(table).getByText("Bank transfer")).toBeVisible();
+    expect(within(table).getByText(/1 × BPT gi \(A2\)/)).toBeVisible();
+  });
+
+  it("says how many products are hidden and uses shop wording", async () => {
+    render(<ShopAdminPage />);
+    expect(await screen.findByText("1 product is hidden. Clients cannot see it.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Show BPT hidden in shop" })).toBeEnabled();
+    expect(screen.getByRole("columnheader", { name: "Visible in shop" })).toBeVisible();
+  });
+
+  it("opens the transfer screenshot through a short-lived link", async () => {
+    shopApi.getShopOrderProofUrl.mockResolvedValue("https://signed.test/proof");
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    render(<ShopAdminPage />);
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: /View transfer screenshot/ }));
+    expect(shopApi.getShopOrderProofUrl).toHaveBeenCalledWith(transferOrder.orderId);
+    expect(open).toHaveBeenCalledWith("https://signed.test/proof", "_blank", "noopener,noreferrer");
+  });
+
+  it("offers no screenshot for orders paid on collection", async () => {
+    shopApi.listShopOrders.mockResolvedValue([order]);
+    render(<ShopAdminPage />);
+    expect(await screen.findByText("Pay on collection")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: /View transfer screenshot/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("says so when the transfer screenshot cannot be opened", async () => {
+    shopApi.getShopOrderProofUrl.mockRejectedValue(new Error("gone"));
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    render(<ShopAdminPage />);
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: /View transfer screenshot/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The transfer screenshot is unavailable.",
+    );
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("filters orders by centre", async () => {
+    render(<ShopAdminPage />);
+    await userEvent.setup().selectOptions(await screen.findByLabelText("Centre"), "town");
+    expect(screen.queryByText(shopOrderReference(transferOrder.orderId))).not.toBeInTheDocument();
+  });
+
+  it("keeps a paid order when the refund warning is dismissed", async () => {
+    shopApi.listShopOrders.mockResolvedValue([{ ...transferOrder, paymentStatus: "paid" }]);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<ShopAdminPage />);
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Cancel" }));
+    expect(confirm).toHaveBeenCalledWith(
+      "This order is marked paid. Refund the customer outside the platform before cancelling.",
+    );
+    expect(shopApi.updateShopOrder).not.toHaveBeenCalled();
+  });
+
+  it("cancels a paid order once the refund warning is accepted", async () => {
+    const paid = { ...transferOrder, paymentStatus: "paid" as const };
+    shopApi.listShopOrders.mockResolvedValue([paid]);
+    shopApi.updateShopOrder.mockResolvedValue({ ...paid, status: "cancelled" });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<ShopAdminPage />);
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Cancel" }));
+    expect(confirm).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(shopApi.updateShopOrder).toHaveBeenCalledWith({
+        orderId: transferOrder.orderId,
+        status: "cancelled",
+      }),
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      `Order ${shopOrderReference(transferOrder.orderId)} updated.`,
+    );
+  });
+
+  it("cancels an unpaid order without the refund warning", async () => {
+    shopApi.updateShopOrder.mockResolvedValue({ ...transferOrder, status: "cancelled" });
+    const confirm = vi.spyOn(window, "confirm");
+    render(<ShopAdminPage />);
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(shopApi.updateShopOrder).toHaveBeenCalledTimes(1));
+    expect(confirm).not.toHaveBeenCalled();
   });
 
   it("rejects invalid editor input before calling the backend", async () => {
