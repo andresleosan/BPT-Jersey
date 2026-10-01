@@ -47,34 +47,36 @@
 
 ## File map
 
-| File | Responsibility |
-|---|---|
-| `packages/domain/src/shop/shop-contracts.ts` | v2 order contract, checkout request, pickup/payment enums, purchasable rule, order reference |
-| `apps/functions/src/shop/shop-service.ts` | `placeOrder` v2 (multi-line, frozen prices), `getOrder` |
-| `apps/functions/src/shop/shop-proof.ts` (new) | proof key, upload, verification, content type |
-| `apps/functions/src/shop/shop-callables.ts` | role sets, checkout handler with proof check, upload + signed-URL callables |
-| `apps/functions/src/index.ts` | export the two new callables |
-| `apps/functions/src/members/enrolment-payment-proof.ts` | `getEnrolmentPaymentInstructions` opened to every account role |
-| `apps/web/src/lib/shop-client.ts` | `placeShopOrder(checkout)`, `uploadShopOrderProof`, `getShopOrderProofUrl` |
-| `apps/web/src/lib/shop-basket.ts` (new) | pure basket operations + guarded storage |
-| `apps/web/src/lib/client-auth.tsx` | `ClientAuthProvider acceptStaff` |
-| `apps/web/src/app/shop/product-card.tsx` (new) | card with size/quantity/"Add to basket" |
-| `apps/web/src/app/shop/shop-checkout.tsx` (new) | basket list + details + centre + payment + submit |
-| `apps/web/src/app/shop/shop-orders.tsx` (new) | order history |
-| `apps/web/src/app/shop/page.tsx` | orchestration, layout, confirmation |
-| `apps/web/src/app/shop/shop.css` | basket/checkout layout |
-| `apps/web/src/app/account/calendar/calendar-header.tsx` | "Club shop" link |
-| `apps/web/src/app/admin/shop/page.tsx` + `admin.css` | orders first, visibility wording, order detail, proof viewer |
+| File                                                    | Responsibility                                                                               |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `packages/domain/src/shop/shop-contracts.ts`            | v2 order contract, checkout request, pickup/payment enums, purchasable rule, order reference |
+| `apps/functions/src/shop/shop-service.ts`               | `placeOrder` v2 (multi-line, frozen prices), `getOrder`                                      |
+| `apps/functions/src/shop/shop-proof.ts` (new)           | proof key, upload, verification, content type                                                |
+| `apps/functions/src/shop/shop-callables.ts`             | role sets, checkout handler with proof check, upload + signed-URL callables                  |
+| `apps/functions/src/index.ts`                           | export the two new callables                                                                 |
+| `apps/functions/src/members/enrolment-payment-proof.ts` | `getEnrolmentPaymentInstructions` opened to every account role                               |
+| `apps/web/src/lib/shop-client.ts`                       | `placeShopOrder(checkout)`, `uploadShopOrderProof`, `getShopOrderProofUrl`                   |
+| `apps/web/src/lib/shop-basket.ts` (new)                 | pure basket operations + guarded storage                                                     |
+| `apps/web/src/lib/client-auth.tsx`                      | `ClientAuthProvider acceptStaff`                                                             |
+| `apps/web/src/app/shop/product-card.tsx` (new)          | card with size/quantity/"Add to basket"                                                      |
+| `apps/web/src/app/shop/shop-checkout.tsx` (new)         | basket list + details + centre + payment + submit                                            |
+| `apps/web/src/app/shop/shop-orders.tsx` (new)           | order history                                                                                |
+| `apps/web/src/app/shop/page.tsx`                        | orchestration, layout, confirmation                                                          |
+| `apps/web/src/app/shop/shop.css`                        | basket/checkout layout                                                                       |
+| `apps/web/src/app/account/calendar/calendar-header.tsx` | "Club shop" link                                                                             |
+| `apps/web/src/app/admin/shop/page.tsx` + `admin.css`    | orders first, visibility wording, order detail, proof viewer                                 |
 
 ---
 
 ### Task 1: Domain — v2 order and checkout contracts
 
 **Files:**
+
 - Modify: `packages/domain/src/shop/shop-contracts.ts`
 - Test: `packages/domain/src/shop/shop-contracts.test.ts`
 
 **Interfaces:**
+
 - Produces (exported from `@bpt-jersey/domain/shop`):
   - `shopPaymentMethods: readonly ["bank_transfer","at_collection"]`, `type ShopPaymentMethod`
   - `shopPaymentMethodLabels: Record<ShopPaymentMethod,string>` = `{bank_transfer:"Bank transfer", at_collection:"Pay on collection"}`
@@ -122,8 +124,24 @@ const orderV2: ShopOrderRecord = {
   requestId: "6f1c2a7e-1111-4222-8333-944445555666",
   customerUserId: "client-1",
   lines: [
-    { productId: "bpt-gi", productName: "BPT gi", category: "gi", size: "A2", quantity: 1, unitPriceMinor: 9500, lineTotalMinor: 9500 },
-    { productId: "bpt-backpack", productName: "BPT backpack", category: "backpack", size: null, quantity: 2, unitPriceMinor: 5500, lineTotalMinor: 11000 },
+    {
+      productId: "bpt-gi",
+      productName: "BPT gi",
+      category: "gi",
+      size: "A2",
+      quantity: 1,
+      unitPriceMinor: 9500,
+      lineTotalMinor: 9500,
+    },
+    {
+      productId: "bpt-backpack",
+      productName: "BPT backpack",
+      category: "backpack",
+      size: null,
+      quantity: 2,
+      unitPriceMinor: 5500,
+      lineTotalMinor: 11000,
+    },
   ],
   totalMinor: 20500,
   currency: "GBP",
@@ -151,8 +169,12 @@ describe("shop checkout request", () => {
     expect(parseShopCheckoutRequest({ ...checkout, proofId: null }).ok).toBe(false);
   });
   it("forbids a proof when paying on collection", () => {
-    expect(parseShopCheckoutRequest({ ...checkout, paymentMethod: "at_collection" }).ok).toBe(false);
-    expect(parseShopCheckoutRequest({ ...checkout, paymentMethod: "at_collection", proofId: null }).ok).toBe(true);
+    expect(parseShopCheckoutRequest({ ...checkout, paymentMethod: "at_collection" }).ok).toBe(
+      false,
+    );
+    expect(
+      parseShopCheckoutRequest({ ...checkout, paymentMethod: "at_collection", proofId: null }).ok,
+    ).toBe(true);
   });
   it("rejects the same product and size twice", () => {
     const lines = [checkout.lines[0], { ...checkout.lines[0], quantity: 3 }];
@@ -164,7 +186,11 @@ describe("shop checkout request", () => {
   });
   it("rejects an empty basket, more than 10 lines and an unknown centre", () => {
     expect(parseShopCheckoutRequest({ ...checkout, lines: [] }).ok).toBe(false);
-    const many = Array.from({ length: 11 }, (_, index) => ({ productId: `p-${index}0`, size: null, quantity: 1 }));
+    const many = Array.from({ length: 11 }, (_, index) => ({
+      productId: `p-${index}0`,
+      size: null,
+      quantity: 1,
+    }));
     expect(parseShopCheckoutRequest({ ...checkout, lines: many }).ok).toBe(false);
     expect(parseShopCheckoutRequest({ ...checkout, pickupLocationId: "north" }).ok).toBe(false);
   });
@@ -269,9 +295,17 @@ export const shopCheckoutRequestSchema = z
   .superRefine((value, context) => {
     const keys = value.lines.map((line) => `${line.productId}\u0000${line.size ?? ""}`);
     if (new Set(keys).size !== keys.length)
-      context.addIssue({ code: "custom", message: "Basket lines must not repeat", path: ["lines"] });
+      context.addIssue({
+        code: "custom",
+        message: "Basket lines must not repeat",
+        path: ["lines"],
+      });
     if ((value.paymentMethod === "bank_transfer") !== (value.proofId !== null))
-      context.addIssue({ code: "custom", message: "A transfer needs its screenshot", path: ["proofId"] });
+      context.addIssue({
+        code: "custom",
+        message: "A transfer needs its screenshot",
+        path: ["proofId"],
+      });
   });
 ```
 
@@ -318,11 +352,19 @@ function orderTotalsIssue(
 ): void {
   value.lines.forEach((line, index) => {
     if (line.lineTotalMinor !== line.unitPriceMinor * line.quantity)
-      context.addIssue({ code: "custom", message: "Line total mismatch", path: ["lines", index, "lineTotalMinor"] });
+      context.addIssue({
+        code: "custom",
+        message: "Line total mismatch",
+        path: ["lines", index, "lineTotalMinor"],
+      });
   });
   const sum = value.lines.reduce((total, line) => total + line.lineTotalMinor, 0);
   if (value.totalMinor !== sum)
-    context.addIssue({ code: "custom", message: "Order total must equal the sum of its lines", path: ["totalMinor"] });
+    context.addIssue({
+      code: "custom",
+      message: "Order total must equal the sum of its lines",
+      path: ["totalMinor"],
+    });
 }
 
 export const shopOrderRecordSchema = shopOrderBaseSchema.superRefine(orderTotalsIssue);
@@ -333,7 +375,9 @@ export const shopOrderRecordSchema = shopOrderBaseSchema.superRefine(orderTotals
 ```ts
 export const shopOrderProjectionSchema = shopOrderBaseSchema
   .omit({ academyId: true, requestId: true, createdBy: true, updatedBy: true, schemaVersion: true })
-  .superRefine((value, context) => orderTotalsIssue(value as z.infer<typeof shopOrderBaseSchema>, context));
+  .superRefine((value, context) =>
+    orderTotalsIssue(value as z.infer<typeof shopOrderBaseSchema>, context),
+  );
 ```
 
 8. Types: remove `ShopOrderRequest`; add
@@ -349,7 +393,14 @@ export type ShopOrderLine = z.infer<typeof shopOrderLineSchema>;
 
 ```ts
 export function toShopOrderProjection(record: ShopOrderRecord): ShopOrderProjection {
-  const { academyId: _academy, requestId: _request, createdBy: _created, updatedBy: _updated, schemaVersion: _version, ...projection } = record;
+  const {
+    academyId: _academy,
+    requestId: _request,
+    createdBy: _created,
+    updatedBy: _updated,
+    schemaVersion: _version,
+    ...projection
+  } = record;
   return shopOrderProjectionSchema.parse(projection);
 }
 ```
@@ -365,7 +416,10 @@ export function isShopProductPurchasable(
 
 /** Short, human reference shared by the bank transfer and the office. */
 export function shopOrderReference(orderOrRequestId: string): string {
-  return `SHOP-${orderOrRequestId.replace(/^order-/u, "").slice(0, 8).toUpperCase()}`;
+  return `SHOP-${orderOrRequestId
+    .replace(/^order-/u, "")
+    .slice(0, 8)
+    .toUpperCase()}`;
 }
 ```
 
@@ -388,10 +442,12 @@ git commit -m "feat(shop): v2 order contract with lines, pickup centre and payme
 ### Task 2: Service — multi-line order with frozen prices
 
 **Files:**
+
 - Modify: `apps/functions/src/shop/shop-service.ts`
 - Test: `apps/functions/src/shop/shop-service.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ShopCheckoutRequest`, `ShopOrderLine`, `isShopProductPurchasable`, `parseShopOrderRecord` (Task 1).
 - Produces: `PlaceShopOrderInput = {academyId; actorId; now; request: ShopCheckoutRequest}`; `ShopStore.getOrder(academyId: string, orderId: string): Promise<ShopOrderRecord>` (throws `ShopStoreError("not-found")`).
 
@@ -416,8 +472,15 @@ const checkout = {
 
 it("freezes names and prices from Firestore and sums the lines", async () => {
   const { store } = seededStore();
-  const order = await store.placeOrder({ academyId: "academy-1", actorId: "client-1", now, request: checkout });
-  expect(order.lines.map((line) => [line.productName, line.unitPriceMinor, line.lineTotalMinor])).toEqual([
+  const order = await store.placeOrder({
+    academyId: "academy-1",
+    actorId: "client-1",
+    now,
+    request: checkout,
+  });
+  expect(
+    order.lines.map((line) => [line.productName, line.unitPriceMinor, line.lineTotalMinor]),
+  ).toEqual([
     ["BPT gi", 9500, 19000],
     ["BPT backpack", 5500, 5500],
   ]);
@@ -428,8 +491,18 @@ it("freezes names and prices from Firestore and sums the lines", async () => {
 
 it("returns the stored order when the same request is retried", async () => {
   const { store, records } = seededStore();
-  const first = await store.placeOrder({ academyId: "academy-1", actorId: "client-1", now, request: checkout });
-  const second = await store.placeOrder({ academyId: "academy-1", actorId: "client-1", now, request: checkout });
+  const first = await store.placeOrder({
+    academyId: "academy-1",
+    actorId: "client-1",
+    now,
+    request: checkout,
+  });
+  const second = await store.placeOrder({
+    academyId: "academy-1",
+    actorId: "client-1",
+    now,
+    request: checkout,
+  });
   expect(second).toEqual(first);
   expect([...records.keys()].filter((path) => path.includes("/shopOrders/"))).toHaveLength(1);
 });
@@ -437,7 +510,9 @@ it("returns the stored order when the same request is retried", async () => {
 it("refuses a request id used by another customer", async () => {
   const { store } = seededStore();
   await store.placeOrder({ academyId: "academy-1", actorId: "client-1", now, request: checkout });
-  await expect(store.placeOrder({ academyId: "academy-1", actorId: "client-2", now, request: checkout })).rejects.toMatchObject({ code: "conflict" });
+  await expect(
+    store.placeOrder({ academyId: "academy-1", actorId: "client-2", now, request: checkout }),
+  ).rejects.toMatchObject({ code: "conflict" });
 });
 
 it.each([
@@ -447,27 +522,43 @@ it.each([
 ])("refuses %s with a message naming the problem", async (productId, message) => {
   const { store } = seededStore();
   const request = { ...checkout, lines: [{ productId, size: null, quantity: 1 }] };
-  await expect(store.placeOrder({ academyId: "academy-1", actorId: "client-1", now, request })).rejects.toMatchObject({ code: "precondition", message: expect.stringContaining(message) });
+  await expect(
+    store.placeOrder({ academyId: "academy-1", actorId: "client-1", now, request }),
+  ).rejects.toMatchObject({ code: "precondition", message: expect.stringContaining(message) });
 });
 
 it("refuses a size the product does not offer", async () => {
   const { store } = seededStore();
   const request = { ...checkout, lines: [{ productId: "bpt-gi", size: "XXL", quantity: 1 }] };
-  await expect(store.placeOrder({ academyId: "academy-1", actorId: "client-1", now, request })).rejects.toMatchObject({ code: "precondition", message: "Choose a size offered for BPT gi" });
+  await expect(
+    store.placeOrder({ academyId: "academy-1", actorId: "client-1", now, request }),
+  ).rejects.toMatchObject({ code: "precondition", message: "Choose a size offered for BPT gi" });
 });
 
 it("writes nothing when one line fails", async () => {
   const { store, records } = seededStore();
-  const request = { ...checkout, lines: [checkout.lines[0], { productId: "bpt-sold", size: null, quantity: 1 }] };
-  await expect(store.placeOrder({ academyId: "academy-1", actorId: "client-1", now, request })).rejects.toThrow();
+  const request = {
+    ...checkout,
+    lines: [checkout.lines[0], { productId: "bpt-sold", size: null, quantity: 1 }],
+  };
+  await expect(
+    store.placeOrder({ academyId: "academy-1", actorId: "client-1", now, request }),
+  ).rejects.toThrow();
   expect([...records.keys()].some((path) => path.includes("/shopOrders/"))).toBe(false);
 });
 
 it("reads one order and reports a missing one", async () => {
   const { store } = seededStore();
-  const placed = await store.placeOrder({ academyId: "academy-1", actorId: "client-1", now, request: checkout });
+  const placed = await store.placeOrder({
+    academyId: "academy-1",
+    actorId: "client-1",
+    now,
+    request: checkout,
+  });
   await expect(store.getOrder("academy-1", placed.orderId)).resolves.toEqual(placed);
-  await expect(store.getOrder("academy-1", "order-nope")).rejects.toMatchObject({ code: "not-found" });
+  await expect(store.getOrder("academy-1", "order-nope")).rejects.toMatchObject({
+    code: "not-found",
+  });
 });
 ```
 
@@ -594,11 +685,13 @@ git commit -m "feat(shop): place multi-line orders with prices frozen server sid
 ### Task 3: Callables — roles, proof upload/verification, signed view, bank details
 
 **Files:**
+
 - Create: `apps/functions/src/shop/shop-proof.ts`
 - Modify: `apps/functions/src/shop/shop-callables.ts`, `apps/functions/src/index.ts:243-252`, `apps/functions/src/members/enrolment-payment-proof.ts:77`
 - Test: `apps/functions/src/shop/shop-callables.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ShopStore.placeOrder`, `ShopStore.getOrder` (Task 2); `validateIntroProof` from `../memberships/intro-payment-proof.js`; `enrolmentStorageSecrets` from `../members/enrolment-payment-proof.js`; `R2Client` from `../storage/r2-client.js`.
 - Produces:
   - `shopProofKey(academyId, userId, requestId, proofId): string` → `academies/${academyId}/shop-proofs/${sha256(userId)}/${requestId}/${proofId}`
@@ -630,11 +723,22 @@ function fakeStorage() {
       if (!value) throw new Error("missing");
       return value;
     }),
-    createPrivateImageUrl: vi.fn(async ({ objectKey }: { objectKey: string }) => `https://signed.test/${objectKey}`),
+    createPrivateImageUrl: vi.fn(
+      async ({ objectKey }: { objectKey: string }) => `https://signed.test/${objectKey}`,
+    ),
   };
 }
 
-const allAccountRoles = ["owner", "administrator", "headCoach", "coach", "guardian", "adultStudent", "teenStudent", "shopper"];
+const allAccountRoles = [
+  "owner",
+  "administrator",
+  "headCoach",
+  "coach",
+  "guardian",
+  "adultStudent",
+  "teenStudent",
+  "shopper",
+];
 
 it.each(allAccountRoles)("%s can read the catalogue and place an order", async (role) => {
   const { services: s } = services();
@@ -646,43 +750,82 @@ it.each(["headCoach", "coach", "guardian", "adultStudent", "teenStudent", "shopp
   "%s cannot administer the shop or view screenshots",
   async (role) => {
     const { services: s } = services();
-    await expect(listShopOrdersHandler(request(null, role), s)).rejects.toMatchObject({ code: "permission-denied" });
-    await expect(getShopOrderProofUrlHandler(request({ orderId: order.orderId }, role), s)).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(listShopOrdersHandler(request(null, role), s)).rejects.toMatchObject({
+      code: "permission-denied",
+    });
+    await expect(
+      getShopOrderProofUrlHandler(request({ orderId: order.orderId }, role), s),
+    ).rejects.toMatchObject({ code: "permission-denied" });
   },
 );
 
 it("stores a valid screenshot under the buyer's key", async () => {
   const { services: s, storage } = services();
   const result = await uploadShopOrderProofHandler(
-    request({ requestId: "req-1", contentType: "image/png", base64: png.toString("base64") }, "shopper", "client-1"),
+    request(
+      { requestId: "req-1", contentType: "image/png", base64: png.toString("base64") },
+      "shopper",
+      "client-1",
+    ),
     s,
   );
   expect(result).toEqual({ proofId: pngProofId });
-  expect(storage.objects.has(shopProofKey("academy-1", "client-1", "req-1", pngProofId))).toBe(true);
+  expect(storage.objects.has(shopProofKey("academy-1", "client-1", "req-1", pngProofId))).toBe(
+    true,
+  );
 });
 
 it("rejects a file that is not really a PNG", async () => {
   const { services: s } = services();
   await expect(
-    uploadShopOrderProofHandler(request({ requestId: "req-1", contentType: "image/png", base64: Buffer.from("<svg/>").toString("base64") }, "shopper"), s),
+    uploadShopOrderProofHandler(
+      request(
+        {
+          requestId: "req-1",
+          contentType: "image/png",
+          base64: Buffer.from("<svg/>").toString("base64"),
+        },
+        "shopper",
+      ),
+      s,
+    ),
   ).rejects.toMatchObject({ code: "invalid-argument" });
 });
 
 it("rejects a transfer order whose screenshot was never uploaded", async () => {
   const { services: s } = services();
-  await expect(placeShopOrderHandler(request({ ...transferCheckout, proofId: pngProofId }, "shopper", "client-1"), s)).rejects.toMatchObject({ code: "failed-precondition" });
+  await expect(
+    placeShopOrderHandler(
+      request({ ...transferCheckout, proofId: pngProofId }, "shopper", "client-1"),
+      s,
+    ),
+  ).rejects.toMatchObject({ code: "failed-precondition" });
 });
 
 it("rejects a proof uploaded by another account", async () => {
   const { services: s, storage } = services();
-  storage.objects.set(shopProofKey("academy-1", "client-2", transferCheckout.requestId, pngProofId), png);
-  await expect(placeShopOrderHandler(request({ ...transferCheckout, proofId: pngProofId }, "shopper", "client-1"), s)).rejects.toMatchObject({ code: "failed-precondition" });
+  storage.objects.set(
+    shopProofKey("academy-1", "client-2", transferCheckout.requestId, pngProofId),
+    png,
+  );
+  await expect(
+    placeShopOrderHandler(
+      request({ ...transferCheckout, proofId: pngProofId }, "shopper", "client-1"),
+      s,
+    ),
+  ).rejects.toMatchObject({ code: "failed-precondition" });
 });
 
 it("accepts a transfer order with the buyer's own screenshot", async () => {
   const { services: s, storage, store } = services();
-  storage.objects.set(shopProofKey("academy-1", "client-1", transferCheckout.requestId, pngProofId), png);
-  await placeShopOrderHandler(request({ ...transferCheckout, proofId: pngProofId }, "shopper", "client-1"), s);
+  storage.objects.set(
+    shopProofKey("academy-1", "client-1", transferCheckout.requestId, pngProofId),
+    png,
+  );
+  await placeShopOrderHandler(
+    request({ ...transferCheckout, proofId: pngProofId }, "shopper", "client-1"),
+    s,
+  );
   expect(store.placeOrder).toHaveBeenCalled();
 });
 
@@ -690,16 +833,26 @@ it("gives the owner a 60-second signed view of the screenshot", async () => {
   const { services: s, storage, store } = services();
   const transferOrder = { ...order, paymentMethod: "bank_transfer" as const, proofId: pngProofId };
   store.getOrder.mockResolvedValue(transferOrder);
-  storage.objects.set(shopProofKey("academy-1", transferOrder.customerUserId, transferOrder.requestId, pngProofId), png);
-  const result = await getShopOrderProofUrlHandler(request({ orderId: transferOrder.orderId }, "owner"), s);
+  storage.objects.set(
+    shopProofKey("academy-1", transferOrder.customerUserId, transferOrder.requestId, pngProofId),
+    png,
+  );
+  const result = await getShopOrderProofUrlHandler(
+    request({ orderId: transferOrder.orderId }, "owner"),
+    s,
+  );
   expect(result.url).toContain("https://signed.test/");
-  expect(storage.createPrivateImageUrl).toHaveBeenCalledWith(expect.objectContaining({ expiresInSeconds: 60, contentType: "image/png" }));
+  expect(storage.createPrivateImageUrl).toHaveBeenCalledWith(
+    expect.objectContaining({ expiresInSeconds: 60, contentType: "image/png" }),
+  );
 });
 
 it("reports no screenshot for a pay-on-collection order", async () => {
   const { services: s, store } = services();
   store.getOrder.mockResolvedValue({ ...order, paymentMethod: "at_collection", proofId: null });
-  await expect(getShopOrderProofUrlHandler(request({ orderId: order.orderId }, "owner"), s)).rejects.toMatchObject({ code: "failed-precondition" });
+  await expect(
+    getShopOrderProofUrlHandler(request({ orderId: order.orderId }, "owner"), s),
+  ).rejects.toMatchObject({ code: "failed-precondition" });
 });
 ```
 
@@ -716,7 +869,11 @@ const collectionCheckout = {
   contactPhone: null,
   note: null,
 };
-const transferCheckout = { ...collectionCheckout, requestId: "req-2", paymentMethod: "bank_transfer" };
+const transferCheckout = {
+  ...collectionCheckout,
+  requestId: "req-2",
+  paymentMethod: "bank_transfer",
+};
 ```
 
 and `services()` returning `{ services: { store, storage: () => storage, now: () => now }, store, storage }` where `store` gains `getOrder: vi.fn().mockResolvedValue(order)` and `storage = fakeStorage()`. Delete the old test asserting `teenStudent`/coach are refused.
@@ -736,7 +893,12 @@ import type { R2Client } from "../storage/r2-client.js";
 export type ShopProofStorage = Pick<R2Client, "putObject" | "readObject" | "createPrivateImageUrl">;
 
 /** The uid is hashed so object keys never carry an account id in clear. */
-export function shopProofKey(academyId: string, userId: string, requestId: string, proofId: string): string {
+export function shopProofKey(
+  academyId: string,
+  userId: string,
+  requestId: string,
+  proofId: string,
+): string {
   const owner = createHash("sha256").update(userId).digest("hex");
   return `academies/${academyId}/shop-proofs/${owner}/${requestId}/${proofId}`;
 }
@@ -747,13 +909,18 @@ export async function readShopProof(
   key: string,
   proofId: string,
 ): Promise<Buffer | undefined> {
-  const bytes = await storage.readObject(key).then((value) => Buffer.from(value)).catch(() => undefined);
-  if (!bytes?.length || createHash("sha256").update(bytes).digest("hex") !== proofId) return undefined;
+  const bytes = await storage
+    .readObject(key)
+    .then((value) => Buffer.from(value))
+    .catch(() => undefined);
+  if (!bytes?.length || createHash("sha256").update(bytes).digest("hex") !== proofId)
+    return undefined;
   return bytes;
 }
 
 export function shopProofContentType(bytes: Buffer): "image/png" | "image/jpeg" | undefined {
-  if (bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return "image/png";
+  if (bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])))
+    return "image/png";
   if (bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255) return "image/jpeg";
   return undefined;
 }
@@ -768,7 +935,12 @@ import { z } from "zod";
 import { enrolmentStorageSecrets } from "../members/enrolment-payment-proof.js";
 import { validateIntroProof } from "../memberships/intro-payment-proof.js";
 import { createPrivateStorageR2Client } from "../storage/r2-client.js";
-import { readShopProof, shopProofContentType, shopProofKey, type ShopProofStorage } from "./shop-proof.js";
+import {
+  readShopProof,
+  shopProofContentType,
+  shopProofKey,
+  type ShopProofStorage,
+} from "./shop-proof.js";
 ```
 
 2. Services type:
@@ -788,7 +960,14 @@ export type ShopCallableServices = Readonly<{
 // Every signed-in account may buy: a shopper (buyer with no student record), members, coaches and
 // the office. Administration and payment screenshots stay with owner and administrator.
 const accountRoles = new Set([
-  "owner", "administrator", "headCoach", "coach", "guardian", "adultStudent", "teenStudent", "shopper",
+  "owner",
+  "administrator",
+  "headCoach",
+  "coach",
+  "guardian",
+  "adultStudent",
+  "teenStudent",
+  "shopper",
 ]);
 const catalogRoles = accountRoles;
 const customerRoles = accountRoles;
@@ -804,11 +983,19 @@ function storageOf(services: ShopCallableServices): ShopProofStorage {
 4. In `placeShopOrderHandler`, parse with `parseShopCheckoutRequest`; message for wrong role `"Sign in to order"`; before `services.store.placeOrder`, add:
 
 ```ts
-    if (parsed.value.paymentMethod === "bank_transfer") {
-      const key = shopProofKey(actor.academyId, actor.userId, parsed.value.requestId, parsed.value.proofId!);
-      if (!(await readShopProof(storageOf(services), key, parsed.value.proofId!)))
-        throw new HttpsError("failed-precondition", "Upload the transfer screenshot again before placing the order.");
-    }
+if (parsed.value.paymentMethod === "bank_transfer") {
+  const key = shopProofKey(
+    actor.academyId,
+    actor.userId,
+    parsed.value.requestId,
+    parsed.value.proofId!,
+  );
+  if (!(await readShopProof(storageOf(services), key, parsed.value.proofId!)))
+    throw new HttpsError(
+      "failed-precondition",
+      "Upload the transfer screenshot again before placing the order.",
+    );
+}
 ```
 
 (keep it inside the existing `try`; `mapError` rethrows `HttpsError` unchanged).
@@ -819,7 +1006,10 @@ function storageOf(services: ShopCallableServices): ShopProofStorage {
 const proofUploadSchema = z.strictObject({
   requestId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u),
   contentType: z.enum(["image/png", "image/jpeg"]),
-  base64: z.string().min(4).max(Math.ceil((2 * 1024 * 1024) / 3) * 4),
+  base64: z
+    .string()
+    .min(4)
+    .max(Math.ceil((2 * 1024 * 1024) / 3) * 4),
 });
 
 export async function uploadShopOrderProofHandler(
@@ -828,7 +1018,8 @@ export async function uploadShopOrderProofHandler(
 ): Promise<{ proofId: string }> {
   const actor = actorWithRole(request, customerRoles, "Sign in to order");
   const input = proofUploadSchema.safeParse(request.data);
-  if (!input.success) throw new HttpsError("invalid-argument", "Choose a PNG or JPEG screenshot up to 2 MB.");
+  if (!input.success)
+    throw new HttpsError("invalid-argument", "Choose a PNG or JPEG screenshot up to 2 MB.");
   const validated = validateIntroProof(input.data.contentType, input.data.base64);
   await storageOf(services).putObject(
     shopProofKey(actor.academyId, actor.userId, input.data.requestId, validated.proofId),
@@ -843,7 +1034,9 @@ export async function getShopOrderProofUrlHandler(
   services: ShopCallableServices,
 ): Promise<{ url: string; expiresAt: string }> {
   const actor = actorWithRole(request, adminRoles, "Shop administration is not permitted");
-  const input = z.strictObject({ orderId: z.string().regex(/^order-[A-Za-z0-9._:-]{1,128}$/u) }).safeParse(request.data);
+  const input = z
+    .strictObject({ orderId: z.string().regex(/^order-[A-Za-z0-9._:-]{1,128}$/u) })
+    .safeParse(request.data);
   if (!input.success) invalid();
   let order;
   try {
@@ -854,7 +1047,12 @@ export async function getShopOrderProofUrlHandler(
   if (order.paymentMethod !== "bank_transfer" || !order.proofId)
     throw new HttpsError("failed-precondition", evidenceUnavailable);
   const storage = storageOf(services);
-  const objectKey = shopProofKey(actor.academyId, order.customerUserId, order.requestId, order.proofId);
+  const objectKey = shopProofKey(
+    actor.academyId,
+    order.customerUserId,
+    order.requestId,
+    order.proofId,
+  );
   const bytes = await readShopProof(storage, objectKey, order.proofId);
   const contentType = bytes ? shopProofContentType(bytes) : undefined;
   if (!contentType || !storage.createPrivateImageUrl)
@@ -903,10 +1101,12 @@ git commit -m "feat(shop): every account can buy; transfer screenshot upload and
 ### Task 4: Web — shop client and basket module
 
 **Files:**
+
 - Modify: `apps/web/src/lib/shop-client.ts`
 - Create: `apps/web/src/lib/shop-basket.ts`, `apps/web/src/lib/shop-basket.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 1 exports.
 - Produces:
   - `placeShopOrder(input: ShopCheckoutRequest): Promise<ShopOrderProjection>` (failed-precondition messages pass through, otherwise `"Unable to place the order."`)
@@ -929,12 +1129,36 @@ import {
   writeBasket,
 } from "./shop-basket";
 
-const gi = { productId: "bpt-gi", name: "BPT gi", category: "gi" as const, description: null, priceMinor: 9500, currency: "GBP" as const, sizes: ["A1", "A2"], imageUrl: null, stockStatus: "in-stock" as const, sortOrder: 10, active: true };
-const bag = { ...gi, productId: "bpt-bag", name: "BPT bag", category: "backpack" as const, priceMinor: 5500, sizes: [] };
+const gi = {
+  productId: "bpt-gi",
+  name: "BPT gi",
+  category: "gi" as const,
+  description: null,
+  priceMinor: 9500,
+  currency: "GBP" as const,
+  sizes: ["A1", "A2"],
+  imageUrl: null,
+  stockStatus: "in-stock" as const,
+  sortOrder: 10,
+  active: true,
+};
+const bag = {
+  ...gi,
+  productId: "bpt-bag",
+  name: "BPT bag",
+  category: "backpack" as const,
+  priceMinor: 5500,
+  sizes: [],
+};
 
 function memoryStorage(initial: Record<string, string> = {}) {
   const values = new Map(Object.entries(initial));
-  return { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => void values.set(key, value), removeItem: (key: string) => void values.delete(key), values };
+  return {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => void values.set(key, value),
+    removeItem: (key: string) => void values.delete(key),
+    values,
+  };
 }
 
 describe("shop basket", () => {
@@ -944,17 +1168,25 @@ describe("shop basket", () => {
     expect(lines).toEqual([{ productId: "bpt-gi", size: "A2", quantity: 10 }]);
   });
   it("keeps two sizes as two lines and refuses an 11th line", () => {
-    let lines = Array.from({ length: 10 }, (_, index) => ({ productId: `p-${index}0`, size: null, quantity: 1 }));
+    let lines = Array.from({ length: 10 }, (_, index) => ({
+      productId: `p-${index}0`,
+      size: null,
+      quantity: 1,
+    }));
     const result = addToBasket(lines, { productId: "bpt-gi", size: "A1", quantity: 1 });
     expect(result.full).toBe(true);
     expect(result.lines).toHaveLength(10);
     lines = addToBasket([], { productId: "bpt-gi", size: "A1", quantity: 1 }).lines;
-    expect(addToBasket(lines, { productId: "bpt-gi", size: "A2", quantity: 1 }).lines).toHaveLength(2);
+    expect(addToBasket(lines, { productId: "bpt-gi", size: "A2", quantity: 1 }).lines).toHaveLength(
+      2,
+    );
   });
   it("removes a line when its quantity drops to zero", () => {
     const lines = [{ productId: "bpt-gi", size: "A2", quantity: 2 }];
     expect(setBasketQuantity(lines, "bpt-gi|A2", 0)).toEqual([]);
-    expect(setBasketQuantity(lines, "bpt-gi|A2", 3)).toEqual([{ productId: "bpt-gi", size: "A2", quantity: 3 }]);
+    expect(setBasketQuantity(lines, "bpt-gi|A2", 3)).toEqual([
+      { productId: "bpt-gi", size: "A2", quantity: 3 },
+    ]);
   });
   it("drops hidden, sold-out, missing and wrong-size lines and names them", () => {
     const lines = [
@@ -968,15 +1200,35 @@ describe("shop basket", () => {
     expect(result.removed).toEqual(["BPT gi (XXL)", "BPT bag", "An item"]);
   });
   it("totals with catalogue prices", () => {
-    expect(basketTotalMinor([{ productId: "bpt-gi", size: "A2", quantity: 2 }, { productId: "bpt-bag", size: null, quantity: 1 }], [gi, bag])).toBe(24500);
+    expect(
+      basketTotalMinor(
+        [
+          { productId: "bpt-gi", size: "A2", quantity: 2 },
+          { productId: "bpt-bag", size: null, quantity: 1 },
+        ],
+        [gi, bag],
+      ),
+    ).toBe(24500);
   });
   it("round-trips through storage and ignores corrupt or throwing storage", () => {
     const storage = memoryStorage();
     writeBasket([{ productId: "bpt-gi", size: "A2", quantity: 2 }], storage);
     expect(readBasket(storage)).toEqual([{ productId: "bpt-gi", size: "A2", quantity: 2 }]);
     expect(readBasket(memoryStorage({ [basketStorageKey]: "{not json" }))).toEqual([]);
-    expect(readBasket(memoryStorage({ [basketStorageKey]: JSON.stringify([{ productId: "x", quantity: 99 }]) }))).toEqual([]);
-    const throwing = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); }, removeItem: () => undefined };
+    expect(
+      readBasket(
+        memoryStorage({ [basketStorageKey]: JSON.stringify([{ productId: "x", quantity: 99 }]) }),
+      ),
+    ).toEqual([]);
+    const throwing = {
+      getItem: () => {
+        throw new Error("blocked");
+      },
+      setItem: () => {
+        throw new Error("blocked");
+      },
+      removeItem: () => undefined,
+    };
     expect(readBasket(throwing)).toEqual([]);
     expect(() => writeBasket([], throwing)).not.toThrow();
   });
@@ -1049,8 +1301,11 @@ export function reconcileBasket(
   const removed: string[] = [];
   const kept = lines.filter((line) => {
     const product = byId.get(line.productId);
-    if (!product) return void removed.push("An item"), false;
-    const sizeOk = product.sizes.length > 0 ? line.size !== null && product.sizes.includes(line.size) : line.size === null;
+    if (!product) return (void removed.push("An item"), false);
+    const sizeOk =
+      product.sizes.length > 0
+        ? line.size !== null && product.sizes.includes(line.size)
+        : line.size === null;
     if (isShopProductPurchasable(product) && sizeOk) return true;
     removed.push(sizeOk || line.size === null ? product.name : `${product.name} (${line.size})`);
     return false;
@@ -1063,7 +1318,10 @@ export function basketTotalMinor(
   products: readonly ShopProductProjection[],
 ): number {
   const prices = new Map(products.map((product) => [product.productId, product.priceMinor]));
-  return lines.reduce((total, line) => total + (prices.get(line.productId) ?? 0) * line.quantity, 0);
+  return lines.reduce(
+    (total, line) => total + (prices.get(line.productId) ?? 0) * line.quantity,
+    0,
+  );
 }
 
 function defaultStorage(): BasketStorage | undefined {
@@ -1076,7 +1334,9 @@ function defaultStorage(): BasketStorage | undefined {
 
 export function readBasket(storage: BasketStorage | undefined = defaultStorage()): BasketLine[] {
   try {
-    const parsed = storedBasketSchema.safeParse(JSON.parse(storage?.getItem(basketStorageKey) ?? "[]"));
+    const parsed = storedBasketSchema.safeParse(
+      JSON.parse(storage?.getItem(basketStorageKey) ?? "[]"),
+    );
     return parsed.success ? parsed.data : [];
   } catch {
     return [];
@@ -1109,13 +1369,21 @@ const proofError = "The payment screenshot could not be uploaded.";
 
 /** Same base64 hand-off as the PAYG and intro receipts; the server re-checks the bytes. */
 export async function uploadShopOrderProof(requestId: string, file: File): Promise<string> {
-  if (!["image/png", "image/jpeg"].includes(file.type) || file.size < 1 || file.size > 2 * 1024 * 1024)
+  if (
+    !["image/png", "image/jpeg"].includes(file.type) ||
+    file.size < 1 ||
+    file.size > 2 * 1024 * 1024
+  )
     throw new Error("Choose a PNG or JPEG screenshot up to 2 MB.");
   const bytes = new Uint8Array(await file.arrayBuffer());
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   try {
-    const data = await call("uploadShopOrderProof", { requestId, contentType: file.type, base64: btoa(binary) });
+    const data = await call("uploadShopOrderProof", {
+      requestId,
+      contentType: file.type,
+      base64: btoa(binary),
+    });
     return z.strictObject({ proofId: z.string().regex(/^[a-f0-9]{64}$/u) }).parse(data).proofId;
   } catch {
     throw new Error(proofError);
@@ -1149,10 +1417,12 @@ git commit -m "feat(shop): browser basket and checkout client calls"
 ### Task 5: Web — staff accounts recognised on the shop
 
 **Files:**
+
 - Modify: `apps/web/src/lib/client-auth.tsx`
 - Test: `apps/web/src/lib/client-auth.test.tsx` (existing file; if absent create it beside the source)
 
 **Interfaces:**
+
 - Produces: `ClientAuthProvider({ children, acceptStaff?: boolean })`. With `acceptStaff`, a token whose `role` is `owner|administrator|headCoach|coach` yields a signed-in session with `role` undefined and `staffRole` set. `ClientSession` gains `staffRole?: "owner" | "administrator" | "headCoach" | "coach"`.
 
 - [ ] **Step 1: Write the failing test**
@@ -1161,14 +1431,27 @@ Follow the existing mocking in `client-auth.test.tsx` (it mocks `./auth-client` 
 
 ```tsx
 it("treats a staff token as signed in only when the surface accepts staff", async () => {
-  const staffUser = { uid: "owner-1", email: "owner@example.test", displayName: "Owner", getIdTokenResult: async () => ({ claims: { role: "owner", academyId: "academy-1" } }) };
+  const staffUser = {
+    uid: "owner-1",
+    email: "owner@example.test",
+    displayName: "Owner",
+    getIdTokenResult: async () => ({ claims: { role: "owner", academyId: "academy-1" } }),
+  };
   emitUser(staffUser); // use the file's existing helper that drives the subscribed callback
 
-  render(<ClientAuthProvider acceptStaff><Probe /></ClientAuthProvider>);
+  render(
+    <ClientAuthProvider acceptStaff>
+      <Probe />
+    </ClientAuthProvider>,
+  );
   expect(await screen.findByText("signed-in:owner")).toBeVisible();
 
   cleanup();
-  render(<ClientAuthProvider><Probe /></ClientAuthProvider>);
+  render(
+    <ClientAuthProvider>
+      <Probe />
+    </ClientAuthProvider>,
+  );
   expect(await screen.findByText("signed-out:")).toBeVisible();
 });
 ```
@@ -1190,10 +1473,10 @@ const staffAccountRoles: readonly string[] = ["owner", "administrator", "headCoa
 Add `staffRole?: StaffAccountRole;` to `ClientSession`. Change `sessionFromUser(user: User, acceptStaff: boolean)`; right after reading `token`:
 
 ```ts
-    const claimed = token.claims?.role;
-    // The club shop also serves the office and coaches; they keep their staff role, never a client one.
-    if (acceptStaff && typeof claimed === "string" && staffAccountRoles.includes(claimed))
-      return Object.freeze({ ...baseSession, staffRole: claimed as StaffAccountRole });
+const claimed = token.claims?.role;
+// The club shop also serves the office and coaches; they keep their staff role, never a client one.
+if (acceptStaff && typeof claimed === "string" && staffAccountRoles.includes(claimed))
+  return Object.freeze({ ...baseSession, staffRole: claimed as StaffAccountRole });
 ```
 
 `ClientAuthProvider({ children, acceptStaff = false }: Readonly<{ children: React.ReactNode; acceptStaff?: boolean }>)` and call `sessionFromUser(user, acceptStaff)`; add `acceptStaff` to the effect dependency array.
@@ -1215,11 +1498,13 @@ git commit -m "feat(auth): let the club shop recognise staff sessions"
 ### Task 6: Web — `/shop` catalogue, basket, checkout and confirmation
 
 **Files:**
+
 - Create: `apps/web/src/app/shop/product-card.tsx`, `apps/web/src/app/shop/shop-checkout.tsx`, `apps/web/src/app/shop/shop-orders.tsx`
 - Modify: `apps/web/src/app/shop/page.tsx`, `apps/web/src/app/shop/shop.css`, `apps/web/src/app/globals.css:1647-1653` (delete `.shop-payment-note`)
 - Test: `apps/web/src/app/shop/page.test.tsx`
 
 **Interfaces:**
+
 - Consumes: Task 4 (`shop-basket`, `uploadShopOrderProof`, `placeShopOrder`), Task 5 (`acceptStaff`), `useEnrolmentBankDetails`/`EnrolmentBankDetails` from `../enrol/payment-instructions`, `academyContent.locations` (`{key,name,address,locality,postcode}`), Task 1 (`shopOrderReference`, `shopPaymentMethodLabels`, `isShopProductPurchasable`).
 - Produces: `ProductCard({product, onAdd(line: BasketLine)})`, `ShopCheckout({products, lines, onLinesChange, session, signedIn, onPlaced(order)})`, `ShopOrders({orders})`.
 
@@ -1244,8 +1529,13 @@ it("lets a visitor fill the basket and asks them to sign in to check out", async
   const user = userEvent.setup();
   await user.click(await screen.findByRole("button", { name: "Add BPT competition gi to basket" }));
   expect(screen.getByRole("region", { name: "Your basket" })).toHaveTextContent("£95.00");
-  expect(screen.getByRole("link", { name: "Sign in or create a buyer account" })).toHaveAttribute("href", "/login?returnTo=%2Fshop");
-  expect(JSON.parse(localStorage.getItem("bpt-shop-basket")!)).toEqual([{ productId: "bpt-gi-blue", size: "A1", quantity: 1 }]);
+  expect(screen.getByRole("link", { name: "Sign in or create a buyer account" })).toHaveAttribute(
+    "href",
+    "/login?returnTo=%2Fshop",
+  );
+  expect(JSON.parse(localStorage.getItem("bpt-shop-basket")!)).toEqual([
+    { productId: "bpt-gi-blue", size: "A1", quantity: 1 },
+  ]);
 });
 
 it("keeps a sold-out product visible but not addable", async () => {
@@ -1256,7 +1546,10 @@ it("keeps a sold-out product visible but not addable", async () => {
 });
 
 it("removes a basket item that is no longer available and says so", async () => {
-  localStorage.setItem("bpt-shop-basket", JSON.stringify([{ productId: "bpt-backpack", size: null, quantity: 1 }]));
+  localStorage.setItem(
+    "bpt-shop-basket",
+    JSON.stringify([{ productId: "bpt-backpack", size: null, quantity: 1 }]),
+  );
   authState.status = "signed-out";
   shopApi.listPublicShopCatalog.mockResolvedValue([gi, backpack]);
   render(<ShopPage />);
@@ -1266,7 +1559,12 @@ it("removes a basket item that is no longer available and says so", async () => 
 
 it("checks out with a bank transfer, centre and screenshot", async () => {
   authState.status = "signed-in";
-  authState.session = { uid: "client-1", email: "sam@example.test", displayName: "Sam Client", role: "adultStudent" };
+  authState.session = {
+    uid: "client-1",
+    email: "sam@example.test",
+    displayName: "Sam Client",
+    role: "adultStudent",
+  };
   shopApi.listShopCatalog.mockResolvedValue([gi, backpack]);
   shopApi.listMyShopOrders.mockResolvedValue([]);
   shopApi.uploadShopOrderProof.mockResolvedValue("a".repeat(64));
@@ -1280,22 +1578,32 @@ it("checks out with a bank transfer, centre and screenshot", async () => {
   await user.click(screen.getByRole("radio", { name: "Bank transfer now" }));
   const place = screen.getByRole("button", { name: /Place order/ });
   expect(place).toBeDisabled();
-  await user.upload(screen.getByLabelText("Transfer screenshot"), new File([new Uint8Array([137, 80, 78, 71])], "proof.png", { type: "image/png" }));
+  await user.upload(
+    screen.getByLabelText("Transfer screenshot"),
+    new File([new Uint8Array([137, 80, 78, 71])], "proof.png", { type: "image/png" }),
+  );
   await user.click(place);
-  expect(shopApi.placeShopOrder).toHaveBeenCalledWith(expect.objectContaining({
-    lines: [{ productId: "bpt-gi-blue", size: "A2", quantity: 1 }],
-    pickupLocationId: "west",
-    paymentMethod: "bank_transfer",
-    proofId: "a".repeat(64),
-    contactName: "Sam Client",
-  }));
+  expect(shopApi.placeShopOrder).toHaveBeenCalledWith(
+    expect.objectContaining({
+      lines: [{ productId: "bpt-gi-blue", size: "A2", quantity: 1 }],
+      pickupLocationId: "west",
+      paymentMethod: "bank_transfer",
+      proofId: "a".repeat(64),
+      contactName: "Sam Client",
+    }),
+  );
   expect(await screen.findByRole("status", { name: "Order placed" })).toHaveTextContent("West");
   expect(localStorage.getItem("bpt-shop-basket")).toBeNull();
 });
 
 it("pays on collection without a screenshot and blocks a double submit", async () => {
   authState.status = "signed-in";
-  authState.session = { uid: "client-1", email: "sam@example.test", displayName: "Sam Client", role: "guardian" };
+  authState.session = {
+    uid: "client-1",
+    email: "sam@example.test",
+    displayName: "Sam Client",
+    role: "guardian",
+  };
   shopApi.listShopCatalog.mockResolvedValue([gi]);
   shopApi.listMyShopOrders.mockResolvedValue([]);
   let resolve!: (value: unknown) => void;
@@ -1311,13 +1619,23 @@ it("pays on collection without a screenshot and blocks a double submit", async (
   await user.click(place);
   expect(shopApi.placeShopOrder).toHaveBeenCalledTimes(1);
   expect(shopApi.uploadShopOrderProof).not.toHaveBeenCalled();
-  resolve({ ...placedOrder, paymentMethod: "at_collection", proofId: null, pickupLocationId: "town" });
+  resolve({
+    ...placedOrder,
+    paymentMethod: "at_collection",
+    proofId: null,
+    pickupLocationId: "town",
+  });
   expect(await screen.findByRole("status", { name: "Order placed" })).toHaveTextContent("Town");
 });
 
 it("shows the server's reason when an item became unavailable", async () => {
   authState.status = "signed-in";
-  authState.session = { uid: "client-1", email: "sam@example.test", displayName: "Sam Client", role: "shopper" };
+  authState.session = {
+    uid: "client-1",
+    email: "sam@example.test",
+    displayName: "Sam Client",
+    role: "shopper",
+  };
   shopApi.listShopCatalog.mockResolvedValue([gi]);
   shopApi.listMyShopOrders.mockResolvedValue([]);
   shopApi.placeShopOrder.mockRejectedValue(new Error("BPT competition gi is no longer available"));
@@ -1327,7 +1645,9 @@ it("shows the server's reason when an item became unavailable", async () => {
   await user.click(screen.getByRole("radio", { name: /Town/ }));
   await user.click(screen.getByRole("radio", { name: "Pay when you collect" }));
   await user.click(screen.getByRole("button", { name: /Place order/ }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("BPT competition gi is no longer available");
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "BPT competition gi is no longer available",
+  );
 });
 ```
 
@@ -1354,7 +1674,11 @@ import {
 } from "@bpt-jersey/domain/shop";
 import type { BasketLine } from "../../lib/shop-basket";
 
-const stockLabels = { "in-stock": "In stock", "made-to-order": "Made to order", "sold-out": "Sold out" } as const;
+const stockLabels = {
+  "in-stock": "In stock",
+  "made-to-order": "Made to order",
+  "sold-out": "Sold out",
+} as const;
 
 export function ProductCard({
   product,
@@ -1369,9 +1693,16 @@ export function ProductCard({
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    const parsed = Math.min(shopOrderMaximumQuantity, Math.max(1, Math.trunc(Number(quantity)) || 1));
+    const parsed = Math.min(
+      shopOrderMaximumQuantity,
+      Math.max(1, Math.trunc(Number(quantity)) || 1),
+    );
     setQuantity("1");
-    onAdd({ productId: product.productId, size: product.sizes.length > 0 ? size : null, quantity: parsed });
+    onAdd({
+      productId: product.productId,
+      size: product.sizes.length > 0 ? size : null,
+      quantity: parsed,
+    });
   }
 
   return (
@@ -1379,32 +1710,67 @@ export function ProductCard({
       <figure className="shop-product-figure">
         {product.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- admin-managed catalog images are external URLs
-          <img alt={product.name} decoding="async" height={600} loading="lazy" src={product.imageUrl} width={800} />
+          <img
+            alt={product.name}
+            decoding="async"
+            height={600}
+            loading="lazy"
+            src={product.imageUrl}
+            width={800}
+          />
         ) : (
-          <span className="shop-product-placeholder" aria-hidden="true">BPT</span>
+          <span className="shop-product-placeholder" aria-hidden="true">
+            BPT
+          </span>
         )}
       </figure>
       <div className="shop-product-body">
         <p className="card-label">{shopProductCategoryLabels[product.category]}</p>
         <h3>{product.name}</h3>
-        <p className="shop-product-price">{formatShopPrice(product.priceMinor, product.currency)}</p>
-        <span className={`shop-stock-badge shop-stock-${product.stockStatus}`}>{stockLabels[product.stockStatus]}</span>
-        {product.description ? <p className="shop-product-description">{product.description}</p> : null}
+        <p className="shop-product-price">
+          {formatShopPrice(product.priceMinor, product.currency)}
+        </p>
+        <span className={`shop-stock-badge shop-stock-${product.stockStatus}`}>
+          {stockLabels[product.stockStatus]}
+        </span>
+        {product.description ? (
+          <p className="shop-product-description">{product.description}</p>
+        ) : null}
         <form className="shop-order-form" onSubmit={submit}>
           {product.sizes.length > 0 ? (
             <label className="shop-field">
               Size
-              <select aria-label={`Size for ${product.name}`} disabled={!purchasable} onChange={(event) => setSize(event.target.value)} value={size}>
-                {product.sizes.map((option) => <option key={option} value={option}>{option}</option>)}
+              <select
+                aria-label={`Size for ${product.name}`}
+                disabled={!purchasable}
+                onChange={(event) => setSize(event.target.value)}
+                value={size}
+              >
+                {product.sizes.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
               </select>
             </label>
           ) : null}
           <label className="shop-field">
             Quantity
-            <input aria-label={`Quantity of ${product.name}`} disabled={!purchasable} inputMode="numeric" max={shopOrderMaximumQuantity} min={1} onChange={(event) => setQuantity(event.target.value)} type="number" value={quantity} />
+            <input
+              aria-label={`Quantity of ${product.name}`}
+              disabled={!purchasable}
+              inputMode="numeric"
+              max={shopOrderMaximumQuantity}
+              min={1}
+              onChange={(event) => setQuantity(event.target.value)}
+              type="number"
+              value={quantity}
+            />
           </label>
           <button
-            aria-label={purchasable ? `Add ${product.name} to basket` : `${product.name} is sold out`}
+            aria-label={
+              purchasable ? `Add ${product.name} to basket` : `${product.name} is sold out`
+            }
             className="button button-primary"
             disabled={!purchasable}
             type="submit"
@@ -1421,11 +1787,24 @@ export function ProductCard({
 - [ ] **Step 4: Create `shop-orders.tsx`**
 
 ```tsx
-import { formatShopPrice, shopOrderReference, shopPaymentMethodLabels, type ShopOrderProjection } from "@bpt-jersey/domain/shop";
+import {
+  formatShopPrice,
+  shopOrderReference,
+  shopPaymentMethodLabels,
+  type ShopOrderProjection,
+} from "@bpt-jersey/domain/shop";
 import { academyContent } from "../../content/academy";
 
-const statusLabels = { requested: "Requested", confirmed: "Confirmed", ready: "Ready to collect", collected: "Collected", cancelled: "Cancelled" } as const;
-export const pickupNames: Readonly<Record<string, string>> = Object.fromEntries(academyContent.locations.map((location) => [location.key, location.name]));
+const statusLabels = {
+  requested: "Requested",
+  confirmed: "Confirmed",
+  ready: "Ready to collect",
+  collected: "Collected",
+  cancelled: "Cancelled",
+} as const;
+export const pickupNames: Readonly<Record<string, string>> = Object.fromEntries(
+  academyContent.locations.map((location) => [location.key, location.name]),
+);
 
 export function ShopOrders({ orders }: { orders: readonly ShopOrderProjection[] }) {
   return (
@@ -1443,18 +1822,25 @@ export function ShopOrders({ orders }: { orders: readonly ShopOrderProjection[] 
             <li className="shop-order-item" key={order.orderId}>
               <div className="shop-order-item-head">
                 <strong>{shopOrderReference(order.orderId)}</strong>
-                <span className={`shop-status-badge shop-status-${order.status}`}>{statusLabels[order.status]}</span>
+                <span className={`shop-status-badge shop-status-${order.status}`}>
+                  {statusLabels[order.status]}
+                </span>
               </div>
               <ul className="shop-order-lines">
                 {order.lines.map((line) => (
                   <li key={`${line.productId}|${line.size ?? ""}`}>
-                    {line.quantity} × {line.productName}{line.size ? ` (${line.size})` : ""}
+                    {line.quantity} × {line.productName}
+                    {line.size ? ` (${line.size})` : ""}
                     <span>{formatShopPrice(line.lineTotalMinor)}</span>
                   </li>
                 ))}
               </ul>
               <p className="shop-order-meta">
-                {new Date(order.createdAt).toLocaleDateString("en-GB")} · Collect from {pickupNames[order.pickupLocationId]} · {shopPaymentMethodLabels[order.paymentMethod]} · {order.paymentStatus === "paid" ? "Paid" : "Not paid yet"} · <strong>{formatShopPrice(order.totalMinor, order.currency)}</strong>
+                {new Date(order.createdAt).toLocaleDateString("en-GB")} · Collect from{" "}
+                {pickupNames[order.pickupLocationId]} ·{" "}
+                {shopPaymentMethodLabels[order.paymentMethod]} ·{" "}
+                {order.paymentStatus === "paid" ? "Paid" : "Not paid yet"} ·{" "}
+                <strong>{formatShopPrice(order.totalMinor, order.currency)}</strong>
               </p>
             </li>
           ))}
@@ -1483,7 +1869,12 @@ import {
 } from "@bpt-jersey/domain/shop";
 import { academyContent } from "../../content/academy";
 import type { ClientSession } from "../../lib/client-auth";
-import { basketLineKey, basketTotalMinor, setBasketQuantity, type BasketLine } from "../../lib/shop-basket";
+import {
+  basketLineKey,
+  basketTotalMinor,
+  setBasketQuantity,
+  type BasketLine,
+} from "../../lib/shop-basket";
 import { placeShopOrder, uploadShopOrderProof } from "../../lib/shop-client";
 import { EnrolmentBankDetails, useEnrolmentBankDetails } from "../enrol/payment-instructions";
 
@@ -1518,7 +1909,9 @@ export function ShopCheckout({
   const [preview, setPreview] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const bank = useEnrolmentBankDetails(signedIn && method === "bank_transfer" ? requestId : undefined);
+  const bank = useEnrolmentBankDetails(
+    signedIn && method === "bank_transfer" ? requestId : undefined,
+  );
   const total = basketTotalMinor(lines, products);
 
   useEffect(() => {
@@ -1533,7 +1926,11 @@ export function ShopCheckout({
   }, [file]);
 
   const ready =
-    lines.length > 0 && contactName.trim().length > 0 && pickup !== undefined && method !== undefined && (method === "at_collection" || file !== undefined);
+    lines.length > 0 &&
+    contactName.trim().length > 0 &&
+    pickup !== undefined &&
+    method !== undefined &&
+    (method === "at_collection" || file !== undefined);
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -1541,7 +1938,8 @@ export function ShopCheckout({
     setBusy(true);
     setError(undefined);
     try {
-      const proofId = method === "bank_transfer" ? await uploadShopOrderProof(requestId, file!) : null;
+      const proofId =
+        method === "bank_transfer" ? await uploadShopOrderProof(requestId, file!) : null;
       const placed = await placeShopOrder({
         requestId,
         lines: [...lines],
@@ -1577,37 +1975,87 @@ export function ShopCheckout({
               if (!product) return null;
               return (
                 <li key={key}>
-                  <span>{product.name}{line.size ? ` (${line.size})` : ""}</span>
-                  <label className="visually-hidden" htmlFor={`basket-${key}`}>Quantity of {product.name}{line.size ? ` ${line.size}` : ""}</label>
-                  <input id={`basket-${key}`} inputMode="numeric" max={shopOrderMaximumQuantity} min={0} onChange={(event) => onLinesChange(setBasketQuantity(lines, key, Number(event.target.value)))} type="number" value={line.quantity} />
-                  <span className="shop-money">{formatShopPrice(product.priceMinor * line.quantity)}</span>
-                  <button className="shop-text-button" onClick={() => onLinesChange(setBasketQuantity(lines, key, 0))} type="button">Remove<span className="visually-hidden"> {product.name}</span></button>
+                  <span>
+                    {product.name}
+                    {line.size ? ` (${line.size})` : ""}
+                  </span>
+                  <label className="visually-hidden" htmlFor={`basket-${key}`}>
+                    Quantity of {product.name}
+                    {line.size ? ` ${line.size}` : ""}
+                  </label>
+                  <input
+                    id={`basket-${key}`}
+                    inputMode="numeric"
+                    max={shopOrderMaximumQuantity}
+                    min={0}
+                    onChange={(event) =>
+                      onLinesChange(setBasketQuantity(lines, key, Number(event.target.value)))
+                    }
+                    type="number"
+                    value={line.quantity}
+                  />
+                  <span className="shop-money">
+                    {formatShopPrice(product.priceMinor * line.quantity)}
+                  </span>
+                  <button
+                    className="shop-text-button"
+                    onClick={() => onLinesChange(setBasketQuantity(lines, key, 0))}
+                    type="button"
+                  >
+                    Remove<span className="visually-hidden"> {product.name}</span>
+                  </button>
                 </li>
               );
             })}
           </ul>
         )}
-        <p className="shop-basket-total"><span>Total</span><strong className="shop-money">{formatShopPrice(total)}</strong></p>
+        <p className="shop-basket-total">
+          <span>Total</span>
+          <strong className="shop-money">{formatShopPrice(total)}</strong>
+        </p>
       </section>
 
       {!signedIn ? (
         <div className="shop-checkout-signin">
           <p>Sign in to check out. New here? A buyer account takes a minute.</p>
-          <a className="button button-primary" href="/login?returnTo=%2Fshop">Sign in or create a buyer account</a>
+          <a className="button button-primary" href="/login?returnTo=%2Fshop">
+            Sign in or create a buyer account
+          </a>
         </div>
       ) : lines.length > 0 ? (
         <form className="shop-checkout" onSubmit={(event) => void submit(event)}>
           <fieldset disabled={busy}>
             <legend>Your details</legend>
-            <label className="shop-field" htmlFor="shop-contact-name">Name for the order
-              <input autoComplete="name" id="shop-contact-name" maxLength={160} onChange={(event) => setContactName(event.target.value)} value={contactName} />
+            <label className="shop-field" htmlFor="shop-contact-name">
+              Name for the order
+              <input
+                autoComplete="name"
+                id="shop-contact-name"
+                maxLength={160}
+                onChange={(event) => setContactName(event.target.value)}
+                value={contactName}
+              />
             </label>
             <p className="shop-field-hint">We will contact you at {session?.email}.</p>
-            <label className="shop-field" htmlFor="shop-contact-phone">Phone (optional)
-              <input autoComplete="tel" id="shop-contact-phone" maxLength={64} onChange={(event) => setContactPhone(event.target.value)} type="tel" value={contactPhone} />
+            <label className="shop-field" htmlFor="shop-contact-phone">
+              Phone (optional)
+              <input
+                autoComplete="tel"
+                id="shop-contact-phone"
+                maxLength={64}
+                onChange={(event) => setContactPhone(event.target.value)}
+                type="tel"
+                value={contactPhone}
+              />
             </label>
-            <label className="shop-field" htmlFor="shop-order-note">Note for the academy (optional)
-              <input id="shop-order-note" maxLength={500} onChange={(event) => setNote(event.target.value)} value={note} />
+            <label className="shop-field" htmlFor="shop-order-note">
+              Note for the academy (optional)
+              <input
+                id="shop-order-note"
+                maxLength={500}
+                onChange={(event) => setNote(event.target.value)}
+                value={note}
+              />
             </label>
           </fieldset>
 
@@ -1615,8 +2063,16 @@ export function ShopCheckout({
             <legend>Collect from</legend>
             {academyContent.locations.map((location) => (
               <label className="shop-choice" key={location.key}>
-                <input checked={pickup === location.key} name="shop-pickup" onChange={() => setPickup(location.key as ShopPickupLocationId)} type="radio" value={location.key} />
-                <span><strong>{location.name}</strong> {location.address}, {location.locality}</span>
+                <input
+                  checked={pickup === location.key}
+                  name="shop-pickup"
+                  onChange={() => setPickup(location.key as ShopPickupLocationId)}
+                  type="radio"
+                  value={location.key}
+                />
+                <span>
+                  <strong>{location.name}</strong> {location.address}, {location.locality}
+                </span>
               </label>
             ))}
           </fieldset>
@@ -1624,30 +2080,68 @@ export function ShopCheckout({
           <fieldset disabled={busy}>
             <legend>Payment</legend>
             <label className="shop-choice">
-              <input checked={method === "bank_transfer"} name="shop-payment" onChange={() => setMethod("bank_transfer")} type="radio" />
+              <input
+                checked={method === "bank_transfer"}
+                name="shop-payment"
+                onChange={() => setMethod("bank_transfer")}
+                type="radio"
+              />
               <span>Bank transfer now</span>
             </label>
             <label className="shop-choice">
-              <input checked={method === "at_collection"} name="shop-payment" onChange={() => { setMethod("at_collection"); setFile(undefined); }} type="radio" />
+              <input
+                checked={method === "at_collection"}
+                name="shop-payment"
+                onChange={() => {
+                  setMethod("at_collection");
+                  setFile(undefined);
+                }}
+                type="radio"
+              />
               <span>Pay when you collect</span>
             </label>
             {method === "bank_transfer" ? (
               <div className="shop-transfer">
                 <EnrolmentBankDetails {...bank} />
-                <p>Use the reference <strong>{shopOrderReference(requestId)}</strong> and transfer {formatShopPrice(total)}.</p>
-                <label className="shop-field" htmlFor="shop-proof">Transfer screenshot
-                  <input accept="image/png,image/jpeg" id="shop-proof" onChange={(event) => setFile(event.target.files?.[0])} type="file" />
+                <p>
+                  Use the reference <strong>{shopOrderReference(requestId)}</strong> and transfer{" "}
+                  {formatShopPrice(total)}.
+                </p>
+                <label className="shop-field" htmlFor="shop-proof">
+                  Transfer screenshot
+                  <input
+                    accept="image/png,image/jpeg"
+                    id="shop-proof"
+                    onChange={(event) => setFile(event.target.files?.[0])}
+                    type="file"
+                  />
                 </label>
                 <p className="shop-field-hint">PNG or JPEG, up to 2 MB.</p>
                 {/* eslint-disable-next-line @next/next/no-img-element -- local object URL preview */}
-                {preview ? <img alt="Transfer screenshot preview" className="shop-proof-preview" src={preview} /> : null}
+                {preview ? (
+                  <img
+                    alt="Transfer screenshot preview"
+                    className="shop-proof-preview"
+                    src={preview}
+                  />
+                ) : null}
               </div>
             ) : null}
-            {method === "at_collection" ? <p className="shop-field-hint">Pay at the academy when you collect.</p> : null}
+            {method === "at_collection" ? (
+              <p className="shop-field-hint">Pay at the academy when you collect.</p>
+            ) : null}
           </fieldset>
 
-          {error ? <p className="shop-message shop-message-error" role="alert">{error}</p> : null}
-          <button className="button button-primary shop-place-order" disabled={!ready || busy} type="submit">
+          {error ? (
+            <p className="shop-message shop-message-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <button
+            className="button button-primary shop-place-order"
+            disabled={!ready || busy}
+            type="submit"
+          >
             {busy ? "Placing order…" : `Place order · ${formatShopPrice(total)}`}
           </button>
         </form>
@@ -1672,28 +2166,49 @@ Keep the existing load effect, category filter, error/Retry and loading blocks. 
 - Ready layout:
 
 ```tsx
-{placed ? (
-  <section aria-label="Order placed" className="shop-confirmation" role="status">
-    <p className="account-eyebrow">Order placed</p>
-    <h2>{shopOrderReference(placed.orderId)}</h2>
-    <p>{formatShopPrice(placed.totalMinor)} · collect from {pickupNames[placed.pickupLocationId]}. {placed.paymentMethod === "bank_transfer" ? "We will check your transfer. Check this page for its status; the academy may also contact you." : "Pay when you collect. Check this page for its status; the academy may also contact you."}</p>
-  </section>
-) : null}
+{
+  placed ? (
+    <section aria-label="Order placed" className="shop-confirmation" role="status">
+      <p className="account-eyebrow">Order placed</p>
+      <h2>{shopOrderReference(placed.orderId)}</h2>
+      <p>
+        {formatShopPrice(placed.totalMinor)} · collect from {pickupNames[placed.pickupLocationId]}.{" "}
+        {placed.paymentMethod === "bank_transfer"
+          ? "We will check your transfer. Check this page for its status; the academy may also contact you."
+          : "Pay when you collect. Check this page for its status; the academy may also contact you."}
+      </p>
+    </section>
+  ) : null;
+}
 <div className="shop-layout">
   <section className="shop-section" aria-labelledby="shop-catalog-title">
     {/* existing eyebrow, h2, empty state, filter bar */}
     <ul className="shop-product-grid" aria-label="Products">
-      {visibleProducts.map((product) => <ProductCard key={product.productId} onAdd={add} product={product} />)}
+      {visibleProducts.map((product) => (
+        <ProductCard key={product.productId} onAdd={add} product={product} />
+      ))}
     </ul>
   </section>
-  <ShopCheckout lines={lines} onLinesChange={changeLines} onPlaced={handlePlaced} products={state.products} session={session} signedIn={signedIn} />
-</div>
-{lines.length > 0 ? (
-  <a className="shop-basket-bar" href="#shop-basket-title">
-    Basket · {lines.reduce((count, line) => count + line.quantity, 0)} items · {formatShopPrice(basketTotalMinor(lines, state.products))}
-  </a>
-) : null}
-{signedIn ? <ShopOrders orders={state.orders} /> : null}
+  <ShopCheckout
+    lines={lines}
+    onLinesChange={changeLines}
+    onPlaced={handlePlaced}
+    products={state.products}
+    session={session}
+    signedIn={signedIn}
+  />
+</div>;
+{
+  lines.length > 0 ? (
+    <a className="shop-basket-bar" href="#shop-basket-title">
+      Basket · {lines.reduce((count, line) => count + line.quantity, 0)} items ·{" "}
+      {formatShopPrice(basketTotalMinor(lines, state.products))}
+    </a>
+  ) : null;
+}
+{
+  signedIn ? <ShopOrders orders={state.orders} /> : null;
+}
 ```
 
 Import `pickupNames` from `./shop-orders`. Remove now-unused imports (`statusLabels`, `optionalText`, `placeShopOrder`, `shopPaymentMethodNote`, `shopOrderMaximumQuantity`).
@@ -1961,6 +2476,7 @@ git commit -m "feat(shop): basket, checkout with payment and pickup centre, orde
 ### Task 7: Web — "Club shop" in the member area
 
 **Files:**
+
 - Modify: `apps/web/src/app/account/calendar/calendar-header.tsx:22-26`
 - Test: the existing test that asserts the account links (`grep -rln "Courses & seminars" apps/web/src/app/account`), updated.
 
@@ -1988,10 +2504,12 @@ git commit -m "feat(account): link the club shop from the member area"
 ### Task 8: Web — `/admin/shop` reorganised around orders
 
 **Files:**
+
 - Modify: `apps/web/src/app/admin/shop/page.tsx`, `apps/web/src/app/admin/admin.css:4240-4430`
 - Test: `apps/web/src/app/admin/shop/page.test.tsx`
 
 **Interfaces:**
+
 - Consumes: v2 `ShopOrderProjection`, `getShopOrderProofUrl` (Task 4), `shopOrderReference`, `shopPaymentMethodLabels` (Task 1), `pickupNames` exported by `apps/web/src/app/shop/shop-orders.tsx` (Task 6) — import it here from `../../shop/shop-orders`.
 
 - [ ] **Step 1: Failing tests**
@@ -2020,7 +2538,9 @@ it("opens the transfer screenshot through a short-lived link", async () => {
   shopApi.getShopOrderProofUrl.mockResolvedValue("https://signed.test/proof");
   const open = vi.spyOn(window, "open").mockReturnValue(null);
   render(<ShopAdminPage />);
-  await userEvent.setup().click(await screen.findByRole("button", { name: /View transfer screenshot/ }));
+  await userEvent
+    .setup()
+    .click(await screen.findByRole("button", { name: /View transfer screenshot/ }));
   expect(shopApi.getShopOrderProofUrl).toHaveBeenCalledWith(transferOrder.orderId);
   expect(open).toHaveBeenCalledWith("https://signed.test/proof", "_blank", "noopener,noreferrer");
 });
@@ -2051,8 +2571,14 @@ Run: `corepack pnpm vitest run --project web apps/web/src/app/admin/shop/page.te
 - Actions add, when `order.paymentMethod === "bank_transfer"`:
 
 ```tsx
-<button className="shop-admin-table-button" disabled={busy !== undefined} onClick={() => void viewProof(order)} type="button">
-  View transfer screenshot<span className="visually-hidden"> for {shopOrderReference(order.orderId)}</span>
+<button
+  className="shop-admin-table-button"
+  disabled={busy !== undefined}
+  onClick={() => void viewProof(order)}
+  type="button"
+>
+  View transfer screenshot
+  <span className="visually-hidden"> for {shopOrderReference(order.orderId)}</span>
 </button>
 ```
 
@@ -2071,7 +2597,7 @@ async function viewProof(order: ShopOrderProjection): Promise<void> {
 }
 ```
 
-- `changeOrder` success text: ``Order ${shopOrderReference(updated.orderId)} updated.``
+- `changeOrder` success text: `Order ${shopOrderReference(updated.orderId)} updated.`
 - CSS in `admin.css`: replace `.shop-admin-grid` rules with
 
 ```css
@@ -2107,7 +2633,7 @@ async function viewProof(order: ShopOrderProjection): Promise<void> {
 }
 ```
 
-  and change the `@media (max-width: 64rem)` rule to only `.shop-admin-form-grid { grid-template-columns: 1fr; }` below `47.99rem` (two form columns stay on tablet). Keep table actions at `min-height: 2.75rem`.
+and change the `@media (max-width: 64rem)` rule to only `.shop-admin-form-grid { grid-template-columns: 1fr; }` below `47.99rem` (two form columns stay on tablet). Keep table actions at `min-height: 2.75rem`.
 
 - [ ] **Step 4: Run** — Expected: PASS; then `corepack pnpm --filter @bpt-jersey/web typecheck` clean.
 
