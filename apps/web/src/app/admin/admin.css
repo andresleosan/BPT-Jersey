@@ -4268,6 +4268,19 @@ a.admin-birthday-badge:focus-visible,
   gap: 0.75rem;
 }
 
+/* The global .button-secondary is white-on-dark; inside a white admin card it was invisible. */
+.shop-admin-page .button-secondary {
+  background: var(--gi-white);
+  border-color: var(--bpt-purple);
+  color: var(--bpt-purple);
+}
+
+.shop-admin-page .button-secondary:hover {
+  background: var(--bpt-purple-dark);
+  border-color: var(--bpt-purple-dark);
+  color: var(--gi-white);
+}
+
 .shop-admin-order-filters {
   display: flex;
   flex-wrap: wrap;
