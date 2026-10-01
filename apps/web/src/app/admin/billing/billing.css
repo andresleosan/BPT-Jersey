@@ -359,12 +359,13 @@
 .finance-dashboard-page .button {
   font-family: inherit;
 }
-.finance-dashboard-page .button:not(.button-secondary):not(.billing-danger-button) {
+.finance-dashboard-page .button:not(.button-secondary):not(.billing-danger-button):not(:disabled) {
   background: var(--bpt-purple);
   border-color: var(--bpt-purple);
   color: var(--gi-white);
 }
-.finance-dashboard-page .button:not(.button-secondary):not(.billing-danger-button):hover {
+.finance-dashboard-page
+  .button:not(.button-secondary):not(.billing-danger-button):not(:disabled):hover {
   background: var(--bpt-purple-dark);
   border-color: var(--bpt-purple-dark);
 }
