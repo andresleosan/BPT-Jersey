@@ -4263,6 +4263,56 @@ a.admin-birthday-badge:focus-visible,
   padding: 0.75rem 1rem;
 }
 
+.shop-admin-page .admin-panel-card-heading {
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.shop-admin-order-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.shop-admin-page .admin-filter-control select {
+  font-size: 1rem;
+}
+
+.shop-admin-proof-dialog {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  border-top: 0.35rem solid var(--bpt-purple);
+  box-shadow: none;
+  display: grid;
+  gap: 0.75rem;
+  max-width: min(40rem, calc(100vw - 2rem));
+  padding: 1.25rem;
+}
+
+.shop-admin-proof-dialog:not([open]) {
+  display: none;
+}
+
+.shop-admin-proof-dialog::backdrop {
+  background: rgb(17 17 17 / 0.6);
+}
+
+.shop-admin-proof-dialog h3 {
+  margin: 0;
+}
+
+.shop-admin-proof-image {
+  display: block;
+  max-height: 70dvh;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.shop-admin-proof-dialog .shop-admin-table-button {
+  justify-self: start;
+}
+
 .shop-admin-order-lines {
   display: grid;
   gap: 0.2rem;

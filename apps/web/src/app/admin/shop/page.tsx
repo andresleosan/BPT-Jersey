@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useEffect, useState, type FormEvent } from "react";
+import { startTransition, useEffect, useRef, useState, type FormEvent } from "react";
 
 import {
   formatShopPrice,
@@ -112,6 +112,47 @@ function ProductThumbnail({
   );
 }
 
+type ProofView = Readonly<{ reference: string; url: string }>;
+
+/** The transfer screenshot in a native modal dialog; Esc or "Close" clear it. */
+function ProofDialog({ proof, onClose }: { proof: ProofView; onClose: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialog = ref.current;
+    if (dialog && !dialog.open) {
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "");
+    }
+  }, []);
+
+  function close(): void {
+    ref.current?.close?.();
+    onClose();
+  }
+
+  return (
+    <dialog
+      aria-labelledby="shop-proof-title"
+      className="shop-admin-proof-dialog"
+      onClose={onClose}
+      ref={ref}
+    >
+      <p className="admin-eyebrow">Transfer screenshot</p>
+      <h3 id="shop-proof-title">{proof.reference}</h3>
+      {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed R2 link */}
+      <img
+        alt={`Transfer screenshot for ${proof.reference}`}
+        className="shop-admin-proof-image"
+        src={proof.url}
+      />
+      <button className="shop-admin-table-button" onClick={close} type="button">
+        Close
+      </button>
+    </dialog>
+  );
+}
+
 function slugify(value: string): string {
   return value
     .toLowerCase()
@@ -200,6 +241,7 @@ export function ShopAdminPage() {
   const [busy, setBusy] = useState<string>();
   const [notice, setNotice] = useState<Notice>();
   const [orderFilter, setOrderFilter] = useState<"open" | "all">("open");
+  const [proof, setProof] = useState<ProofView>();
   const [centreFilter, setCentreFilter] = useState<"all" | ShopPickupLocationId>("all");
 
   useEffect(() => {
@@ -315,8 +357,10 @@ export function ShopAdminPage() {
 
   async function viewProof(order: ShopOrderProjection): Promise<void> {
     setBusy(`proof-${order.orderId}`);
+    setNotice(undefined);
     try {
-      window.open(await getShopOrderProofUrl(order.orderId), "_blank", "noopener,noreferrer");
+      const url = await getShopOrderProofUrl(order.orderId);
+      setProof({ reference: shopOrderReference(order.orderId), url });
     } catch {
       setNotice({ tone: "error", text: "The transfer screenshot is unavailable." });
     } finally {
@@ -376,31 +420,33 @@ export function ShopAdminPage() {
                 <p className="admin-eyebrow">Collection orders</p>
                 <h3 id="shop-orders-title">Orders</h3>
               </div>
-              <label className="admin-filter-control" htmlFor="shop-order-filter">
-                Show
-                <select
-                  id="shop-order-filter"
-                  onChange={(event) => setOrderFilter(event.target.value as "open" | "all")}
-                  value={orderFilter}
-                >
-                  <option value="open">Open orders</option>
-                  <option value="all">All orders</option>
-                </select>
-              </label>
-              <label className="admin-filter-control" htmlFor="shop-order-centre">
-                Centre
-                <select
-                  id="shop-order-centre"
-                  onChange={(event) =>
-                    setCentreFilter(event.target.value as "all" | ShopPickupLocationId)
-                  }
-                  value={centreFilter}
-                >
-                  <option value="all">All centres</option>
-                  <option value="town">Town</option>
-                  <option value="west">West</option>
-                </select>
-              </label>
+              <div className="shop-admin-order-filters">
+                <label className="admin-filter-control" htmlFor="shop-order-filter">
+                  Show
+                  <select
+                    id="shop-order-filter"
+                    onChange={(event) => setOrderFilter(event.target.value as "open" | "all")}
+                    value={orderFilter}
+                  >
+                    <option value="open">Open orders</option>
+                    <option value="all">All orders</option>
+                  </select>
+                </label>
+                <label className="admin-filter-control" htmlFor="shop-order-centre">
+                  Centre
+                  <select
+                    id="shop-order-centre"
+                    onChange={(event) =>
+                      setCentreFilter(event.target.value as "all" | ShopPickupLocationId)
+                    }
+                    value={centreFilter}
+                  >
+                    <option value="all">All centres</option>
+                    <option value="town">Town</option>
+                    <option value="west">West</option>
+                  </select>
+                </label>
+              </div>
             </div>
             {visibleOrders.length === 0 ? (
               <div className="admin-empty-state">
@@ -516,6 +562,7 @@ export function ShopAdminPage() {
               </AdminDataTableWrap>
             )}
           </section>
+          {proof ? <ProofDialog onClose={() => setProof(undefined)} proof={proof} /> : null}
           <div className="shop-admin-catalog">
             <section className="admin-panel-card" aria-labelledby="shop-products-title">
               <div className="admin-panel-card-heading">
