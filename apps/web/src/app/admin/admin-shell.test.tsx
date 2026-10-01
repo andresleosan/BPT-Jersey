@@ -30,7 +30,7 @@ describe("shared staff workspace", () => {
     expect(screen.getByRole("link", { name: "Dashboard" })).not.toHaveAttribute("aria-current");
     expect(screen.getByRole("link", { name: "Attendance" })).toBeInTheDocument();
     for (const name of [
-      "Billing",
+      "Financial dashboard",
       "Memberships",
       "Staff",
       "Reports",
@@ -139,14 +139,7 @@ describe("shared staff workspace", () => {
       );
       expect(hrefs.filter((href) => href === "/admin/levels")).toHaveLength(1);
       expect(hrefs).not.toContain("/coach/levels");
-      for (const name of [
-        "Waitlists",
-        "Billing",
-        "Financial dashboard",
-        "Shop",
-        "Staff",
-        "Memberships",
-      ]) {
+      for (const name of ["Waitlists", "Financial dashboard", "Shop", "Staff", "Memberships"]) {
         expect(screen.queryByRole("link", { name })).not.toBeInTheDocument();
       }
       cleanup();
@@ -158,11 +151,11 @@ describe("shared staff workspace", () => {
         <p>Content</p>
       </AdminShell>,
     );
-    expect(screen.getByRole("link", { name: "Billing" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Member migration" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Financial dashboard" })).toHaveAttribute(
       "href",
-      "/admin/members/migration",
+      "/admin/finance",
     );
+    expect(screen.queryByRole("link", { name: "Billing" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "My sign-in" })).not.toBeInTheDocument();
   });
 });
