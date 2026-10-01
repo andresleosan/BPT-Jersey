@@ -54,3 +54,12 @@ describe("phone and tablet breakpoints", () => {
     expect(adminCss).toMatch(/^\.admin-signout \{[^}]*min-height: 2\.75rem;/mu);
   });
 });
+
+describe("design tokens", () => {
+  it("takes the club shop's muted text colour from the --muted token", () => {
+    const shopCss = readFileSync(resolve(appDir, "shop/shop.css"), "utf8");
+    expect(globalsCss).toMatch(/--muted: #65635d;/u);
+    expect(shopCss).not.toMatch(/#65635d/iu);
+    expect(shopCss).toMatch(/color: var\(--muted\);/u);
+  });
+});

@@ -23,6 +23,28 @@ describe("shop client proof upload", () => {
     );
     expect(api.invoke).not.toHaveBeenCalled();
   });
+
+  it("shows the server's reason when it rejects the screenshot", async () => {
+    api.invoke.mockRejectedValue(
+      Object.assign(new Error("The payment screenshot is not a valid PNG or JPEG."), {
+        code: "functions/invalid-argument",
+      }),
+    );
+    const file = new File([new Uint8Array([137, 80, 78, 71])], "proof.png", { type: "image/png" });
+    await expect(uploadShopOrderProof("req-1", file)).rejects.toThrow(
+      "The payment screenshot is not a valid PNG or JPEG.",
+    );
+  });
+
+  it("keeps the generic message for any other upload failure", async () => {
+    api.invoke.mockRejectedValue(
+      Object.assign(new Error("raw storage detail"), { code: "functions/internal" }),
+    );
+    const file = new File([new Uint8Array([137, 80, 78, 71])], "proof.png", { type: "image/png" });
+    await expect(uploadShopOrderProof("req-1", file)).rejects.toThrow(
+      "The payment screenshot could not be uploaded.",
+    );
+  });
 });
 
 const checkout = {
