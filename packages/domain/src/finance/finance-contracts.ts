@@ -363,6 +363,35 @@ export function parseManualPaymentRecord(
   return fields.ok ? parsePaymentValues(fields.value) : fields;
 }
 
+/** A payment the office voided: moved out of `payments` whole, with who, when and why. */
+export type VoidedPaymentRecord = Readonly<{
+  payment: ManualPaymentRecord;
+  voidedAt: string;
+  voidedBy: string;
+  voidedByName: string;
+  reason: string;
+  requestId: string;
+}>;
+
+const voidedPaymentEnvelopeSchema = z.strictObject({
+  payment: z.unknown(),
+  voidedAt: z.iso.datetime({ offset: true }),
+  voidedBy: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u),
+  voidedByName: z.string().trim().min(1).max(160),
+  reason: editPaymentReasonSchema,
+  requestId: z.uuid(),
+});
+
+export function parseVoidedPaymentRecord(
+  value: unknown,
+): Result<VoidedPaymentRecord, readonly ValidationIssue[]> {
+  const envelope = voidedPaymentEnvelopeSchema.safeParse(value);
+  if (!envelope.success) return err([issue(["voidedPayment"], "invalid_voided_payment")]);
+  const payment = parseManualPaymentRecord(envelope.data.payment);
+  if (!payment.ok) return err(payment.error);
+  return ok(Object.freeze({ ...envelope.data, payment: payment.value }));
+}
+
 export const recentPaymentsLimit = 20;
 
 export type RecentPaymentRow = Readonly<{
