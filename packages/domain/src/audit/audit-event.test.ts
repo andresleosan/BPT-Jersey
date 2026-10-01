@@ -877,3 +877,23 @@ describe("isAuditIpAddress", () => {
     expect(isAuditIpAddress("82.112.144.10")).toBe(true);
   });
 });
+
+describe("payment.voided audit action", () => {
+  const paymentVoided = {
+    ...paymentRecorded,
+    action: "payment.voided",
+    purpose: "manual payment voided",
+    correlationId: "payment-voided-1",
+  } as const;
+
+  it("accepts a payment.voided draft with amount, currency and method", () => {
+    expect(auditActions).toContain("payment.voided");
+    expect(parseAuditEventDraft(paymentVoided).ok).toBe(true);
+  });
+
+  it("refuses a payment.voided draft without method", () => {
+    const withoutMethod: Record<string, unknown> = { ...paymentVoided };
+    delete withoutMethod.method;
+    expect(parseAuditEventDraft(withoutMethod).ok).toBe(false);
+  });
+});

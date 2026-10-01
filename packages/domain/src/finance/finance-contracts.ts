@@ -90,6 +90,14 @@ export const editManualPaymentInputSchema = z
   );
 export type EditManualPaymentInput = z.infer<typeof editManualPaymentInputSchema>;
 
+/** Office void of a recorded payment: the document moves to voidedPayments with the reason. */
+export const voidManualPaymentInputSchema = z.strictObject({
+  paymentId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u),
+  reason: editPaymentReasonSchema,
+  requestId: z.uuid(),
+});
+export type VoidManualPaymentInput = z.infer<typeof voidManualPaymentInputSchema>;
+
 export type CoursePayer = {kind: "user"; userId: string} | {kind: "family"; familyId: string};
 export type CourseInvoiceRecord = Omit<LegacyInvoiceRecord, "schemaVersion" | "familyId" | "membershipId" | "chargeKind" | "sourceRef"> & {
   schemaVersion: 2; familyId: string | null; membershipId: null; chargeKind: "course"; sourceRef: string; payer: CoursePayer;
