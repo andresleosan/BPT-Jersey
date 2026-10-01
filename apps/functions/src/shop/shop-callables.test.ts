@@ -333,6 +333,18 @@ describe("shop callables", () => {
     expect(current.store.placeOrder).not.toHaveBeenCalled();
   });
 
+  it("still places the order when the sign-in email fails the order's email rule", async () => {
+    const { services: current } = services();
+    const placed = await placeShopOrderHandler(
+      request(collectionCheckout, "shopper", "buyer-1", "academy-1", "not-an-email"),
+      current,
+    );
+    expect(placed.orderId).toBe("order-req-1");
+    expect(current.store.placeOrder).toHaveBeenLastCalledWith(
+      expect.objectContaining({ contactEmail: null }),
+    );
+  });
+
   it("maps store failures to callable error codes", async () => {
     const { services: current } = services();
     current.store.placeOrder.mockRejectedValueOnce(
