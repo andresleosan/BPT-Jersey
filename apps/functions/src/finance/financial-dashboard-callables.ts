@@ -1,7 +1,10 @@
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
-import type { FinancialDashboard } from "@bpt-jersey/domain/finance/dashboard";
+import {
+  financialDashboardInputSchema,
+  type FinancialDashboard,
+} from "@bpt-jersey/domain/finance/dashboard";
 import type { UserActorContext } from "@bpt-jersey/domain";
 
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
@@ -23,25 +26,32 @@ function permissionDenied(): never {
   throw new HttpsError("permission-denied", "Financial dashboard access is not permitted");
 }
 
-function requireNoPayload(value: unknown): void {
-  if (value !== null) {
-    throw new HttpsError("invalid-argument", "Financial dashboard payload must be null");
+function parsePayload(value: unknown): string | undefined {
+  // null stays valid so the web build live during a deploy keeps working.
+  if (value === null) return undefined;
+  const parsed = financialDashboardInputSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new HttpsError("invalid-argument", "Financial dashboard payload is invalid");
   }
+  return parsed.data.month;
 }
 
 export function createGetFinancialDashboardHandler(services: FinancialDashboardCallableServices) {
   return async (request: CallableRequest<unknown>): Promise<{ dashboard: FinancialDashboard }> => {
     const actor = requireUserActor(request);
     if (!allowedRoles.includes(actor.role as (typeof allowedRoles)[number])) permissionDenied();
-    requireNoPayload(request.data);
+    const month = parsePayload(request.data);
 
     try {
       if (!(await services.isActorActive(actor))) permissionDenied();
-      return { dashboard: await services.store.getFinancialDashboard(actor.academyId) };
+      return { dashboard: await services.store.getFinancialDashboard(actor.academyId, month) };
     } catch (error) {
       if (error instanceof HttpsError) throw error;
       if (error instanceof FinancialDashboardStoreError && error.code === "tenant") {
         permissionDenied();
+      }
+      if (error instanceof FinancialDashboardStoreError && error.code === "month") {
+        throw new HttpsError("invalid-argument", "That month has not started yet");
       }
       throw new HttpsError("internal", "Unable to retrieve financial dashboard");
     }
