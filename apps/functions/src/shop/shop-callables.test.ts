@@ -484,6 +484,27 @@ describe("shop callables", () => {
     );
   });
 
+  it("masks a signing failure as unavailable evidence", async () => {
+    const { services: s, storage, store } = services();
+    const transferOrder = {
+      ...order,
+      paymentMethod: "bank_transfer" as const,
+      proofId: pngProofId,
+    };
+    store.getOrder.mockResolvedValue(transferOrder);
+    storage.objects.set(
+      shopProofKey("academy-1", transferOrder.customerUserId, transferOrder.requestId, pngProofId),
+      png,
+    );
+    storage.createPrivateImageUrl.mockRejectedValue(new Error("R2 signer exploded"));
+    await expect(
+      getShopOrderProofUrlHandler(request({ orderId: transferOrder.orderId }, "owner"), s),
+    ).rejects.toMatchObject({
+      code: "failed-precondition",
+      message: "Payment evidence is unavailable.",
+    });
+  });
+
   it("reports no screenshot for a pay-on-collection order", async () => {
     const { services: s, store } = services();
     store.getOrder.mockResolvedValue({ ...order, paymentMethod: "at_collection", proofId: null });
