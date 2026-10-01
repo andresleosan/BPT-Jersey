@@ -220,6 +220,10 @@ describe("billing client payment voids", () => {
     callable.mockRejectedValueOnce({ code: "functions/failed-precondition", message: refusal });
     await expect(voidManualPayment(voidInput)).resolves.toEqual({ ok: false, message: refusal });
 
+    const changed = "This payment was changed by someone else. Refresh and try again.";
+    callable.mockRejectedValueOnce({ code: "functions/failed-precondition", message: changed });
+    await expect(voidManualPayment(voidInput)).resolves.toEqual({ ok: false, message: changed });
+
     callable.mockRejectedValueOnce({ code: "functions/permission-denied", message: "denied" });
     await expect(voidManualPayment(voidInput)).resolves.toEqual({
       ok: false,

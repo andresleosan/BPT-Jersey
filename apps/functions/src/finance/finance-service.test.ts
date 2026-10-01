@@ -1240,6 +1240,16 @@ describe("voidManualPayment", () => {
     expect(h.audits.filter((entry) => entry.action === "payment.voided")).toHaveLength(1);
   });
 
+  it("refuses a request id that is not a uuid before touching anything", async () => {
+    const h = await seededPaidInvoice();
+    const before = new Map(h.records);
+    await expect(
+      h.service.voidManualPayment(voidInput(h.payment.paymentId, "request-1")),
+    ).rejects.toMatchObject({ code: "invalid", message: "Invalid request id" });
+    expect(h.records).toEqual(before);
+    expect(h.audits).toEqual([]);
+  });
+
   it("refuses the same requestId for another payment", async () => {
     const h = await seededInvoice();
     const first = await pay(h, 5000, "CASH-VOID-1");

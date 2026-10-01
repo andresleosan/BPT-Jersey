@@ -290,7 +290,15 @@ export function createFirestoreFinancialDashboardStore(options: {
       for (const document of boundedDocuments(lessonSnapshot)) {
         const invoiceId = stringField(document, "invoiceId");
         const studentId = stringField(document, "studentId");
-        if (invoiceId && studentId) studentByInvoiceId.set(invoiceId, studentId);
+        // A malformed id is skipped (the row falls back to its label), never passed on.
+        if (
+          invoiceId &&
+          studentId &&
+          identifierPattern.test(invoiceId) &&
+          identifierPattern.test(studentId)
+        ) {
+          studentByInvoiceId.set(invoiceId, studentId);
+        }
       }
       return buildFinancialDashboard({
         generatedAt,

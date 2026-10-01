@@ -587,5 +587,18 @@ describe("savePaymentInstructions (T010/T035 re-scope)", () => {
         message: "This void was already sent for another payment.",
       });
     });
+
+    it("tells the office the payment was already changed when it is gone", async () => {
+      const { finance, store } = voidServices();
+      store.voidManualPayment.mockRejectedValue(
+        new FinanceStoreError("not-found", "Payment not found"),
+      );
+      await expect(
+        voidManualPaymentHandler(request(valid, actor("owner")), finance),
+      ).rejects.toMatchObject({
+        code: "failed-precondition",
+        message: "This payment was changed by someone else. Refresh and try again.",
+      });
+    });
   });
 });
