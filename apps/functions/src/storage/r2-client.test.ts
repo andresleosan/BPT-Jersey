@@ -306,6 +306,31 @@ describe("private storage selection outside and inside the Functions Emulator", 
     await expect(client.putObject(proofKey, screenshot, "image/svg+xml")).rejects.toThrow();
   });
 
+  it("stores and signs club shop transfer screenshots under the shop-proofs prefix only", async () => {
+    const client = createEmulatorR2Client();
+    const shopKey = "academies/a/shop-proofs/owner-hash/req-1/proof";
+    const unlistedKey = "academies/a/other-proofs/owner-hash/req-1/proof";
+    const screenshot = new Uint8Array([137, 80, 78, 71]);
+    await client.putObject(shopKey, screenshot, "image/png");
+    expect(await client.readObject(shopKey)).toEqual(screenshot);
+    const url = await client.createPrivateImageUrl!({
+      objectKey: shopKey,
+      expiresInSeconds: 60,
+      contentType: "image/png",
+    });
+    expect(decodeURIComponent(new URL(url).pathname.slice(1))).toBe(shopKey);
+    await expect(client.putObject(unlistedKey, screenshot, "image/png")).rejects.toThrowError(
+      "Only PDF objects are accepted",
+    );
+    await expect(
+      client.createPrivateImageUrl!({
+        objectKey: unlistedKey,
+        expiresInSeconds: 60,
+        contentType: "image/png",
+      }),
+    ).rejects.toThrowError("Invalid private image request");
+  });
+
   it("shares emulator objects between Functions Emulator workers through one directory", async () => {
     // Each function runs in its own emulator process: the upload and the submit never share memory.
     const directory = mkdtempSync(join(tmpdir(), "bpt-emulator-storage-"));

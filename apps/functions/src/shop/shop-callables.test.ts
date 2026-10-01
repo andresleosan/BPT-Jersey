@@ -390,6 +390,24 @@ describe("shop callables", () => {
     );
   });
 
+  it("reports a safe message when the screenshot cannot be stored", async () => {
+    const { services: s, storage } = services();
+    storage.putObject.mockRejectedValueOnce(new Error("R2 unavailable"));
+    await expect(
+      uploadShopOrderProofHandler(
+        request(
+          { requestId: "req-1", contentType: "image/png", base64: png.toString("base64") },
+          "shopper",
+          "client-1",
+        ),
+        s,
+      ),
+    ).rejects.toMatchObject({
+      code: "internal",
+      message: "The payment screenshot could not be uploaded.",
+    });
+  });
+
   it("rejects a file that is not really a PNG", async () => {
     const { services: s } = services();
     await expect(
