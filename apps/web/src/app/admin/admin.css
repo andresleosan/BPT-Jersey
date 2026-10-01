@@ -311,13 +311,19 @@ a.admin-birthday-badge:focus-visible,
   min-height: 2.9rem;
 }
 
+/* Status is text plus a coloured left rule (DESIGN.md): square, no box or pill around it. The
+   tone classes below set the text colour and the rule follows it. */
 .admin-status-badge {
-  border: 1px solid currentColor;
+  background: transparent;
+  border: 0;
+  border-left: 0.35rem solid currentColor;
+  border-radius: 0;
   display: inline-flex;
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.08em;
-  padding: 0.25rem 0.45rem;
+  line-height: 1.2;
+  padding: 0.2rem 0 0.2rem 0.5rem;
   text-transform: uppercase;
 }
 
