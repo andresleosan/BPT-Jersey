@@ -67,6 +67,7 @@ function SessionProbe() {
       </button>
       {session ? <output data-testid="email">{session.email}</output> : null}
       {session?.role ? <output data-testid="role">{session.role}</output> : null}
+      {session?.staffRole ? <output data-testid="staff-role">{session.staffRole}</output> : null}
       {status === "signed-in" ? <div data-testid="client-content">Client content</div> : null}
     </>
   );
@@ -220,6 +221,57 @@ describe("ClientAuthProvider", () => {
     });
 
     await waitFor(() => expect(screen.getByTestId("auth-status")).toHaveTextContent("signed-out"));
+    expect(accountBoundary.registerShopperAccount).not.toHaveBeenCalled();
+  });
+
+  it.each(["owner", "administrator", "headCoach", "coach"])(
+    "treats a %s token as signed in only when the surface accepts staff",
+    async (staffRole) => {
+      render(
+        <ClientAuthProvider acceptStaff>
+          <SessionProbe />
+        </ClientAuthProvider>,
+      );
+
+      await act(async () => {
+        authBoundary.emitUser(userWithClaims(`${staffRole}-1`, { role: staffRole, academyId: "academy-1" }));
+      });
+
+      await waitFor(() => expect(screen.getByTestId("auth-status")).toHaveTextContent("signed-in"));
+      expect(screen.getByTestId("staff-role")).toHaveTextContent(staffRole);
+      expect(screen.queryByTestId("role")).not.toBeInTheDocument();
+      expect(accountBoundary.registerShopperAccount).not.toHaveBeenCalled();
+
+      cleanup();
+      render(
+        <ClientAuthProvider>
+          <SessionProbe />
+        </ClientAuthProvider>,
+      );
+
+      await act(async () => {
+        authBoundary.emitUser(userWithClaims(`${staffRole}-1`, { role: staffRole, academyId: "academy-1" }));
+      });
+
+      await waitFor(() => expect(screen.getByTestId("auth-status")).toHaveTextContent("signed-out"));
+      expect(screen.queryByTestId("staff-role")).not.toBeInTheDocument();
+      expect(accountBoundary.registerShopperAccount).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps a client role unchanged on a surface that accepts staff", async () => {
+    render(
+      <ClientAuthProvider acceptStaff>
+        <SessionProbe />
+      </ClientAuthProvider>,
+    );
+
+    await act(async () => {
+      authBoundary.emitUser(userWithClaims("student-2", { role: "adultStudent" }));
+    });
+
+    await waitFor(() => expect(screen.getByTestId("role")).toHaveTextContent("adultStudent"));
+    expect(screen.queryByTestId("staff-role")).not.toBeInTheDocument();
     expect(accountBoundary.registerShopperAccount).not.toHaveBeenCalled();
   });
 

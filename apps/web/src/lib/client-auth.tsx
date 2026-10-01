@@ -18,11 +18,15 @@ export const studentClientRoles: readonly ClientAccountRole[] = [
   "teenStudent",
 ];
 
+export type StaffAccountRole = "owner" | "administrator" | "headCoach" | "coach";
+const staffAccountRoles: readonly string[] = ["owner", "administrator", "headCoach", "coach"];
+
 export type ClientSession = Readonly<{
   uid: string;
   email: string;
   displayName: string;
   role?: ClientAccountRole;
+  staffRole?: StaffAccountRole;
 }>;
 
 export type ClientAuthStatus = "loading" | "signed-out" | "signed-in";
@@ -88,7 +92,7 @@ async function claimedRole(
   }
 }
 
-async function sessionFromUser(user: User): Promise<ClientSession | undefined> {
+async function sessionFromUser(user: User, acceptStaff: boolean): Promise<ClientSession | undefined> {
   const uid = user.uid.trim();
   const email = user.email?.trim() ?? "";
 
@@ -109,6 +113,10 @@ async function sessionFromUser(user: User): Promise<ClientSession | undefined> {
     const token = (await tokenReader.call(user)) as Readonly<{
       claims?: Readonly<Record<string, unknown>>;
     }>;
+    const claimed = token.claims?.role;
+    // The club shop also serves the office and coaches; they keep their staff role, never a client one.
+    if (acceptStaff && typeof claimed === "string" && staffAccountRoles.includes(claimed))
+      return Object.freeze({ ...baseSession, staffRole: claimed as StaffAccountRole });
     const role = await claimedRole(user, tokenReader as (...args: readonly unknown[]) => unknown, token.claims);
     if (!role) return undefined;
     return Object.freeze({ ...baseSession, role });
@@ -119,7 +127,8 @@ async function sessionFromUser(user: User): Promise<ClientSession | undefined> {
 
 export function ClientAuthProvider({
   children,
-}: Readonly<{ children: React.ReactNode }>) {
+  acceptStaff = false,
+}: Readonly<{ children: React.ReactNode; acceptStaff?: boolean }>) {
   const [state, setState] = useState<ClientSessionState>({ status: "loading" });
 
   useEffect(() => {
@@ -129,7 +138,7 @@ export function ClientAuthProvider({
 
     const handleUser = async (user: User | null) => {
       const currentVersion = ++eventVersion;
-      const session = user ? await sessionFromUser(user) : undefined;
+      const session = user ? await sessionFromUser(user, acceptStaff) : undefined;
 
       if (!active || currentVersion !== eventVersion) {
         return;
@@ -154,7 +163,7 @@ export function ClientAuthProvider({
       active = false;
       unsubscribe?.();
     };
-  }, []);
+  }, [acceptStaff]);
 
   const value: ClientSessionContextValue =
     state.status === "signed-in"
