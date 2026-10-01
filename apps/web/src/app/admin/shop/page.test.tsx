@@ -193,15 +193,20 @@ describe("club shop admin page", () => {
     expect(screen.getByRole("columnheader", { name: "Visible in shop" })).toBeVisible();
   });
 
-  it("opens the transfer screenshot through a short-lived link", async () => {
+  it("shows the transfer screenshot in a dialog through a short-lived link", async () => {
     shopApi.getShopOrderProofUrl.mockResolvedValue("https://signed.test/proof");
-    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const user = userEvent.setup();
     render(<ShopAdminPage />);
-    await userEvent
-      .setup()
-      .click(await screen.findByRole("button", { name: /View transfer screenshot/ }));
+    await user.click(await screen.findByRole("button", { name: /View transfer screenshot/ }));
     expect(shopApi.getShopOrderProofUrl).toHaveBeenCalledWith(transferOrder.orderId);
-    expect(open).toHaveBeenCalledWith("https://signed.test/proof", "_blank", "noopener,noreferrer");
+    const reference = shopOrderReference(transferOrder.orderId);
+    const dialog = await screen.findByRole("dialog", { name: reference });
+    expect(
+      within(dialog).getByRole("img", { name: `Transfer screenshot for ${reference}` }),
+    ).toHaveAttribute("src", "https://signed.test/proof");
+    await user.click(within(dialog).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /Transfer screenshot/ })).not.toBeInTheDocument();
   });
 
   it("offers no screenshot for orders paid on collection", async () => {
@@ -215,7 +220,6 @@ describe("club shop admin page", () => {
 
   it("says so when the transfer screenshot cannot be opened", async () => {
     shopApi.getShopOrderProofUrl.mockRejectedValue(new Error("gone"));
-    const open = vi.spyOn(window, "open").mockReturnValue(null);
     render(<ShopAdminPage />);
     await userEvent
       .setup()
@@ -223,7 +227,23 @@ describe("club shop admin page", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "The transfer screenshot is unavailable.",
     );
-    expect(open).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("clears an earlier notice when the screenshot is opened again", async () => {
+    shopApi.getShopOrderProofUrl
+      .mockRejectedValueOnce(new Error("gone"))
+      .mockResolvedValueOnce("https://signed.test/proof");
+    const user = userEvent.setup();
+    render(<ShopAdminPage />);
+    const button = await screen.findByRole("button", { name: /View transfer screenshot/ });
+    await user.click(button);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The transfer screenshot is unavailable.",
+    );
+    await user.click(button);
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("filters orders by centre", async () => {
