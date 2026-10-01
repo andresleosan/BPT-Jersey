@@ -12,6 +12,8 @@ import {
   type InvoiceStatus,
   type ManualPaymentMethod,
   type ManualPaymentRecord,
+  type VoidManualPaymentInput,
+  voidManualPaymentInputSchema,
 } from "@bpt-jersey/domain/finance";
 import { httpsCallable } from "./callable";
 
@@ -390,5 +392,54 @@ export async function editManualPayment(
       };
     }
     return { ok: false, message: safeEditError };
+  }
+}
+
+const safePaymentVoidError = "The payment could not be voided. Refresh and try again.";
+const paymentVoidRefusals = new Set([
+  "Only membership and adjustment payments can be voided here.",
+  "This void was already sent for another payment.",
+]);
+
+/** Office void of a recorded payment. Never throws: the dialog shows the message. */
+export async function voidManualPayment(
+  input: VoidManualPaymentInput,
+): Promise<EditManualPaymentResult> {
+  const parsed = voidManualPaymentInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues.some((issue) => issue.path[0] === "reason")
+        ? "Give a reason of at least 10 characters."
+        : safePaymentVoidError,
+    };
+  }
+  try {
+    const callable = httpsCallable<VoidManualPaymentInput, unknown>(
+      getFirebaseFunctions(),
+      "voidManualPayment",
+      callableOptions,
+    );
+    const result = editResultSchema.parse((await callable(parsed.data)).data);
+    if (result.paymentId !== parsed.data.paymentId) return { ok: false, message: safePaymentVoidError };
+    return { ok: true, invoiceStatus: result.invoiceStatus };
+  } catch (error) {
+    const code = typeof error === "object" && error !== null && "code" in error ? error.code : null;
+    const message =
+      typeof error === "object" && error !== null && "message" in error ? error.message : null;
+    if (
+      code === "functions/failed-precondition" &&
+      typeof message === "string" &&
+      paymentVoidRefusals.has(message)
+    ) {
+      return { ok: false, message };
+    }
+    if (code === "functions/permission-denied" || code === "functions/unauthenticated") {
+      return {
+        ok: false,
+        message: "An active owner or administrator session is required. Sign in again.",
+      };
+    }
+    return { ok: false, message: safePaymentVoidError };
   }
 }

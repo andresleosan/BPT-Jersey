@@ -9,6 +9,7 @@ import {
   issueManualInvoice,
   listFinancialAccount,
   savePaymentInstructions,
+  voidManualPayment,
 } from "./billing-client";
 
 const instructions = {
@@ -183,6 +184,55 @@ describe("billing client payment edits", () => {
     await expect(editManualPayment(edit)).resolves.toEqual({
       ok: false,
       message: "Unable to save the payment change. Refresh and try again.",
+    });
+  });
+});
+
+describe("billing client payment voids", () => {
+  const voidInput = {
+    paymentId: "payment-1",
+    reason: "Recorded twice by mistake",
+    requestId: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+  };
+
+  beforeEach(() => {
+    callable.mockReset();
+  });
+
+  it("sends the parsed void and returns the invoice's new status", async () => {
+    callable.mockResolvedValue({
+      data: { paymentId: "payment-1", invoiceId: "invoice-1", invoiceStatus: "open" },
+    });
+    await expect(voidManualPayment(voidInput)).resolves.toEqual({ ok: true, invoiceStatus: "open" });
+    expect(callable).toHaveBeenCalledWith(voidInput);
+  });
+
+  it("refuses a short reason without calling the backend", async () => {
+    await expect(voidManualPayment({ ...voidInput, reason: "too short" })).resolves.toEqual({
+      ok: false,
+      message: "Give a reason of at least 10 characters.",
+    });
+    expect(callable).not.toHaveBeenCalled();
+  });
+
+  it("shows known refusals, the session message, and hides anything else", async () => {
+    const refusal = "Only membership and adjustment payments can be voided here.";
+    callable.mockRejectedValueOnce({ code: "functions/failed-precondition", message: refusal });
+    await expect(voidManualPayment(voidInput)).resolves.toEqual({ ok: false, message: refusal });
+
+    callable.mockRejectedValueOnce({ code: "functions/permission-denied", message: "denied" });
+    await expect(voidManualPayment(voidInput)).resolves.toEqual({
+      ok: false,
+      message: "An active owner or administrator session is required. Sign in again.",
+    });
+
+    callable.mockRejectedValueOnce({
+      code: "functions/internal",
+      message: "FirebaseError: stack trace at firestore.googleapis.com",
+    });
+    await expect(voidManualPayment(voidInput)).resolves.toEqual({
+      ok: false,
+      message: "The payment could not be voided. Refresh and try again.",
     });
   });
 });

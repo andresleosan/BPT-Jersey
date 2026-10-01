@@ -9,13 +9,18 @@ const api = vi.hoisted(() => ({
 vi.mock("firebase/functions", () => ({ httpsCallable: api.httpsCallable }));
 vi.mock("./firebase-client", () => ({ getFirebaseFunctions: () => ({}) }));
 
-import { getFinancialDashboard, getFamilyFinancialAccount, listRecentPayments } from "./finance-client";
+import { getFinancialDashboard, getFamilyFinancialAccount } from "./finance-client";
 
 const dashboard = buildFinancialDashboard({
-  generatedAt: "2026-08-24T12:00:00.000Z",
+  generatedAt: "2026-09-24T12:00:00.000Z",
+  month: "2026-09",
   memberships: [],
   invoices: [],
   payments: [],
+  voidedPayments: [],
+  shopPayments: [],
+  studentByInvoiceId: new Map(),
+  planNames: new Map(),
 });
 
 describe("finance client", () => {
@@ -27,14 +32,20 @@ describe("finance client", () => {
 
   it("calls the exact no-payload financial dashboard contract", async () => {
     await expect(getFinancialDashboard()).resolves.toEqual(dashboard);
-    expect(api.httpsCallable).toHaveBeenCalledWith({}, "getFinancialDashboard");
+    expect(api.httpsCallable).toHaveBeenCalledWith({}, "getFinancialDashboard", undefined);
     expect(api.invoke).toHaveBeenCalledWith(null);
+  });
+
+  it("asks for a chosen month", async () => {
+    await expect(getFinancialDashboard("2026-09")).resolves.toEqual(dashboard);
+    expect(api.invoke).toHaveBeenCalledWith({ month: "2026-09" });
   });
 
   it("rejects expanded, incoherent, and failed responses with one safe error", async () => {
     for (const response of [
       { ...dashboard, familyIds: ["family-private"] },
-      { ...dashboard, metrics: { ...dashboard.metrics, outstandingMinor: 1 } },
+      { ...dashboard, metrics: { ...dashboard.metrics, outstandingMinor: -1 } },
+      { ...dashboard, month: "September" },
       null,
     ]) {
       api.invoke.mockResolvedValueOnce({ data: { dashboard: response } });
@@ -46,37 +57,6 @@ describe("finance client", () => {
     api.invoke.mockRejectedValueOnce(new Error("invoice-private-id failed"));
     await expect(getFinancialDashboard()).rejects.toThrow(
       "Unable to load the financial dashboard. Please try again.",
-    );
-  });
-});
-
-const validRecentPaymentRow = {
-  paymentId: "p1",
-  occurredAt: "2026-09-01T10:00:00.000Z",
-  amountMinor: 7500,
-  method: "cash",
-  manualReference: "CASH-1",
-  invoiceReference: "INV-1",
-  description: "September",
-  familyId: "f1",
-  memberName: "Ana Coelho",
-};
-
-describe("listRecentPayments", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    api.httpsCallable.mockReturnValue(api.invoke);
-  });
-
-  it("lists recent payments and rejects a malformed row", async () => {
-    api.invoke.mockResolvedValueOnce({ data: { payments: [validRecentPaymentRow] } });
-    await expect(listRecentPayments()).resolves.toEqual([validRecentPaymentRow]);
-
-    api.invoke.mockResolvedValueOnce({
-      data: { payments: [{ ...validRecentPaymentRow, amountMinor: -1 }] },
-    });
-    await expect(listRecentPayments()).rejects.toThrow(
-      "Unable to load recent payments. Please try again.",
     );
   });
 });
