@@ -592,6 +592,20 @@ describe("client shop", () => {
     );
   });
 
+  it("tells the buyer where to collect an order the office marked ready", async () => {
+    signIn();
+    shopApi.listShopCatalog.mockResolvedValue([gi]);
+    shopApi.listMyShopOrders.mockResolvedValue([
+      { ...placedOrder, status: "ready" },
+      { ...placedOrder, orderId: "order-zz999999", status: "collected" },
+    ]);
+    render(<ShopPage />);
+    const notice = await screen.findByText(/is ready to collect/);
+    expect(notice).toHaveTextContent("Your order SHOP-ABC12345 is ready to collect at West.");
+    expect(notice.closest("[role='status']")).not.toBeNull();
+    expect(screen.queryByText(/SHOP-ZZ999999 is ready/)).not.toBeInTheDocument();
+  });
+
   it("tells the customer the academy handles the refund of a cancelled paid order", async () => {
     signIn();
     shopApi.listShopCatalog.mockResolvedValue([gi]);
