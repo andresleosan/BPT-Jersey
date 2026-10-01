@@ -23,6 +23,7 @@ import {
   type PaymentAuditEntry,
   type PaymentInstructionsRecord,
   type RecentPaymentRow,
+  type VoidedPaymentRecord,
 } from "@bpt-jersey/domain/finance";
 
 export type FinanceDocumentData = Readonly<Record<string, unknown>>;
@@ -59,6 +60,7 @@ export type FinanceTransaction = Readonly<{
   ) => Promise<FinanceDocumentSnapshot | FinanceQuerySnapshot>;
   create: (ref: FinanceDocumentReference, data: FinanceDocumentData) => FinanceTransaction;
   set: (ref: FinanceDocumentReference, data: FinanceDocumentData) => FinanceTransaction;
+  delete: (ref: FinanceDocumentReference) => FinanceTransaction;
 }>;
 export type FinanceFirestore = Readonly<{
   doc: (path: string) => FinanceDocumentReference;
@@ -71,6 +73,7 @@ export type FinanceAuditAction =
   | "invoice.voided"
   | "payment.recorded"
   | "payment.edited"
+  | "payment.voided"
   | "invoice.status.changed"
   | "membership.status.changed"
   | "academy.payment_instructions.saved";
@@ -147,6 +150,22 @@ export type EditManualPaymentResult = Readonly<{
   invoiceStatus: InvoiceStatus;
 }>;
 
+/** Office void of a recorded payment; the document moves whole to voidedPayments. */
+export type VoidManualPaymentStoreInput = Readonly<{
+  academyId: string;
+  actorId: string;
+  actorName: string;
+  paymentId: string;
+  reason: string;
+  requestId: string;
+}>;
+
+export type VoidManualPaymentResult = Readonly<{
+  paymentId: string;
+  invoiceId: string;
+  invoiceStatus: InvoiceStatus;
+}>;
+
 export type VoidManualInvoiceInput = Readonly<{
   academyId: string;
   actorId: string;
@@ -179,6 +198,7 @@ export type FinanceStore = Readonly<{
   issuePaygInvoice: (input: IssuePaygInvoiceInput) => Promise<InvoiceRecord>;
   recordManualPayment: (input: RecordManualPaymentInput) => Promise<ManualPaymentRecord>;
   editManualPayment: (input: EditManualPaymentStoreInput) => Promise<EditManualPaymentResult>;
+  voidManualPayment: (input: VoidManualPaymentStoreInput) => Promise<VoidManualPaymentResult>;
   voidManualInvoice: (input: VoidManualInvoiceInput) => Promise<InvoiceRecord>;
   listFinancialAccount: (scope: FinanceReadScope) => Promise<FinancialAccountView>;
   listRecentPayments: (academyId: string, limit: number) => Promise<readonly RecentPaymentRow[]>;
@@ -297,6 +317,18 @@ function paymentInstructionsPath(academyId: string): string {
 function paymentEditReceiptPath(academyId: string, actorId: string, requestId: string): string {
   const key = createHash("sha256").update(`${actorId}:${requestId}`).digest("hex").slice(0, 40);
   return `academies/${pathSegment(academyId, "academy")}/paymentEditReceipts/edit-${key}`;
+}
+
+function paymentVoidReceiptPath(academyId: string, actorId: string, requestId: string): string {
+  const key = createHash("sha256").update(`${actorId}:${requestId}`).digest("hex").slice(0, 40);
+  return `academies/${pathSegment(academyId, "academy")}/paymentVoidReceipts/void-${key}`;
+}
+
+function voidedPaymentPath(academyId: string, paymentId: string): string {
+  return `academies/${pathSegment(academyId, "academy")}/voidedPayments/${pathSegment(
+    paymentId,
+    "payment",
+  )}`;
 }
 
 function auditPath(academyId: string, auditId: string): string {
@@ -1176,6 +1208,138 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
     });
   }
 
+  /**
+   * Office voids a recorded membership/adjustment payment. The document moves whole to
+   * voidedPayments (the strict payment parser elsewhere never sees a new field), the invoice
+   * status follows the remaining payments, and membership dates are left alone on purpose.
+   */
+  async function voidManualPayment(
+    input: VoidManualPaymentStoreInput,
+  ): Promise<VoidManualPaymentResult> {
+    const current = now();
+    const academy = pathSegment(input.academyId, "academy");
+    const actorId = pathSegment(input.actorId, "actor");
+    const id = pathSegment(input.paymentId, "payment");
+    const reason = editPaymentReasonSchema.safeParse(input.reason);
+    if (!reason.success) throw new FinanceStoreError("invalid", "Invalid void reason");
+    const actorName = input.actorName.trim().slice(0, 160);
+    if (actorName.length === 0 || /[\u0000-\u001f\u007f]/u.test(actorName)) {
+      throw new FinanceStoreError("invalid", "Invalid editor name");
+    }
+    const receiptRef = dependencies.firestore.doc(
+      paymentVoidReceiptPath(academy, actorId, input.requestId),
+    );
+    return dependencies.firestore.runTransaction(async (transaction) => {
+      const receipt = documentSnapshot(await transaction.get(receiptRef));
+      if (receipt.exists) {
+        const stored = receipt.data()?.result as Record<string, unknown> | undefined;
+        if (stored?.paymentId !== id) {
+          throw new FinanceStoreError("conflict", "Request id was already used for another void");
+        }
+        if (
+          !safePathSegmentPattern.test(String(stored.invoiceId)) ||
+          !invoiceStatuses.includes(stored.invoiceStatus as InvoiceStatus)
+        ) {
+          throw new FinanceStoreError("invalid", "Stored payment void receipt is invalid");
+        }
+        return Object.freeze({
+          paymentId: id,
+          invoiceId: String(stored.invoiceId),
+          invoiceStatus: stored.invoiceStatus as InvoiceStatus,
+        });
+      }
+      const paymentRef = dependencies.firestore.doc(paymentPath(academy, id));
+      const payment = parseScopedStoredPayment(
+        documentSnapshot(await transaction.get(paymentRef)),
+        academy,
+      );
+      const invoiceRef = dependencies.firestore.doc(invoicePath(academy, payment.invoiceId));
+      const invoice = parseScopedStoredInvoice(
+        documentSnapshot(await transaction.get(invoiceRef)),
+        academy,
+      );
+      assertPaymentInvoiceScope(payment, invoice);
+      if (
+        payment.schemaVersion !== 1 ||
+        invoice.schemaVersion !== 1 ||
+        invoice.status === "void" ||
+        (invoice.chargeKind !== "membership" && invoice.chargeKind !== "manual_adjustment")
+      ) {
+        throw new FinanceStoreError(
+          "precondition",
+          "Only membership and adjustment payments can be voided here.",
+        );
+      }
+      const remaining = (await paymentsFor(transaction, academy, invoice)).filter(
+        (candidate) => candidate.paymentId !== payment.paymentId,
+      );
+      const paidMinor = remaining.reduce(
+        (total, candidate) => total + (candidate.status === "recorded" ? candidate.amountMinor : 0),
+        0,
+      );
+      const invoiceStatus: InvoiceStatus =
+        paidMinor >= invoice.totalMinor ? "paid" : paidMinor > 0 ? "partially_paid" : "open";
+      const result: VoidManualPaymentResult = Object.freeze({
+        paymentId: payment.paymentId,
+        invoiceId: invoice.invoiceId,
+        invoiceStatus,
+      });
+      const voided: VoidedPaymentRecord = Object.freeze({
+        payment,
+        voidedAt: current,
+        voidedBy: actorId,
+        voidedByName: actorName,
+        reason: reason.data,
+        requestId: input.requestId,
+      });
+      transaction.create(
+        dependencies.firestore.doc(voidedPaymentPath(academy, payment.paymentId)),
+        voided,
+      );
+      transaction.delete(paymentRef);
+      transaction.set(invoiceRef, {
+        ...invoice,
+        status: invoiceStatus,
+        paidAt: invoiceStatus === "paid" ? invoice.paidAt : null,
+        updatedAt: current,
+        updatedBy: actorId,
+      });
+      transaction.create(receiptRef, { result, createdAt: current });
+      dependencies.appendAudit(
+        transaction,
+        dependencies.firestore.doc(auditPath(academy, generateAuditId())),
+        {
+          academyId: academy,
+          actorId,
+          action: "payment.voided",
+          targetRef: paymentPath(academy, payment.paymentId),
+          purpose: "manual payment voided",
+          correlationId: input.requestId,
+          amountMinor: payment.amountMinor,
+          currency: "GBP",
+          method: payment.method,
+        },
+      );
+      if (invoiceStatus !== invoice.status) {
+        dependencies.appendAudit(
+          transaction,
+          dependencies.firestore.doc(auditPath(academy, generateAuditId())),
+          {
+            academyId: academy,
+            actorId,
+            action: "invoice.status.changed",
+            targetRef: invoicePath(academy, invoice.invoiceId),
+            purpose: "invoice status recalculated after a payment void",
+            correlationId: input.requestId,
+            amountMinor: invoice.totalMinor,
+            currency: "GBP",
+          },
+        );
+      }
+      return result;
+    });
+  }
+
   async function voidManualInvoice(input: VoidManualInvoiceInput): Promise<InvoiceRecord> {
     const current = now();
     const actorId = pathSegment(input.actorId, "actor");
@@ -1351,6 +1515,7 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
     issuePaygInvoice,
     recordManualPayment,
     editManualPayment,
+    voidManualPayment,
     voidManualInvoice,
     listFinancialAccount,
     listRecentPayments,
