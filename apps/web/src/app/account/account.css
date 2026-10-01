@@ -1127,15 +1127,8 @@ html:has(dialog[open]:modal) {
 
 /* Q4: the hand-over card at 18 that stands in for /account until a new password is set. */
 /* The claim card stands in for the whole member app, so it carries the app's radius itself. */
-.adult-claim,
-.adult-claim-loading {
+.adult-claim {
   --radius: 1rem;
-}
-
-.adult-claim-loading {
-  margin: clamp(1rem, 4vw, 3rem) auto;
-  max-width: 34rem;
-  width: calc(100% - 2rem);
 }
 
 .adult-claim {

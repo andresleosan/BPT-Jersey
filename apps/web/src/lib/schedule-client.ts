@@ -460,6 +460,31 @@ export async function warmMemberCalendarWeek(): Promise<void> {
   )({ warm: true });
 }
 
+// The account home reaches these only after the member load (getFamily, getTrialAccess) or after
+// the first week renders (the rest). Measured 2026-10-01: each cold start costs 3–5 s and they ran
+// one after another, ~21 s in all. Each refuses `{ warm: true }` after its sign-in checks.
+const accountHomeCallables = [
+  "getClientProfile",
+  "getFamily",
+  "getTrialAccess",
+  "listMemberNotifications",
+  "getMyDisclaimerStatus",
+  "getMemberStreak",
+  "getPromotionOutlook",
+] as const;
+let accountHomeWarmed = false;
+
+/** Starts every account-home function at once, once per page, so their cold starts overlap. */
+export function warmAccountHomeFunctions(): void {
+  if (accountHomeWarmed) return;
+  accountHomeWarmed = true;
+  const functions = getFirebaseFunctions(memberFunctionsRegion);
+  for (const name of accountHomeCallables) {
+    void firebaseHttpsCallable<{ warm: true }, unknown>(functions, name)({ warm: true })
+      .catch(() => undefined);
+  }
+}
+
 export async function requestBooking(input: RequestBookingInput): Promise<BookingRecord> {
   const functions = getFirebaseFunctions(memberFunctionsRegion);
   const callable = httpsCallable<RequestBookingInput, { booking: BookingRecord }>(

@@ -12,8 +12,10 @@ import { memberLoginPath } from "../../lib/login-flow";
 
 /**
  * Q4 (ADR-019): an account a guardian set up for a 12–17 year old becomes the member's own at 18.
- * Until they set a new password the rest of /account stays behind this card. A failed or missing
- * status check shows nothing and lets the account through.
+ * Once the check says so, the rest of /account stays behind this card until they set a new
+ * password. While the check runs the account renders, so its loads do not wait on this call (it
+ * held every other request back ~1 s warm, ~4 s cold). A failed or missing status check shows
+ * nothing and lets the account through.
  */
 export function AdultClaimGate({ children }: Readonly<{ children: React.ReactNode }>) {
   const { signOut } = useClientSession();
@@ -33,14 +35,7 @@ export function AdultClaimGate({ children }: Readonly<{ children: React.ReactNod
     };
   }, []);
 
-  if (studentId === undefined) {
-    return (
-      <div className="adult-claim-loading" aria-busy="true" aria-label="Loading your account">
-        <div className="skeleton-card" />
-      </div>
-    );
-  }
-  if (studentId === null) return <>{children}</>;
+  if (!studentId) return <>{children}</>;
   const claimStudentId = studentId;
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
