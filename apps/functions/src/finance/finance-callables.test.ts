@@ -17,6 +17,7 @@ import {
   savePaymentInstructionsHandler,
   recordManualPaymentHandler,
   voidManualInvoiceHandler,
+  voidManualPaymentHandler,
   type FinanceCallableServices,
 } from "./finance-callables.js";
 import { FinanceStoreError, type FinanceStore } from "./finance-service.js";
@@ -70,6 +71,7 @@ function services(overrides: Partial<FinanceCallableServices> = {}): FinanceCall
     issuePaygInvoice: vi.fn(),
     recordManualPayment: vi.fn(),
     editManualPayment: vi.fn(),
+    voidManualPayment: vi.fn(),
     voidManualInvoice: vi.fn(),
     listFinancialAccount: vi.fn().mockResolvedValue({
       invoices: [],
@@ -498,6 +500,91 @@ describe("savePaymentInstructions (T010/T035 re-scope)", () => {
       expect(editManualPaymentCallableOptions).toEqual({
         ...browserAdminCallableOptions,
         consumeAppCheckToken: true,
+      });
+    });
+  });
+
+  describe("voidManualPayment", () => {
+    const valid = {
+      paymentId: "payment-1",
+      reason: "Recorded twice by mistake",
+      requestId: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+    };
+
+    function voidServices(name: string | null = "Ana Office") {
+      const finance = services({ actorDisplayName: vi.fn().mockResolvedValue(name) });
+      const store = finance.store as unknown as { voidManualPayment: ReturnType<typeof vi.fn> };
+      store.voidManualPayment.mockResolvedValue({
+        paymentId: "payment-1",
+        invoiceId: "invoice-1",
+        invoiceStatus: "open",
+      });
+      return { finance, store };
+    }
+
+    it("passes the parsed void, the actor and the actor's name to the store", async () => {
+      const { finance, store } = voidServices();
+      await expect(
+        voidManualPaymentHandler(request(valid, actor("owner")), finance),
+      ).resolves.toEqual({ paymentId: "payment-1", invoiceId: "invoice-1", invoiceStatus: "open" });
+      expect(store.voidManualPayment).toHaveBeenCalledWith({
+        ...valid,
+        academyId,
+        actorId: "owner-1",
+        actorName: "Ana Office",
+      });
+    });
+
+    it("falls back to Office when the actor has no display name", async () => {
+      const { finance, store } = voidServices(null);
+      await voidManualPaymentHandler(request(valid, actor("administrator")), finance);
+      expect(store.voidManualPayment).toHaveBeenCalledWith(
+        expect.objectContaining({ actorName: "Office" }),
+      );
+    });
+
+    it.each([
+      ["a nine-character reason", { ...valid, reason: "too short" }],
+      ["an extra field", { ...valid, amountMinor: 3000 }],
+      ["a request id that is not a uuid", { ...valid, requestId: "request-1" }],
+    ])("rejects %s before calling the store", async (_label, data) => {
+      const { finance, store } = voidServices();
+      await expect(
+        voidManualPaymentHandler(request(data, actor("owner")), finance),
+      ).rejects.toMatchObject({ code: "invalid-argument" });
+      expect(store.voidManualPayment).not.toHaveBeenCalled();
+    });
+
+    it.each(["coach", "headCoach", "guardian", "adultStudent"] as const)(
+      "denies a %s",
+      async (role) => {
+        const { finance, store } = voidServices();
+        await expect(
+          voidManualPaymentHandler(request(valid, actor(role)), finance),
+        ).rejects.toMatchObject({ code: "permission-denied" });
+        expect(store.voidManualPayment).not.toHaveBeenCalled();
+      },
+    );
+
+    it("tells the office plainly which payments can be voided here", async () => {
+      const { finance, store } = voidServices();
+      const message = "Only membership and adjustment payments can be voided here.";
+      store.voidManualPayment.mockRejectedValue(new FinanceStoreError("precondition", message));
+      await expect(
+        voidManualPaymentHandler(request(valid, actor("owner")), finance),
+      ).rejects.toMatchObject({ code: "failed-precondition", message });
+    });
+
+    it("tells the office a request id was already used for another payment", async () => {
+      const { finance, store } = voidServices();
+      store.voidManualPayment.mockRejectedValue(
+        new FinanceStoreError("conflict", "Request id was already used for another void"),
+      );
+      await expect(
+        voidManualPaymentHandler(request(valid, actor("owner")), finance),
+      ).rejects.toMatchObject({
+        code: "failed-precondition",
+        message: "This void was already sent for another payment.",
       });
     });
   });

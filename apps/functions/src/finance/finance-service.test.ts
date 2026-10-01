@@ -96,6 +96,11 @@ function createFakeFirestore(initial: Record<string, FinanceDocumentData> = {}) 
           records.set(target.path, data);
           return transaction;
         },
+        delete: (target: Ref) => {
+          writes.push(`delete:${target.path}`);
+          records.delete(target.path);
+          return transaction;
+        },
       };
       try {
         return await callback(transaction);
@@ -1128,5 +1133,179 @@ describe("payment edits and the membership they pay for", () => {
     });
     expect(h.records.get(membershipPathFor)).toMatchObject({ status: "active" });
     expect(h.audits.map((audit) => audit.action)).not.toContain("membership.status.changed");
+  });
+});
+
+describe("voidManualPayment", () => {
+  const requestId = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+  const reason = "Recorded twice by mistake";
+  const refusal = "Only membership and adjustment payments can be voided here.";
+
+  async function seededInvoice(totalMinor = 9500) {
+    const h = store();
+    const invoice = await h.service.issueManualInvoice({
+      academyId,
+      actorId: "admin-1",
+      familyId,
+      membershipId,
+      totalMinor,
+      dueAt: now,
+      chargeKind: "membership",
+      invoiceReference: "SUBSCRIPTION-VOID",
+      description: "Monthly subscription",
+    });
+    return { ...h, invoice };
+  }
+
+  function pay(
+    h: Awaited<ReturnType<typeof seededInvoice>>,
+    amountMinor: number,
+    manualReference: string,
+    invoiceId = h.invoice.invoiceId,
+  ) {
+    return h.service.recordManualPayment({
+      academyId,
+      actorId: "admin-1",
+      invoiceId,
+      amountMinor,
+      method: "cash",
+      manualReference,
+      occurredAt: now,
+    });
+  }
+
+  async function seededPaidInvoice() {
+    const h = await seededInvoice();
+    const payment = await pay(h, 9500, "CASH-VOID-1");
+    h.audits.length = 0;
+    return { ...h, payment };
+  }
+
+  function voidInput(paymentId: string, id = requestId) {
+    return { academyId, actorId: "owner-1", actorName: "Owner", paymentId, reason, requestId: id };
+  }
+
+  it("moves the payment to voidedPayments and reopens the invoice", async () => {
+    const { service, records, audits, invoice, payment } = await seededPaidInvoice();
+    const result = await service.voidManualPayment(voidInput(payment.paymentId));
+    expect(result).toEqual({
+      paymentId: payment.paymentId,
+      invoiceId: invoice.invoiceId,
+      invoiceStatus: "open",
+    });
+    expect(records.has(`academies/${academyId}/payments/${payment.paymentId}`)).toBe(false);
+    const moved = records.get(`academies/${academyId}/voidedPayments/${payment.paymentId}`);
+    expect(moved).toMatchObject({
+      voidedAt: now,
+      voidedBy: "owner-1",
+      voidedByName: "Owner",
+      reason,
+      requestId,
+      payment: { paymentId: payment.paymentId, amountMinor: 9500 },
+    });
+    expect(records.get(`academies/${academyId}/invoices/${invoice.invoiceId}`)).toMatchObject({
+      status: "open",
+      paidAt: null,
+    });
+    expect(audits.map((entry) => entry.action)).toEqual([
+      "payment.voided",
+      "invoice.status.changed",
+    ]);
+    expect(audits[0]).toMatchObject({ amountMinor: 9500, currency: "GBP", method: "cash" });
+  });
+
+  it("leaves a partial status when other payments remain", async () => {
+    const h = await seededInvoice();
+    await pay(h, 5000, "CASH-VOID-1");
+    const second = await pay(h, 4500, "CASH-VOID-2");
+    const invoicePath = `academies/${academyId}/invoices/${h.invoice.invoiceId}`;
+    expect(h.records.get(invoicePath)).toMatchObject({ status: "paid" });
+    const result = await h.service.voidManualPayment(voidInput(second.paymentId));
+    expect(result).toEqual({
+      paymentId: second.paymentId,
+      invoiceId: h.invoice.invoiceId,
+      invoiceStatus: "partially_paid",
+    });
+    expect(h.records.get(invoicePath)).toMatchObject({ status: "partially_paid", paidAt: null });
+    await expect(
+      h.service.getInvoice({ academyId, familyIds: [familyId] }, h.invoice.invoiceId),
+    ).resolves.toMatchObject({ balanceMinor: 4500 });
+  });
+
+  it("replays the stored result after the payment moved (same requestId)", async () => {
+    const h = await seededPaidInvoice();
+    const input = voidInput(h.payment.paymentId);
+    const first = await h.service.voidManualPayment(input);
+    await expect(h.service.voidManualPayment(input)).resolves.toEqual(first);
+    expect(h.audits.filter((entry) => entry.action === "payment.voided")).toHaveLength(1);
+  });
+
+  it("refuses the same requestId for another payment", async () => {
+    const h = await seededInvoice();
+    const first = await pay(h, 5000, "CASH-VOID-1");
+    const second = await pay(h, 4500, "CASH-VOID-2");
+    await h.service.voidManualPayment(voidInput(first.paymentId));
+    const before = new Map(h.records);
+    await expect(h.service.voidManualPayment(voidInput(second.paymentId))).rejects.toMatchObject({
+      code: "conflict",
+      message: "Request id was already used for another void",
+    });
+    expect(h.records).toEqual(before);
+    expect(h.records.has(`academies/${academyId}/payments/${second.paymentId}`)).toBe(true);
+  });
+
+  it("refuses PAYG, private lesson and void-invoice payments", async () => {
+    const payg = store();
+    const paygInvoice = await payg.service.issuePaygInvoice({
+      academyId,
+      actorId: "system-booking",
+      familyId,
+      membershipId,
+      totalMinor: 1000,
+      dueAt: now,
+      chargeKind: "payg_session",
+      sourceRef: `academies/${academyId}/sessions/session-1`,
+      invoiceReference: "payg-reference-void",
+      description: "PAYG session",
+    });
+    const paygPayment = await payg.service.recordManualPayment({
+      academyId,
+      actorId: "admin-1",
+      invoiceId: paygInvoice.invoiceId,
+      amountMinor: 1000,
+      method: "cash",
+      manualReference: "CASH-PAYG-1",
+      occurredAt: now,
+    });
+    const paygBefore = new Map(payg.records);
+    await expect(
+      payg.service.voidManualPayment(voidInput(paygPayment.paymentId)),
+    ).rejects.toMatchObject({ code: "precondition", message: refusal });
+    expect(payg.records).toEqual(paygBefore);
+
+    const lesson = await seededPaidInvoice();
+    const lessonInvoicePath = `academies/${academyId}/invoices/${lesson.invoice.invoiceId}`;
+    lesson.records.set(lessonInvoicePath, {
+      ...lesson.records.get(lessonInvoicePath)!,
+      chargeKind: "private-lesson",
+    });
+    await expect(
+      lesson.service.voidManualPayment(voidInput(lesson.payment.paymentId)),
+    ).rejects.toMatchObject({ code: "precondition", message: refusal });
+    expect(lesson.records.has(`academies/${academyId}/payments/${lesson.payment.paymentId}`)).toBe(
+      true,
+    );
+
+    const voided = await seededPaidInvoice();
+    const voidedInvoicePath = `academies/${academyId}/invoices/${voided.invoice.invoiceId}`;
+    voided.records.set(voidedInvoicePath, {
+      ...voided.records.get(voidedInvoicePath)!,
+      status: "void",
+      paidAt: null,
+    });
+    await expect(
+      voided.service.voidManualPayment(voidInput(voided.payment.paymentId)),
+    ).rejects.toMatchObject({ code: "precondition", message: refusal });
+    expect(voided.audits).toEqual([]);
   });
 });

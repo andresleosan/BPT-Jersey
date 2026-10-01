@@ -9,6 +9,7 @@ import {
   editManualPaymentInputSchema,
   parsePaymentInstructionsInput,
   recentPaymentsLimit,
+  voidManualPaymentInputSchema,
 } from "@bpt-jersey/domain/finance";
 import type { RecentPaymentRow } from "@bpt-jersey/domain/finance";
 import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
@@ -339,6 +340,36 @@ export async function editManualPaymentHandler(
   }
 }
 
+/** Store refusals for a payment void, in the office's words. */
+const voidRefusals: Readonly<Record<string, string>> = Object.freeze({
+  "Only membership and adjustment payments can be voided here.":
+    "Only membership and adjustment payments can be voided here.",
+  "Request id was already used for another void": "This void was already sent for another payment.",
+});
+
+export async function voidManualPaymentHandler(
+  request: CallableRequest<unknown>,
+  services: FinanceCallableServices,
+) {
+  const actor = await requireAdministrator(request, services);
+  const parsed = voidManualPaymentInputSchema.safeParse(request.data);
+  if (!parsed.success) return invalidPayload();
+  try {
+    const name = (await services.actorDisplayName?.(actor))?.trim();
+    return await services.store.voidManualPayment({
+      ...parsed.data,
+      academyId: actor.academyId,
+      actorId: actor.userId,
+      actorName: name ? name : "Office",
+    });
+  } catch (error) {
+    if (error instanceof FinanceStoreError && Object.hasOwn(voidRefusals, error.message)) {
+      throw new FinanceCallableError("failed-precondition", voidRefusals[error.message]!);
+    }
+    return mapStoreError(error, "write");
+  }
+}
+
 export async function voidManualInvoiceHandler(
   request: CallableRequest<unknown>,
   services: FinanceCallableServices,
@@ -514,6 +545,9 @@ export const editManualPaymentCallableOptions = {
 };
 export const editManualPayment = onCall(editManualPaymentCallableOptions, async (request) =>
   editManualPaymentHandler(request, financeCallableServices()),
+);
+export const voidManualPayment = onCall(editManualPaymentCallableOptions, async (request) =>
+  voidManualPaymentHandler(request, financeCallableServices()),
 );
 export const voidManualInvoice = onCall(financeCallableOptions, async (request) =>
   voidManualInvoiceHandler(request, financeCallableServices()),

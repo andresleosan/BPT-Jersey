@@ -88,6 +88,7 @@ export {
   savePaymentInstructions,
   recordManualPayment,
   voidManualInvoice,
+  voidManualPayment,
 } from "./finance/finance-callables.js";
 export { getFinancialDashboard } from "./finance/financial-dashboard-callables.js";
 export {
