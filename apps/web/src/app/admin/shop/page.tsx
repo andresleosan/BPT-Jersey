@@ -1,6 +1,7 @@
 "use client";
 
 import { startTransition, useEffect, useRef, useState, type FormEvent } from "react";
+import { flushSync } from "react-dom";
 
 import {
   formatShopPrice,
@@ -43,6 +44,8 @@ type WorkspaceState =
   | Readonly<{ status: "error" }>;
 
 type Notice = Readonly<{ tone: "error" | "success"; text: string }>;
+
+type ShopAdminView = "orders" | "products" | "editor";
 
 type EditorValues = Readonly<{
   productId: string;
@@ -259,6 +262,7 @@ export function ShopAdminPage() {
   const [proof, setProof] = useState<ProofView>();
   const proofTrigger = useRef<HTMLButtonElement | null>(null);
   const [centreFilter, setCentreFilter] = useState<"all" | ShopPickupLocationId>("all");
+  const [view, setView] = useState<ShopAdminView>("orders");
 
   useEffect(() => {
     let mounted = true;
@@ -281,6 +285,7 @@ export function ShopAdminPage() {
   }
 
   function startNewProduct(): void {
+    setView("editor");
     setEditingId(undefined);
     setEditor(emptyEditor);
     setNotice(undefined);
@@ -290,6 +295,8 @@ export function ShopAdminPage() {
     setEditingId(product.productId);
     setEditor(editorFromProduct(product));
     setNotice(undefined);
+    // The editor tab must be on screen before its first field can take focus.
+    flushSync(() => setView("editor"));
     document.getElementById("shop-product-name")?.focus();
   }
 
@@ -440,165 +447,204 @@ export function ShopAdminPage() {
         </section>
       ) : (
         <>
-          <section className="admin-panel-card" aria-labelledby="shop-orders-title">
-            <div className="admin-panel-card-heading">
-              <div>
-                <p className="admin-eyebrow">Collection orders</p>
-                <h3 id="shop-orders-title">Orders</h3>
+          <nav aria-label="Club shop views" className="shop-admin-tabs">
+            <ul role="tablist">
+              <li role="presentation">
+                <button
+                  aria-selected={view === "orders"}
+                  className="shop-admin-tab"
+                  onClick={() => setView("orders")}
+                  role="tab"
+                  type="button"
+                >
+                  Orders
+                </button>
+              </li>
+              <li role="presentation">
+                <button
+                  aria-selected={view === "products"}
+                  className="shop-admin-tab"
+                  onClick={() => setView("products")}
+                  role="tab"
+                  type="button"
+                >
+                  Products
+                </button>
+              </li>
+              <li role="presentation">
+                <button
+                  aria-selected={view === "editor"}
+                  className="shop-admin-tab"
+                  onClick={() => setView("editor")}
+                  role="tab"
+                  type="button"
+                >
+                  {editingId ? "Edit product" : "Add product"}
+                </button>
+              </li>
+            </ul>
+          </nav>
+          {view === "orders" ? (
+            <section className="admin-panel-card" aria-labelledby="shop-orders-title">
+              <div className="admin-panel-card-heading">
+                <div>
+                  <p className="admin-eyebrow">Collection orders</p>
+                  <h3 id="shop-orders-title">Orders</h3>
+                </div>
+                <div className="shop-admin-order-filters">
+                  <label className="admin-filter-control" htmlFor="shop-order-filter">
+                    Show
+                    <select
+                      id="shop-order-filter"
+                      name="orderFilter"
+                      onChange={(event) => setOrderFilter(event.target.value as "open" | "all")}
+                      value={orderFilter}
+                    >
+                      <option value="open">Open orders</option>
+                      <option value="all">All orders</option>
+                    </select>
+                  </label>
+                  <label className="admin-filter-control" htmlFor="shop-order-centre">
+                    Centre
+                    <select
+                      id="shop-order-centre"
+                      name="centreFilter"
+                      onChange={(event) =>
+                        setCentreFilter(event.target.value as "all" | ShopPickupLocationId)
+                      }
+                      value={centreFilter}
+                    >
+                      <option value="all">All centres</option>
+                      <option value="town">Town</option>
+                      <option value="west">West</option>
+                    </select>
+                  </label>
+                </div>
               </div>
-              <div className="shop-admin-order-filters">
-                <label className="admin-filter-control" htmlFor="shop-order-filter">
-                  Show
-                  <select
-                    id="shop-order-filter"
-                    name="orderFilter"
-                    onChange={(event) => setOrderFilter(event.target.value as "open" | "all")}
-                    value={orderFilter}
-                  >
-                    <option value="open">Open orders</option>
-                    <option value="all">All orders</option>
-                  </select>
-                </label>
-                <label className="admin-filter-control" htmlFor="shop-order-centre">
-                  Centre
-                  <select
-                    id="shop-order-centre"
-                    name="centreFilter"
-                    onChange={(event) =>
-                      setCentreFilter(event.target.value as "all" | ShopPickupLocationId)
-                    }
-                    value={centreFilter}
-                  >
-                    <option value="all">All centres</option>
-                    <option value="town">Town</option>
-                    <option value="west">West</option>
-                  </select>
-                </label>
-              </div>
-            </div>
-            {visibleOrders.length === 0 ? (
-              <div className="admin-empty-state">
-                <strong>No orders match this filter.</strong>
-                <p>Client requests appear here as soon as they are placed.</p>
-              </div>
-            ) : (
-              <AdminDataTableWrap label="Club shop orders">
-                <table className="admin-data-table">
-                  <caption className="visually-hidden">Club shop orders</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Order</th>
-                      <th scope="col">Customer</th>
-                      <th scope="col">Items</th>
-                      <th scope="col">Collect from</th>
-                      <th scope="col">Total</th>
-                      <th scope="col">Payment</th>
-                      <th scope="col">Status</th>
-                      <th scope="col">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleOrders.map((order) => (
-                      <tr key={order.orderId}>
-                        <td data-label="Order">
-                          <strong>{shopOrderReference(order.orderId)}</strong>
-                          <small className="shop-admin-secondary">
-                            {new Date(order.createdAt).toLocaleString("en-GB", {
-                              dateStyle: "short",
-                              timeStyle: "short",
-                            })}
-                          </small>
-                        </td>
-                        <td data-label="Customer">
-                          {order.contactName}
-                          {order.contactPhone ? (
-                            <small className="shop-admin-secondary">{order.contactPhone}</small>
-                          ) : null}
-                          {order.contactEmail ? (
-                            <small className="shop-admin-secondary">{order.contactEmail}</small>
-                          ) : null}
-                        </td>
-                        <td data-label="Items">
-                          <div className="shop-admin-order-lines">
-                            {order.lines.map((line) => (
-                              <span key={`${line.productId}-${line.size ?? ""}`}>
-                                {`${line.quantity} × ${line.productName}${line.size ? ` (${line.size})` : ""}`}
-                              </span>
-                            ))}
-                          </div>
-                          {order.note ? (
-                            <small className="shop-admin-secondary">{order.note}</small>
-                          ) : null}
-                        </td>
-                        <td data-label="Collect from">{pickupNames[order.pickupLocationId]}</td>
-                        <td data-label="Total" className="shop-admin-money">
-                          {formatShopPrice(order.totalMinor, order.currency)}
-                        </td>
-                        <td data-label="Payment">
-                          <span className="shop-admin-payment-method">
-                            {shopPaymentMethodLabels[order.paymentMethod]}
-                          </span>
-                          <AdminStatusBadge
-                            status={order.paymentStatus === "paid" ? "Paid" : "Unpaid"}
-                          />
-                        </td>
-                        <td data-label="Status">
-                          <AdminStatusBadge status={orderStatusLabels[order.status]} />
-                        </td>
-                        <td data-label="Actions">
-                          <div className="shop-admin-row-actions">
-                            {shopOrderTransitions[order.status].map((target) => (
-                              <button
-                                className="shop-admin-table-button"
-                                disabled={busy !== undefined}
-                                key={target}
-                                onClick={() => void changeOrder(order, { status: target })}
-                                type="button"
-                              >
-                                {transitionLabels[target]}
-                              </button>
-                            ))}
-                            {order.status !== "cancelled" ? (
-                              <button
-                                className="shop-admin-table-button"
-                                disabled={busy !== undefined}
-                                onClick={() =>
-                                  void changeOrder(order, {
-                                    paymentStatus:
-                                      order.paymentStatus === "paid" ? "unpaid" : "paid",
-                                  })
-                                }
-                                type="button"
-                              >
-                                {order.paymentStatus === "paid" ? "Mark unpaid" : "Mark paid"}
-                              </button>
-                            ) : null}
-                            {order.paymentMethod === "bank_transfer" ? (
-                              <button
-                                className="shop-admin-table-button"
-                                disabled={busy !== undefined}
-                                onClick={(event) => void viewProof(order, event.currentTarget)}
-                                type="button"
-                              >
-                                View <span className="visually-hidden">transfer </span>
-                                screenshot
-                                <span className="visually-hidden">
-                                  {" "}
-                                  for {shopOrderReference(order.orderId)}
-                                </span>
-                              </button>
-                            ) : null}
-                          </div>
-                        </td>
+              {visibleOrders.length === 0 ? (
+                <div className="admin-empty-state">
+                  <strong>No orders match this filter.</strong>
+                  <p>Client requests appear here as soon as they are placed.</p>
+                </div>
+              ) : (
+                <AdminDataTableWrap label="Club shop orders">
+                  <table className="admin-data-table">
+                    <caption className="visually-hidden">Club shop orders</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Order</th>
+                        <th scope="col">Customer</th>
+                        <th scope="col">Items</th>
+                        <th scope="col">Collect from</th>
+                        <th scope="col">Total</th>
+                        <th scope="col">Payment</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </AdminDataTableWrap>
-            )}
-          </section>
+                    </thead>
+                    <tbody>
+                      {visibleOrders.map((order) => (
+                        <tr key={order.orderId}>
+                          <td data-label="Order">
+                            <strong>{shopOrderReference(order.orderId)}</strong>
+                            <small className="shop-admin-secondary">
+                              {new Date(order.createdAt).toLocaleString("en-GB", {
+                                dateStyle: "short",
+                                timeStyle: "short",
+                              })}
+                            </small>
+                          </td>
+                          <td data-label="Customer">
+                            {order.contactName}
+                            {order.contactPhone ? (
+                              <small className="shop-admin-secondary">{order.contactPhone}</small>
+                            ) : null}
+                            {order.contactEmail ? (
+                              <small className="shop-admin-secondary">{order.contactEmail}</small>
+                            ) : null}
+                          </td>
+                          <td data-label="Items">
+                            <div className="shop-admin-order-lines">
+                              {order.lines.map((line) => (
+                                <span key={`${line.productId}-${line.size ?? ""}`}>
+                                  {`${line.quantity} × ${line.productName}${line.size ? ` (${line.size})` : ""}`}
+                                </span>
+                              ))}
+                            </div>
+                            {order.note ? (
+                              <small className="shop-admin-secondary">{order.note}</small>
+                            ) : null}
+                          </td>
+                          <td data-label="Collect from">{pickupNames[order.pickupLocationId]}</td>
+                          <td data-label="Total" className="shop-admin-money">
+                            {formatShopPrice(order.totalMinor, order.currency)}
+                          </td>
+                          <td data-label="Payment">
+                            <span className="shop-admin-payment-method">
+                              {shopPaymentMethodLabels[order.paymentMethod]}
+                            </span>
+                            <AdminStatusBadge
+                              status={order.paymentStatus === "paid" ? "Paid" : "Unpaid"}
+                            />
+                          </td>
+                          <td data-label="Status">
+                            <AdminStatusBadge status={orderStatusLabels[order.status]} />
+                          </td>
+                          <td data-label="Actions">
+                            <div className="shop-admin-row-actions">
+                              {shopOrderTransitions[order.status].map((target) => (
+                                <button
+                                  className="shop-admin-table-button"
+                                  disabled={busy !== undefined}
+                                  key={target}
+                                  onClick={() => void changeOrder(order, { status: target })}
+                                  type="button"
+                                >
+                                  {transitionLabels[target]}
+                                </button>
+                              ))}
+                              {order.status !== "cancelled" ? (
+                                <button
+                                  className="shop-admin-table-button"
+                                  disabled={busy !== undefined}
+                                  onClick={() =>
+                                    void changeOrder(order, {
+                                      paymentStatus:
+                                        order.paymentStatus === "paid" ? "unpaid" : "paid",
+                                    })
+                                  }
+                                  type="button"
+                                >
+                                  {order.paymentStatus === "paid" ? "Mark unpaid" : "Mark paid"}
+                                </button>
+                              ) : null}
+                              {order.paymentMethod === "bank_transfer" ? (
+                                <button
+                                  className="shop-admin-table-button"
+                                  disabled={busy !== undefined}
+                                  onClick={(event) => void viewProof(order, event.currentTarget)}
+                                  type="button"
+                                >
+                                  View <span className="visually-hidden">transfer </span>
+                                  screenshot
+                                  <span className="visually-hidden">
+                                    {" "}
+                                    for {shopOrderReference(order.orderId)}
+                                  </span>
+                                </button>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </AdminDataTableWrap>
+              )}
+            </section>
+          ) : null}
           {proof ? <ProofDialog onClose={() => setProof(undefined)} proof={proof} /> : null}
-          <div className="shop-admin-catalog">
+          {view === "products" ? (
             <section className="admin-panel-card" aria-labelledby="shop-products-title">
               <div className="admin-panel-card-heading">
                 <div>
@@ -697,7 +743,8 @@ export function ShopAdminPage() {
                 </AdminDataTableWrap>
               )}
             </section>
-
+          ) : null}
+          {view === "editor" ? (
             <form
               className="admin-panel-card shop-admin-editor"
               aria-labelledby="shop-editor-title"
@@ -881,7 +928,7 @@ export function ShopAdminPage() {
                 ) : null}
               </div>
             </form>
-          </div>
+          ) : null}
         </>
       )}
     </section>

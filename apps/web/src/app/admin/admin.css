@@ -4249,11 +4249,40 @@ a.admin-birthday-badge:focus-visible,
   max-width: 90rem;
 }
 
-/* Products table above the editor: beside it, at 1440px the table clipped "Visible in shop" and
-   hid the row actions behind a horizontal scroll. */
-.shop-admin-catalog {
-  display: grid;
-  gap: 1.5rem;
+/* Orders, products and the editor are three tabs, the same pattern as /admin/levels. */
+.shop-admin-tabs ul {
+  border-bottom: 2px solid var(--mat-ink);
+  display: flex;
+  flex-wrap: wrap;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.shop-admin-tab {
+  background: none;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  color: var(--mat-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  margin-bottom: -2px;
+  min-height: 44px;
+  padding: 0.8rem 1rem;
+  text-transform: uppercase;
+}
+
+.shop-admin-tab[aria-selected="true"] {
+  border-bottom-color: var(--bpt-purple);
+  color: var(--bpt-purple);
+}
+
+.shop-admin-tab:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 2px;
 }
 
 .shop-admin-hidden-note {
