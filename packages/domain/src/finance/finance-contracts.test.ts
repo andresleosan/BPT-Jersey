@@ -11,6 +11,7 @@ import {
   parseManualPaymentRecord,
   recentPaymentsLimit,
   editManualPaymentInputSchema,
+  voidManualPaymentInputSchema,
   type InvoiceRecord,
   type ManualPaymentRecord,
 } from "./finance-contracts";
@@ -212,5 +213,27 @@ describe("payment edit audit trail", () => {
     expect(
       editManualPaymentInputSchema.safeParse({ ...base, reason: "Nothing changed at all" }).success,
     ).toBe(false);
+  });
+});
+
+describe("voidManualPaymentInputSchema", () => {
+  const valid = {
+    paymentId: "payment-1",
+    reason: "Recorded twice by mistake",
+    requestId: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+  };
+  it("accepts a paymentId, a 10+ char reason and a uuid", () => {
+    expect(voidManualPaymentInputSchema.safeParse(valid).success).toBe(true);
+  });
+  it("refuses a short reason, extra fields and a non-uuid request", () => {
+    expect(voidManualPaymentInputSchema.safeParse({ ...valid, reason: "oops" }).success).toBe(
+      false,
+    );
+    expect(voidManualPaymentInputSchema.safeParse({ ...valid, amountMinor: 1 }).success).toBe(
+      false,
+    );
+    expect(voidManualPaymentInputSchema.safeParse({ ...valid, requestId: "x" }).success).toBe(
+      false,
+    );
   });
 });
