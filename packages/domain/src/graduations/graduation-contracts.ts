@@ -117,6 +117,8 @@ export function assessGraduation(input: GraduationInput): GraduationAssessment {
   for (const entry of input.counted) {
     const day = entry.occurredAt.slice(0, 10);
     if (entry.sessionId === null || day < startDay) continue;
+    // The class a Graduations promotion was given at belongs to the previous level.
+    if (Date.parse(entry.occurredAt) <= Date.parse(input.currentLevelStartedAt)) continue;
     if (reviewedAt !== null && entry.occurredAt <= reviewedAt) continue;
     if (day >= periodEndsOn && classesUntil(day) >= (minClasses ?? 0)) {
       return none({ ...base, stage: "approval", graduationClass: entry });

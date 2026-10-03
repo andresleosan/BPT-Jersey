@@ -77,11 +77,16 @@ export function countClassesAtLevel(
 ): ClassesAtLevel {
   const startDay =
     input.currentLevelStartedAt === null ? null : input.currentLevelStartedAt.slice(0, 10);
+  const startMs =
+    input.currentLevelStartedAt === null ? Number.NaN : Date.parse(input.currentLevelStartedAt);
   const bpt = input.attendedAt.filter((attendedAt) => {
     if (Number.isNaN(Date.parse(attendedAt))) return false;
     // Plan D contract: days are compared as UTC prefixes, not Jersey days.
     const day = attendedAt.slice(0, 10);
     if (startDay !== null && day < startDay) return false;
+    // A Graduations promotion starts the level at the graduation class itself: that class belongs
+    // to the previous level. A start at 00:00 (every other promotion) excludes nothing here.
+    if (day === startDay && Date.parse(attendedAt) <= startMs) return false;
     if (input.importedBaseline !== null && day < input.importedBaseline.cutoff) return false;
     return input.until === undefined || day <= input.until;
   }).length;
