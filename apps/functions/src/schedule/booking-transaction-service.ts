@@ -139,7 +139,9 @@ const waitlistDocumentIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,319}$/u;
 const dateTimePattern =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:?\d{2})$/u;
 const maxSessionCapacity = 300;
-const weeklySessionLimit = 100;
+// The query counts cancelled sessions too: the week of 2026-10-05 held 103 (56 cancelled) and
+// 100 refused every booking in it. ponytail: a fixed cap, filter by status if a week nears 500.
+const weeklySessionLimit = 500;
 const queryLimit = maxSessionCapacity;
 
 function invalid(code: BookingErrorCode, message: string): never {
