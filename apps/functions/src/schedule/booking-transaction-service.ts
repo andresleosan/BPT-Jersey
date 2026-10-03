@@ -82,7 +82,11 @@ export type BookingDocumentSnapshot = Readonly<{
 }>;
 export type BookingQuerySnapshot = Readonly<{ docs: readonly BookingDocumentSnapshot[] }>;
 export type BookingQuery = Readonly<{
-  where: (field: string, operator: "==" | ">=" | "<" | "array-contains", value: unknown) => BookingQuery;
+  where: (
+    field: string,
+    operator: "==" | ">=" | "<" | "array-contains" | "in",
+    value: unknown,
+  ) => BookingQuery;
   limit: (count: number) => BookingQuery;
 }>;
 /** A collection also mints document ids, which the audit log needs (one event per write). */
@@ -139,8 +143,8 @@ const waitlistDocumentIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,319}$/u;
 const dateTimePattern =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:?\d{2})$/u;
 const maxSessionCapacity = 300;
-// The query counts cancelled sessions too: the week of 2026-10-05 held 103 (56 cancelled) and
-// 100 refused every booking in it. ponytail: a fixed cap, filter by status if a week nears 1000.
+// The week of 2026-10-05 held 103 sessions (56 cancelled) and a cap of 100 refused every booking
+// in it; the query now skips cancelled ones. ponytail: fixed cap, page the query if a week nears it.
 const weeklySessionLimit = 1000;
 const queryLimit = maxSessionCapacity;
 
@@ -510,6 +514,8 @@ async function weeklyUsage(input: {
   const sessions = await input.transaction.get(
     input.firestore
       .collection(path(input.academyId, "sessions"))
+      // Cancelled sessions never use a place, so they never count towards the cap either.
+      .where("status", "in", ["scheduled", "active", "completed"])
       .where("startAt", ">=", lowerBound)
       .where("startAt", "<", upperBound)
       .limit(weeklySessionLimit + 1),
