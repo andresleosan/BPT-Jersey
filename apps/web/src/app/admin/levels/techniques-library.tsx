@@ -82,15 +82,12 @@ export function TechniquesLibrary({
 
   async function remove(): Promise<void> {
     if (deleting === null) return;
-    const saved = await onSave({
+    await onSave({
       ...base,
       skills: catalog.skills.filter((skill) => skill.key !== deleting),
       beltTechniques: catalog.beltTechniques.filter((t) => t.skillKey !== deleting),
     });
-    if (saved) {
-      dialog.current?.close();
-      setDeleting(null);
-    }
+    dialog.current?.close();
   }
 
   const deletingLabel = catalog.skills.find((skill) => skill.key === deleting)?.displayLabel;
