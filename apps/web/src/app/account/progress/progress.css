@@ -315,35 +315,6 @@
   }
 }
 
-.rank-technique-grid {
-  display: grid;
-  gap: 1.25rem;
-}
-
-.rank-techniques h3 {
-  color: var(--bpt-purple);
-  font-size: 0.85rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  margin: 0 0 0.5rem;
-  text-transform: uppercase;
-}
-
-.rank-techniques ul {
-  display: grid;
-  gap: 0.35rem;
-  margin: 0;
-  padding-left: 1.1rem;
-}
-
-.rank-techniques li {
-  overflow-wrap: anywhere;
-}
-
-.rank-techniques li::marker {
-  color: var(--bpt-purple);
-}
-
 .rank-card--error {
   border-left: 0.35rem solid #8d1c2f;
   justify-items: start;
@@ -445,31 +416,4 @@
 
 .graduation-tip .graduation-held {
   background: var(--gi-white);
-}
-
-/* Checklist for the next rank: done items carry a purple tick, the rest an empty ring. */
-.rank-techniques .rank-checklist {
-  list-style: none;
-  padding-left: 0;
-}
-
-.rank-checklist li {
-  align-items: baseline;
-  display: flex;
-  gap: 0.6rem;
-}
-
-.rank-checklist li::before {
-  border: 2px solid var(--line);
-  border-radius: 999px;
-  content: "";
-  flex: none;
-  height: 0.75rem;
-  transform: translateY(0.1rem);
-  width: 0.75rem;
-}
-
-.rank-checklist li.is-done::before {
-  background: var(--bpt-purple);
-  border-color: var(--bpt-purple);
 }
