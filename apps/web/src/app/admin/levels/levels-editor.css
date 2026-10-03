@@ -1,4 +1,5 @@
-/* T04: belt catalogue versions and draft editor. Belt colours stay inside .belt-bar/.belt-tip
+/* Levels editor: belts edited inline in their card, the techniques library and the shared
+   controls. Belt colours stay inside .belt-bar/.belt-tip and the native colour input
    (DESIGN §10); everything here is Gi White, Mat Ink and the single purple accent. */
 .levels-tabs ul {
   border-bottom: 2px solid var(--mat-ink);
@@ -34,44 +35,6 @@
 .levels-editor-picker:focus-visible {
   outline: 3px solid var(--bpt-purple);
   outline-offset: 3px;
-}
-.levels-versions,
-.levels-editor {
-  display: grid;
-  gap: 1.25rem;
-}
-.levels-versions-header,
-.levels-editor-header {
-  display: grid;
-  gap: 0.75rem;
-  justify-items: start;
-}
-.levels-versions h2,
-.levels-editor h2 {
-  font-family: var(--font-display), Impact, sans-serif;
-  font-size: clamp(1.8rem, 4vw, 2.6rem);
-  font-weight: 700;
-  letter-spacing: 0.035em;
-  line-height: 1;
-  margin: 0;
-  text-transform: uppercase;
-}
-.levels-editor h3 {
-  font-family: var(--font-display), Impact, sans-serif;
-  font-size: 1.4rem;
-  font-weight: 700;
-  letter-spacing: 0.035em;
-  line-height: 1;
-  margin: 0;
-  text-transform: uppercase;
-}
-.levels-editor-eyebrow {
-  color: var(--bpt-purple);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.15em;
-  margin: 0;
-  text-transform: uppercase;
 }
 .levels-editor-muted {
   color: var(--muted);
@@ -131,9 +94,6 @@
 .levels-editor-field input[aria-invalid="true"] {
   border: 2px solid #8d1c2f;
 }
-.levels-editor-name {
-  width: min(100%, 28rem);
-}
 .levels-editor-hint {
   border-left: 0.35rem solid #8d1c2f;
   color: #721626;
@@ -156,19 +116,6 @@
   background: #e7f6ee;
   border-left-color: #176b49;
   color: #176b49;
-}
-.levels-editor-techniques,
-.levels-editor-belt {
-  background: var(--gi-white);
-  border: 2px solid var(--mat-ink);
-  display: grid;
-  gap: 0.9rem;
-  padding: 1rem;
-}
-.levels-editor-belts {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 24rem), 1fr));
 }
 .levels-editor-group {
   border: 1px solid var(--line);
@@ -228,37 +175,130 @@
   flex-wrap: wrap;
   gap: 0.5rem;
 }
-.levels-versions-table-wrap {
+/* Reserves the panel's space while the catalogue or the editor code loads. */
+.levels-editor-skeleton {
+  background: var(--paper-edge);
+  height: 8rem;
+  min-height: 20rem;
+}
+.levels-editor-notice[data-kind="stale"] {
+  background: #fff8e6;
+  border-left: 0.35rem solid #c98b00;
+  color: #765400;
+}
+.levels-editor-notice {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+}
+.belt-editor {
+  border-top: 1px solid #d9d8d2;
+  display: grid;
+  gap: 1rem;
+  margin: 0 1.1rem 1.1rem;
+  padding-top: 1rem;
+}
+.belt-editor h3 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.5rem;
+  letter-spacing: 0.035em;
+  line-height: 1;
+  margin: 0;
+  text-transform: uppercase;
+}
+.belt-editor-stripes {
   overflow-x: auto;
 }
-.levels-versions-table {
-  background: var(--gi-white);
+.belt-editor-stripes table,
+.levels-techniques-table {
   border-collapse: collapse;
-  min-width: 40rem;
   width: 100%;
 }
-.levels-versions-table th,
-.levels-versions-table td {
+.belt-editor-stripes caption {
+  color: var(--bpt-purple);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  padding-bottom: 0.5rem;
+  text-align: left;
+  text-transform: uppercase;
+}
+.belt-editor-stripes th,
+.belt-editor-stripes td,
+.levels-techniques-table th,
+.levels-techniques-table td {
   border-bottom: 1px solid var(--line);
-  padding: 0.6rem 0.75rem;
+  padding: 0.5rem;
   text-align: left;
   vertical-align: middle;
 }
-.levels-versions-table th {
-  font-size: 0.75rem;
-  letter-spacing: 0.1em;
+.belt-editor-stripes thead th,
+.levels-techniques-table thead th {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
 }
-.levels-versions-table tr[data-active] td:first-child {
-  border-left: 0.35rem solid var(--bpt-purple);
-  font-weight: 700;
+.belt-editor-stripes input {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--mat-ink);
+  font: inherit;
+  font-size: 1rem;
+  min-height: 3rem;
+  padding: 0.4rem 0.6rem;
+  width: 100%;
 }
-.levels-versions-skeleton {
-  background: var(--paper-edge);
-  height: 8rem;
+.levels-techniques {
+  display: grid;
+  gap: 1rem;
 }
-
-/* Holds the Versions panel's space while its code loads, so the page does not jump. */
-.levels-versions-loading {
-  min-height: 20rem;
+.levels-techniques-table-wrap {
+  overflow-x: auto;
+}
+.levels-techniques-table td:nth-child(2) {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.levels-editor-dialog {
+  background: var(--gi-white);
+  border: 2px solid var(--mat-ink);
+  color: var(--mat-ink);
+  border-radius: 0;
+  max-width: min(32rem, calc(100vw - 2rem));
+  padding: 1.25rem;
+}
+.levels-editor-dialog::backdrop {
+  background: rgb(26 26 24 / 0.5);
+}
+@media (max-width: 47.99rem) {
+  .levels-techniques-table thead {
+    display: none;
+  }
+  .levels-techniques-table tr {
+    border-bottom: 1px solid var(--line);
+    display: grid;
+    gap: 0.25rem;
+    padding: 0.5rem 0;
+  }
+  .levels-techniques-table td {
+    border: 0;
+    padding: 0.25rem 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .belt-editor *,
+  .levels-techniques * {
+    transition: none;
+  }
+}
+.levels-editor-notice p {
+  margin: 0;
+}
+.belt-editor-stripes input:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
 }

@@ -9,21 +9,19 @@ import { AdminSectionHeader } from "../admin-ui";
 import "../admin.css";
 import "./levels-editor.css";
 
-// Only the office opens Versions, so everyone else never downloads the draft editor.
-const LevelVersions = dynamic(() => import("./level-versions").then((m) => m.LevelVersions), {
+// Only the office edits, so everyone else never downloads the editor.
+const LevelsEditor = dynamic(() => import("./levels-editor").then((m) => m.LevelsEditor), {
   loading: () => (
-    <div aria-busy="true" aria-label="Loading versions" className="levels-versions-loading" />
+    <div aria-busy="true" aria-label="Loading editor" className="levels-editor-skeleton" />
   ),
 });
 
-type LevelsTab = "active" | "versions";
+type LevelsTab = "belts" | "techniques";
 
 export default function AdminLevelsPage() {
   const session = useAdminOrStaffSession();
-  // T04: only the office edits the catalogue; coaches and head coaches read the active one.
   const canEdit = session.role === "owner" || session.role === "administrator";
-  const [tab, setTab] = useState<LevelsTab>("active");
-  const shown: LevelsTab = canEdit ? tab : "active";
+  const [tab, setTab] = useState<LevelsTab>("belts");
 
   return (
     <div className="admin-page-container">
@@ -32,35 +30,30 @@ export default function AdminLevelsPage() {
         title="IBJJF Levels & Belts"
         description="Belts by colour and age group, with the stripes, minimum classes and time behind each one."
       />
-      <nav aria-label="Levels views" className="levels-tabs">
-        <ul role="tablist">
-          <li role="presentation">
-            <button
-              aria-selected={shown === "active"}
-              className="levels-tab"
-              onClick={() => setTab("active")}
-              role="tab"
-              type="button"
-            >
-              Active catalogue
-            </button>
-          </li>
-          {canEdit ? (
-            <li role="presentation">
-              <button
-                aria-selected={shown === "versions"}
-                className="levels-tab"
-                onClick={() => setTab("versions")}
-                role="tab"
-                type="button"
-              >
-                Versions
-              </button>
-            </li>
-          ) : null}
-        </ul>
-      </nav>
-      {shown === "versions" ? <LevelVersions /> : <LevelsBrowser roleContext="admin" />}
+      {canEdit ? (
+        <>
+          <nav aria-label="Levels views" className="levels-tabs">
+            <ul role="tablist">
+              {(["belts", "techniques"] as const).map((value) => (
+                <li key={value} role="presentation">
+                  <button
+                    aria-selected={tab === value}
+                    className="levels-tab"
+                    onClick={() => setTab(value)}
+                    role="tab"
+                    type="button"
+                  >
+                    {value === "belts" ? "Belts" : "Techniques"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </nav>
+          <LevelsEditor tab={tab} />
+        </>
+      ) : (
+        <LevelsBrowser roleContext="admin" />
+      )}
     </div>
   );
 }
