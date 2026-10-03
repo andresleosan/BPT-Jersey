@@ -13,6 +13,10 @@ import type { SessionRecord } from "@bpt-jersey/domain/schedule";
 import type { GraduationFirestore, Head } from "./graduation-firestore.js";
 
 type Catalog = LevelCatalogProjection;
+// Response schemas cap names and titles; one long migrated value must not reject the whole reply.
+const clamp = (value: string, max: number) => value.slice(0, max);
+const clampLikely = (likely: GraduationAssessment["likelyNext"]) =>
+  likely === null ? null : { ...likely, title: clamp(likely.title, 160) };
 const chip = (d: LevelDefinitionRecord) => ({ definitionKey: d.definitionKey, name: d.name });
 
 function levels(catalog: Catalog, head: Head) {
@@ -103,12 +107,12 @@ export async function buildBoard(
       graduationClass = {
         sessionId: a.graduationClass.sessionId,
         occurredAt: a.graduationClass.occurredAt,
-        title,
+        title: clamp(title, 160),
       };
     }
     rows.push({
       studentId: head.studentId,
-      fullName: student.fullName,
+      fullName: clamp(student.fullName, 160),
       stage: a.stage,
       current: chip(current),
       target: chip(target),
@@ -116,7 +120,7 @@ export async function buildBoard(
       minClasses: a.minClasses,
       daysDone: a.daysDone,
       minDays: a.minDays,
-      likelyNext: a.likelyNext,
+      likelyNext: clampLikely(a.likelyNext),
       graduationClass,
       lastNotYetNote: a.lastNotYetNote,
     });
@@ -159,10 +163,10 @@ export async function buildNotices(
     }
   }
   return {
-    firstName: (names.get(studentId)?.fullName ?? "").split(/\s+/u)[0] ?? "",
+    firstName: clamp((names.get(studentId)?.fullName ?? "").split(/\s+/u)[0] ?? "", 80),
     stage: a.stage,
     targetName: target?.name ?? null,
-    likelyNext: a.likelyNext,
+    likelyNext: clampLikely(a.likelyNext),
     missedLikely: a.missedLikely,
     lastNotYetNote: a.lastNotYetNote,
     classesLeft: a.minClasses === null ? null : Math.max(0, a.minClasses - a.classesDone),
