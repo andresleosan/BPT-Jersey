@@ -118,6 +118,11 @@ export {
 export { getProgressReport } from "./levels/progress-report-callables.js";
 export { getFamilyAchievementSummary } from "./levels/family-achievement-callables.js";
 export { getEditableLevelCatalog, saveLevelCatalog } from "./levels/level-editor-callables.js";
+export {
+  decideGraduation,
+  getGraduationNotices,
+  listGraduationBoard,
+} from "./graduations/graduation-callables.js";
 export { getOperationalReport } from "./reports/operational-report-callables.js";
 export { prepareAggregateReportExport } from "./exports/aggregate-report-export-callables.js";
 export {
