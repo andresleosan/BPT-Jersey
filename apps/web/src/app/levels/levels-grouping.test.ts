@@ -9,7 +9,6 @@ import {
   groupBelts,
   ordinal,
   stripeOrdinal,
-  techniqueSets,
 } from "./levels-grouping";
 
 function def(
@@ -128,32 +127,6 @@ describe("belt grouping", () => {
       "21st",
       "22nd",
     ]);
-  });
-
-  it("shows every technique once per distinct list, naming the levels it applies to", () => {
-    const stripes = [1, 2, 3, 4, 5].map((n) =>
-      def({
-        definitionKey: `k-white-s${n}`,
-        kind: "stripe",
-        sequence: 1 + n,
-        parentDefinitionKey: "k-white",
-      }),
-    );
-    const [group] = groupBelts({ definitions: [white, ...stripes] });
-    const foundation = ["Tie The Belt (Min 2★)", "Bridges (Min 3★)"];
-    const techniques = new Map<string, readonly string[]>([
-      ["k-white", foundation],
-      ["k-white-s1", foundation],
-      ["k-white-s2", [...foundation].reverse()],
-      ["k-white-s4", foundation],
-      ["k-white-s5", ["Guard Pull (Min 3★)"]],
-    ]);
-
-    expect(techniqueSets(group!, techniques)).toEqual([
-      { appliesTo: "Belt, 1st–2nd, 4th stripe", techniques: foundation },
-      { appliesTo: "5th stripe", techniques: ["Guard Pull (Min 3★)"] },
-    ]);
-    expect(techniqueSets(group!, new Map())).toEqual([]);
   });
 
   it("draws stripes in the stripe colour on a tip that contrasts with the belt", () => {

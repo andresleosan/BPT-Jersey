@@ -174,19 +174,47 @@
 .belt-stripes span {
   color: var(--muted);
 }
-.belt-skills {
+.belt-techniques {
   border-left: 0.35rem solid var(--bpt-purple);
-  color: var(--muted);
-  font-size: 0.9rem;
   margin: 0 1.1rem;
   padding-left: 0.75rem;
 }
-.belt-skills span {
+.belt-techniques summary {
   color: var(--bpt-purple);
+  cursor: pointer;
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.15em;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
   text-transform: uppercase;
+}
+.belt-techniques summary:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 4px;
+}
+.belt-techniques ul {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+}
+.belt-techniques li {
+  border-top: 1px solid var(--paper-edge, #e8e7e3);
+  color: var(--muted);
+  display: flex;
+  font-size: 0.9rem;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.35rem 0;
+}
+.belt-techniques li span:last-child {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* The belt being edited takes the whole row so its form has room. */
+.belt-card:has(.belt-editor[data-editing]) {
+  grid-column: 1 / -1;
 }
 .levels-empty,
 .levels-loading,
