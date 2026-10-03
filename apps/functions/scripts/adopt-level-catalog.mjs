@@ -53,7 +53,10 @@ try {
   const target = required(options, "target");
   const academyId = required(options, "academy-id");
   const generatedAt = options["generated-at"] ?? new Date().toISOString();
-  if (Number.isNaN(Date.parse(generatedAt)) || new Date(generatedAt).toISOString() !== generatedAt) {
+  if (
+    Number.isNaN(Date.parse(generatedAt)) ||
+    new Date(generatedAt).toISOString() !== generatedAt
+  ) {
     throw new CliError("Invalid --generated-at.");
   }
   const initialEnvironment = {
@@ -66,7 +69,10 @@ try {
   let actorId;
   if (options.apply === true) {
     actorId = required(options, "actor-id");
-    if (target === "production" && options["target-confirmation"] !== "LEVELS-ADOPT-PRODUCTION-APPLY") {
+    if (
+      target === "production" &&
+      options["target-confirmation"] !== "LEVELS-ADOPT-PRODUCTION-APPLY"
+    ) {
       throw new CliError("Confirmation required for production: LEVELS-ADOPT-PRODUCTION-APPLY");
     }
   }
@@ -115,10 +121,14 @@ try {
       actorId,
       confirmation: options.confirmation,
     });
-    process.stdout.write(`${JSON.stringify({ mode: "apply", target, academyId, ...result }, null, 2)}\n`);
+    process.stdout.write(
+      `${JSON.stringify({ mode: "apply", target, academyId, ...result }, null, 2)}\n`,
+    );
   }
 } catch (error) {
-  process.stderr.write(`${error instanceof CliError ? error.message : "Level catalogue adoption failed."}\n`);
+  process.stderr.write(
+    `${error instanceof CliError ? error.message : "Level catalogue adoption failed."}\n`,
+  );
   if (process.env.BPT_OPERATOR_DEBUG === "1") console.error(error);
   process.exitCode = 1;
 } finally {

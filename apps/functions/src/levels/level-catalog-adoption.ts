@@ -132,7 +132,9 @@ export async function planLevelCatalogAdoption(
   }
   const belts = sourceDefinitions.filter((data) => data.kind !== "stripe");
   const stripesOf = (beltKey: string) =>
-    sourceDefinitions.filter((data) => data.kind === "stripe" && data.parentDefinitionKey === beltKey);
+    sourceDefinitions.filter(
+      (data) => data.kind === "stripe" && data.parentDefinitionKey === beltKey,
+    );
   const requirements: Write[] = [];
   const stripeChanges: StripeChange[] = [];
   for (const belt of belts) {
@@ -153,7 +155,12 @@ export async function planLevelCatalogAdoption(
         const added = [...unified.keys()].filter((skill) => !had.has(skill)).sort();
         const removed = [...had.keys()].filter((skill) => !unified.has(skill)).sort();
         if (added.length > 0 || removed.length > 0) {
-          stripeChanges.push({ belt: String(belt.name), stripe: String(level.name), added, removed });
+          stripeChanges.push({
+            belt: String(belt.name),
+            stripe: String(level.name),
+            added,
+            removed,
+          });
         }
       }
       for (const [skill, rating] of unified) {
@@ -293,7 +300,12 @@ export async function applyLevelCatalogAdoption(
   }
 
   if (plan.status === "already-adopted") {
-    return { status: plan.status, newSystemId: plan.newSystemId, movedHeads: 0, deletedDocuments: 0 };
+    return {
+      status: plan.status,
+      newSystemId: plan.newSystemId,
+      movedHeads: 0,
+      deletedDocuments: 0,
+    };
   }
   const heads = await firestore
     .collection(`${base}/studentLevelProgress`)
@@ -313,7 +325,9 @@ export async function applyLevelCatalogAdoption(
         deletions.push((batch) => batch.delete(document.ref));
       }
     }
-    deletions.push((batch) => batch.delete(firestore.doc(`${base}/levelCatalogManifests/${systemId}`)));
+    deletions.push((batch) =>
+      batch.delete(firestore.doc(`${base}/levelCatalogManifests/${systemId}`)),
+    );
     deletions.push((batch) => batch.delete(firestore.doc(`${base}/levelSystems/${systemId}`)));
   }
   await inBatches(firestore, deletions);

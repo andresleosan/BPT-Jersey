@@ -281,9 +281,7 @@ export function createLevelEditorService({
   newOperationId?: () => string;
 }): LevelEditorService {
   const ofSystem = (academyId: string, collection: string, systemId: string) =>
-    firestore
-      .collection(`academies/${academyId}/${collection}`)
-      .where("systemId", "==", systemId);
+    firestore.collection(`academies/${academyId}/${collection}`).where("systemId", "==", systemId);
 
   async function readActive(transaction: LevelEditorTransaction, academyId: string) {
     const state = await transaction.get(
@@ -396,9 +394,15 @@ export function createLevelEditorService({
         }
         for (const [id, data] of desired) {
           const before = previous.get(id)?.data();
-          if (before === undefined || hashLevelCatalogValue(before) !== hashLevelCatalogValue(data)) {
+          if (
+            before === undefined ||
+            hashLevelCatalogValue(before) !== hashLevelCatalogValue(data)
+          ) {
             writes.push(() =>
-              transaction.set(firestore.doc(`academies/${academyId}/levelRequirements/${id}`), data),
+              transaction.set(
+                firestore.doc(`academies/${academyId}/levelRequirements/${id}`),
+                data,
+              ),
             );
           }
         }
