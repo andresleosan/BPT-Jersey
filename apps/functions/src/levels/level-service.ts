@@ -751,7 +751,7 @@ function withinLimit<T extends { docs: readonly unknown[] }>(snapshot: T, label:
 }
 
 /** Grill G10: a stored baseline that does not parse is a refusal, never a silent zero. */
-function storedImportedBaseline(value: unknown): ImportedBaseline | null {
+export function storedImportedBaseline(value: unknown): ImportedBaseline | null {
   if (value === undefined) return null;
   const parsed = importedBaselineSchema.safeParse(value);
   if (!parsed.success) throw new LevelStoreError("tenant", "Imported baseline is invalid");
