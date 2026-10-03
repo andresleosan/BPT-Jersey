@@ -1,11 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type {
-  LevelCatalogProjection,
-  LevelDefinitionRecord,
-  SkillDefinition,
-} from "@bpt-jersey/domain/levels";
+import type { LevelCatalogProjection, LevelDefinitionRecord } from "@bpt-jersey/domain/levels";
 
 import { getLevelCatalog } from "../../lib/levels-client";
 import {
@@ -16,12 +12,15 @@ import {
   groupBelts,
   ordinal,
   stripeOrdinal,
-  techniqueSets,
 } from "./levels-grouping";
 import "./levels.css";
 
 export type LevelsBrowserProps = Readonly<{
   roleContext?: "admin" | "coach" | "client";
+  /** Changing it reloads the catalogue (after an edit is saved). */
+  version?: number;
+  /** Editors only: rendered at the bottom of each belt card. */
+  renderBeltEditor?: (beltKey: string) => React.ReactNode;
 }>;
 
 // A physical belt tip holds four stripes; kids' belts go up to eleven, so the rest is a count.
@@ -67,7 +66,11 @@ function BeltCardSkeleton() {
   return <div aria-busy="true" aria-hidden="true" className="belt-card belt-card-skeleton" />;
 }
 
-export function LevelsBrowser({ roleContext = "admin" }: LevelsBrowserProps) {
+export function LevelsBrowser({
+  roleContext = "admin",
+  version = 0,
+  renderBeltEditor,
+}: LevelsBrowserProps) {
   const [catalog, setCatalog] = useState<LevelCatalogProjection | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,25 +109,25 @@ export function LevelsBrowser({ roleContext = "admin" }: LevelsBrowserProps) {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [version]);
 
-  const skillsMap = useMemo(() => {
-    if (!catalog) return new Map<string, SkillDefinition>();
-    return new Map(catalog.skills.map((s) => [s.key, s]));
-  }, [catalog]);
-
-  const requirementsByDefKey = useMemo(() => {
-    if (!catalog) return new Map<string, string[]>();
-    const map = new Map<string, string[]>();
-    for (const req of catalog.requirements) {
-      const skill = skillsMap.get(req.skillKey);
-      const label = skill ? `${skill.displayLabel} (Min ${req.minimumRating}★)` : req.skillKey;
-      const existing = map.get(req.definitionKey) ?? [];
-      existing.push(label);
-      map.set(req.definitionKey, existing);
+  // A belt's techniques are the requirements on the belt itself; its stripes carry the same list.
+  const techniquesByBelt = useMemo(() => {
+    const map = new Map<string, { key: string; label: string; rating: number }[]>();
+    if (!catalog) return map;
+    const labels = new Map(catalog.skills.map((skill) => [skill.key, skill.displayLabel]));
+    for (const requirement of catalog.requirements) {
+      const list = map.get(requirement.definitionKey) ?? [];
+      list.push({
+        key: requirement.skillKey,
+        label: labels.get(requirement.skillKey) ?? requirement.skillKey,
+        rating: requirement.minimumRating,
+      });
+      map.set(requirement.definitionKey, list);
     }
+    for (const list of map.values()) list.sort((a, b) => a.label.localeCompare(b.label));
     return map;
-  }, [catalog, skillsMap]);
+  }, [catalog]);
 
   const groups = useMemo(() => (catalog ? groupBelts(catalog) : []), [catalog]);
   const colours = useMemo(() => distinctBeltColors(groups), [groups]);
@@ -272,11 +275,25 @@ export function LevelsBrowser({ roleContext = "admin" }: LevelsBrowserProps) {
                     ))}
                   </ol>
                 ) : null}
-                {techniqueSets(group, requirementsByDefKey).map(({ appliesTo, techniques }) => (
-                  <p className="belt-skills" key={appliesTo}>
-                    <span>Techniques · {appliesTo}</span> {techniques.join(" · ")}
-                  </p>
-                ))}
+                {(() => {
+                  const techniques = techniquesByBelt.get(belt.definitionKey) ?? [];
+                  return techniques.length > 0 ? (
+                    <details className="belt-techniques">
+                      <summary>
+                        {techniques.length} {techniques.length === 1 ? "technique" : "techniques"}
+                      </summary>
+                      <ul>
+                        {techniques.map((technique) => (
+                          <li key={technique.key}>
+                            <span>{technique.label}</span>
+                            <span>Min {technique.rating}/5</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  ) : null;
+                })()}
+                {renderBeltEditor?.(belt.definitionKey)}
               </article>
             );
           })}
