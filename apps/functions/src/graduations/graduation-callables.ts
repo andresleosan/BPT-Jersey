@@ -109,6 +109,9 @@ export const decideGraduation = onCall(levelCallableOptions, async (request) => 
       decidedBy: actor.userId,
       decidedByStaffId: null,
       decidedByRole: "owner",
+      // The diagram: the graduation is given at the end of the last class of the level, so the
+      // new level's counters start after that class, at zero.
+      levelStartedAt: pending.occurredAt,
     });
   } catch (error) {
     if (error instanceof LevelStoreError && (error.code === "conflict" || error.code === "invalid"))

@@ -228,6 +228,9 @@ export type LevelCatalogLifecycleStore = Readonly<{
     decidedByStaffId: string | null;
     decidedByRole: "headCoach" | "owner" | "administrator";
     decidedAt?: string;
+    /** Graduations: the new level starts at the graduation class instant, so that class stays
+     * with the previous level. Omitted, the level starts at 00:00 of `promotedOn`. */
+    levelStartedAt?: string;
   }) => Promise<AssignLevelResult>;
   /**
    * T051V2 (plan decision 2): a void is APPEND-ONLY. It writes a `void_<promotionId>` record and
@@ -2771,7 +2774,7 @@ export function createLevelCatalogStore({
           currentDefinitionKey: to.definitionKey,
           // The head starts at midnight on the promotion day, so the day the promotion names and
           // the day the new level counts from are one and the same.
-          currentLevelStartedAt: `${input.promotedOn}T00:00:00.000Z`,
+          currentLevelStartedAt: params.levelStartedAt ?? `${input.promotedOn}T00:00:00.000Z`,
           lastApprovedPromotionId: promotionId,
           updatedAt: now,
           updatedBy: decidedBy,
@@ -3907,7 +3910,7 @@ export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
         Object.freeze({
           ...(nextHead as StudentLevelHead),
           currentDefinitionKey: to.definitionKey,
-          currentLevelStartedAt: `${input.promotedOn}T00:00:00.000Z`,
+          currentLevelStartedAt: params.levelStartedAt ?? `${input.promotedOn}T00:00:00.000Z`,
           lastApprovedPromotionId: promotionId,
           updatedAt: now,
           updatedBy: decidedBy,
