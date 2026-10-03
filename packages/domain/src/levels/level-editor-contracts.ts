@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 /**
- * T04: belt catalogue editor. Versions `ibjjf-v1..v3` are generated in code and pinned by hash,
- * so they are never edited. Every editable version is a `custom` system named
- * `bpt-<yyyymmdd>-<n>`, validated here instead of by an approved source hash.
+ * The academy's belt catalogue is one `custom` system named `bpt-<yyyymmdd>-<n>`, edited in place.
+ * Code versions `ibjjf-v1..v3` only seed fresh environments and are never edited. Which belts and
+ * stripes exist is fixed; their names, colours, criteria and the techniques they require are not.
  */
 export const customLevelSystemIdPattern = /^bpt-\d{8}-\d{1,3}$/u;
 
@@ -11,21 +11,18 @@ export function isCustomLevelSystemId(value: unknown): value is string {
   return typeof value === "string" && customLevelSystemIdPattern.test(value);
 }
 
-/**
- * The spec asked for 0–10 stripes, but ibjjf-v3 kids belts carry 11 degrees; a draft cloned from
- * the active catalogue must save unchanged, so 11 is the ceiling.
- */
+/** ibjjf-v3 kids belts carry 11 degrees. */
 export const maxStripesPerBelt = 11;
 
 const hexColourSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/u);
 const identifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u);
 const customSystemIdSchema = z.string().regex(customLevelSystemIdPattern);
-const systemIdSchema = identifierSchema;
 const labelSchema = z.string().trim().min(1).max(80);
 const ageSchema = z.number().int().min(3).max(99);
 const ratingSchema = z.number().int().min(1).max(5);
+const stampSchema = z.string().min(1).max(64);
 
-export const levelDraftCriteriaSchema = z.strictObject({
+const criteriaSchema = z.strictObject({
   minAge: ageSchema.nullable(),
   maxAge: ageSchema.nullable(),
   minClasses: z.number().int().min(0).max(10_000).nullable(),
@@ -38,59 +35,63 @@ export const levelDraftCriteriaSchema = z.strictObject({
     .nullable(),
 });
 
-export const levelDraftVisualSchema = z.strictObject({
-  colors: z.array(hexColourSchema).min(1).max(4),
-  stripeColor: hexColourSchema.nullable(),
-  stripeCount: z.number().int().min(0).max(maxStripesPerBelt),
-});
-
-export const levelDraftLevelSchema = z.strictObject({
+export const catalogLevelSchema = z.strictObject({
   definitionKey: identifierSchema,
   kind: z.enum(["belt", "stripe"]),
   parentDefinitionKey: identifierSchema.nullable(),
   name: labelSchema,
   sequence: z.number().int().min(1).max(10_000),
   stripeNumber: z.number().int().min(1).max(maxStripesPerBelt).nullable(),
-  criteria: levelDraftCriteriaSchema,
-  visual: levelDraftVisualSchema,
+  criteria: criteriaSchema,
+  visual: z.strictObject({
+    colors: z.array(hexColourSchema).min(1).max(4),
+    stripeColor: hexColourSchema.nullable(),
+    // Read-only: the number of stripes under a belt. The server never takes it from the client.
+    stripeCount: z.number().int().min(0).max(maxStripesPerBelt),
+  }),
 });
-export type LevelDraftLevel = z.infer<typeof levelDraftLevelSchema>;
+export type CatalogLevel = z.infer<typeof catalogLevelSchema>;
 
-export const levelDraftSkillSchema = z.strictObject({
+export const catalogSkillSchema = z.strictObject({
   key: identifierSchema,
   displayLabel: labelSchema,
   minimumRating: ratingSchema,
   sequence: z.number().int().min(1).max(10_000),
 });
-export type LevelDraftSkill = z.infer<typeof levelDraftSkillSchema>;
+export type CatalogSkill = z.infer<typeof catalogSkillSchema>;
 
-export const levelDraftRequirementSchema = z.strictObject({
-  definitionKey: identifierSchema,
+/** A technique a belt requires; it applies to the belt and every stripe under it. */
+export const beltTechniqueSchema = z.strictObject({
+  beltKey: identifierSchema,
   skillKey: identifierSchema,
   minimumRating: ratingSchema,
 });
-export type LevelDraftRequirement = z.infer<typeof levelDraftRequirementSchema>;
+export type BeltTechnique = z.infer<typeof beltTechniqueSchema>;
 
-const draftContentShape = {
+const contentShape = {
   displayName: labelSchema,
-  levels: z.array(levelDraftLevelSchema).min(1).max(400),
-  skills: z.array(levelDraftSkillSchema).max(300),
-  requirements: z.array(levelDraftRequirementSchema).max(3_000),
+  levels: z.array(catalogLevelSchema).min(1).max(400),
+  skills: z.array(catalogSkillSchema).max(300),
+  beltTechniques: z.array(beltTechniqueSchema).max(3_000),
 };
 
-type DraftContent = Readonly<{
-  levels: readonly LevelDraftLevel[];
-  skills: readonly LevelDraftSkill[];
-  requirements: readonly LevelDraftRequirement[];
+type Content = Readonly<{
+  levels: readonly CatalogLevel[];
+  skills: readonly CatalogSkill[];
+  beltTechniques: readonly BeltTechnique[];
 }>;
 
-function checkDraftReferences(value: DraftContent, context: z.RefinementCtx): void {
-  const levels = new Map<string, LevelDraftLevel>();
+function checkContent(value: Content, context: z.RefinementCtx): void {
+  const levels = new Map<string, CatalogLevel>();
   value.levels.forEach((level, index) => {
     if (levels.has(level.definitionKey)) {
       context.addIssue({ code: "custom", path: ["levels", index], message: "Duplicate level" });
     }
     levels.set(level.definitionKey, level);
+    const { minAge, maxAge } = level.criteria;
+    if (minAge !== null && maxAge !== null && minAge > maxAge) {
+      context.addIssue({ code: "custom", path: ["levels", index], message: "Age range" });
+    }
   });
   value.levels.forEach((level, index) => {
     const parent =
@@ -110,106 +111,43 @@ function checkDraftReferences(value: DraftContent, context: z.RefinementCtx): vo
     }
     skills.add(skill.key);
   });
-  const requirements = new Set<string>();
-  value.requirements.forEach((requirement, index) => {
-    const key = `${requirement.definitionKey}__${requirement.skillKey}`;
+  const pairs = new Set<string>();
+  value.beltTechniques.forEach((technique, index) => {
+    const pair = `${technique.beltKey}__${technique.skillKey}`;
     if (
-      !levels.has(requirement.definitionKey) ||
-      !skills.has(requirement.skillKey) ||
-      requirements.has(key)
+      levels.get(technique.beltKey)?.kind !== "belt" ||
+      !skills.has(technique.skillKey) ||
+      pairs.has(pair)
     ) {
       context.addIssue({
         code: "custom",
-        path: ["requirements", index],
-        message: "Invalid requirement",
+        path: ["beltTechniques", index],
+        message: "Invalid technique",
       });
     }
-    requirements.add(key);
+    pairs.add(pair);
   });
 }
 
-export const saveLevelCatalogDraftInputSchema = z
-  .strictObject({ systemId: customSystemIdSchema, ...draftContentShape })
-  .superRefine(checkDraftReferences);
-export type SaveLevelCatalogDraftInput = z.infer<typeof saveLevelCatalogDraftInputSchema>;
+export const editableLevelCatalogSchema = z
+  .strictObject({ systemId: customSystemIdSchema, updatedAt: stampSchema, ...contentShape })
+  .superRefine(checkContent);
+export type EditableLevelCatalog = z.infer<typeof editableLevelCatalogSchema>;
 
-export const createLevelCatalogDraftInputSchema = z.strictObject({ fromSystemId: systemIdSchema });
-export type CreateLevelCatalogDraftInput = z.infer<typeof createLevelCatalogDraftInputSchema>;
+export const saveLevelCatalogInputSchema = z
+  .strictObject({ expectedUpdatedAt: stampSchema, ...contentShape })
+  .superRefine(checkContent);
+export type SaveLevelCatalogInput = z.infer<typeof saveLevelCatalogInputSchema>;
 
-export const publishLevelCatalogDraftInputSchema = z.strictObject({
-  systemId: customSystemIdSchema,
-});
-export type PublishLevelCatalogDraftInput = z.infer<typeof publishLevelCatalogDraftInputSchema>;
-
-export const activateLevelCatalogInputSchema = z.strictObject({ systemId: systemIdSchema });
-export type ActivateLevelCatalogInput = z.infer<typeof activateLevelCatalogInputSchema>;
-
-export const getLevelCatalogVersionInputSchema = z.strictObject({ systemId: systemIdSchema });
-export type GetLevelCatalogVersionInput = z.infer<typeof getLevelCatalogVersionInputSchema>;
-
-export const levelCatalogVersionSummarySchema = z.strictObject({
-  systemId: systemIdSchema,
-  displayName: z.string().max(200),
-  origin: z.enum(["code", "custom"]),
-  status: z.enum(["draft", "published"]),
-  active: z.boolean(),
-  publishedAt: z.string().nullable(),
-});
-export type LevelCatalogVersionSummary = z.infer<typeof levelCatalogVersionSummarySchema>;
-
-export const listLevelCatalogVersionsResultSchema = z.strictObject({
-  versions: z.array(levelCatalogVersionSummarySchema),
-});
-export type ListLevelCatalogVersionsResult = z.infer<typeof listLevelCatalogVersionsResultSchema>;
-
-/** A whole version in editor form: what `getLevelCatalogVersion` returns and `save` takes back. */
-export const levelCatalogVersionContentSchema = z.strictObject({
-  systemId: systemIdSchema,
-  origin: z.enum(["code", "custom"]),
-  status: z.enum(["draft", "published"]),
-  displayName: z.string().max(200),
-  levels: z.array(levelDraftLevelSchema),
-  skills: z.array(levelDraftSkillSchema),
-  requirements: z.array(levelDraftRequirementSchema),
-});
-export type LevelCatalogVersionContent = z.infer<typeof levelCatalogVersionContentSchema>;
-
-export const levelCatalogMissingKeySchema = z.strictObject({
-  definitionKey: identifierSchema,
-  students: z.number().int().min(1),
-});
-export type LevelCatalogMissingKey = z.infer<typeof levelCatalogMissingKeySchema>;
-
-/** `details` of the `failed-precondition` refusal when a target version drops held levels. */
-export const levelCatalogActivationRefusalSchema = z.strictObject({
-  reason: z.literal("missing-levels"),
-  missing: z.array(levelCatalogMissingKeySchema).min(1),
-});
-export type LevelCatalogActivationRefusal = z.infer<typeof levelCatalogActivationRefusalSchema>;
-
-export const activateLevelCatalogResultSchema = z.strictObject({
-  activeSystemId: systemIdSchema,
-  previousSystemId: systemIdSchema,
-  movedStudents: z.number().int().min(0),
-});
-export type ActivateLevelCatalogResult = z.infer<typeof activateLevelCatalogResultSchema>;
-
-/**
- * Every level a student currently holds must exist in the version being activated. Returns the
- * held keys the target lacks, with how many students hold each, sorted by key; empty means safe.
- */
-export function missingProgressKeys(
-  targetKeys: ReadonlySet<string>,
-  progress: readonly { studentId: string; currentDefinitionKey: string }[],
-): readonly { definitionKey: string; students: number }[] {
-  const students = new Map<string, Set<string>>();
-  for (const head of progress) {
-    if (targetKeys.has(head.currentDefinitionKey)) continue;
-    const holders = students.get(head.currentDefinitionKey) ?? new Set<string>();
-    holders.add(head.studentId);
-    students.set(head.currentDefinitionKey, holders);
-  }
-  return [...students.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([definitionKey, holders]) => ({ definitionKey, students: holders.size }));
+/** A new technique's key: its label as a slug, suffixed until it is free. */
+export function techniqueKey(label: string, taken: ReadonlySet<string>): string {
+  const base =
+    label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/gu, "-")
+      .replace(/^-+|-+$/gu, "")
+      .slice(0, 100) || "technique";
+  let key = base;
+  for (let n = 2; taken.has(key); n += 1) key = `${base}-${n}`;
+  return key;
 }
