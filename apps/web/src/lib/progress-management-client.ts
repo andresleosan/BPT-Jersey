@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   progressManagementSchema,
   type AddManualAttendanceInput,
+  type EditLevelHistoryInput,
   type ProgressManagement,
   type SetAttendanceVoidInput,
   type SetProgressClassCountInput,
@@ -46,4 +47,7 @@ export function addManualAttendance(input: AddManualAttendanceInput) {
 }
 export function setAttendanceVoid(input: SetAttendanceVoidInput) {
   return call("setAttendanceVoid", input, z.object({ voided: z.boolean() }), "Unable to change this attendance. Please try again.");
+}
+export function editLevelHistory(input: EditLevelHistoryInput) {
+  return call("editLevelHistory", input, z.object({ ok: z.literal(true) }), "Unable to change the level history. Please try again.");
 }

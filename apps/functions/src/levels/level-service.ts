@@ -1081,10 +1081,11 @@ function historyVoidedOn(...values: readonly unknown[]): string | null {
  * standing is a lie the operator can see and challenge; omitting the promotion is a lie the
  * operator cannot see at all, and it destroys the evidence the append-only design exists for.
  */
-function buildLevelHistory(
+export function buildLevelHistory(
   studentId: string,
   headData: Readonly<Record<string, unknown>> | undefined,
   promotions: readonly Readonly<Record<string, unknown>>[],
+  edits: readonly Readonly<Record<string, unknown>>[] = [],
 ): StudentLevelHistory {
   const voids = new Map(
     promotions
@@ -1152,14 +1153,52 @@ function buildLevelHistory(
       voided: null,
     });
   }
-  const entries: LevelHistoryEntry[] = rows.flatMap((row) => {
-    const parsed = levelHistoryEntrySchema.safeParse(row);
+  // Level history editing (2026-10-03): `levelHistoryEdits` sits on top of the records above and
+  // never changes them, so `restore` and the audit trail stay intact. An `override` replaces the
+  // level and date of one row or hides it; an `added` row is a level the office typed in. Added
+  // rows go first so, on a shared day, the newest typed-in level reads as the latest.
+  const overrides = new Map(
+    edits
+      .filter((edit) => edit.kind === "override")
+      .map((edit) => [String(edit.targetEntryId), edit] as const),
+  );
+  const added = edits
+    .filter((edit) => edit.kind === "added" && edit.deleted !== true)
+    .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)))
+    .map((edit) => ({
+      entryId: edit.editId,
+      kind: "manual",
+      definitionKey: edit.definitionKey,
+      fromDefinitionKey: null,
+      assignedOn: edit.assignedOn,
+      classes: null,
+      days: null,
+      decidedByRole: historyDecisionRole(edit.decidedByRole),
+      source: "bpt",
+      note: historyFreeText(edit.note),
+      gaps: [],
+      voided: null,
+    }));
+  const entries: LevelHistoryEntry[] = [...added, ...rows].flatMap((row) => {
+    const override = overrides.get(String((row as Record<string, unknown>).entryId));
+    if (override?.deleted === true) return [];
+    const parsed = levelHistoryEntrySchema.safeParse(
+      override === undefined
+        ? row
+        : {
+            ...(row as Record<string, unknown>),
+            definitionKey: override.definitionKey,
+            assignedOn: override.assignedOn,
+          },
+    );
     return parsed.success ? [parsed.data] : [];
   });
-  // Newest first; the opening is the oldest thing that can share a day with a promotion.
+  // Newest first; the opening is the oldest thing that can share a day with a promotion. The sort
+  // is stable, so other ties keep the order above.
   entries.sort(
     (left, right) =>
-      right.assignedOn.localeCompare(left.assignedOn) || (left.kind === "opening" ? 1 : -1),
+      right.assignedOn.localeCompare(left.assignedOn) ||
+      Number(left.kind === "opening") - Number(right.kind === "opening"),
   );
   /**
    * T051V2 review of Task 16 (Critical-1): the head's `lastApprovedPromotionId` is the ONLY
@@ -2888,8 +2927,12 @@ export function createLevelCatalogStore({
         academyId,
         studentId,
       );
-      const [head, snapshot] = await Promise.all([
+      const [head, edits, snapshot] = await Promise.all([
         firestore.doc(`academies/${academyId}/studentLevelProgress/${studentId}`).get(),
+        firestore
+          .collection(`academies/${academyId}/levelHistoryEdits`)
+          .where("studentId", "==", studentId)
+          .get(),
         readCanonicalMemberHistoryDocuments(
           firestore as unknown as Firestore,
           academyId,
@@ -2909,7 +2952,12 @@ export function createLevelCatalogStore({
         }
         return snapshot.ids.includes(String(data.studentId)) ? [data] : [];
       });
-      return buildLevelHistory(studentId, head.exists ? headData : undefined, promotions);
+      return buildLevelHistory(
+        studentId,
+        head.exists ? headData : undefined,
+        promotions,
+        edits.docs.map((document) => document.data()),
+      );
     },
 
     async rejectPromotion(params): Promise<GraduationRecord> {
