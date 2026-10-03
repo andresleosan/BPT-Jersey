@@ -2691,9 +2691,9 @@ export function createLevelCatalogStore({
           typeof headData.currentLevelStartedAt !== "string" ||
           from === undefined ||
           to === undefined ||
-          // `assignLevelInputSchema` does not compare the two keys, so a self-promotion parses;
-          // `<=` refuses it together with every backwards move.
-          to.sequence <= from.sequence ||
+          // `assignLevelInputSchema` does not compare the two keys, so a self-assignment parses and
+          // is refused here. Any other level, earlier ones included, is the office's call.
+          to.definitionKey === from.definitionKey ||
           existing.exists
         ) {
           throw new LevelStoreError("conflict", "Promotion references are not current");
@@ -3825,7 +3825,7 @@ export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
         head.currentDefinitionKey !== input.fromDefinitionKey ||
         from === undefined ||
         to === undefined ||
-        to.sequence <= from.sequence ||
+        to.definitionKey === from.definitionKey ||
         graduations.has(graduationKey)
       ) {
         throw new LevelStoreError("conflict", "Promotion references are not current");
