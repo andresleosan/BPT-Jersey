@@ -118,7 +118,8 @@ export const historyFreeTextSchema = boundedFreeText(0, 1000);
 
 export const levelHistoryEntrySchema = z.strictObject({
   entryId: recordIdSchema,
-  kind: z.enum(["opening", "promotion"]),
+  /** `manual`: a level the office added straight to the history (`editLevelHistory`). */
+  kind: z.enum(["opening", "promotion", "manual"]),
   definitionKey: identifierSchema,
   fromDefinitionKey: identifierSchema.nullable(),
   assignedOn: dateOnlySchema,

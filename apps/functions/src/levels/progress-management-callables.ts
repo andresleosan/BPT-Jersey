@@ -9,6 +9,7 @@ import type { z } from "zod";
 import {
   addManualAttendanceInputSchema,
   countClassesAtLevel,
+  editLevelHistoryInputSchema,
   importedBaselineSchema,
   jerseyDateOf,
   progressManagementSchema,
@@ -25,18 +26,29 @@ import {
   readCanonicalMemberHistoryDocuments,
   readCanonicalMemberIdentityIds,
 } from "../members/member-identity-firestore.js";
-import { countedAttendance, createLevelCatalogStore, promotionRestoreOf } from "./level-service.js";
+import {
+  buildLevelHistory,
+  countedAttendance,
+  createLevelCatalogStore,
+  promotionRestoreOf,
+} from "./level-service.js";
 import { countedClassInstants, openMatSessionIds, readDocuments } from "./progress-adjustments.js";
+
+/** Owner or administrator, named for the change log. */
+async function requireOffice(request: CallableRequest<unknown>) {
+  const actor = await requireActiveOfficeActor(request);
+  const token = request.auth?.token;
+  const name = String(token?.name ?? token?.email ?? actor.userId).slice(0, 200);
+  return { userId: actor.userId, academyId: actor.academyId, name, role: actor.role };
+}
 
 /** D1: owner only. */
 async function requireOwner(request: CallableRequest<unknown>) {
-  const actor = await requireActiveOfficeActor(request);
-  if (actor.role !== "owner") {
+  const office = await requireOffice(request);
+  if (office.role !== "owner") {
     throw new HttpsError("permission-denied", "Only an owner can manage progress.");
   }
-  const token = request.auth?.token;
-  const name = String(token?.name ?? token?.email ?? actor.userId).slice(0, 200);
-  return { userId: actor.userId, academyId: actor.academyId, name };
+  return office;
 }
 
 function parse<T>(schema: z.ZodType<T>, data: unknown, message: string): T {
@@ -469,4 +481,193 @@ export const setAttendanceVoid = onCall(browserAdminCallableOptions, async (requ
     );
   });
   return { voided: input.voided };
+});
+
+/** A history that will not parse is a data problem the office cannot fix from this screen. */
+function historyOf(...args: Parameters<typeof buildLevelHistory>) {
+  try {
+    return buildLevelHistory(...args);
+  } catch {
+    throw new HttpsError("failed-precondition", "This member's level history cannot be read.");
+  }
+}
+
+/**
+ * The standing row with the latest date. On a shared day the row just edited wins (the office's
+ * explicit choice), then the level already on record, so an unrelated edit never moves the head.
+ */
+function currentEntryOf(
+  history: ReturnType<typeof buildLevelHistory>,
+  headKey: unknown,
+  editedEntryId: string | null,
+) {
+  const standing = history.entries.filter((entry) => entry.voided === null);
+  const latest = standing.filter((entry) => entry.assignedOn === standing[0]?.assignedOn);
+  return (
+    latest.find((entry) => entry.entryId === editedEntryId) ??
+    latest.find((entry) => entry.definitionKey === headKey) ??
+    latest[0]
+  );
+}
+
+/**
+ * Level history editing (2026-10-03, operator decision): owners and administrators add, correct or
+ * remove history rows, and the member's current level is always the standing row with the latest
+ * date. Edits live in `levelHistoryEdits` on top of the promotions, which are never changed. When
+ * the history changes, Void is retired (`lastApprovedPromotionId: null`): a promotion's `restore`
+ * snapshot predates the edit, and the history itself is now how a level is undone.
+ */
+export const editLevelHistory = onCall(browserAdminCallableOptions, async (request) => {
+  const office = await requireOffice(request);
+  const input = parse(editLevelHistoryInputSchema, request.data, "Check the level and the date.");
+  const now = new Date().toISOString();
+  if (input.action !== "delete" && input.assignedOn > jerseyDateOf(now)) {
+    throw new HttpsError("invalid-argument", "The date cannot be in the future.");
+  }
+  const db = getFirestore();
+  const { academyId, userId } = office;
+  const { studentId } = input;
+  const base = `academies/${academyId}`;
+  const [, catalog, identityIds] = await Promise.all([
+    assertStudent(db, academyId, studentId),
+    createLevelCatalogStore({ firestore: db as never }).listPublished(academyId),
+    readCanonicalMemberIdentityIds(db, academyId, studentId),
+  ]);
+  const nameOf = (key: string) =>
+    catalog.definitions.find((definition) => definition.definitionKey === key)?.name ?? key;
+  if (
+    input.action !== "delete" &&
+    !catalog.definitions.some((definition) => definition.definitionKey === input.definitionKey)
+  ) {
+    throw new HttpsError("invalid-argument", "Choose a level from the published list.");
+  }
+  const headRef = db.doc(`${base}/studentLevelProgress/${studentId}`);
+  const editsRef = db.collection(`${base}/levelHistoryEdits`);
+  await db.runTransaction(async (transaction) => {
+    const [head, editsSnapshot, ...promotionPages] = await Promise.all([
+      transaction.get(headRef),
+      transaction.get(editsRef.where("studentId", "==", studentId)),
+      ...identityIds.map((id) =>
+        transaction.get(db.collection(`${base}/levelPromotions`).where("studentId", "==", id)),
+      ),
+    ]);
+    const headData = head.data();
+    if (
+      !head.exists ||
+      headData?.academyId !== academyId ||
+      headData.state !== "initialized" ||
+      headData.systemId !== catalog.system.systemId
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Open this member's level first from their record, then edit the history.",
+      );
+    }
+    const promotions = promotionPages.flatMap((page) =>
+      page.docs.map((document) => document.data()),
+    );
+    const edits = editsSnapshot.docs.map((document) => document.data());
+    const before = historyOf(studentId, headData, promotions, edits);
+
+    let edit: Record<string, unknown>;
+    let summary: string;
+    if (input.action === "add") {
+      const ref = editsRef.doc();
+      edit = {
+        editId: ref.id,
+        kind: "added",
+        academyId,
+        studentId,
+        definitionKey: input.definitionKey,
+        assignedOn: input.assignedOn,
+        note: input.note,
+        deleted: false,
+        decidedByRole: office.role,
+        schemaVersion: "1",
+        createdAt: now,
+        createdBy: userId,
+        updatedAt: now,
+        updatedBy: userId,
+      };
+      summary = `History: added ${nameOf(input.definitionKey)} on ${input.assignedOn}`;
+    } else {
+      const entry = before.entries.find((candidate) => candidate.entryId === input.entryId);
+      if (entry === undefined) {
+        throw new HttpsError("not-found", "This history row no longer exists. Reload the page.");
+      }
+      const change =
+        input.action === "delete"
+          ? { deleted: true }
+          : { definitionKey: input.definitionKey, assignedOn: input.assignedOn, deleted: false };
+      const editId = entry.kind === "manual" ? entry.entryId : `edit_${entry.entryId}`;
+      const existing = edits.find((candidate) => candidate.editId === editId);
+      edit = {
+        editId,
+        kind: entry.kind === "manual" ? "added" : "override",
+        academyId,
+        studentId,
+        ...(entry.kind === "manual" ? {} : { targetEntryId: entry.entryId }),
+        definitionKey: entry.definitionKey,
+        assignedOn: entry.assignedOn,
+        schemaVersion: "1",
+        createdAt: now,
+        createdBy: userId,
+        ...existing,
+        ...change,
+        updatedAt: now,
+        updatedBy: userId,
+      };
+      const was = `${nameOf(entry.definitionKey)} on ${entry.assignedOn}`;
+      summary =
+        input.action === "delete"
+          ? `History: removed ${was}`
+          : `History: ${was} changed to ${nameOf(input.definitionKey)} on ${input.assignedOn}`;
+    }
+
+    const after = historyOf(studentId, headData, promotions, [
+      ...edits.filter((candidate) => candidate.editId !== edit.editId),
+      edit,
+    ]);
+    const editedEntryId =
+      input.action === "delete"
+        ? null
+        : input.action === "add"
+          ? String(edit.editId)
+          : input.entryId;
+    const previous = currentEntryOf(before, headData.currentDefinitionKey, null);
+    const current = currentEntryOf(after, headData.currentDefinitionKey, editedEntryId);
+    if (current === undefined) {
+      throw new HttpsError(
+        "failed-precondition",
+        "A member needs at least one level in the history.",
+      );
+    }
+    transaction.set(editsRef.doc(String(edit.editId)), edit);
+    const startsSameDay =
+      current.assignedOn === String(headData.currentLevelStartedAt).slice(0, 10);
+    const nextHead: Record<string, unknown> = {
+      ...headData,
+      currentDefinitionKey: current.definitionKey,
+      currentLevelStartedAt: startsSameDay
+        ? headData.currentLevelStartedAt
+        : `${current.assignedOn}T00:00:00.000Z`,
+      lastApprovedPromotionId: null,
+      updatedAt: now,
+      updatedBy: userId,
+    };
+    // Imported classes belong to the row they were counted for: a correction to that same row
+    // keeps them, a different row taking over drops them (as an assignment does).
+    if (current.entryId !== previous?.entryId) delete nextHead.importedBaseline;
+    transaction.set(headRef, nextHead);
+    logChange(
+      transaction,
+      db,
+      office,
+      studentId,
+      now,
+      summary,
+      input.action === "add" ? input.note : null,
+    );
+  });
+  return { ok: true };
 });

@@ -24,6 +24,7 @@ import {
   type StudentLevelCard,
   type StudentLevelHistory,
 } from "../../../../lib/levels-client";
+import { editLevelHistory } from "../../../../lib/progress-management-client";
 import { BeltBar } from "../../../levels/levels-browser";
 import { beltPosition, groupBelts } from "../../../levels/levels-grouping";
 import { AdminDataTableWrap } from "../../admin-data-table";
@@ -139,7 +140,7 @@ function ConfirmDialog({
     const opener = document.activeElement;
     if (typeof dialog.showModal === "function") dialog.showModal();
     else dialog.setAttribute("open", "");
-    dialog.querySelector<HTMLElement>("textarea, button")?.focus();
+    dialog.querySelector<HTMLElement>("select, input, textarea, button")?.focus();
     return () => {
       if (typeof dialog.close === "function" && dialog.open) dialog.close();
       if (opener instanceof HTMLElement) opener.focus();
@@ -393,16 +394,155 @@ function AssignLevelForm({
   );
 }
 
+type HistoryEdit =
+  Readonly<{ action: "add" }> | Readonly<{ action: "update" | "delete"; entry: LevelHistoryEntry }>;
+
+/**
+ * Level history editing (2026-10-03): add, correct or remove a row. The server makes the standing
+ * row with the latest date the member's current level, so the dialog says so before it is sent.
+ */
+function HistoryEditDialog({
+  edit,
+  catalog,
+  studentId,
+  today,
+  mayDiscardRatings,
+  onCancel,
+  onDone,
+}: Readonly<{
+  edit: HistoryEdit;
+  catalog: LevelCatalogProjection;
+  studentId: string;
+  today: string;
+  mayDiscardRatings: () => boolean;
+  onCancel: () => void;
+  onDone: (notice: string) => void;
+}>) {
+  const entry = edit.action === "add" ? null : edit.entry;
+  const [definitionKey, setDefinitionKey] = useState(entry?.definitionKey ?? "");
+  const [assignedOn, setAssignedOn] = useState(entry?.assignedOn ?? "");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
+  const levels = [...catalog.definitions].sort((left, right) => left.sequence - right.sequence);
+  const nameOf = (key: string) =>
+    catalog.definitions.find((definition) => definition.definitionKey === key)?.name ?? key;
+
+  async function confirm(): Promise<void> {
+    if (inFlight.current || !mayDiscardRatings()) return;
+    inFlight.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      if (edit.action === "add") {
+        await editLevelHistory({
+          action: "add",
+          studentId,
+          definitionKey,
+          assignedOn,
+          note: note.trim() === "" ? null : note.trim(),
+        });
+      } else if (edit.action === "update") {
+        await editLevelHistory({
+          action: "update",
+          studentId,
+          entryId: edit.entry.entryId,
+          definitionKey,
+          assignedOn,
+        });
+      } else {
+        await editLevelHistory({ action: "delete", studentId, entryId: edit.entry.entryId });
+      }
+      // `onDone` reloads and unmounts this dialog, so the flag stays set (see `AssignLevelForm`).
+      onDone(edit.action === "delete" ? "History row removed." : "Level history saved.");
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Unable to change the level history.");
+      inFlight.current = false;
+      setBusy(false);
+    }
+  }
+
+  return (
+    <ConfirmDialog
+      busy={busy}
+      confirmDisabled={edit.action !== "delete" && (definitionKey === "" || assignedOn === "")}
+      confirmLabel={edit.action === "delete" ? "Remove row" : "Save"}
+      onCancel={onCancel}
+      onConfirm={() => void confirm()}
+      title={
+        edit.action === "add"
+          ? "Add a level to the history"
+          : edit.action === "update"
+            ? `Edit ${nameOf(edit.entry.definitionKey)}`
+            : `Remove ${nameOf(edit.entry.definitionKey)} on ${formatDay(edit.entry.assignedOn) ?? edit.entry.assignedOn}?`
+      }
+    >
+      {edit.action === "delete" ? null : (
+        <>
+          <label htmlFor="ibjjf-history-level">
+            Level
+            <select
+              id="ibjjf-history-level"
+              onChange={(event) => setDefinitionKey(event.target.value)}
+              value={definitionKey}
+            >
+              <option value="">Select a level</option>
+              {levels.map((level) => (
+                <option key={level.definitionKey} value={level.definitionKey}>
+                  {level.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label htmlFor="ibjjf-history-date">
+            Graduation date
+            <input
+              id="ibjjf-history-date"
+              max={today}
+              onChange={(event) => setAssignedOn(event.target.value)}
+              type="date"
+              value={assignedOn}
+            />
+          </label>
+        </>
+      )}
+      {edit.action === "add" ? (
+        <label htmlFor="ibjjf-history-note">
+          Note (optional)
+          <textarea
+            id="ibjjf-history-note"
+            maxLength={300}
+            onChange={(event) => setNote(event.target.value)}
+            value={note}
+          />
+        </label>
+      ) : null}
+      <p className="ibjjf-muted">
+        The level with the most recent date becomes the member&apos;s current level.
+      </p>
+      {error === null ? null : (
+        <p className="ibjjf-error" role="alert">
+          {error}
+        </p>
+      )}
+    </ConfirmDialog>
+  );
+}
+
 function HistoryTable({
   history,
   catalog,
   canDecide,
   onVoid,
+  onEdit,
 }: Readonly<{
   history: StudentLevelHistory;
   catalog: LevelCatalogProjection;
   canDecide: boolean;
   onVoid: (entry: LevelHistoryEntry) => void;
+  /** Owners and administrators only; absent hides every history edit control. */
+  onEdit: ((edit: HistoryEdit) => void) | undefined;
 }>) {
   const groups = groupBelts(catalog);
   const names = new Map(
@@ -441,6 +581,11 @@ function HistoryTable({
   return (
     <section aria-labelledby="ibjjf-history-title" className="ibjjf-history-section">
       <h3 id="ibjjf-history-title">Level history</h3>
+      {onEdit === undefined ? null : (
+        <button className="ibjjf-button" onClick={() => onEdit({ action: "add" })} type="button">
+          Add level
+        </button>
+      )}
       {history.entries.length === 0 ? (
         <p className="ibjjf-muted">No level history yet.</p>
       ) : (
@@ -532,6 +677,24 @@ function HistoryTable({
                           Void the most recently recorded promotion first
                         </span>
                       )}
+                      {onEdit === undefined ? null : (
+                        <>
+                          <button
+                            className="ibjjf-button"
+                            onClick={() => onEdit({ action: "update", entry })}
+                            type="button"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="ibjjf-button"
+                            onClick={() => onEdit({ action: "delete", entry })}
+                            type="button"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 );
@@ -563,6 +726,7 @@ export function ManageView({
   const [attempt, setAttempt] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [voiding, setVoiding] = useState<LevelHistoryEntry | null>(null);
+  const [historyEdit, setHistoryEdit] = useState<HistoryEdit | null>(null);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [voidError, setVoidError] = useState<string | null>(null);
@@ -846,6 +1010,7 @@ export function ManageView({
             canDecide={canDecide}
             catalog={data.catalog}
             history={data.history}
+            onEdit={role === "owner" || role === "administrator" ? setHistoryEdit : undefined}
             onVoid={(entry) => {
               setReason("");
               setVoidError(null);
@@ -873,6 +1038,20 @@ export function ManageView({
             />
           ) : null}
         </>
+      )}
+      {historyEdit === null || data === null ? null : (
+        <HistoryEditDialog
+          catalog={data.catalog}
+          edit={historyEdit}
+          mayDiscardRatings={mayDiscardRatings}
+          onCancel={() => setHistoryEdit(null)}
+          onDone={(message) => {
+            setHistoryEdit(null);
+            reload(message);
+          }}
+          studentId={studentId}
+          today={today}
+        />
       )}
       {voiding === null || data === null ? null : (
         <ConfirmDialog

@@ -50,6 +50,33 @@ export const setAttendanceVoidInputSchema = z.strictObject({
 });
 export type SetAttendanceVoidInput = z.input<typeof setAttendanceVoidInputSchema>;
 
+/**
+ * Level history editing (2026-10-03): the office adds, corrects or removes history rows, and the
+ * member's current level is always the row with the latest date.
+ */
+export const editLevelHistoryInputSchema = z.discriminatedUnion("action", [
+  z.strictObject({
+    action: z.literal("add"),
+    studentId: identifierSchema,
+    definitionKey: identifierSchema,
+    assignedOn: daySchema,
+    note: reasonSchema,
+  }),
+  z.strictObject({
+    action: z.literal("update"),
+    studentId: identifierSchema,
+    entryId: recordIdSchema,
+    definitionKey: identifierSchema,
+    assignedOn: daySchema,
+  }),
+  z.strictObject({
+    action: z.literal("delete"),
+    studentId: identifierSchema,
+    entryId: recordIdSchema,
+  }),
+]);
+export type EditLevelHistoryInput = z.input<typeof editLevelHistoryInputSchema>;
+
 export const progressAttendanceRowSchema = z.strictObject({
   id: recordIdSchema,
   kind: z.enum(["attendance", "manual"]),

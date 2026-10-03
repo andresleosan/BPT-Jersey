@@ -109,6 +109,7 @@ export {
 } from "./levels/level-callables.js";
 export {
   addManualAttendance,
+  editLevelHistory,
   getProgressManagement,
   setAttendanceVoid,
   setProgressClassCount,
