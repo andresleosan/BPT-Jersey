@@ -130,27 +130,6 @@ function GraduationNotice({
   );
 }
 
-function Techniques({
-  title,
-  keys,
-  labels,
-}: Readonly<{ title: string; keys: readonly string[]; labels: ReadonlyMap<string, string> }>) {
-  return (
-    <div className="rank-techniques">
-      <h3>{title}</h3>
-      {keys.length === 0 ? (
-        <p className="rank-muted">Your coach has not listed techniques for this level yet.</p>
-      ) : (
-        <ul>
-          {keys.map((key) => (
-            <li key={key}>{labels.get(key) ?? key}</li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
 function PersonProgress({ person }: Readonly<{ person: Person }>) {
   const [state, setState] = useState<Loaded>({ status: "loading" });
   const [reload, setReload] = useState(0);
@@ -205,20 +184,11 @@ export function RankView({
     const progress = summary;
     const position = beltPosition(groupBelts(catalog), progress.currentDefinition.definitionKey);
     const belt = position?.belt ?? progress.currentDefinition;
-    const labels = new Map(catalog.skills.map((skill) => [skill.key, skill.displayLabel]));
-    const skillsOf = (definitionKey: string) =>
-      catalog.requirements.filter((r) => r.definitionKey === definitionKey).map((r) => r.skillKey);
     return {
       progress,
       belt,
       stripeCount: position?.stripeCount ?? 0,
       steps: rankSteps(progress, catalog),
-      labels,
-      beltSkills: skillsOf(belt.definitionKey),
-      stripeSkills:
-        progress.currentDefinition.kind === "stripe"
-          ? skillsOf(progress.currentDefinition.definitionKey)
-          : null,
     };
   }, [summary, catalog]);
 
@@ -234,9 +204,8 @@ export function RankView({
     );
   }
 
-  const { progress, belt, stripeCount, steps, labels } = view;
+  const { progress, belt, stripeCount, steps } = view;
   const nearest = steps.stripe ?? steps.belt;
-  const current = progress.currentDefinition;
   return (
     <div className="rank-page">
       <section className="rank-hero" aria-labelledby="rank-title">
@@ -277,34 +246,9 @@ export function RankView({
           </p>
         )}
         <p className="rank-muted">
-          Classes count from your last promotion. Time at the level and techniques also matter: your
-          coach makes every graduation decision.
+          Classes count from your last promotion. Time at the level also matters: the owner makes
+          every graduation decision.
         </p>
-      </section>
-
-      <section className="rank-card" aria-labelledby="rank-techniques-title">
-        <h2 id="rank-techniques-title">Techniques at your level</h2>
-        <div className="rank-technique-grid">
-          <Techniques title={belt.name} keys={view.beltSkills} labels={labels} />
-          {view.stripeSkills ? (
-            <Techniques title={current.name} keys={view.stripeSkills} labels={labels} />
-          ) : null}
-        </div>
-        {progress.targetDefinition && progress.skillChecklist.length > 0 ? (
-          <div className="rank-techniques">
-            <h3>For {progress.targetDefinition.name}</h3>
-            <ul className="rank-checklist">
-              {progress.skillChecklist.map((item) => (
-                <li className={item.isCompleted ? "is-done" : undefined} key={item.skillKey}>
-                  {item.displayLabel}
-                  <span className="visually-hidden">
-                    {item.isCompleted ? ": done" : ": to work on"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
       </section>
     </div>
   );
