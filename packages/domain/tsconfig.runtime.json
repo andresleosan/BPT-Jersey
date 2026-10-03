@@ -44,6 +44,7 @@
     "src/levels/level-contracts.ts",
     "src/levels/level-editor-contracts.ts",
     "src/levels/achievement-contracts.ts",
+    "src/graduations/graduation-contracts.ts",
     "src/schedule/schedule-contracts.ts",
     "src/schedule/groups.ts",
     "src/schedule/advanced-booking-contracts.ts",

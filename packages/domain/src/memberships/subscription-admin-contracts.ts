@@ -48,6 +48,7 @@ export const adminNotificationKinds = [
   "registration",
   "payment",
   "class",
+  "level",
 ] as const;
 export type AdminNotificationKind = (typeof adminNotificationKinds)[number];
 /**

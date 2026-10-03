@@ -41,6 +41,7 @@ const kindLabels: Record<AdminNotificationKind, string> = {
   registration: "Registrations",
   membership: "Memberships",
   class: "Classes",
+  level: "Levels",
   "subscription-expiring": "Ending soon",
 };
 const sectionLabels: Record<string, string> = {
