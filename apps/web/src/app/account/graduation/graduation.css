@@ -177,7 +177,8 @@
   background: var(--bpt-lime);
   display: block;
   height: 100%;
-  width: 0;
+  transform: scaleX(0);
+  transform-origin: left;
 }
 
 .grad-reset-hint {
@@ -203,7 +204,7 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .grad-mark {
-    animation: grad-pulse 1.6s ease-in-out infinite;
+    animation: grad-pulse 1.6s ease-in-out 3;
   }
 
   .grad-mark + .grad-mark {
@@ -211,21 +212,17 @@
   }
 
   .grad-calm {
-    animation: grad-pulse 1.6s ease-in-out infinite;
+    animation: grad-pulse 1.6s ease-in-out 3;
   }
 
   .grad-chip::after {
-    animation: grad-shimmer 2.4s linear infinite;
-    background: linear-gradient(
-      100deg,
-      transparent 35%,
-      rgba(217, 243, 106, 0.45) 50%,
-      transparent 65%
-    );
-    background-size: 250% 100%;
+    animation: grad-shimmer 2.4s ease-in-out 2 both;
+    background: rgba(217, 243, 106, 0.45);
     content: "";
-    inset: 0;
+    inset: 0 auto 0 0;
     position: absolute;
+    transform: translateX(-100%);
+    width: 30%;
   }
 
   .grad-belt {
@@ -253,10 +250,10 @@
 
 @keyframes grad-shimmer {
   from {
-    background-position: 100% 0;
+    transform: translateX(-100%);
   }
   to {
-    background-position: -150% 0;
+    transform: translateX(400%);
   }
 }
 
@@ -272,16 +269,16 @@
 /* 900ms from full to empty, then a 120ms bounce off zero. */
 @keyframes grad-bar-reset {
   0% {
-    width: 100%;
+    transform: scaleX(1);
   }
   88% {
-    width: 0;
+    transform: scaleX(0);
   }
   94% {
-    width: 4%;
+    transform: scaleX(0.04);
   }
   100% {
-    width: 0;
+    transform: scaleX(0);
   }
 }
 
