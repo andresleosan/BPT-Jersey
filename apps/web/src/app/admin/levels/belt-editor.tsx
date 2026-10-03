@@ -26,6 +26,14 @@ function minimumDays(level: CatalogLevel): number | null {
   return time === null ? null : time.years * 365 + time.months * 30 + time.days;
 }
 
+function outOfRange(value: number | null, min: number, max: number): boolean {
+  return value !== null && (value < min || value > max);
+}
+
+function describedBy(...ids: (string | false)[]): string | undefined {
+  return ids.filter(Boolean).join(" ") || undefined;
+}
+
 function withDays(level: CatalogLevel, days: number | null): CatalogLevel {
   return {
     ...level,
@@ -147,7 +155,33 @@ export function BeltEditor({
       ? "Minimum age must not be above maximum age."
       : null;
   const nameError = belt.name.trim() === "" ? "Enter a belt name." : null;
-  const blocked = busy || invalidHex.size > 0 || ageError !== null || nameError !== null;
+  const stripeNameError = stripes.some((stripe) => stripe.name.trim() === "")
+    ? "Enter a name for every stripe."
+    : null;
+  // Same limits as the server schema, so Save is never offered for a catalogue it would refuse.
+  const beltRange = {
+    minAge: outOfRange(belt.criteria.minAge, 3, 99),
+    maxAge: outOfRange(belt.criteria.maxAge, 3, 99),
+    minClasses: outOfRange(belt.criteria.minClasses, 0, 10_000),
+    days: outOfRange(minimumDays(belt), 0, 36_500),
+  };
+  const stripeRange = stripes.map((stripe) => ({
+    minClasses: outOfRange(stripe.criteria.minClasses, 0, 10_000),
+    days: outOfRange(minimumDays(stripe), 0, 36_500),
+  }));
+  const rangeError = [
+    ...Object.values(beltRange),
+    ...stripeRange.flatMap((range) => [range.minClasses, range.days]),
+  ].some(Boolean)
+    ? "Ages must be 3 to 99, classes 0 to 10,000 and days 0 to 36,500."
+    : null;
+  const blocked =
+    busy ||
+    invalidHex.size > 0 ||
+    ageError !== null ||
+    nameError !== null ||
+    stripeNameError !== null ||
+    rangeError !== null;
 
   function reset(): void {
     setBelt(original.belt);
@@ -162,6 +196,7 @@ export function BeltEditor({
     return (
       <div className="belt-editor">
         <button
+          aria-label={`Edit ${original.belt.name}`}
           className="levels-editor-button"
           disabled={locked}
           onClick={() => {
@@ -230,6 +265,8 @@ export function BeltEditor({
   }
 
   const id = `belt-editor-${beltKey}`;
+  const ageErrorId = `${id}-age-error`;
+  const rangeErrorId = `${id}-range-error`;
   return (
     <section aria-labelledby={`${id}-title`} className="belt-editor" data-editing="">
       <h3 id={`${id}-title`}>Edit {original.belt.name}</h3>
@@ -319,6 +356,11 @@ export function BeltEditor({
           <label className="levels-editor-field" key={field}>
             <span>{label}</span>
             <input
+              aria-describedby={describedBy(
+                ageError !== null && field !== "minClasses" && ageErrorId,
+                beltRange[field] && rangeErrorId,
+              )}
+              aria-invalid={(ageError !== null && field !== "minClasses") || beltRange[field]}
               inputMode="numeric"
               max={max}
               min={min}
@@ -336,6 +378,8 @@ export function BeltEditor({
         <label className="levels-editor-field">
           <span>Minimum days</span>
           <input
+            aria-describedby={describedBy(beltRange.days && rangeErrorId)}
+            aria-invalid={beltRange.days}
             inputMode="numeric"
             min={0}
             onChange={(event) => setBelt(withDays(belt, numberOrNull(event.target.value)))}
@@ -345,7 +389,7 @@ export function BeltEditor({
         </label>
       </fieldset>
       {ageError ? (
-        <p className="levels-editor-hint" role="alert">
+        <p className="levels-editor-hint" id={ageErrorId} role="alert">
           {ageError}
         </p>
       ) : null}
@@ -357,6 +401,7 @@ export function BeltEditor({
             <thead>
               <tr>
                 <th scope="col">Stripe</th>
+                <th scope="col">Name</th>
                 <th scope="col">Minimum classes</th>
                 <th scope="col">Minimum days</th>
               </tr>
@@ -371,6 +416,22 @@ export function BeltEditor({
                     <th scope="row">{name}</th>
                     <td>
                       <input
+                        aria-describedby={describedBy(
+                          stripe.name.trim() === "" && `${id}-stripe-name-error`,
+                        )}
+                        aria-invalid={stripe.name.trim() === ""}
+                        aria-label={`${name} name`}
+                        maxLength={80}
+                        onChange={(event) => update({ ...stripe, name: event.target.value })}
+                        value={stripe.name}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        aria-describedby={describedBy(
+                          stripeRange[index]!.minClasses && rangeErrorId,
+                        )}
+                        aria-invalid={stripeRange[index]!.minClasses}
                         aria-label={`${name} minimum classes`}
                         inputMode="numeric"
                         min={0}
@@ -389,6 +450,8 @@ export function BeltEditor({
                     </td>
                     <td>
                       <input
+                        aria-describedby={describedBy(stripeRange[index]!.days && rangeErrorId)}
+                        aria-invalid={stripeRange[index]!.days}
                         aria-label={`${name} minimum days`}
                         inputMode="numeric"
                         min={0}
@@ -405,6 +468,16 @@ export function BeltEditor({
             </tbody>
           </table>
         </div>
+      ) : null}
+      {stripeNameError ? (
+        <p className="levels-editor-hint" id={`${id}-stripe-name-error`} role="alert">
+          {stripeNameError}
+        </p>
+      ) : null}
+      {rangeError ? (
+        <p className="levels-editor-hint" id={rangeErrorId} role="alert">
+          {rangeError}
+        </p>
       ) : null}
 
       <fieldset className="levels-editor-group">
@@ -520,6 +593,7 @@ export function BeltEditor({
             Discard changes
           </button>
           <button
+            autoFocus
             className="levels-editor-button"
             onClick={() => dialog.current?.close()}
             type="button"

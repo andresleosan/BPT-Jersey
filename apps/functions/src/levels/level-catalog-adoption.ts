@@ -208,7 +208,13 @@ export async function planLevelCatalogAdoption(
 }
 
 export function expectedAdoptionConfirmation(plan: AdoptionPlan): string {
-  return `ADOPT-${plan.academyId}-${plan.newSystemId}-${plan.contentHash.slice(0, 12)}`;
+  // Pins the systems to delete and the head count too, not only the catalogue content.
+  const pinned = hashLevelCatalogValue({
+    contentHash: plan.contentHash,
+    retire: plan.retire,
+    heads: plan.heads,
+  });
+  return `ADOPT-${plan.academyId}-${plan.newSystemId}-${pinned.slice(0, 12)}`;
 }
 
 export async function applyLevelCatalogAdoption(

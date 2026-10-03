@@ -86,12 +86,14 @@
 .levels-editor-field select {
   background: var(--gi-white);
   border: 1px solid var(--mat-ink);
+  border-radius: 0;
   color: var(--mat-ink);
   font: inherit;
   min-height: 44px;
   padding: 0.4rem 0.6rem;
 }
-.levels-editor-field input[aria-invalid="true"] {
+.levels-editor-field input[aria-invalid="true"],
+.belt-editor-stripes input[aria-invalid="true"] {
   border: 2px solid #8d1c2f;
 }
 .levels-editor-hint {
@@ -194,7 +196,7 @@
   justify-content: space-between;
 }
 .belt-editor {
-  border-top: 1px solid #d9d8d2;
+  border-top: 1px solid var(--paper-edge);
   display: grid;
   gap: 1rem;
   margin: 0 1.1rem 1.1rem;

@@ -261,6 +261,7 @@ export function TechniquesLibrary({
             Delete technique
           </button>
           <button
+            autoFocus
             className="levels-editor-button"
             onClick={() => dialog.current?.close()}
             type="button"
