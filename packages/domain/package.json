@@ -160,6 +160,11 @@
       "import": "./src/levels/level-contracts.ts",
       "default": "./lib/levels/level-contracts.js"
     },
+    "./graduations": {
+      "types": "./src/graduations/graduation-contracts.ts",
+      "import": "./src/graduations/graduation-contracts.ts",
+      "default": "./lib/graduations/graduation-contracts.js"
+    },
     "./levels/editor": {
       "types": "./src/levels/level-editor-contracts.ts",
       "import": "./src/levels/level-editor-contracts.ts",
