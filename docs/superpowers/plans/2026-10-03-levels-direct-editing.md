@@ -2942,11 +2942,12 @@ docker rm -f bpt-levels-emu; rm -f firebase.levels-emu.json .tmp/levels-emu.env 
 
 ### Task 10: Production runbook (operator; each step needs Luis's "sí" in chat)
 
-Written to the chat in Spanish following Luis's step rules (summary, one action per step, terminal labels, expected output, ⚠️ before destructive steps, final verification). Content:
+Written to the chat in Spanish following Luis's step rules (summary, one action per step, terminal labels, expected output, ⚠️ before destructive steps, final verification). Run out of office hours, steps 1–4 back to back (grill decision 9). Content:
 
 1. 📍 VPS, `/root/BPT-Jersey`: `git push origin main` (Cloudflare publishes the web; until step 2 the office editor shows "Unable to load the belt catalogue").
 2. 📍 VPS: build artifact, then `firebase deploy --only functions:getEditableLevelCatalog,functions:saveLevelCatalog --project bptjersey-f5a25`.
 3. 📍 VPS (ADC logged in): dry-run `node apps/functions/scripts/adopt-level-catalog.mjs --target=production --academy-id=demo-academy > /root/bpt-runbook/adopt-dry.json`; Claude reads the file and reviews `stripeChanges`, `heads: 11`, `retire`.
+4a. 📍 VPS: backup (grill decision 10). If no private bucket exists: `gcloud storage buckets create gs://bptjersey-f5a25-backups --project=bptjersey-f5a25 --location=<Firestore location from gcloud firestore databases describe> --uniform-bucket-level-access --public-access-prevention`. Then `gcloud firestore export gs://bptjersey-f5a25-backups/levels-2026-10-03 --collection-ids=levelSystems,levelDefinitions,levelRequirements,levelCatalogManifests,levelCatalogState,studentLevelProgress --project=bptjersey-f5a25`; expected `done: true`. Restore if needed: `gcloud firestore import gs://bptjersey-f5a25-backups/levels-2026-10-03 --collection-ids=… --project=bptjersey-f5a25`.
 4. ⚠️ 📍 VPS: apply with `--apply --actor-id=<owner uid> --confirmation=<exactConfirmation> --target-confirmation=LEVELS-ADOPT-PRODUCTION-APPLY --generated-at=<same as dry-run>` → `/root/bpt-runbook/adopt-apply.json`. Deletes ibjjf-v2, ibjjf-v3, bpt-20260926-1 catalogue docs (irreversible; audit and activation history stay).
 5. ⚠️ 📍 VPS: `firebase functions:delete listLevelCatalogVersions getLevelCatalogVersion createLevelCatalogDraft saveLevelCatalogDraft publishLevelCatalogDraft activateLevelCatalog --region <region from firebase functions:list> --project bptjersey-f5a25 --force`.
 6. Verification: rerun the dry-run → `status: "already-adopted"`; open `https://www.<domain>/admin/levels` on the laptop as owner, edit one belt name and revert it.

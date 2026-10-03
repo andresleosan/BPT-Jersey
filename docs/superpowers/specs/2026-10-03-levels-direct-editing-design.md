@@ -30,6 +30,18 @@ intact.
 5. **Approach A.** One-off adoption: copy `ibjjf-v3` into a custom system, activate it, delete the
    unused catalogues; afterwards one callable edits the active system in place.
 
+## Grill decisions (operator, 2026-10-03)
+
+6. In ibjjf-v3 only the three white belts (kids 4–7, kids 7–10, teens) require techniques, 11 each,
+   on the belt and stripes 1–4; kids stripes 5–11 require none. Unifying per belt makes those
+   stripes require the same 11: accepted.
+7. All 58 techniques stay: the 47 no belt requires are still rated in Members → Manage. Cleaning
+   that screen is out of scope.
+8. Criteria edits apply at once to students already in a level (graduation reads live criteria);
+   approved promotions keep their `atAssignment` snapshot.
+9. Deploy out of office hours (push → deploy → adoption back to back); no read-only fallback.
+10. Before the production apply, export the level collections to a private bucket.
+
 ## Current state (verified 2026-10-03)
 
 - Production `academies/demo-academy`: `levelSystems` = `ibjjf-v3` (published, active),
