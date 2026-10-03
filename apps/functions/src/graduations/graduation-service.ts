@@ -10,9 +10,10 @@ import {
 import type { LevelCatalogProjection, LevelDefinitionRecord } from "@bpt-jersey/domain/levels";
 import type { SessionRecord } from "@bpt-jersey/domain/schedule";
 
-import type { GraduationFirestore, Head } from "./graduation-firestore.js";
+import { isoInstant, type GraduationFirestore, type Head } from "./graduation-firestore.js";
 
 type Catalog = LevelCatalogProjection;
+const celebrationWindowMs = 30 * 86_400_000;
 // Response schemas cap names and titles; one long migrated value must not reject the whole reply.
 const clamp = (value: string, max: number) => value.slice(0, max);
 const clampLikely = (likely: GraduationAssessment["likelyNext"]) =>
@@ -62,7 +63,9 @@ async function context(store: GraduationFirestore, now: string, studentId?: stri
   const sessions = await store.sessions(now);
   const upcomingIds = sessions.filter((s) => s.startAt > now).map((s) => s.sessionId);
   const [booked, reviews] = await Promise.all([
-    store.bookings(upcomingIds),
+    studentId === undefined
+      ? store.bookings(upcomingIds)
+      : store.studentBookings(studentId, upcomingIds),
     store.reviews(studentId),
   ]);
   return { sessions, booked, reviews, now };
@@ -153,7 +156,18 @@ export async function buildNotices(
     const p = await store.latestPromotion(head.lastApprovedPromotionId);
     const from = catalog.definitions.find((d) => d.definitionKey === p?.fromDefinitionKey);
     const to = catalog.definitions.find((d) => d.definitionKey === p?.toDefinitionKey);
-    if (p && from && to && typeof p.promotedOn === "string" && p.decisionStatus !== "rejected") {
+    // Recency follows the decision instant: promotedOn is the (possibly backdated) class day.
+    const decidedAt = isoInstant(p?.decidedAt) ?? isoInstant(p?.createdAt);
+    const recent =
+      decidedAt !== null && Date.parse(now) - Date.parse(decidedAt) <= celebrationWindowMs;
+    if (
+      p &&
+      from &&
+      to &&
+      recent &&
+      typeof p.promotedOn === "string" &&
+      p.decisionStatus !== "rejected"
+    ) {
       latestPromotion = {
         promotionId: head.lastApprovedPromotionId,
         fromName: from.name,

@@ -122,8 +122,8 @@ function GraduationNotice({
         <h2 id="graduation-title">{step.toGo === 1 ? "One class to go" : "Classes complete"}</h2>
         <p>
           {step.toGo === 1
-            ? `Finish your next session. After it, your coach decides whether you are ready for ${step.name}.`
-            : `Your coach decides after your next session whether you are ready for ${step.name}.`}
+            ? `Finish your next session. After it, the owner decides whether you are ready for ${step.name}.`
+            : `The owner decides after your next session whether you are ready for ${step.name}.`}
         </p>
       </div>
     </section>
@@ -241,7 +241,7 @@ export function RankView({
         ) : (
           <p className="rank-muted">
             {progress.targetDefinition
-              ? "Your next rank has no class count. Your coach decides when you are ready."
+              ? "Your next rank has no class count. The owner decides when you are ready."
               : "You hold the top rank of this ladder."}
           </p>
         )}
