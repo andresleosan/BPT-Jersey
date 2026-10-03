@@ -188,7 +188,20 @@
   min-height: 44px;
   display: flex;
   align-items: center;
+  list-style: none;
   text-transform: uppercase;
+}
+.belt-techniques summary::-webkit-details-marker {
+  display: none;
+}
+/* Flex drops the native disclosure marker, so a plain word says what a click does. */
+.belt-techniques summary::after {
+  content: "Show";
+  margin-left: auto;
+  padding-left: 1rem;
+}
+.belt-techniques[open] > summary::after {
+  content: "Hide";
 }
 .belt-techniques summary:focus-visible {
   outline: 3px solid var(--bpt-purple);

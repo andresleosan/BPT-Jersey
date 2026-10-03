@@ -85,13 +85,21 @@ export function LevelsEditor({ tab }: { tab: "belts" | "techniques" }) {
   ) : null;
 
   if (loadError) {
-    return (
+    const failure = (
       <div className="levels-editor-notice" data-kind="error" role="alert">
         <p>{loadError}</p>
         <button className="levels-editor-button" onClick={() => void load()} type="button">
           Retry
         </button>
       </div>
+    );
+    if (tab === "techniques") return failure;
+    // Owners still see the read-only belts while the editable catalogue is unavailable.
+    return (
+      <>
+        {failure}
+        <LevelsBrowser roleContext="admin" />
+      </>
     );
   }
 

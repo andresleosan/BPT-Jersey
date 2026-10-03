@@ -127,7 +127,7 @@ try {
   }
 } catch (error) {
   process.stderr.write(
-    `${error instanceof CliError ? error.message : "Level catalogue adoption failed."}\n`,
+    `${error instanceof Error ? error.message : "Level catalogue adoption failed."}\n`,
   );
   if (process.env.BPT_OPERATOR_DEBUG === "1") console.error(error);
   process.exitCode = 1;
