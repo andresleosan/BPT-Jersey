@@ -1,6 +1,7 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { warn as logWarn } from "firebase-functions/logger";
 import type { GraduationReview } from "@bpt-jersey/domain/graduations";
+import { adminNotificationSchema } from "@bpt-jersey/domain/memberships/admin";
 import type { SessionRecord } from "@bpt-jersey/domain/schedule";
 
 import { countedAttendance, storedImportedBaseline } from "../levels/level-service.js";
@@ -183,11 +184,13 @@ export function createGraduationFirestore(db: Firestore, academyId: string) {
       at: string;
       who: string;
     }): Promise<void> {
-      await db.doc(`${base}/adminNotifications/${input.id}`).create({
+      // Parsed before the write, like every sibling writer: the inbox parses each document it
+      // lists, so one invalid notice would break the whole inbox page.
+      const notice = adminNotificationSchema.parse({
         notificationId: input.id,
         kind: "level",
-        title: input.title,
-        message: input.message,
+        title: input.title.slice(0, 220),
+        message: input.message.slice(0, 500),
         href: `/admin/members/profile?id=${input.studentId}`,
         createdAt: input.at,
         readAt: null,
@@ -195,8 +198,9 @@ export function createGraduationFirestore(db: Firestore, academyId: string) {
         membershipId: null,
         studentId: input.studentId,
         endsAt: null,
-        details: { from: input.who, amount: null, facts: [] },
+        details: { from: input.who.slice(0, 160), amount: null, facts: [] },
       });
+      await db.doc(`${base}/adminNotifications/${input.id}`).create(notice);
     },
   };
 }
