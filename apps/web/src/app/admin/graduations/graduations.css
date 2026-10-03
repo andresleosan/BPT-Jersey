@@ -1,0 +1,180 @@
+.graduations-page {
+  max-width: 72rem;
+  min-width: 0;
+}
+
+.graduations-section {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.graduations-section h3 {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  gap: 0.75rem;
+  letter-spacing: 0.035em;
+  line-height: 1;
+  margin: 0;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+}
+
+.graduations-count {
+  border-left: 0.25rem solid var(--bpt-purple);
+  font-family: var(--font-body), Arial, sans-serif;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: 0;
+  padding: 0.15rem 0 0.15rem 0.6rem;
+}
+
+.graduations-list {
+  display: grid;
+  gap: 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.graduations-row {
+  align-items: start;
+  border-top-color: var(--bpt-purple);
+  display: grid;
+  gap: 1rem 1.5rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.graduations-row-main {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.graduations-row-main h4 {
+  font-size: 1.15rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.graduations-row-main p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.graduations-levels {
+  font-weight: 700;
+}
+
+.graduations-counts {
+  font-variant-numeric: tabular-nums;
+}
+
+.graduations-note {
+  border-left: 0.35rem solid #c98b00;
+  color: #765400;
+  padding-left: 0.6rem;
+}
+
+.graduations-row-actions {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: end;
+}
+
+.graduations-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.graduations-page .admin-auth-button,
+.graduations-page .ibjjf-button {
+  justify-content: center;
+  margin-top: 0;
+  min-height: 2.9rem;
+  min-width: 6.5rem;
+}
+
+.graduations-page .admin-auth-button:disabled,
+.graduations-page .ibjjf-button:disabled {
+  background: var(--paper-edge);
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.graduations-muted {
+  color: var(--muted);
+  margin: 0;
+}
+
+.graduations-not-yet {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 0.6rem;
+  grid-column: 1 / -1;
+  padding-top: 1rem;
+}
+
+.graduations-not-yet label {
+  display: grid;
+  font-weight: 600;
+  gap: 0.35rem;
+}
+
+.graduations-not-yet textarea {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  font: inherit;
+  font-size: 1rem;
+  max-width: 36rem;
+  min-height: 5.5rem;
+  padding: 0.6rem 0.75rem;
+}
+
+.graduations-not-yet textarea:focus-visible,
+.graduations-page [tabindex="-1"]:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+
+.graduations-skeleton {
+  background: var(--paper-edge);
+  min-height: 16rem;
+}
+
+.graduations-load-error {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+}
+
+.graduations-visually-hidden {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+@media (max-width: 639.98px) {
+  .graduations-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .graduations-row-actions {
+    justify-items: start;
+  }
+
+  .graduations-buttons > button {
+    flex: 1 1 8rem;
+  }
+}

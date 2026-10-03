@@ -104,7 +104,7 @@ function voidedStatus(voided: NonNullable<LevelHistoryEntry["voided"]>): string 
   return `Voided — ${author} — ${day} — ${reason}`;
 }
 
-function ConfirmDialog({
+export function ConfirmDialog({
   title,
   confirmLabel,
   confirmDisabled,
