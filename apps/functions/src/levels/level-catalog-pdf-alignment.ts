@@ -62,6 +62,7 @@ const pdfCriteria = {
   adultWhiteStripes: { minClasses: 25, minimumTime: { years: 0, months: 3, days: 0 } },
 } as const;
 const adultWhiteStripeNumbers = [2, 3, 4];
+const ordinals: Record<number, string> = { 2: "2nd", 3: "3rd", 4: "4th", 7: "7th", 8: "8th" };
 
 function isRecord(value: unknown): value is Data {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -110,19 +111,23 @@ export async function planPdfAlignment(
   );
   const systemId = String(state.data()?.activeSystemId ?? "");
   if (systemId.length === 0) throw new Error("No active level system.");
-  const [systemSnapshot, definitionsSnapshot, requirementsSnapshot, heads, promotions] =
-    await Promise.all([
-      firestore.runTransaction((transaction) =>
-        transaction.get(firestore.doc(`${base}/levelSystems/${systemId}`)),
-      ),
-      firestore.collection(`${base}/levelDefinitions`).where("systemId", "==", systemId).get(),
-      firestore.collection(`${base}/levelRequirements`).where("systemId", "==", systemId).get(),
-      firestore
-        .collection(`${base}/studentLevelProgress`)
-        .where("academyId", "==", academyId)
-        .get(),
-      firestore.collection(`${base}/levelPromotions`).get(),
-    ]);
+  const [
+    systemSnapshot,
+    definitionsSnapshot,
+    requirementsSnapshot,
+    heads,
+    promotions,
+    assessments,
+  ] = await Promise.all([
+    firestore.runTransaction((transaction) =>
+      transaction.get(firestore.doc(`${base}/levelSystems/${systemId}`)),
+    ),
+    firestore.collection(`${base}/levelDefinitions`).where("systemId", "==", systemId).get(),
+    firestore.collection(`${base}/levelRequirements`).where("systemId", "==", systemId).get(),
+    firestore.collection(`${base}/studentLevelProgress`).where("academyId", "==", academyId).get(),
+    firestore.collection(`${base}/levelPromotions`).get(),
+    firestore.collection(`${base}/assessments`).get(),
+  ]);
   const source = systemSnapshot.data();
   if (!systemSnapshot.exists || source === undefined || source.academyId !== academyId) {
     throw new Error("Active level system is missing.");
@@ -171,7 +176,10 @@ export async function planPdfAlignment(
   if (kidsBelts.length === 0) blockers.push(`No belt name contains "${kidsBeltMarker}".`);
   for (const belt of kidsBelts) {
     const stripes = stripesOf(belt.data.definitionKey);
-    const doomed = removedStripeNumbers.flatMap((n) => stripes.get(n) ?? []);
+    const doomed = removedStripeNumbers.flatMap((n) => {
+      const stripe = stripes.get(n);
+      return stripe === undefined ? [] : [{ n, stripe }];
+    });
     if (doomed.length === 0) continue;
     if ([...stripes.keys()].some((n) => n > Math.max(...removedStripeNumbers))) {
       blockers.push(`${String(belt.data.name)} has stripes after the 8th.`);
@@ -180,7 +188,13 @@ export async function planPdfAlignment(
     if (fallback === undefined) {
       blockers.push(`${String(belt.data.name)} has no 6th stripe to move members to.`);
     }
-    for (const stripe of doomed) {
+    for (const { n, stripe } of doomed) {
+      // The position fallback assumes contiguous stripes; the name must agree.
+      if (!normalized(stripe.data.name).includes(ordinals[n]!)) {
+        blockers.push(
+          `${String(stripe.data.name)} was chosen as stripe ${n} but is not named "${ordinals[n]}".`,
+        );
+      }
       const key = String(stripe.data.definitionKey);
       removed.set(key, String(stripe.data.name));
       if (fallback !== undefined) fallbackOf.set(key, String(fallback.data.definitionKey));
@@ -203,8 +217,16 @@ export async function planPdfAlignment(
     const stripes = stripesOf(adult.data.definitionKey);
     for (const n of adultWhiteStripeNumbers) {
       const stripe = stripes.get(n);
-      if (stripe === undefined) blockers.push(`WHITE BELT has no stripe ${n}.`);
-      else criteriaFor.set(stripe.id, pdfCriteria.adultWhiteStripes);
+      if (stripe === undefined) {
+        blockers.push(`WHITE BELT has no stripe ${n}.`);
+        continue;
+      }
+      if (!normalized(stripe.data.name).includes(ordinals[n]!)) {
+        blockers.push(
+          `${String(stripe.data.name)} was chosen as WHITE BELT stripe ${n} but is not named "${ordinals[n]}".`,
+        );
+      }
+      criteriaFor.set(stripe.id, pdfCriteria.adultWhiteStripes);
     }
   }
 
@@ -278,6 +300,10 @@ export async function planPdfAlignment(
       blockers.push(`Promotion ${promotion.id} names a removed stripe.`);
     }
   }
+  const removedAssessments = assessments.docs.filter((document) =>
+    removed.has(String(document.data().definitionKey ?? "")),
+  ).length;
+  summary.push(`Assessments on removed stripes: ${removedAssessments} (history only)`);
   for (const blocker of blockers) summary.push(`BLOCKER: ${blocker}`);
 
   const kinds = finalDefinitions.map((definition) => definition.data.kind);
@@ -294,7 +320,13 @@ export async function planPdfAlignment(
   system.contentHash = contentHash;
   system.sourceHash = contentHash;
 
-  const nothing = updates.length === 0 && deletes.length === 0 && headMoves.length === 0;
+  // A rerun after a failed final write finds the documents aligned but the system doc stale.
+  const systemCurrent =
+    source.contentHash === contentHash &&
+    hashLevelCatalogValue(source.counts ?? null) === hashLevelCatalogValue(system.counts);
+  const nothing =
+    updates.length === 0 && deletes.length === 0 && headMoves.length === 0 && systemCurrent;
+  if (!systemCurrent) summary.push("System document: counts and contentHash refreshed");
   return {
     status: blockers.length > 0 ? "blocked" : nothing ? "already-aligned" : "ready",
     academyId,
