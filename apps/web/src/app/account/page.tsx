@@ -8,6 +8,7 @@ import { requireClientSession } from "../../lib/login-flow";
 import { AdultClaimGate } from "./adult-claim";
 import { MyShopReadyNotice } from "../shop/shop-ready-notice";
 import { MemberCalendar } from "./calendar/member-calendar";
+import { GraduationNotices } from "./graduation/graduation-notices";
 import { IntroNotices } from "./intro-notices";
 import { StreakPanel } from "./streak/streak-panel";
 import { PendingTermsBanner, WaiverGate } from "./waiver-acceptance";
@@ -60,6 +61,7 @@ function AccountContent() {
                 <MyShopReadyNotice />
                 <PendingTermsBanner studentId={studentId} />
                 <StreakPanel key={studentId} studentId={studentId} />
+                <GraduationNotices key={`grad-${studentId}`} studentId={studentId} />
               </>
             )}
           />
