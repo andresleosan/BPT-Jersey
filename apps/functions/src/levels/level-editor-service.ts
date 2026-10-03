@@ -3,55 +3,44 @@ import { createHash, randomUUID } from "node:crypto";
 import { parseAuditEventDraft, type AuditEventDraft } from "@bpt-jersey/domain/audit";
 import {
   isCustomLevelSystemId,
-  missingProgressKeys,
-  type ActivateLevelCatalogResult,
-  type LevelCatalogVersionContent,
-  type LevelCatalogVersionSummary,
-  type LevelDraftLevel,
-  type LevelDraftRequirement,
-  type LevelDraftSkill,
-  type SaveLevelCatalogDraftInput,
+  type CatalogLevel,
+  type CatalogSkill,
+  type EditableLevelCatalog,
+  type SaveLevelCatalogInput,
 } from "@bpt-jersey/domain/levels/editor";
-import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { hashLevelCatalogValue, levelCatalogStorageId } from "./level-catalog-integrity.js";
-import { activeLevelCatalogSystemId } from "./level-service.js";
 
 /**
- * T04: editable versions of the belt catalogue. A version is a `custom` system stored beside the
- * code versions (`ibjjf-v1..v3`) in the same collections. Drafts are rewritten freely; publishing
- * seals a draft with the sha256 of its content; activation moves the academy pointer and the
- * students' progress heads together, and refuses when any student holds a level the target lacks.
+ * The academy's one belt catalogue, edited in place. The active system must be custom (the
+ * adoption CLI makes it so). A save may change names, colours, criteria and techniques; the set
+ * of belts and stripes is locked. Only documents whose content changed are written.
  */
-export type LevelEditorErrorCode = "invalid" | "not-found" | "conflict" | "missing-levels";
+export type LevelEditorErrorCode = "invalid" | "not-found" | "conflict" | "stale";
 
 export class LevelEditorError extends Error {
   public readonly code: LevelEditorErrorCode;
-  public readonly missing: readonly { definitionKey: string; students: number }[];
 
-  public constructor(
-    code: LevelEditorErrorCode,
-    message: string,
-    missing: readonly { definitionKey: string; students: number }[] = [],
-  ) {
+  public constructor(code: LevelEditorErrorCode, message: string) {
     super(message);
     this.name = "LevelEditorError";
     this.code = code;
-    this.missing = missing;
   }
 }
 
 type StoredData = Record<string, unknown>;
 type EditorSnapshot = Readonly<{ exists: boolean; data: () => StoredData | undefined }>;
 type EditorDocumentReference = Readonly<{ id: string; path?: string }>;
-type EditorQuerySnapshot = Readonly<{
-  docs: readonly Readonly<{ id: string; data: () => StoredData; ref: EditorDocumentReference }>[];
+type EditorQueryDocument = Readonly<{
+  id: string;
+  data: () => StoredData;
+  ref: EditorDocumentReference;
 }>;
+type EditorQuerySnapshot = Readonly<{ docs: readonly EditorQueryDocument[] }>;
 type EditorQuery = Readonly<{ get: () => Promise<EditorQuerySnapshot> }>;
-type EditorFilteredQuery = EditorQuery & Readonly<{ limit: (count: number) => EditorQuery }>;
 type EditorCollection = EditorQuery &
-  Readonly<{ where: (field: string, operator: "==", value: unknown) => EditorFilteredQuery }>;
+  Readonly<{ where: (field: string, operator: "==", value: unknown) => EditorQuery }>;
 export type LevelEditorTransaction = Readonly<{
   get: {
     (reference: EditorDocumentReference): Promise<EditorSnapshot>;
@@ -68,35 +57,18 @@ export type LevelEditorFirestore = Readonly<{
 }>;
 
 export type LevelEditorService = Readonly<{
-  listVersions: (academyId: string) => Promise<{ versions: LevelCatalogVersionSummary[] }>;
-  getVersion: (academyId: string, systemId: string) => Promise<LevelCatalogVersionContent>;
-  createDraft: (input: {
+  getEditable: (academyId: string) => Promise<EditableLevelCatalog>;
+  save: (input: {
     academyId: string;
-    fromSystemId: string;
+    catalog: SaveLevelCatalogInput;
     actorId: string;
-  }) => Promise<LevelCatalogVersionContent>;
-  saveDraft: (input: {
-    academyId: string;
-    draft: SaveLevelCatalogDraftInput;
-    actorId: string;
-  }) => Promise<LevelCatalogVersionContent>;
-  publishDraft: (input: {
-    academyId: string;
-    systemId: string;
-    actorId: string;
-  }) => Promise<{ systemId: string; contentHash: string }>;
-  activate: (input: {
-    academyId: string;
-    systemId: string;
-    actorId: string;
-  }) => Promise<ActivateLevelCatalogResult>;
+  }) => Promise<EditableLevelCatalog>;
 }>;
 
 const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
-const sha256Pattern = /^[a-f0-9]{64}$/u;
 const activeStateId = "active";
-// One transaction rewrites every progress head; beyond this the activation needs a batched job.
-const maxProgressHeadsPerActivation = 450;
+// ponytail: one transaction per save; a save touching more docs than this is refused, not split.
+const maxWritesPerSave = 450;
 
 function assertIdentifier(value: string): void {
   if (!identifierPattern.test(value)) {
@@ -124,7 +96,11 @@ function bySequence(left: StoredData, right: StoredData): number {
   return numberOr(left.sequence, 0) - numberOr(right.sequence, 0);
 }
 
-function criteriaOf(value: unknown): LevelDraftLevel["criteria"] {
+function byId(left: { id: string }, right: { id: string }): number {
+  return left.id.localeCompare(right.id);
+}
+
+function criteriaOf(value: unknown): CatalogLevel["criteria"] {
   const criteria = isRecord(value) ? value : {};
   const time = isRecord(criteria.minimumTime) ? criteria.minimumTime : null;
   return {
@@ -142,31 +118,33 @@ function criteriaOf(value: unknown): LevelDraftLevel["criteria"] {
   };
 }
 
-/** Stored definitions and requirements in editor form; a belt's stripe count is its children. */
-function versionContent(
+/** Stored documents in editor form. A belt's techniques are the requirements on the belt itself. */
+export function editableContent(
   systemId: string,
   system: StoredData,
   definitions: readonly StoredData[],
   requirements: readonly StoredData[],
-): LevelCatalogVersionContent {
+): EditableLevelCatalog {
   const children = new Map<string, number>();
+  const belts = new Set<string>();
   for (const definition of definitions) {
     const parent = definition.parentDefinitionKey;
     if (definition.kind === "stripe" && typeof parent === "string") {
       children.set(parent, (children.get(parent) ?? 0) + 1);
+    } else {
+      belts.add(String(definition.definitionKey));
     }
   }
   return {
     systemId,
-    origin: isCustomLevelSystemId(systemId) ? "custom" : "code",
-    status: system.status === "draft" ? "draft" : "published",
+    updatedAt: stringOr(system.updatedAt, "never"),
     displayName: stringOr(system.displayName, systemId),
     levels: [...definitions].sort(bySequence).map((definition) => {
       const visual = isRecord(definition.visual) ? definition.visual : {};
       const key = String(definition.definitionKey);
       return {
         definitionKey: key,
-        kind: definition.kind === "stripe" ? "stripe" : "belt",
+        kind: definition.kind === "stripe" ? ("stripe" as const) : ("belt" as const),
         parentDefinitionKey: stringOr(definition.parentDefinitionKey, null),
         name: String(definition.name ?? key),
         sequence: numberOr(definition.sequence, 1),
@@ -184,153 +162,96 @@ function versionContent(
       .map((skill) => ({
         key: String(skill.key),
         displayLabel: String(skill.displayLabel ?? skill.key),
-        minimumRating: numberOr(skill.minimumRating, 3),
+        minimumRating: numberOr(skill.minimumRating, 1),
         sequence: numberOr(skill.sequence, 1),
       })),
-    requirements: requirements
+    beltTechniques: requirements
+      .filter((requirement) => belts.has(String(requirement.definitionKey)))
       .map((requirement) => ({
-        definitionKey: String(requirement.definitionKey),
+        beltKey: String(requirement.definitionKey),
         skillKey: String(requirement.skillKey),
-        minimumRating: numberOr(requirement.minimumRating, 3),
+        minimumRating: numberOr(requirement.minimumRating, 1),
       }))
       .sort((left, right) =>
-        `${left.definitionKey}__${left.skillKey}`.localeCompare(
-          `${right.definitionKey}__${right.skillKey}`,
-        ),
+        `${left.beltKey}__${left.skillKey}`.localeCompare(`${right.beltKey}__${right.skillKey}`),
       ),
   };
 }
 
-/**
- * A belt's `stripeCount` is authoritative: its existing stripes are kept in order up to that count,
- * the rest are dropped, and missing ones are generated as `<beltKey>-stripe-<n>`. Every level is
- * then renumbered so each belt is followed by its stripes.
- */
-export function reconcileDraftLevels(levels: readonly LevelDraftLevel[]): LevelDraftLevel[] {
-  const usedKeys = new Set(levels.map((level) => level.definitionKey));
-  const belts = levels
-    .filter((level) => level.kind === "belt")
-    .sort((left, right) => left.sequence - right.sequence);
-  const result: LevelDraftLevel[] = [];
-  for (const belt of belts) {
-    result.push(belt);
-    const stripes = levels
-      .filter(
-        (level) => level.kind === "stripe" && level.parentDefinitionKey === belt.definitionKey,
-      )
-      .sort((left, right) => left.sequence - right.sequence)
-      .slice(0, belt.visual.stripeCount);
-    result.push(...stripes);
-    for (let number = stripes.length + 1; number <= belt.visual.stripeCount; number += 1) {
-      let suffix = number;
-      while (usedKeys.has(`${belt.definitionKey}-stripe-${suffix}`)) suffix += 1;
-      const definitionKey = `${belt.definitionKey}-stripe-${suffix}`;
-      if (!identifierPattern.test(definitionKey)) {
-        throw new LevelEditorError("invalid", "Generated stripe key is invalid.");
-      }
-      usedKeys.add(definitionKey);
-      result.push({
-        definitionKey,
-        kind: "stripe",
-        parentDefinitionKey: belt.definitionKey,
-        name: `${belt.name} · stripe ${number}`.slice(0, 80),
-        sequence: 1,
-        stripeNumber: number,
-        criteria: belt.criteria,
-        visual: {
-          colors: belt.visual.colors,
-          stripeColor: belt.visual.stripeColor,
-          stripeCount: 0,
-        },
-      });
-    }
-  }
-  return result.map((level, index) => ({ ...level, sequence: index + 1 }));
-}
-
-function sameColours(left: unknown, right: LevelDraftLevel["visual"]): boolean {
-  if (!isRecord(left)) return false;
+function sameStructure(stored: StoredData, level: CatalogLevel): boolean {
   return (
-    JSON.stringify(left.colors) === JSON.stringify(right.colors) &&
-    (left.stripeColor ?? null) === right.stripeColor
+    stored.kind === level.kind &&
+    (stored.parentDefinitionKey ?? null) === level.parentDefinitionKey &&
+    stored.sequence === level.sequence &&
+    (stored.stripeNumber ?? null) === level.stripeNumber
   );
 }
 
-function storedDefinition(
-  academyId: string,
-  systemId: string,
-  level: LevelDraftLevel,
-  previous: StoredData | undefined,
-  beltColours: LevelDraftLevel["visual"] | undefined,
+/** A stripe always wears its belt's colours. */
+function nextDefinition(
+  previous: StoredData,
+  level: CatalogLevel,
+  colours: CatalogLevel["visual"],
 ): StoredData {
-  const previousVisual = isRecord(previous?.visual) ? previous.visual : {};
-  // A stripe follows its belt's colours whenever the belt's colours were changed in this save.
-  const colours = beltColours ?? level.visual;
+  const visual = isRecord(previous.visual) ? previous.visual : {};
   return {
-    definitionKey: level.definitionKey,
-    systemId,
-    kind: level.kind,
-    parentDefinitionKey: level.parentDefinitionKey,
+    ...previous,
     name: level.name,
-    sequence: level.sequence,
-    stripeNumber: level.stripeNumber,
     criteria: level.criteria,
-    observedCriteria: isRecord(previous?.observedCriteria)
-      ? previous.observedCriteria
-      : level.criteria,
-    visual: {
-      colorMode: numberOr(previousVisual.colorMode, 1),
-      colors: [...colours.colors],
-      stripeColor: colours.stripeColor,
-      stripeCenter: numberOr(previousVisual.stripeCenter, null),
-      stripeWidth: numberOr(previousVisual.stripeWidth, null),
-      stripePosition: numberOr(previousVisual.stripePosition, null),
-    },
-    observedSkillRequirementSetKey: stringOr(previous?.observedSkillRequirementSetKey, null),
-    observedSkillRequirementsState: stringOr(previous?.observedSkillRequirementsState, "none"),
-    anomalyFlags: Array.isArray(previous?.anomalyFlags) ? previous.anomalyFlags : [],
-    schemaVersion: 1,
-    academyId,
+    visual: { ...visual, colors: [...colours.colors], stripeColor: colours.stripeColor },
   };
 }
 
-function storedRequirement(
+export function requirementDocument(
   academyId: string,
   systemId: string,
-  requirement: LevelDraftRequirement,
+  definitionKey: string,
+  skillKey: string,
+  minimumRating: number,
   previous: StoredData | undefined,
 ): StoredData {
   return {
-    requirementKey: `${requirement.definitionKey}__${requirement.skillKey}`,
+    requirementKey: `${definitionKey}__${skillKey}`,
     systemId,
-    definitionKey: requirement.definitionKey,
-    skillKey: requirement.skillKey,
-    minimumRating: requirement.minimumRating,
+    definitionKey,
+    skillKey,
+    minimumRating,
     inheritance: stringOr(previous?.inheritance, "inherit"),
     schemaVersion: 1,
     academyId,
   };
 }
 
-function storedSkill(skill: LevelDraftSkill, previous: StoredData | undefined): StoredData {
+function storedSkill(skill: CatalogSkill, sequence: number, previous: StoredData | undefined) {
   return {
     key: skill.key,
     displayLabel: skill.displayLabel,
     observedLabel: stringOr(previous?.observedLabel, null),
     minimumRating: skill.minimumRating,
-    sequence: skill.sequence,
+    sequence,
   };
 }
 
-function counts(definitions: readonly StoredData[]): StoredData {
-  return {
-    definitions: definitions.length,
-    belts: definitions.filter((definition) => definition.kind === "belt").length,
-    stripes: definitions.filter((definition) => definition.kind === "stripe").length,
-  };
+/** sha256 of a catalogue's content, the same shape `publishDraft` sealed before. */
+export function catalogueContentHash(
+  systemId: string,
+  system: StoredData,
+  definitions: readonly { id: string; data: StoredData }[],
+  requirements: readonly { id: string; data: StoredData }[],
+): string {
+  return hashLevelCatalogValue({
+    system: {
+      systemId,
+      displayName: system.displayName,
+      counts: system.counts,
+      skillCatalog: system.skillCatalog,
+    },
+    definitions: [...definitions].sort(byId),
+    requirements: [...requirements].sort(byId),
+  });
 }
 
-function catalogueCorrelationId(
+export function catalogueCorrelationId(
   action: string,
   academyId: string,
   systemId: string,
@@ -344,19 +265,10 @@ function catalogueCorrelationId(
   return `level-catalog-${digest.digest("hex")}`;
 }
 
-function auditDraft(value: Record<string, unknown>): AuditEventDraft {
+export function levelCatalogAuditDraft(value: Record<string, unknown>): AuditEventDraft {
   const parsed = parseAuditEventDraft(value);
   if (!parsed.ok) throw new LevelEditorError("invalid", "Invalid level catalogue audit event.");
   return parsed.value;
-}
-
-function isCustomDraft(system: StoredData | undefined, systemId: string): boolean {
-  return (
-    system !== undefined &&
-    isCustomLevelSystemId(systemId) &&
-    system.origin === "custom" &&
-    system.status === "draft"
-  );
 }
 
 export function createLevelEditorService({
@@ -368,35 +280,34 @@ export function createLevelEditorService({
   now?: () => string;
   newOperationId?: () => string;
 }): LevelEditorService {
-  const systemsPath = (academyId: string) => `academies/${academyId}/levelSystems`;
-  const definitionsOf = (academyId: string, systemId: string) =>
+  const ofSystem = (academyId: string, collection: string, systemId: string) =>
     firestore
-      .collection(`academies/${academyId}/levelDefinitions`)
+      .collection(`academies/${academyId}/${collection}`)
       .where("systemId", "==", systemId);
-  const requirementsOf = (academyId: string, systemId: string) =>
-    firestore
-      .collection(`academies/${academyId}/levelRequirements`)
-      .where("systemId", "==", systemId);
-  const stateRef = (academyId: string) =>
-    firestore.doc(`academies/${academyId}/levelCatalogState/${activeStateId}`);
 
-  async function readVersion(
-    transaction: LevelEditorTransaction,
-    academyId: string,
-    systemId: string,
-  ) {
+  async function readActive(transaction: LevelEditorTransaction, academyId: string) {
+    const state = await transaction.get(
+      firestore.doc(`academies/${academyId}/levelCatalogState/${activeStateId}`),
+    );
+    const systemId = state.data()?.activeSystemId;
+    if (!isCustomLevelSystemId(systemId)) {
+      throw new LevelEditorError("conflict", "Run the catalogue adoption first.");
+    }
+    const systemRef = firestore.doc(`academies/${academyId}/levelSystems/${systemId}`);
     const [system, definitions, requirements] = await Promise.all([
-      transaction.get(firestore.doc(`${systemsPath(academyId)}/${systemId}`)),
-      transaction.get(definitionsOf(academyId, systemId)),
-      transaction.get(requirementsOf(academyId, systemId)),
+      transaction.get(systemRef),
+      transaction.get(ofSystem(academyId, "levelDefinitions", systemId)),
+      transaction.get(ofSystem(academyId, "levelRequirements", systemId)),
     ]);
     const systemData = system.data();
-    if (!system.exists || systemData === undefined || systemData.academyId !== academyId) {
-      throw new LevelEditorError("not-found", "Level catalogue version does not exist.");
+    if (!system.exists || systemData?.academyId !== academyId) {
+      throw new LevelEditorError("not-found", "The belt catalogue does not exist.");
     }
     const own = (snapshot: EditorQuerySnapshot) =>
       snapshot.docs.filter((document) => document.data().academyId === academyId);
     return {
+      systemId,
+      systemRef,
       system: systemData,
       definitions: own(definitions),
       requirements: own(requirements),
@@ -404,253 +315,120 @@ export function createLevelEditorService({
   }
 
   return {
-    async listVersions(academyId) {
+    async getEditable(academyId) {
       assertIdentifier(academyId);
-      const [systems, state] = await firestore.runTransaction((transaction) =>
-        Promise.all([
-          transaction.get(firestore.collection(systemsPath(academyId))),
-          transaction.get(stateRef(academyId)),
-        ]),
-      );
-      const records = systems.docs.map((document) => ({ id: document.id, data: document.data() }));
-      const activeId = activeLevelCatalogSystemId(academyId, records, state.data());
-      const versions = records.map(({ id, data }) => ({
-        systemId: id,
-        displayName: stringOr(data.displayName, id).slice(0, 200),
-        origin: isCustomLevelSystemId(id) ? ("custom" as const) : ("code" as const),
-        status: data.status === "draft" ? ("draft" as const) : ("published" as const),
-        active: id === activeId,
-        publishedAt: stringOr(data.publishedAt, null),
-      }));
-      versions.sort((left, right) =>
-        left.origin === right.origin
-          ? right.systemId.localeCompare(left.systemId)
-          : left.origin === "custom"
-            ? -1
-            : 1,
-      );
-      return { versions };
-    },
-
-    async getVersion(academyId, systemId) {
-      assertIdentifier(academyId);
-      assertIdentifier(systemId);
       return firestore.runTransaction(async (transaction) => {
-        const version = await readVersion(transaction, academyId, systemId);
-        return versionContent(
-          systemId,
-          version.system,
-          version.definitions.map((document) => document.data()),
-          version.requirements.map((document) => document.data()),
+        const active = await readActive(transaction, academyId);
+        return editableContent(
+          active.systemId,
+          active.system,
+          active.definitions.map((document) => document.data()),
+          active.requirements.map((document) => document.data()),
         );
       });
     },
 
-    async createDraft({ academyId, fromSystemId, actorId }) {
-      for (const value of [academyId, fromSystemId, actorId]) assertIdentifier(value);
-      const at = now();
-      const day = dateKeyInJersey(new Date(at)).replaceAll("-", "");
-      return firestore.runTransaction(async (transaction) => {
-        const [source, systems] = await Promise.all([
-          readVersion(transaction, academyId, fromSystemId),
-          transaction.get(firestore.collection(systemsPath(academyId))),
-        ]);
-        if (source.system.status !== "published" && fromSystemId !== "ibjjf-v1") {
-          throw new LevelEditorError("conflict", "Only a published version can be copied.");
-        }
-        const sameDay = new RegExp(`^bpt-${day}-(\\d{1,3})$`, "u");
-        const taken = systems.docs
-          .map((document) => sameDay.exec(document.id)?.[1])
-          .filter((value): value is string => value !== undefined)
-          .map(Number);
-        const next = (taken.length === 0 ? 0 : Math.max(...taken)) + 1;
-        if (next > 999) throw new LevelEditorError("conflict", "Too many drafts today.");
-        const systemId = `bpt-${day}-${next}`;
-        const definitions: StoredData[] = source.definitions.map((document) => ({
-          ...document.data(),
-          systemId,
-          academyId,
-        }));
-        const requirements: StoredData[] = source.requirements.map((document) => ({
-          ...document.data(),
-          systemId,
-          academyId,
-        }));
-        const system: StoredData = {
-          systemId,
-          academyId,
-          displayName: stringOr(source.system.displayName, systemId).slice(0, 80),
-          schemaVersion: 1,
-          precedence: {
-            businessRules: "BPT catalogue editor",
-            hierarchyVisualsAndObservedSkills: `Copied from ${fromSystemId}`,
-            conflicts: "The published version is the record",
-          },
-          counts: counts(definitions),
-          skillCatalog: storedSkills(source.system),
-          origin: "custom",
-          status: "draft",
-          copiedFromSystemId: fromSystemId,
-          createdAt: at,
-          createdBy: actorId,
-          updatedAt: at,
-          updatedBy: actorId,
-          publishedAt: null,
-        };
-        transaction.create(firestore.doc(`${systemsPath(academyId)}/${systemId}`), system);
-        for (const definition of definitions) {
-          transaction.create(
-            firestore.doc(
-              `academies/${academyId}/levelDefinitions/${levelCatalogStorageId(systemId, String(definition.definitionKey))}`,
-            ),
-            definition,
-          );
-        }
-        for (const requirement of requirements) {
-          transaction.create(
-            firestore.doc(
-              `academies/${academyId}/levelRequirements/${levelCatalogStorageId(systemId, String(requirement.requirementKey))}`,
-            ),
-            requirement,
-          );
-        }
-        return versionContent(systemId, system, definitions, requirements);
-      });
-    },
-
-    async saveDraft({ academyId, draft, actorId }) {
-      for (const value of [academyId, draft.systemId, actorId]) assertIdentifier(value);
-      const { systemId } = draft;
-      const levels = reconcileDraftLevels(draft.levels);
-      const levelKeys = new Set(levels.map((level) => level.definitionKey));
-      return firestore.runTransaction(async (transaction) => {
-        const current = await readVersion(transaction, academyId, systemId);
-        if (!isCustomDraft(current.system, systemId)) {
-          throw new LevelEditorError("conflict", "Only a draft version can be edited.");
-        }
-        const previousDefinitions = new Map(
-          current.definitions.map((document) => [
-            String(document.data().definitionKey),
-            document.data(),
-          ]),
-        );
-        const previousRequirements = new Map(
-          current.requirements.map((document) => [
-            String(document.data().requirementKey),
-            document.data(),
-          ]),
-        );
-        const previousSkills = new Map(
-          storedSkills(current.system).map((skill) => [String(skill.key), skill]),
-        );
-        const recoloured = new Map<string, LevelDraftLevel["visual"]>();
-        for (const level of levels) {
-          if (
-            level.kind === "belt" &&
-            !sameColours(previousDefinitions.get(level.definitionKey)?.visual, level.visual)
-          ) {
-            recoloured.set(level.definitionKey, level.visual);
-          }
-        }
-        const definitions = levels.map((level) =>
-          storedDefinition(
-            academyId,
-            systemId,
-            level,
-            previousDefinitions.get(level.definitionKey),
-            level.kind === "stripe" && level.parentDefinitionKey !== null
-              ? recoloured.get(level.parentDefinitionKey)
-              : undefined,
-          ),
-        );
-        // Requirements of stripes the new stripe count dropped go with them.
-        const requirements = draft.requirements
-          .filter((requirement) => levelKeys.has(requirement.definitionKey))
-          .map((requirement) =>
-            storedRequirement(
-              academyId,
-              systemId,
-              requirement,
-              previousRequirements.get(`${requirement.definitionKey}__${requirement.skillKey}`),
-            ),
-          );
-        const skills = draft.skills.map((skill) =>
-          storedSkill(skill, previousSkills.get(skill.key)),
-        );
-        const keepDefinitionIds = new Set(
-          definitions.map((definition) =>
-            levelCatalogStorageId(systemId, String(definition.definitionKey)),
-          ),
-        );
-        const keepRequirementIds = new Set(
-          requirements.map((requirement) =>
-            levelCatalogStorageId(systemId, String(requirement.requirementKey)),
-          ),
-        );
-        for (const document of current.definitions) {
-          if (!keepDefinitionIds.has(document.id)) transaction.delete(document.ref);
-        }
-        for (const document of current.requirements) {
-          if (!keepRequirementIds.has(document.id)) transaction.delete(document.ref);
-        }
-        for (const definition of definitions) {
-          transaction.set(
-            firestore.doc(
-              `academies/${academyId}/levelDefinitions/${levelCatalogStorageId(systemId, String(definition.definitionKey))}`,
-            ),
-            definition,
-          );
-        }
-        for (const requirement of requirements) {
-          transaction.set(
-            firestore.doc(
-              `academies/${academyId}/levelRequirements/${levelCatalogStorageId(systemId, String(requirement.requirementKey))}`,
-            ),
-            requirement,
-          );
-        }
-        const system: StoredData = {
-          ...current.system,
-          displayName: draft.displayName,
-          counts: counts(definitions),
-          skillCatalog: skills,
-          updatedAt: now(),
-          updatedBy: actorId,
-        };
-        transaction.set(firestore.doc(`${systemsPath(academyId)}/${systemId}`), system);
-        return versionContent(systemId, system, definitions, requirements);
-      });
-    },
-
-    async publishDraft({ academyId, systemId, actorId }) {
-      for (const value of [academyId, systemId, actorId]) assertIdentifier(value);
+    async save({ academyId, catalog, actorId }) {
+      for (const value of [academyId, actorId]) assertIdentifier(value);
       const operationId = newOperationId();
       const at = now();
       return firestore.runTransaction(async (transaction) => {
-        const current = await readVersion(transaction, academyId, systemId);
-        if (!isCustomDraft(current.system, systemId)) {
-          throw new LevelEditorError("conflict", "Only a draft version can be published.");
+        const { systemId, systemRef, system, definitions, requirements } = await readActive(
+          transaction,
+          academyId,
+        );
+        if (stringOr(system.updatedAt, "never") !== catalog.expectedUpdatedAt) {
+          throw new LevelEditorError("stale", "The belt catalogue changed since it was loaded.");
         }
-        if (current.definitions.length === 0) {
-          throw new LevelEditorError("conflict", "An empty version cannot be published.");
+        const stored = new Map(
+          definitions.map((document) => [String(document.data().definitionKey), document]),
+        );
+        if (
+          stored.size !== catalog.levels.length ||
+          catalog.levels.some((level) => {
+            const document = stored.get(level.definitionKey);
+            return document === undefined || !sameStructure(document.data(), level);
+          })
+        ) {
+          throw new LevelEditorError("invalid", "Belts and stripes cannot be added or removed.");
         }
-        const definitions = current.definitions
-          .map((document) => ({ id: document.id, data: document.data() }))
-          .sort((left, right) => left.id.localeCompare(right.id));
-        const requirements = current.requirements
-          .map((document) => ({ id: document.id, data: document.data() }))
-          .sort((left, right) => left.id.localeCompare(right.id));
-        const contentHash = hashLevelCatalogValue({
-          system: {
-            systemId,
-            displayName: current.system.displayName,
-            counts: current.system.counts,
-            skillCatalog: current.system.skillCatalog,
-          },
-          definitions,
-          requirements,
-        });
-        const audit = auditDraft({
+
+        const writes: (() => void)[] = [];
+        const levels = new Map(catalog.levels.map((level) => [level.definitionKey, level]));
+        const stripesOf = new Map<string, string[]>();
+        const nextDefinitions: { id: string; data: StoredData }[] = [];
+        for (const level of catalog.levels) {
+          const document = stored.get(level.definitionKey)!;
+          const belt =
+            level.kind === "stripe" ? levels.get(level.parentDefinitionKey ?? "")! : level;
+          if (level.kind === "stripe") {
+            const list = stripesOf.get(belt.definitionKey) ?? [];
+            list.push(level.definitionKey);
+            stripesOf.set(belt.definitionKey, list);
+          }
+          const next = nextDefinition(document.data(), level, belt.visual);
+          nextDefinitions.push({ id: document.id, data: next });
+          if (hashLevelCatalogValue(next) !== hashLevelCatalogValue(document.data())) {
+            writes.push(() => transaction.set(document.ref, next));
+          }
+        }
+
+        const previous = new Map(requirements.map((document) => [document.id, document]));
+        const desired = new Map<string, StoredData>();
+        for (const technique of catalog.beltTechniques) {
+          for (const key of [technique.beltKey, ...(stripesOf.get(technique.beltKey) ?? [])]) {
+            const id = levelCatalogStorageId(systemId, `${key}__${technique.skillKey}`);
+            desired.set(
+              id,
+              requirementDocument(
+                academyId,
+                systemId,
+                key,
+                technique.skillKey,
+                technique.minimumRating,
+                previous.get(id)?.data(),
+              ),
+            );
+          }
+        }
+        for (const document of requirements) {
+          if (!desired.has(document.id)) writes.push(() => transaction.delete(document.ref));
+        }
+        for (const [id, data] of desired) {
+          const before = previous.get(id)?.data();
+          if (before === undefined || hashLevelCatalogValue(before) !== hashLevelCatalogValue(data)) {
+            writes.push(() =>
+              transaction.set(firestore.doc(`academies/${academyId}/levelRequirements/${id}`), data),
+            );
+          }
+        }
+        // +2: the system document and the audit event.
+        if (writes.length + 2 > maxWritesPerSave) {
+          throw new LevelEditorError("conflict", "Too many changes in one save.");
+        }
+
+        const previousSkills = new Map(
+          storedSkills(system).map((skill) => [String(skill.key), skill]),
+        );
+        const nextSystem: StoredData = {
+          ...system,
+          displayName: catalog.displayName,
+          skillCatalog: catalog.skills.map((skill, index) =>
+            storedSkill(skill, index + 1, previousSkills.get(skill.key)),
+          ),
+          updatedAt: at,
+          updatedBy: actorId,
+        };
+        const nextRequirements = [...desired].map(([id, data]) => ({ id, data }));
+        const contentHash = catalogueContentHash(
+          systemId,
+          nextSystem,
+          nextDefinitions,
+          nextRequirements,
+        );
+        nextSystem.contentHash = contentHash;
+        nextSystem.sourceHash = contentHash;
+        const audit = levelCatalogAuditDraft({
           academyId,
           actorId,
           action: "level.catalog.published",
@@ -663,152 +441,20 @@ export function createLevelEditorService({
             operationId,
           ),
         });
-        const auditEventId = `audit-${audit.correlationId}`;
-        transaction.set(firestore.doc(`${systemsPath(academyId)}/${systemId}`), {
-          ...current.system,
-          status: "published",
-          sourceHash: contentHash,
-          contentHash,
-          manifestId: systemId,
-          publishedAt: at,
-          publishedBy: actorId,
-          updatedAt: at,
-          updatedBy: actorId,
-        });
-        transaction.create(
-          firestore.doc(`academies/${academyId}/levelCatalogManifests/${systemId}`),
-          {
-            manifestId: systemId,
-            academyId,
-            systemId,
-            origin: "custom",
-            status: "published",
-            schemaVersion: 1,
-            contentHash,
-            definitionCount: definitions.length,
-            requirementCount: requirements.length,
-            publishedOperationId: operationId,
-            publishedAuditEventId: auditEventId,
-            publishedAt: at,
-            publishedBy: actorId,
-          },
-        );
-        appendAuditEventInTransaction(
-          transaction,
-          firestore.doc(`academies/${academyId}/auditEvents/${auditEventId}`),
-          audit,
-        );
-        return { systemId, contentHash };
-      });
-    },
 
-    async activate({ academyId, systemId, actorId }) {
-      for (const value of [academyId, systemId, actorId]) assertIdentifier(value);
-      const operationId = newOperationId();
-      const activatedAt = now();
-      return firestore.runTransaction(async (transaction) => {
-        const [state, systems, heads, definitions] = await Promise.all([
-          transaction.get(stateRef(academyId)),
-          transaction.get(firestore.collection(systemsPath(academyId))),
-          // Bounded read: one past the cap is enough to refuse an oversized activation.
-          transaction.get(
-            firestore
-              .collection(`academies/${academyId}/studentLevelProgress`)
-              .where("academyId", "==", academyId)
-              .limit(maxProgressHeadsPerActivation + 1),
-          ),
-          transaction.get(definitionsOf(academyId, systemId)),
-        ]);
-        const records = systems.docs.map((document) => ({
-          id: document.id,
-          data: document.data(),
-        }));
-        const fromSystemId = activeLevelCatalogSystemId(academyId, records, state.data());
-        if (fromSystemId === systemId) {
-          throw new LevelEditorError("conflict", "That version is already active.");
-        }
-        const target = records.find(({ id }) => id === systemId)?.data;
-        const contentHash = String(target?.contentHash ?? target?.sourceHash ?? "");
-        if (target?.status !== "published" || !sha256Pattern.test(contentHash)) {
-          throw new LevelEditorError("conflict", "Target level catalogue is not published.");
-        }
-        const ownHeads = heads.docs.filter((document) => document.data().academyId === academyId);
-        if (ownHeads.length > maxProgressHeadsPerActivation) {
-          throw new LevelEditorError("conflict", "Too many progress records for one activation.");
-        }
-        const targetKeys = new Set(
-          definitions.docs
-            .map((document) => document.data())
-            .filter((definition) => definition.academyId === academyId)
-            .map((definition) => String(definition.definitionKey)),
-        );
-        const missing = missingProgressKeys(
-          targetKeys,
-          ownHeads.map((document) => ({
-            studentId: document.id,
-            currentDefinitionKey: String(document.data().currentDefinitionKey ?? ""),
-          })),
-        );
-        if (missing.length > 0) {
-          throw new LevelEditorError(
-            "missing-levels",
-            "Students hold levels this version removes.",
-            missing,
-          );
-        }
-        const audit = auditDraft({
-          academyId,
-          actorId,
-          action: "level.catalog.activated",
-          targetRef: `academies/${academyId}/levelSystems/${systemId}`,
-          purpose: "level-catalog-maintenance",
-          correlationId: catalogueCorrelationId(
-            "level.catalog.activated",
-            academyId,
-            systemId,
-            operationId,
-          ),
-          fromSystemId,
-          toSystemId: systemId,
-        });
-        transaction.set(stateRef(academyId), {
-          academyId,
-          activeSystemId: systemId,
-          previousSystemId: fromSystemId,
-          operationId,
-          contentHash,
-          activatedAt,
-          activatedBy: actorId,
-          schemaVersion: "1",
-        });
-        transaction.create(
-          firestore.doc(`academies/${academyId}/levelCatalogActivations/${operationId}`),
-          {
-            academyId,
-            fromSystemId,
-            toSystemId: systemId,
-            operationId,
-            contentHash,
-            actorId,
-            activatedAt,
-            movedStudents: ownHeads.length,
-            schemaVersion: "1",
-          },
-        );
-        // Only the version pointer changes: the held level and its start date stay as they are.
-        for (const head of ownHeads) {
-          transaction.set(head.ref, { systemId }, { merge: true });
-        }
+        for (const write of writes) write();
+        transaction.set(systemRef, nextSystem);
         appendAuditEventInTransaction(
           transaction,
           firestore.doc(`academies/${academyId}/auditEvents/audit-${audit.correlationId}`),
           audit,
         );
-        return {
-          activeSystemId: systemId,
-          previousSystemId: fromSystemId,
-          movedStudents: ownHeads.length,
-        };
+        return editableContent(
+          systemId,
+          nextSystem,
+          nextDefinitions.map(({ data }) => data),
+          nextRequirements.map(({ data }) => data),
+        );
       });
     },
   };
