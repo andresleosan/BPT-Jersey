@@ -355,19 +355,6 @@ function assertPromotionDecisionRole(decidedByRole: string): void {
   }
 }
 
-/**
- * Spec §6.3: a promotion cannot predate the level it promotes from — the class and day counts at
- * assignment are measured from the level start, so an earlier date would record negative time.
- */
-function assertPromotionNotBeforeLevelStart(
-  promotedOn: string,
-  currentLevelStartedAt: string,
-): void {
-  if (promotedOn < currentLevelStartedAt.slice(0, 10)) {
-    throw new LevelStoreError("invalid", "Promotion date is before the current level start");
-  }
-}
-
 const safeIdentifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 
 function assertValidAcademyId(academyId: string): void {
@@ -1205,10 +1192,8 @@ export function buildLevelHistory(
    * promotion `voidPromotion` accepts (`return "not-latest"` above), and it is NOT the newest row
    * by `assignedOn`. Two shapes reach that: two promotions on the SAME DAY, where the sort above
    * is inconsistent for a tie and orders them arbitrarily; and Plan D's Regyfit import, which
-   * writes promotions straight into the collection with whatever dates the source carries.
-   * `assignLevel` alone cannot diverge further — `assertPromotionNotBeforeLevelStart` refuses a
-   * date before the current level start and the promotion then starts the new level on its own
-   * day, so `assignedOn` never decreases along the standing chain. The id is carried to the
+   * writes promotions straight into the collection with whatever dates the source carries, and
+   * a backdated `assignLevel` (the office backfilling old members) does the same. The id is carried to the
    * reader so the Void affordance is placed by the server's own rule. It is passed through only when it names a
    * row that survived its own parse: a head naming a record that is not on screen can offer the
    * operator nothing, and an id that no longer parses must not take the whole history down.
@@ -2738,7 +2723,8 @@ export function createLevelCatalogStore({
           throw new LevelStoreError("conflict", "Promotion references are not current");
         }
         const startedAt = headData.currentLevelStartedAt;
-        assertPromotionNotBeforeLevelStart(input.promotedOn, startedAt);
+        // The office backfills old members from its own records, so a promotion may predate the
+        // current level start; the class and day counts then clamp to zero.
         const assignment = promotionAssignmentOf({
           catalog,
           from,
@@ -3878,7 +3864,6 @@ export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
       ) {
         throw new LevelStoreError("conflict", "Promotion references are not current");
       }
-      assertPromotionNotBeforeLevelStart(input.promotedOn, head.currentLevelStartedAt);
       const assignment = promotionAssignmentOf({
         catalog,
         from,

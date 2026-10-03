@@ -219,8 +219,6 @@ function AssignLevelForm({
     .filter((definition) => definition.definitionKey !== current.definitionKey)
     .sort((left, right) => left.sequence - right.sequence);
   const target = later.find((definition) => definition.definitionKey === toKey);
-  const startedOn =
-    card.state === "initialized" ? card.currentLevelStartedAt?.slice(0, 10) : undefined;
   const classesDone = card.state === "initialized" ? card.criteria.classes.completed : 0;
   const startedAt = card.state === "initialized" ? card.currentLevelStartedAt : null;
 
@@ -322,7 +320,6 @@ function AssignLevelForm({
         <input
           id="ibjjf-assign-date"
           max={today}
-          min={startedOn}
           onChange={(event) => setPromotedOn(event.target.value)}
           type="date"
           value={promotedOn}

@@ -818,15 +818,11 @@ describe.each(parityFixtures)("promotion parity — %s (T051V2)", (_label, makeF
     ).rejects.toMatchObject({ code: "invalid", message: "Promotion date is in the future" });
   });
 
-  it("refuses a promotion date before the current level start", async () => {
+  // The office backfills old members from its own records.
+  it("accepts a promotion date before the current level start", async () => {
     const fixture = await makeFixture();
-    await expect(
-      fixture.assign({ note: "Competition result justifies it.", promotedOn: "2026-06-30" }),
-    ).rejects.toMatchObject({
-      code: "invalid",
-      message: "Promotion date is before the current level start",
-    });
-    expect(await fixture.currentDefinitionKey()).toBe("white-belt");
+    await fixture.assign({ note: "Competition result justifies it.", promotedOn: "2026-06-30" });
+    expect(await fixture.currentDefinitionKey()).not.toBe("white-belt");
   });
 
   // The comparison is lexical, so a malformed value sorting below today would otherwise be
@@ -956,8 +952,8 @@ describe.each(parityFixtures)("promotion parity — %s (T051V2)", (_label, makeF
   /**
    * T051V2 re-review of Task 16 (m1). This test is NAMED for what it actually proves, because an
    * earlier name claimed more than it held. Through `assignLevel` alone the head and the row order
-   * CANNOT be made to disagree: `assertPromotionNotBeforeLevelStart` refuses a date before the
-   * current level start and the promotion then starts the new level on its own day, so
+   * CANNOT be made to disagree when every promotion is dated on or after the current level start,
+   * because the promotion then starts the new level on its own day, so
    * `assignedOn` never decreases along the standing chain; a void walks the head back one step and
    * marks every later promotion voided. So the standing promotions always come back in reverse
    * order of recording, and the first of them is always the head. Replacing
