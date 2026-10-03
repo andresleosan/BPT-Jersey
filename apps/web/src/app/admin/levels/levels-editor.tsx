@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { EditableLevelCatalog } from "@bpt-jersey/domain/levels/editor";
 
 import { getEditableLevelCatalog, saveLevelCatalog } from "../../../lib/level-editor-client";
@@ -18,6 +18,7 @@ export function LevelsEditor({ tab }: { tab: "belts" | "techniques" }) {
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
+  const bannerRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -31,6 +32,11 @@ export function LevelsEditor({ tab }: { tab: "belts" | "techniques" }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // The banner sits above the grid; Save is often far below it, so bring the outcome into view.
+  useEffect(() => {
+    if (notice) bannerRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [notice]);
 
   async function save(next: CatalogContent): Promise<boolean> {
     if (catalog === null) return false;
@@ -64,6 +70,7 @@ export function LevelsEditor({ tab }: { tab: "belts" | "techniques" }) {
     <div
       className="levels-editor-notice"
       data-kind={notice.kind}
+      ref={bannerRef}
       role={notice.kind === "success" ? "status" : "alert"}
     >
       <p>{notice.message}</p>
