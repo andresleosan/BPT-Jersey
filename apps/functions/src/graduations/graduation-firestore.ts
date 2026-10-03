@@ -119,6 +119,24 @@ export function createGraduationFirestore(db: Firestore, academyId: string) {
       }
       return out;
     },
+    /** One member's confirmed booking session ids, among the given sessions (one-field query). */
+    async studentBookings(
+      studentId: string,
+      sessionIds: readonly string[],
+    ): Promise<Map<string, Set<string>>> {
+      const wanted = new Set(sessionIds);
+      const snap = await db
+        .collection(`${base}/bookings`)
+        .where("studentId", "==", studentId)
+        .get();
+      const set = new Set<string>();
+      for (const doc of snap.docs) {
+        const data = doc.data();
+        if (data.status === "confirmed" && wanted.has(String(data.sessionId)))
+          set.add(String(data.sessionId));
+      }
+      return new Map([[studentId, set]]);
+    },
     /** The same counting rule as the progress bars (spec §A). */
     async counted(studentId: string): Promise<CountedClass[]> {
       const snapshot = await readCanonicalMemberHistoryDocuments(
@@ -191,7 +209,7 @@ export function createGraduationFirestore(db: Firestore, academyId: string) {
         kind: "level",
         title: input.title.slice(0, 220),
         message: input.message.slice(0, 500),
-        href: `/admin/members/profile?id=${input.studentId}`,
+        href: "/admin/graduations",
         createdAt: input.at,
         readAt: null,
         resolvedAt: null,

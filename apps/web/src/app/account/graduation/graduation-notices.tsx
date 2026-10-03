@@ -9,7 +9,6 @@ import "./graduation.css";
 
 type Promotion = NonNullable<Notices["latestPromotion"]>;
 
-const recentMs = 30 * 86_400_000;
 const classFormat = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Europe/Jersey",
   weekday: "short",
@@ -46,11 +45,6 @@ function markSeen(key: string): void {
   } catch {
     // Storage blocked: the Set above keeps it hidden until the page reloads.
   }
-}
-
-/** Only a promotion from the last 30 days is still news. */
-function isRecent(promotedOn: string): boolean {
-  return Date.now() - Date.parse(`${promotedOn}T00:00:00Z`) <= recentMs;
 }
 
 function nextClass(likely: Notices["likelyNext"]): string | null {
@@ -200,11 +194,8 @@ export function GraduationNotices({ studentId }: Readonly<{ studentId: string }>
         if (!active || !result) return;
         setNotices(result);
         const promotion = result.latestPromotion;
-        if (
-          promotion &&
-          isRecent(promotion.promotedOn) &&
-          !wasSeen(seenKey(studentId, promotion.promotionId))
-        ) {
+        // The server only returns a promotion decided in the last 30 days.
+        if (promotion && !wasSeen(seenKey(studentId, promotion.promotionId))) {
           setCelebrating(promotion);
         }
       },

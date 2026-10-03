@@ -87,6 +87,7 @@ export const TENANT_BACKUP_V3_DIRECT_COLLECTIONS = Object.freeze([
   "skillProgress",
   "studentLevelProgress",
   "levelPromotions",
+  "graduationReviews",
   "recognitions",
   "medicalLeaves",
   "retentionAlerts",

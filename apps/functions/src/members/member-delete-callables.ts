@@ -17,7 +17,7 @@ const BY_STUDENT = [
   "bookings", "memberships", "relationships", "attendance", "memberHistoryEntries", "privateLessonPurchases",
   "privateLessonCreditUses", "enrolmentRequests", "membershipApplications", "memberNotifications", "introConversions",
   "enrolmentWaiverAcceptances", "disclaimerAcceptances", "studentGroupAccessEvents", "groupBookingOrigins",
-  "regyfitMemberLinks", "regyfitOfficeLinks", "memberRecoverySourceLinks",
+  "regyfitMemberLinks", "regyfitOfficeLinks", "memberRecoverySourceLinks", "graduationReviews",
 ];
 const BY_ID = [
   "studentAdminProfiles", "studentLevelProgress", "memberIdentityAliases", "studentGroupAccess", "notificationPreferences",
