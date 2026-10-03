@@ -213,8 +213,9 @@ function AssignLevelForm({
   const [dialogError, setDialogError] = useState<string | null>(null);
   const inFlight = useRef(false);
 
+  // Every level but the current one: the office may move a member forwards or back.
   const later = [...catalog.definitions]
-    .filter((definition) => definition.sequence > current.sequence)
+    .filter((definition) => definition.definitionKey !== current.definitionKey)
     .sort((left, right) => left.sequence - right.sequence);
   const target = later.find((definition) => definition.definitionKey === toKey);
   const startedOn =
@@ -301,7 +302,7 @@ function AssignLevelForm({
     <form aria-labelledby="ibjjf-assign-title" className="ibjjf-form" onSubmit={review}>
       <h3 id="ibjjf-assign-title">Assign next level</h3>
       <label htmlFor="ibjjf-assign-level">
-        Next level
+        Level
         <select
           id="ibjjf-assign-level"
           onChange={(event) => setToKey(event.target.value)}
@@ -747,7 +748,9 @@ export function ManageView({
   const hasLaterLevel =
     data !== null &&
     currentDefinition !== null &&
-    data.catalog.definitions.some((definition) => definition.sequence > currentDefinition.sequence);
+    data.catalog.definitions.some(
+      (definition) => definition.definitionKey !== currentDefinition.definitionKey,
+    );
 
   function decisions(loaded: Loaded): ReactNode {
     if (!canDecide) {
@@ -777,11 +780,7 @@ export function ManageView({
       );
     }
     if (!hasLaterLevel) {
-      return (
-        <p className="ibjjf-muted">
-          This is the highest level BPT tracks, so there is no next level to assign.
-        </p>
-      );
+      return <p className="ibjjf-muted">The catalogue has no other level to assign.</p>;
     }
     return (
       <AssignLevelForm
