@@ -53,7 +53,8 @@ Absolute rule: one brand purple, one brand lime, warm-grey neutrals. No blue, no
 
 - **Buttons (`.button`):** `border-radius: 0`, `min-height: 3.15rem`, padding `0.8rem 1.15rem`, `inline-flex` with `0.8rem` gap. Hover: `translateY(-2px)`; active: back to `0` (tactile push). Transition `160ms ease` on background/border/transform. Over purple: primary = Gi White fill with Purple Dark text, secondary = 1 px Gi White outline. Over canvas (client area): primary = BPT Purple fill → Purple Dark on hover, secondary = Mat Ink outline. Focus ring: `outline: 3px solid` BPT Purple, `offset 4px`; on purple ground the ring inverts to white with a `0 0 0 6px` Mat Ink halo. No glows, no gradients, no icons-only buttons.
 - **Panels / identity blocks (`.client-identity`):** Gi White fill, **`border-top: 0.35rem solid` BPT Purple** as the elevation cue, `1.25rem` padding, `max-width: 36rem`, square corners. Cards are reserved for things that must read as a distinct object (a membership plan, an invoice); lists of links are plain stacked buttons, not cards.
-- **Hard shadows:** the only shadows are offset blocks tinted with purple — `0 1.5rem 0 rgba(47,36,131,0.12)` under feature imagery, `-1rem 0 0 rgba(47,36,131,0.08)` beside the hero location block. Zero blur radius, always.
+- **Hard shadows:** the only shadows are offset blocks tinted with purple — `0 1.5rem 0 rgba(47,36,131,0.12)` under feature imagery. Zero blur radius, always. Cards, panels and dialogs carry no shadow.
+- **Cards, panels, dialogs:** Gi White on Canvas, outlined by a `1px solid var(--card-edge)` (`#D6D4CC`) hairline, `border-radius: var(--radius)`. No coloured top or bottom bars. A state (selected, error, success) recolours the whole outline (selected adds a 1px inset of the same colour so it reads as 2px without shifting layout); status bands inside keep their left-rule.
 - **Inputs:** Label above (body 600), input `min-height 3rem`, Gi White fill, `1px solid` Line border, `border-radius: 0`, focus = 3 px purple outline. Helper text Muted below; error text Refused Red below with the red left-rule tint on the whole field group. No floating labels, no icons inside inputs.
 - **Notices / reminders:** Full-width band, tint + `0.3–0.35rem` colored left-rule, eyebrow (`FOLLOW-UP`, `SAFEGUARDING`) + heading + one sentence. Failure copy is honest and short ("Reminders are temporarily unavailable. Please try again later.").
 - **Tables (admin):** `1px` Line rules, header row uppercase eyebrow style, selected row on Purple Wash with `#D9D6FF` border. Action buttons inline at the row end, never a kebab menu.
@@ -66,7 +67,7 @@ Absolute rule: one brand purple, one brand lime, warm-grey neutrals. No blue, no
 - **Hero:** BPT Purple ground, CSS Grid `minmax(0, 1.15fr) minmax(18rem, 0.85fr)`, `min-height: 48rem`, top padding `clamp(9rem, 14vw, 12rem)` to clear the absolute-positioned white header. Left-aligned copy; the right column holds the location / schedule block. One primary CTA and one outline secondary, never a third.
 - **Client destination (`/account` family):** single column, `max-width: 58rem`, left-aligned, `min-height: 100dvh`. Order is fixed: eyebrow → condensed H1 → intro paragraph → notice bands → stacked action buttons → identity panel → sign-out.
 - **Grid over flex math:** every multi-column area is CSS Grid with `minmax(0, …)`; `min-width: 0` is applied globally to prevent overflow. No `calc()` percentage hacks, no absolute-positioned content stacking (only the site header is absolute).
-- **Radius:** `0` everywhere. The two exceptions (`0.75rem`, `1rem`) are image masks only.
+- **Radius:** one token, `--radius`, decided in `globals.css`. `0` on the public site, shop, enrol, admin, coach and staff. Every `/account` member screen sets it to `1rem` (cards and fields) with `999px` on actions: `.member-app`, `.settings-page`, `.competitors-page` in their own files, the other member wrappers at the end of `globals.css`. Elements nested inside a rounded card use `calc(var(--radius) * 0.5)`.
 
 ## 6. Responsive Rules
 
@@ -94,7 +95,7 @@ Absolute rule: one brand purple, one brand lime, warm-grey neutrals. No blue, no
 - No `Inter`, no generic serifs, no rounded/friendly display faces.
 - No pure black (`#000000`); ink is `#1A1A18`.
 - No blur shadows, no glows, no gradients (solid purple only).
-- No rounded corners on UI (radius `0`), no pills — status is text + left-rule.
+- No rounded corners outside the member screens (`--radius` is `0` there), no pills outside them — status is text + left-rule. No coloured top bars on cards.
 - No blue, teal or neon accents; no second brand color beyond purple + lime.
 - No centered hero; no three-equal-card feature rows; no card-for-everything.
 - No spinners; no "Scroll to explore" filler; no bouncing chevrons.
@@ -134,7 +135,7 @@ reaches CSS only once it matches `#RRGGBB`; until then the field says "Enter a c
 ## 11. Ready for Jiu Jitsu (/account self check-in)
 
 El único elemento permitido sobre el encabezado morado del miembro es una tarjeta **Gi White** con
-la regla superior morada de 0.35rem, radio 1rem, y el titular de dos líneas **READY / FOR JIU
+el contorno fino `--card-edge` de 1px, radio 1rem, y el titular de dos líneas **READY / FOR JIU
 JITSU** en Barlow Condensed 700, Mat Ink, clamp(3rem, 14vw, 6rem). El rango nativo de
 confirmación deslizante usa una pista Paper Edge, relleno **BPT Purple** que acompaña el pulgar, y
 pulgar **BPT Lime** con aro Mat Ink. Incluye una línea de metadatos (clase · hora · sede), una

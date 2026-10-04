@@ -43,7 +43,6 @@
 
 .graduations-row {
   align-items: start;
-  border-top-color: var(--bpt-purple);
   display: grid;
   gap: 1rem 1.5rem;
   grid-template-columns: minmax(0, 1fr) auto;

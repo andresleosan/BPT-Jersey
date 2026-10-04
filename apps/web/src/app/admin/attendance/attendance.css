@@ -155,7 +155,8 @@
 
 .attendance-dialog {
   background: var(--gi-white);
-  border-top: 0.35rem solid var(--bpt-purple);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   max-height: calc(100dvh - 2rem);
   max-width: 42rem;
   overflow-y: auto;
@@ -354,7 +355,8 @@
 
 .attendance-session-block {
   background: var(--gi-white);
-  border-top: 0.3rem solid var(--mat-ink);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   min-width: 0;
   padding: 1.25rem;
 }

@@ -52,7 +52,8 @@
 
 .cs-card {
   background: var(--gi-white);
-  border-top: 0.35rem solid var(--bpt-purple);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   padding: 1.25rem;
 }
 
@@ -678,8 +679,8 @@ button.cs-slot:focus-visible::after {
   max-width: min(60rem, 92vw);
   max-height: 88vh;
   overflow: auto;
-  border: 2px solid var(--mat-ink);
-  border-top: 0.35rem solid var(--bpt-purple);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   background: var(--gi-white);
   padding: 1.25rem;
 }

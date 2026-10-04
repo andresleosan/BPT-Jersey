@@ -14,7 +14,8 @@
 .private-lessons-panel,
 .private-lessons-form {
   background: var(--gi-white);
-  border-top: 0.35rem solid var(--bpt-purple);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   margin-top: 2rem;
   padding: 1.25rem;
 }

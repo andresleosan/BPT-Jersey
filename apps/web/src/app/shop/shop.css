@@ -157,7 +157,8 @@
 .shop-basket {
   align-self: start;
   background: var(--gi-white);
-  border-top: 0.35rem solid var(--bpt-purple);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   display: grid;
   gap: 1.5rem;
   margin-top: 3rem;

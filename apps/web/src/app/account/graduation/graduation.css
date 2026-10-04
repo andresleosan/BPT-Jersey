@@ -4,7 +4,7 @@
   align-items: center;
   background: var(--gi-white);
   border-radius: var(--radius, 1rem);
-  border-top: 0.35rem solid var(--bpt-purple);
+  border: 1px solid var(--card-edge);
   display: grid;
   gap: 0.75rem 1.25rem;
   grid-template-columns: auto minmax(0, 1fr);
@@ -28,7 +28,6 @@
 }
 
 .grad-card--note {
-  border-top-color: var(--line);
   grid-template-columns: minmax(0, 1fr);
 }
 

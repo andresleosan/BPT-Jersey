@@ -8,6 +8,10 @@
   --line: #8a8880;
   --paper-edge: #e8e7e3;
   --muted: #65635d;
+  /* Card outline: a 1px hairline replaces the old coloured top bars. */
+  --card-edge: #d6d4cc;
+  /* Radius system: square on the public site, shop and staff areas; the member screens below round. */
+  --radius: 0;
   --content-width: 90rem;
   --section-space: clamp(4.5rem, 9vw, 8rem);
 }
@@ -1203,8 +1207,8 @@ button:focus-visible {
 
 .login-card {
   background: var(--gi-white);
-  border-top: 0.45rem solid var(--bpt-purple);
-  box-shadow: 0 1.5rem 0 rgba(47, 36, 131, 0.12);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   min-width: 0;
   padding: clamp(1.25rem, 4vw, 3rem);
 }
@@ -1487,7 +1491,8 @@ button:focus-visible {
 
 .client-identity {
   background: var(--gi-white);
-  border-top: 0.35rem solid var(--bpt-purple);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   display: grid;
   gap: 1rem;
   margin: 2.5rem 0 0;
@@ -1658,7 +1663,8 @@ button:focus-visible {
 
 .shop-collection-form {
   background: var(--gi-white);
-  border-top: 0.35rem solid var(--bpt-purple);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   display: grid;
   gap: 0.9rem;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2109,8 +2115,8 @@ button:focus-visible {
 
 .profile-card {
   background: var(--gi-white);
-  border-top: 0.5rem solid var(--bpt-lime);
-  box-shadow: -1rem 0 0 rgba(47, 36, 131, 0.08);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   margin: clamp(2rem, 7vw, 7rem) clamp(1rem, 7vw, 7rem) clamp(2rem, 7vw, 7rem) 0;
   max-width: 58rem;
   padding: clamp(1.5rem, 5vw, 4.75rem);
@@ -2166,7 +2172,7 @@ button:focus-visible {
 .profile-field select {
   background: var(--canvas);
   border: 1px solid var(--line);
-  border-radius: 0;
+  border-radius: var(--radius);
   color: var(--mat-ink);
   font: inherit;
   min-height: 3.25rem;
@@ -2387,7 +2393,8 @@ button:focus-visible {
 .family-contact-card,
 .family-child-card {
   background: var(--gi-white);
-  border-top: 0.35rem solid var(--bpt-purple);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   margin-top: 2rem;
   padding: 1.25rem;
 }
@@ -2431,7 +2438,6 @@ button:focus-visible {
 
 .family-child-card {
   align-items: start;
-  border-top-color: var(--mat-ink);
   display: grid;
   gap: 1.5rem;
   grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.8fr);
@@ -2635,7 +2641,7 @@ button:focus-visible {
 .health-support-primary,
 .health-support-secondary {
   border: 0;
-  border-radius: 0;
+  border-radius: var(--radius);
   cursor: pointer;
   font: inherit;
   font-weight: 700;
@@ -2857,7 +2863,7 @@ button:focus-visible {
   appearance: none;
   background: var(--gi-white);
   border: 2px solid transparent;
-  border-radius: 0;
+  border-radius: var(--radius);
   color: var(--mat-ink);
   font: inherit;
   min-height: 3.2rem;
@@ -3506,7 +3512,8 @@ button:focus-visible {
 .enrol-form,
 .enrol-status {
   background: var(--gi-white);
-  border-top: 0.35rem solid var(--bpt-purple);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   display: grid;
   gap: 1.25rem;
   margin-top: 2.5rem;
@@ -3532,8 +3539,8 @@ button:focus-visible {
 
 .enrol-form .enrol-minor {
   background: var(--gi-white);
-  border: 1px solid var(--line);
-  border-top: 0.35rem solid var(--bpt-purple);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   padding: 1.1rem 1rem 1rem;
 }
 
@@ -3889,4 +3896,30 @@ a.client-membership-back:focus-visible {
   a.waiver-back-link:hover {
     transform: none;
   }
+}
+
+/* Every /account member screen shares the member app's radius: 1rem cards, pill actions. */
+.client-billing-page,
+.client-membership-page,
+.private-lessons-page,
+.family-client-page,
+.profile-page,
+.waiver-page,
+.course-account,
+.waitlist-page {
+  --radius: 1rem;
+}
+
+:is(
+    .client-billing-page,
+    .client-membership-page,
+    .private-lessons-page,
+    .family-client-page,
+    .profile-page,
+    .waiver-page,
+    .course-account,
+    .waitlist-page
+  )
+  .button {
+  border-radius: 999px;
 }
