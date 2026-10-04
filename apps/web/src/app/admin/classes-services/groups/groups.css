@@ -5,7 +5,7 @@
 .groups-page .groups-primary, .cs-registrations .groups-primary { background: var(--bpt-purple); color: var(--gi-white); border-color: var(--bpt-purple); }
 .groups-page .groups-primary:hover, .cs-registrations .groups-primary:hover { background: var(--bpt-purple-dark, #211965); }
 .groups-page .groups-delete { color: #721626; border-color: #8d1c2f; }
-.groups-editor { background: var(--gi-white); border: 2px solid var(--mat-ink); border-top: .35rem solid var(--bpt-purple); padding: 1.25rem; }
+.groups-editor { background: var(--gi-white); border: 1px solid var(--card-edge); border-radius: var(--radius); padding: 1.25rem; }
 .groups-editor fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 1.25rem; min-width: 0; }
 .groups-editor > form { margin-top: 1rem; }
 .groups-member-picker { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; }

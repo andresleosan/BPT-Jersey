@@ -41,7 +41,8 @@
 
 .admin-panel-card {
   background: var(--gi-white);
-  border-top: 0.3rem solid var(--mat-ink);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   min-width: 0;
   padding: 1.15rem;
 }
@@ -350,7 +351,8 @@ a.admin-birthday-badge:focus-visible,
 
 .admin-metric {
   background: var(--gi-white);
-  border-top: 0.3rem solid var(--mat-ink);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   display: grid;
   gap: 0.35rem;
   min-height: 9rem;
@@ -577,7 +579,6 @@ a.admin-birthday-badge:focus-visible,
 
 .admin-waitlist-control {
   align-content: start;
-  border-top-color: var(--bpt-purple);
 }
 
 .admin-waitlist-control > div > p:last-child {
@@ -1223,7 +1224,8 @@ a.admin-birthday-badge:focus-visible,
 
 .admin-module-card {
   background: var(--gi-white);
-  border-top: 0.35rem solid var(--mat-ink);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   display: flex;
   flex-direction: column;
   min-height: 18rem;
@@ -1288,7 +1290,8 @@ a.admin-birthday-badge:focus-visible,
 }
 
 .regyfit-access-panel {
-  border-top: 0.35rem solid var(--bpt-purple);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   margin-top: clamp(3rem, 8vw, 7rem);
   padding-top: clamp(1.5rem, 3vw, 2.5rem);
   scroll-margin-top: 7rem;
@@ -1472,7 +1475,8 @@ a.admin-birthday-badge:focus-visible,
 
 .member-import-card {
   background: var(--gi-white);
-  border-top: 0.35rem solid var(--bpt-purple);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   margin-top: 2rem;
   padding: clamp(1.25rem, 3vw, 2rem);
 }
@@ -1580,7 +1584,6 @@ a.admin-birthday-badge:focus-visible,
 }
 
 .member-import-result {
-  border-top-color: var(--mat-ink);
 }
 
 @media (max-width: 36rem) {
@@ -1905,7 +1908,8 @@ a.admin-birthday-badge:focus-visible,
 
   .regyfit-access-table tr {
     background: var(--gi-white);
-    border-top: 0.25rem solid var(--bpt-purple);
+    border: 1px solid var(--card-edge);
+    border-radius: var(--radius);
     margin-bottom: 1rem;
     padding: 0.45rem 1rem;
   }
@@ -1961,7 +1965,8 @@ a.admin-birthday-badge:focus-visible,
 .family-admin-card,
 .family-created-card {
   background: var(--gi-white);
-  border-top: 0.35rem solid var(--bpt-purple);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   min-width: 0;
   padding: clamp(1.15rem, 3vw, 2rem);
 }
@@ -2158,7 +2163,6 @@ a.admin-birthday-badge:focus-visible,
 }
 
 .family-created-card {
-  border-top-color: var(--bpt-lime);
   margin-top: 1rem;
 }
 
@@ -2175,7 +2179,6 @@ a.admin-birthday-badge:focus-visible,
 }
 
 .family-lookup-card {
-  border-top-color: var(--mat-ink);
 }
 
 .family-inline-form {
@@ -2476,7 +2479,8 @@ a.admin-birthday-badge:focus-visible,
 
 .staff-card {
   background: var(--gi-white);
-  border-top: 0.35rem solid var(--bpt-purple);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   min-width: 0;
   padding: clamp(1.15rem, 3vw, 2rem);
 }
@@ -3205,7 +3209,6 @@ a.admin-birthday-badge:focus-visible,
 }
 
 .finance-horizon-grid .admin-panel-card {
-  border-top-color: var(--bpt-purple);
 }
 
 .finance-horizon-grid .admin-panel-card h3 {
@@ -3262,7 +3265,8 @@ a.admin-birthday-badge:focus-visible,
 .membership-card {
   align-content: start;
   background: var(--gi-white);
-  border-top: 0.35rem solid var(--bpt-purple);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   display: grid;
   gap: 1rem;
   min-width: 0;
@@ -3520,7 +3524,6 @@ a.admin-birthday-badge:focus-visible,
 }
 
 .admin-retention-card {
-  border-top-color: var(--bpt-purple);
 }
 
 .admin-retention-card-heading {
@@ -3760,7 +3763,8 @@ a.admin-birthday-badge:focus-visible,
 }
 
 .member-record-header {
-  border-top: 0.35rem solid var(--bpt-purple);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   background: var(--gi-white);
   padding: 1.25rem;
 }
@@ -4342,9 +4346,8 @@ a.admin-birthday-badge:focus-visible,
 
 .shop-admin-proof-dialog {
   background: var(--gi-white);
-  border: 1px solid var(--line);
-  border-radius: 0;
-  border-top: 0.35rem solid var(--bpt-purple);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   box-shadow: none;
   display: grid;
   gap: 0.75rem;
@@ -4392,7 +4395,6 @@ a.admin-birthday-badge:focus-visible,
 
 .shop-admin-editor {
   align-content: start;
-  border-top-color: var(--bpt-purple);
   display: grid;
   gap: 1rem;
 }
@@ -4499,11 +4501,11 @@ a.admin-birthday-badge:focus-visible,
 }
 
 .shop-admin-notice-error {
-  border-top-color: #9b2c2c;
+  border-color: #9b2c2c;
 }
 
 .shop-admin-notice-success {
-  border-top-color: #176b49;
+  border-color: #176b49;
 }
 
 .admin-status-visible {
@@ -5303,14 +5305,14 @@ a.admin-birthday-badge:focus-visible,
   margin-block: 1.25rem;
 }
 .members-counter {
-  border-top-color: var(--line);
   cursor: pointer;
   font: inherit;
   min-height: 7rem;
   text-align: left;
 }
 .members-counter[aria-pressed="true"] {
-  border-top-color: var(--bpt-purple);
+  border-color: var(--bpt-purple);
+  box-shadow: inset 0 0 0 1px var(--bpt-purple);
 }
 .members-counter:focus-visible {
   outline: 3px solid var(--bpt-purple);

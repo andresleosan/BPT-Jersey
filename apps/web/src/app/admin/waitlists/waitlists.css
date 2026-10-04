@@ -1,6 +1,5 @@
 .waitlists-control {
   align-content: start;
-  border-top-color: var(--bpt-purple);
   display: grid;
   gap: 1rem;
 }

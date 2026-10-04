@@ -14,7 +14,7 @@
 .settings-section {
   background: var(--gi-white);
   border-radius: var(--radius);
-  border-top: 0.35rem solid var(--bpt-purple);
+  border: 1px solid var(--card-edge);
   box-sizing: border-box;
   display: grid;
   gap: 1rem;

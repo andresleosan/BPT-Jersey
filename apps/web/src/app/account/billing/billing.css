@@ -15,13 +15,14 @@
 .client-billing-summary,
 .client-invoice-card {
   background: var(--gi-white);
-  border-top: 0.35rem solid var(--bpt-purple);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
   margin-top: 2rem;
   padding: 1.25rem;
 }
 
 .client-billing-error {
-  border-top-color: #8d1c2f;
+  border-color: #8d1c2f;
 }
 
 .client-billing-state h2,
@@ -68,7 +69,6 @@
 }
 
 .client-invoice-card {
-  border-top-color: var(--mat-ink);
 }
 
 .client-invoice-card header {
