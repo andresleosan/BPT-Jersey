@@ -1,6 +1,6 @@
 # Cupos por edad e invitaciones desde Waitlist
 
-Fecha: 2026-10-05. Estado: especificación aprobada e implementada; activación en producción pendiente.
+Fecha: 2026-10-05. Estado: especificación aprobada, implementada y activada en producción.
 
 ## Objetivo y decisiones aprobadas
 

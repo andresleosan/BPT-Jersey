@@ -1,6 +1,6 @@
 # Optional age capacities and waitlist invitations
 
-Implemented 2026-10-05. Production activation is separate from GitHub publication.
+Implemented and activated 2026-10-05. Production activation is separate from GitHub publication.
 No data migration is required. Missing `ageCapacities` means the existing total-capacity policy.
 
 ## Coordinated activation
@@ -48,10 +48,38 @@ New collections are accessed only through authorised server callables; no client
   while any sessions have caps; hiding UI must not silently remove capacity protection.
   Do not delete historical records or bulk-clear limits as a rollback shortcut.
 
+## Production deployment evidence — 2026-10-05
+
+The operator explicitly authorised production deployment after GitHub publication. The release
+uses source commit `ea0114093e9246c79ae0f3c31aebf1d6588d259a`, which adds the runtime import
+mapping required to package the age-capacity modules on top of implementation `c03baf2`.
+
+Firebase reported successful deployment of 27 functions in `europe-west9`:
+
+- New: `getSessionAgeAvailability`, `getWaitlistClassSource`, `createWaitlistClass`,
+  `listWaitlistClassInvitations`, `respondWaitlistClassInvitation`, `listWaitlistClassHistory`,
+  `listPendingPastWaitlists`.
+- Existing: `requestBooking`, `bulkBookEligibleSessions`, `walkInCheckIn`,
+  `staffWalkInAttendance`, `joinWaitlist`, `issueNextWaitlistOffer`, `acceptWaitlistOffer`,
+  `saveSession`, `updateSession`, `copyWeek`, `listSessions`, `getMemberCalendarWeek`,
+  `registerMemberGroup`, `groupSessionWritten`, `groupAssignmentWritten`, `memberGroupWritten`,
+  `groupMembershipWritten`, `groupStudentWritten`, `reconcileGroupRegistrations`,
+  `sweepSessionQuorumsSchedule`.
+
+The two invitation indexes and the booking session/student index were confirmed `READY` before
+enabling the frontend. Rules, IAM policy definitions and member records were not modified.
+Cloudflare Pages production flag `NEXT_PUBLIC_AGE_WAITLIST_ENABLED` was set to `true`; all
+other environment variables were verified unchanged. Deployment
+`8ce1b534-8ff5-4f54-8935-9db4a479fbf5` completed successfully at 22:34:53 UTC and was confirmed as
+the canonical production deployment for the source commit above. The four affected routes
+responded with HTTP 200 on `www.bptjersey.com`.
+
 ## Review boundary
 
 Source inspection and an independent code review covered shared capacity enforcement,
 read-before-write transaction ordering, renewal/alias handling, bounded pagination, resumable
-publication and mobile/desktop CSS. No automated tests, browser tests, compilation, lint or
-typecheck were run, following the operator's current project instructions. Production behaviour
-and rendered layouts have not been verified by this implementation task.
+publication and mobile/desktop CSS. The authorised deployment compiled the Firebase artifact
+and the static web build, including the web build's TypeScript phase. No automated test suites,
+browser tests, standalone lint or standalone typecheck were run. Deployment metadata, index
+readiness and public HTTP responses were checked; authenticated booking behaviour and rendered
+layouts were not exercised against production member data.

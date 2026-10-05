@@ -95,3 +95,8 @@ Files: `session-panel.tsx`, new age-limit editor, `admin/waitlists/page.tsx`, ne
   establish absence of all regressions or verify rendered layouts.
 - Delivery: scoped commit on main and push to origin/main; SHA evidence is reported in the
   final delivery response. Unrelated local review reports and QA files are preserved.
+- Subsequent operator instruction authorised production deployment. Firebase artifact and web
+  production compilation passed after adding the two domain runtime import mappings. The 27
+  scoped functions and three indexes were published, then the web flag was enabled and Pages
+  deployment `8ce1b534-8ff5-4f54-8935-9db4a479fbf5` became canonical. Public route HTTP checks passed.
+  Exact release evidence and verification limits are recorded in the deployment runbook.

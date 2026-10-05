@@ -175,7 +175,7 @@ offer it (`administrativePlanIds` in `packages/domain/src/memberships/plan-contr
 the owner can assign it, from Members → profile; administrators and coaches cannot. Members see
 it only on their own account once the owner has assigned it to them; no other member sees it.
 
-## Optional age capacities and next-class invitations (2026-10-05, activation pending)
+## Optional age capacities and next-class invitations (active 2026-10-05)
 
 Owners can add exact-age limits to ordinary sessions. Only configured ages receive an extra
 maximum; all bookings still respect total capacity and existing eligibility. Ages are calculated
@@ -193,5 +193,5 @@ or automatic bookings are sent by this feature.
 
 Creation is idempotent, invitation batches are resumable, and owner history remains accessible
 after the original queue is empty. Capacity changes, invitations and responses retain actor/time.
-The interface is disabled until `NEXT_PUBLIC_AGE_WAITLIST_ENABLED=true` is set after coordinated
-backend/index publication. See `docs/runbooks/age-capacity-waitlist.md` for activation and recovery.
+Production uses `NEXT_PUBLIC_AGE_WAITLIST_ENABLED=true` after coordinated backend/index
+publication. See `docs/runbooks/age-capacity-waitlist.md` for deployment evidence and recovery.
