@@ -774,7 +774,7 @@ export function storedDaysOffset(value: unknown): number {
 
 /** A manual count is a total through today; new attendance starts tomorrow in Jersey. */
 function ownerProgressAtAssignment(
-  input: Readonly<{ newLevelClasses?: number; newLevelDays?: number }>,
+  input: Readonly<{ newLevelClasses?: number | undefined; newLevelDays?: number | undefined }>,
   role: string,
   startedAt: string,
   now: string,
