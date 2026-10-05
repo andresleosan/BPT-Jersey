@@ -439,6 +439,57 @@ describe("ManageView history", () => {
 });
 
 describe("ManageView assignment", () => {
+  it("lets the owner set classes and days on the new level", async () => {
+    api.assignLevel.mockResolvedValue({ promotionId: "grad_new" });
+    renderView("owner");
+    const form = await assignForm();
+    fireEvent.change(within(form).getByLabelText("Level"), { target: { value: firstStripe } });
+    fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
+    fireEvent.change(within(form).getByLabelText("Classes completed in the new level through today"), {
+      target: { value: "8" },
+    });
+    fireEvent.change(within(form).getByLabelText("Days completed in the new level through today"), {
+      target: { value: "19" },
+    });
+    fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("The new level will start with 8 classes and 19 days");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm promotion" }));
+    await waitFor(() => expect(api.assignLevel).toHaveBeenCalledWith({
+      studentId: "student-1",
+      fromDefinitionKey: whiteBelt,
+      toDefinitionKey: firstStripe,
+      promotedOn: today,
+      newLevelClasses: 8,
+      newLevelDays: 19,
+    }));
+  });
+
+  it("rejects a partial owner count before making an assignment", async () => {
+    renderView("owner");
+    const form = await assignForm();
+    fireEvent.change(within(form).getByLabelText("Level"), { target: { value: firstStripe } });
+    fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
+    fireEvent.change(within(form).getByLabelText("Classes completed in the new level through today"), {
+      target: { value: "8" },
+    });
+    fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
+    expect(within(form).getByRole("alert")).toHaveTextContent(
+      "Enter both new-level counts as whole numbers, or leave both blank.",
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(api.assignLevel).not.toHaveBeenCalled();
+  });
+
+  it.each(["administrator", "headCoach"])(
+    "does not offer progress overrides to %s",
+    async (role) => {
+      renderView(role);
+      const form = await assignForm();
+      expect(within(form).queryByLabelText("Classes completed in the new level through today")).toBeNull();
+      expect(within(form).queryByLabelText("Days completed in the new level through today")).toBeNull();
+    },
+  );
   it.each(["owner", "administrator"])(
     "lets %s confirm unmet requirements with no note",
     async (role) => {
@@ -1081,6 +1132,35 @@ describe("ManageView roles", () => {
 });
 
 describe("ManageView open level", () => {
+  it("lets the owner open a level with exact classes and days", async () => {
+    api.getStudentLevelCard.mockResolvedValue({ state: "uninitialized", studentId: "student-1" });
+    api.getStudentLevelHistory.mockResolvedValue({
+      studentId: "student-1", currentDefinitionKey: null, lastApprovedPromotionId: null, entries: [],
+    });
+    api.openStudentLevel.mockResolvedValue({});
+    renderView("owner");
+    const form = await screen.findByRole("form", { name: "Open level" });
+    fireEvent.change(within(form).getByLabelText("Level"), { target: { value: firstStripe } });
+    fireEvent.change(within(form).getByLabelText("Start date"), { target: { value: "2026-07-01" } });
+    fireEvent.change(within(form).getByLabelText("Notes"), {
+      target: { value: "Synthetic opening with recorded progress." },
+    });
+    fireEvent.change(within(form).getByLabelText("Classes completed at this level through today"), {
+      target: { value: "0" },
+    });
+    fireEvent.change(within(form).getByLabelText("Days completed at this level through today"), {
+      target: { value: "42" },
+    });
+    fireEvent.click(within(form).getByRole("button", { name: "Open level" }));
+    await waitFor(() => expect(api.openStudentLevel).toHaveBeenCalledWith({
+      studentId: "student-1",
+      definitionKey: firstStripe,
+      startedOn: "2026-07-01",
+      decisionNotes: "Synthetic opening with recorded progress.",
+      newLevelClasses: 0,
+      newLevelDays: 42,
+    }));
+  });
   beforeEach(() => {
     api.getStudentLevelCard.mockResolvedValue({ state: "uninitialized", studentId: "student-1" });
     api.getStudentLevelHistory.mockResolvedValue({

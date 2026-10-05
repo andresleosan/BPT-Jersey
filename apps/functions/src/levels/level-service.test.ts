@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
@@ -378,6 +378,88 @@ describe("Level Service & Store", () => {
   });
 
   describe("Student level opening (T097)", () => {
+    it("keeps owner classes and days through opening, promotion and void", async () => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date("2026-10-05T10:00:00.000Z"));
+        const store = createInMemoryLevelStore();
+        await store.seed({ academyId: "demo-academy", normalized });
+        const catalog = await store.listPublished("demo-academy");
+        const ordered = [...catalog.definitions].sort((a, b) => a.sequence - b.sequence);
+        const from = ordered.find((definition) => definition.kind === "belt")!;
+        const to = ordered.find((definition) => definition.sequence === from.sequence + 1)!;
+        await store.openStudentLevel({
+          academyId: "demo-academy",
+          input: {
+            studentId: "student-1", definitionKey: from.definitionKey,
+            startedOn: "2026-09-05", decisionNotes: "Synthetic owner opening.",
+            newLevelClasses: 9, newLevelDays: 31,
+          },
+          openedBy: "owner-1", openedByStaffId: null, openedByRole: "owner",
+          openedAt: "2026-10-05T10:00:00.000Z",
+        });
+        await expect(store.openStudentLevel({
+          academyId: "demo-academy",
+          input: {
+            studentId: "student-2", definitionKey: from.definitionKey,
+            decisionNotes: "Synthetic administrator opening.",
+            newLevelClasses: 9, newLevelDays: 31,
+          },
+          openedBy: "admin-1", openedByStaffId: null, openedByRole: "administrator",
+          openedAt: "2026-10-05T10:00:00.000Z",
+        })).rejects.toMatchObject({ code: "tenant" });
+        expect(await store.getStudentProgressSummary("demo-academy", "student-1")).toMatchObject({
+          state: "initialized",
+          criteria: {
+            classes: { completed: 9, imported: 9 },
+            time: { elapsedDays: 31 },
+          },
+        });
+
+        const promotion = await store.assignLevel({
+          academyId: "demo-academy",
+          input: {
+            studentId: "student-1", fromDefinitionKey: from.definitionKey,
+            toDefinitionKey: to.definitionKey, promotedOn: "2026-10-05",
+            newLevelClasses: 3, newLevelDays: 0,
+          },
+          decidedBy: "owner-1", decidedByStaffId: null, decidedByRole: "owner",
+          decidedAt: "2026-10-05T10:00:00.000Z",
+        });
+        expect(await store.getStudentProgressSummary("demo-academy", "student-1")).toMatchObject({
+          state: "initialized",
+          criteria: {
+            classes: { completed: 3, imported: 3 },
+            time: { elapsedDays: 0 },
+          },
+        });
+        expect(await store.listGraduations("demo-academy", "student-1")).toEqual([
+          expect.objectContaining({ newLevelProgress: { classes: 3, days: 0 } }),
+        ]);
+        await store.voidPromotion({
+          academyId: "demo-academy",
+          input: {
+            studentId: "student-1", promotionId: promotion.promotionId,
+            reason: "Synthetic correction of the promoted level.",
+          },
+          decidedBy: "owner-1", decidedByStaffId: null, decidedByRole: "owner",
+          decidedAt: "2026-10-05T10:01:00.000Z",
+        });
+        expect(await store.getStudentProgressSummary("demo-academy", "student-1")).toMatchObject({
+          state: "initialized",
+          criteria: {
+            classes: { completed: 9, imported: 9 },
+            time: { elapsedDays: 31 },
+          },
+        });
+        vi.setSystemTime(new Date("2026-10-06T10:00:00.000Z"));
+        expect(await store.getStudentProgressSummary("demo-academy", "student-1")).toMatchObject({
+          criteria: { time: { elapsedDays: 32 } },
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
     it("opens any definition once per student and refuses unknown definitions", async () => {
       const store = createInMemoryLevelStore();
       await store.seed({ academyId: "demo-academy", normalized });
