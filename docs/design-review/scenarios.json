@@ -1,0 +1,1503 @@
+[
+  {
+    "id": "flow:b0762a6e84364ca7",
+    "title": "Inicio: navegación y acceso de miembros",
+    "file": "apps/web/src/app/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:ab416bfc3723277d",
+    "title": "Inicio: presentación, horarios, sedes, planes y equipo",
+    "file": "apps/web/src/app/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:5606a9691f08e854",
+    "title": "Inicio: promoción de cursos y movimiento reducido",
+    "file": "apps/web/src/app/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:e97aa9f47c910db9",
+    "title": "Acceso: iniciar sesión con correo y contraseña",
+    "file": "apps/web/src/app/login/login-form.tsx",
+    "anchor": "export",
+    "routes": [
+      "/login",
+      "/staff/login"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:c0604dd561e8cb70",
+    "title": "Acceso: Google y destino según audiencia",
+    "file": "apps/web/src/app/login/login-form.tsx",
+    "anchor": "export",
+    "routes": [
+      "/login",
+      "/staff/login"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:60061af37f4fe351",
+    "title": "Acceso: crear cuenta de cliente",
+    "file": "apps/web/src/app/login/login-form.tsx",
+    "anchor": "export",
+    "routes": [
+      "/login",
+      "/staff/login"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:58113e59784803e6",
+    "title": "Acceso: recuperar contraseña y mensajes de validación",
+    "file": "apps/web/src/app/login/login-form.tsx",
+    "anchor": "export",
+    "routes": [
+      "/login",
+      "/staff/login"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:54edd5f0a4af4ef6",
+    "title": "Acceso del equipo: identificador de staff y contraseña",
+    "file": "apps/web/src/app/login/login-form.tsx",
+    "anchor": "export",
+    "routes": [
+      "/login",
+      "/staff/login"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:9798b30971728b38",
+    "title": "Inscripción · paso 1: datos personales y familiares",
+    "file": "apps/web/src/app/enrol/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/enrol"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:8e99f8eaef20c22a",
+    "title": "Inscripción · paso 2: selección de planes",
+    "file": "apps/web/src/app/enrol/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/enrol"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:a53b43c57e084576",
+    "title": "Inscripción · paso 3: pago y revisión",
+    "file": "apps/web/src/app/enrol/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/enrol"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:43d1700dc0fcff43",
+    "title": "Inscripción: adulto, tutor e hijos; inscripción adicional desde cuenta existente",
+    "file": "apps/web/src/app/enrol/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/enrol"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:a8ef62f176a20f53",
+    "title": "Inscripción: experiencia previa y declaración del cinturón",
+    "file": "apps/web/src/app/enrol/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/enrol"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:c89b34371f576125",
+    "title": "Inscripción: plan de prueba, prepago y pago por sesión",
+    "file": "apps/web/src/app/enrol/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/enrol"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:d18fda3aaa981e56",
+    "title": "Inscripción: justificante, consentimiento y resultado del envío",
+    "file": "apps/web/src/app/enrol/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/enrol"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:00b17932d07119ca",
+    "title": "Compra: cesta, lugar de recogida y forma de pago",
+    "file": "apps/web/src/app/shop/shop-checkout.tsx",
+    "anchor": "export",
+    "routes": [
+      "/shop"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:77f8ff3f489d537c",
+    "title": "Compra: justificante y validación antes de confirmar",
+    "file": "apps/web/src/app/shop/shop-checkout.tsx",
+    "anchor": "export",
+    "routes": [
+      "/shop"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:5ccbef78faa7f516",
+    "title": "Compra: pedidos existentes y sus estados",
+    "file": "apps/web/src/app/shop/shop-orders.tsx",
+    "anchor": "export",
+    "routes": [
+      "/shop"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:bb6a69ded3b4648e",
+    "title": "Curso público: detalle, sesiones y acción de inscripción",
+    "file": "apps/web/src/app/courses/view/course-detail.tsx",
+    "anchor": "export",
+    "routes": [
+      "/courses",
+      "/courses/view"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:607d9699c07e243c",
+    "title": "Calendario del miembro: vista de día y semana",
+    "file": "apps/web/src/app/account/calendar/member-calendar.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:baa383a78258bea5",
+    "title": "Calendario del miembro: selección del miembro o hijo y navegación de fechas",
+    "file": "apps/web/src/app/account/calendar/member-calendar.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:16ce545942729a26",
+    "title": "Calendario del miembro: carga independiente de calendario y perfil",
+    "file": "apps/web/src/app/account/calendar/member-calendar.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:5ef04a3c86bcc4a5",
+    "title": "Clase: disponible, reservada, asistida, ausente o cerrada según datos",
+    "file": "apps/web/src/app/account/calendar/session-card.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:ca0546ba8d965241",
+    "title": "Clase: aforo y acceso a lista de espera",
+    "file": "apps/web/src/app/account/calendar/session-card.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:4aec96c14360b51f",
+    "title": "Clase: abrir detalle y participantes",
+    "file": "apps/web/src/app/account/calendar/session-card.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:2484fea98c42b9be",
+    "title": "Confirmación: cancelar reserva o volver sin cancelar",
+    "file": "apps/web/src/app/account/calendar/cancel-dialog.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:fe580dee4aa1fb95",
+    "title": "Pago por sesión: transferencia o pago en sede y confirmación",
+    "file": "apps/web/src/app/account/calendar/payg-payment-dialog.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:6eaa98f76366838f",
+    "title": "Autoasistencia: disponible, envío, confirmación y rechazo",
+    "file": "apps/web/src/app/account/calendar/ready-for-jiu-jitsu.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:91f59903dbb54143",
+    "title": "Asistencia sin reserva: selección y condiciones de acceso",
+    "file": "apps/web/src/app/account/calendar/walk-in-check-in.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:81a70b2b847f5aa6",
+    "title": "Familia: información de salud y solicitud de apoyo",
+    "file": "apps/web/src/app/account/family/health-support-panel.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/family"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:78f447f6cdf7001d",
+    "title": "Ajustes: seleccionar adulto o menor autorizado",
+    "file": "apps/web/src/app/account/settings/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/settings"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:b50535a914cff244",
+    "title": "Ajustes: foto, recorte y confirmación de aprobación o retirada",
+    "file": "apps/web/src/app/account/settings/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/settings"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:a09de474841ce946",
+    "title": "Ajustes: visibilidad del perfil",
+    "file": "apps/web/src/app/account/settings/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/settings"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:cd1122063f251342",
+    "title": "Ajustes: acceso propio del menor y confirmación de revocación",
+    "file": "apps/web/src/app/account/settings/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/settings"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:64fa35d4c4c6c85e",
+    "title": "Ajustes: correo, validación y guardado",
+    "file": "apps/web/src/app/account/settings/email-section.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/settings"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:97845e53df993b2d",
+    "title": "Ajustes: contraseña y confirmación de campos",
+    "file": "apps/web/src/app/account/settings/password-section.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/settings"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:3ac24e8819d089d4",
+    "title": "Ajustes: teléfono y validación",
+    "file": "apps/web/src/app/account/settings/phone-section.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/settings"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:da068f10dd44e440",
+    "title": "Ajustes: contacto de emergencia y errores de campos",
+    "file": "apps/web/src/app/account/settings/emergency-contact-section.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/settings"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:930c3a0fb2d51e5e",
+    "title": "Clasificación: pestaña de asistencia",
+    "file": "apps/web/src/app/account/competitors/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/competitors"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:21542be7d31f8d9a",
+    "title": "Clasificación: pestaña de cinturón",
+    "file": "apps/web/src/app/account/competitors/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/competitors"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:79bc8768a91826e1",
+    "title": "Clasificación: selección del perfil y restricciones de visibilidad",
+    "file": "apps/web/src/app/account/competitors/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/competitors"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:ef10765fce621501",
+    "title": "Diálogo: ficha pública de otro miembro y cierre",
+    "file": "apps/web/src/app/account/competitors/member-card-dialog.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/competitors",
+      "/account"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:d6201b6fceebfe13",
+    "title": "Progreso: nivel, criterios, técnicas e historial disponible",
+    "file": "apps/web/src/app/account/progress/member-progress.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/progress"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:b55df91a4dd262fa",
+    "title": "Graduación del miembro: aviso y diálogo de celebración",
+    "file": "apps/web/src/app/account/graduation/graduation-notices.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:086fb0bd6a06b848",
+    "title": "Membresía: plan actual, cambio o renovación",
+    "file": "apps/web/src/app/account/membership/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/membership"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:eb0f3a5bb336d4f2",
+    "title": "Membresía: selección de participante, prueba y pago por sesión",
+    "file": "apps/web/src/app/account/membership/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/membership"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:77c78a314f1d5885",
+    "title": "Membresía: justificante de transferencia y estado de solicitud",
+    "file": "apps/web/src/app/account/membership/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/membership"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:a37d1113c62ba98c",
+    "title": "Clases privadas: participante, opción y solicitud",
+    "file": "apps/web/src/app/account/private-lessons/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/private-lessons"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:593455f7c9af1b69",
+    "title": "Clases privadas: pago y listado de clases",
+    "file": "apps/web/src/app/account/private-lessons/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/private-lessons"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:d30a96e5dc7627be",
+    "title": "Lista de espera: elegir participante y clase",
+    "file": "apps/web/src/app/account/waitlist/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/waitlist"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:a8c682afa3ea624f",
+    "title": "Lista de espera: solicitudes existentes y retirada",
+    "file": "apps/web/src/app/account/waitlist/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/waitlist"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:93810275b57b7a18",
+    "title": "Invitaciones de espera: listado, aceptación, rechazo y resultado",
+    "file": "apps/web/src/app/account/waitlist-invitations.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account",
+      "/account/waitlist"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:66d708a69e012ac9",
+    "title": "Consentimiento: participante, cláusulas y decisiones",
+    "file": "apps/web/src/app/account/waiver/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/waiver"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:2d762f002747812c",
+    "title": "Consentimiento: no elegible, versión no disponible y registro existente",
+    "file": "apps/web/src/app/account/waiver/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/waiver"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:549678270cbe1ab8",
+    "title": "Curso del miembro: inscripción como adulto o menor",
+    "file": "apps/web/src/app/account/courses/course-enrol-form.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/courses"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:714a6daa2c44134f",
+    "title": "Curso del miembro: pago, fechas y reembolsos",
+    "file": "apps/web/src/app/account/courses/course-payment-panel.tsx",
+    "anchor": "export",
+    "routes": [
+      "/account/courses"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:a53ce96a3b15d922",
+    "title": "Coach: sesiones, alumnado y preparación de clase",
+    "file": "apps/web/src/app/coach/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/coach"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:b810920729e2f918",
+    "title": "Coach: asistencia y disponibilidad de ubicación",
+    "file": "apps/web/src/app/coach/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/coach"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:245be56cab526b92",
+    "title": "Coach: primera contraseña obligatoria",
+    "file": "apps/web/src/app/coach/access/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/coach/access"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:8d4993fc54cad27a",
+    "title": "Coach: cambiar contraseña existente",
+    "file": "apps/web/src/app/coach/access/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/coach/access"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:81d2673fffef4c2b",
+    "title": "Coach: vincular Google y cuenta ya vinculada",
+    "file": "apps/web/src/app/coach/access/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/coach/access"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:e2aa2945638e91d1",
+    "title": "Navegación del equipo: escritorio y menú móvil",
+    "file": "apps/web/src/app/admin/admin-shell.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:f05b7d648587c5fc",
+    "title": "Navegación del equipo: opciones según rol y ruta activa",
+    "file": "apps/web/src/app/admin/admin-shell.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:5d62e709fc3ada54",
+    "title": "Acceso administrativo: propietario, administrador, coach y rol heredado",
+    "file": "apps/web/src/app/admin/admin-gate.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:dd6b4ffab4c3198b",
+    "title": "Acceso administrativo: sesión pendiente, ausencia de acceso y recuperación",
+    "file": "apps/web/src/app/admin/admin-gate.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:6e713d08261ecb3b",
+    "title": "Miembros · vista All members",
+    "file": "apps/web/src/app/admin/members/members-workspace.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:ebc3601cf31c8e9f",
+    "title": "Miembros · vista Families",
+    "file": "apps/web/src/app/admin/members/members-workspace.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:33b0915647e2f9b2",
+    "title": "Miembros · vista Data review",
+    "file": "apps/web/src/app/admin/members/members-workspace.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:7122505fb0795b09",
+    "title": "Miembros · vista Progress management",
+    "file": "apps/web/src/app/admin/members/members-workspace.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:ec74adf0ff5c9461",
+    "title": "Miembros: filtros de estado, búsqueda y selección",
+    "file": "apps/web/src/app/admin/members/members-workspace.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:c47bddaf76cb81de",
+    "title": "Miembros: confirmación de eliminación de cuenta",
+    "file": "apps/web/src/app/admin/members/members-workspace.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:06eab70367e1117c",
+    "title": "Ficha · Profile",
+    "file": "apps/web/src/app/admin/members/profile/member-record.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/profile"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:5bfbe4a2395761d4",
+    "title": "Ficha · Details",
+    "file": "apps/web/src/app/admin/members/profile/member-record.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/profile"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:34f4c7a4379c7405",
+    "title": "Ficha · Plan",
+    "file": "apps/web/src/app/admin/members/profile/member-record.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/profile"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:c204976ec7cad1e7",
+    "title": "Ficha · Documents (revisar contenido provisional)",
+    "file": "apps/web/src/app/admin/members/profile/member-record.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/profile"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:4038f198814476d0",
+    "title": "Ficha · Payments",
+    "file": "apps/web/src/app/admin/members/profile/member-record.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/profile"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:f55ea02c18df5f3c",
+    "title": "Ficha · Classes",
+    "file": "apps/web/src/app/admin/members/profile/member-record.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/profile"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:52ab14651eba8a7e",
+    "title": "Ficha · Communication (revisar contenido provisional)",
+    "file": "apps/web/src/app/admin/members/profile/member-record.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/profile"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:9435b208bb301f6b",
+    "title": "Ficha · Notes",
+    "file": "apps/web/src/app/admin/members/profile/member-record.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/profile"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:1b906cb4de80444b",
+    "title": "Ficha · History",
+    "file": "apps/web/src/app/admin/members/profile/member-record.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/profile"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:0974d47964e6ac81",
+    "title": "Ficha: oficina completa y vista restringida del coach",
+    "file": "apps/web/src/app/admin/members/profile/member-record.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/profile"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:8aefb8b952aef5b9",
+    "title": "Ficha: identificador ausente, inválido, no encontrado o denegado",
+    "file": "apps/web/src/app/admin/members/profile/member-record.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/profile"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:1b48adcdd1e2e8d9",
+    "title": "Ficha: salida con cambios sin guardar y navegación entre pestañas",
+    "file": "apps/web/src/app/admin/members/profile/member-record.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/profile"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:25468176f147e09d",
+    "title": "Ficha · Manage: nivel y evaluación de técnicas",
+    "file": "apps/web/src/app/admin/members/profile/manage-view.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/profile"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:15654875488f23ff",
+    "title": "Ficha · Manage: confirmar promoción y criterios pendientes",
+    "file": "apps/web/src/app/admin/members/profile/manage-view.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/profile"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:58fe668c644aac37",
+    "title": "Ficha · Manage: historial, edición y anulación de promoción",
+    "file": "apps/web/src/app/admin/members/profile/manage-view.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/profile"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:93f94d8da429a519",
+    "title": "Ficha · Manage: diferencias entre propietario, administrador, coach y headCoach",
+    "file": "apps/web/src/app/admin/members/profile/manage-view.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/profile"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:25ab4ea902320c60",
+    "title": "Ficha: ajuste manual de clases y días por propietario",
+    "file": "apps/web/src/app/admin/members/profile/current-progress-form.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/profile"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:34e15e1d07fa7a3f",
+    "title": "Ficha: diálogos de pagos y confirmaciones",
+    "file": "apps/web/src/app/admin/members/profile/payment-dialogs.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/profile"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:77686282d6c6a53a",
+    "title": "Alta administrativa: datos guardados y pasos aún pendientes",
+    "file": "apps/web/src/app/admin/members/add/registration-completion.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/add",
+      "/admin/families"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:56d00bb60f73cb26",
+    "title": "Alta administrativa: nivel inicial y suscripción/pago",
+    "file": "apps/web/src/app/admin/members/add/registration-completion.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/add",
+      "/admin/families"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:622695b5a474f40e",
+    "title": "Alta administrativa: finalización y recuperación de fallos parciales",
+    "file": "apps/web/src/app/admin/members/add/registration-completion.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/add",
+      "/admin/families"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:bebf5449ad41db4f",
+    "title": "Importación: selección de archivos y opciones",
+    "file": "apps/web/src/app/admin/members/import/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/import"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:d155c85be8caf033",
+    "title": "Importación: vista previa, decisiones y finalización",
+    "file": "apps/web/src/app/admin/members/import/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/import"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:98a21905091fd1df",
+    "title": "Inscripciones: cola y detalle de solicitud",
+    "file": "apps/web/src/app/admin/members/requests/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/requests"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:2fe1f17b6f5dcef7",
+    "title": "Inscripciones: revisión de alumnos, nivel, plan y pago",
+    "file": "apps/web/src/app/admin/members/requests/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/requests"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:1c0060e12c50b702",
+    "title": "Inscripciones: aprobación, rechazo y errores",
+    "file": "apps/web/src/app/admin/members/requests/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/members/requests"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:42c4c1bf0ae778cc",
+    "title": "Familias: buscar y abrir familia",
+    "file": "apps/web/src/app/admin/families/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/families"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:c153c7c445853cc0",
+    "title": "Familias: crear tutor con uno o varios menores",
+    "file": "apps/web/src/app/admin/families/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/families"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:1e52ebf5958b669b",
+    "title": "Familias: sustituir tutor",
+    "file": "apps/web/src/app/admin/families/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/families"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:cc373f8a1a1061ad",
+    "title": "Familias: añadir estudiante",
+    "file": "apps/web/src/app/admin/families/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/families"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:bd98c9ad7ca7b583",
+    "title": "Familias: desactivar familia y confirmar",
+    "file": "apps/web/src/app/admin/families/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/families"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:a266a41638f043be",
+    "title": "Clases · Calendar",
+    "file": "apps/web/src/app/admin/classes-services/classes/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/classes-services/classes"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:22802a6c06cf4f04",
+    "title": "Clases · List",
+    "file": "apps/web/src/app/admin/classes-services/classes/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/classes-services/classes"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:55c059274215b9bc",
+    "title": "Clases · Month",
+    "file": "apps/web/src/app/admin/classes-services/classes/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/classes-services/classes"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:0ad6019d8ef1bb3c",
+    "title": "Clases · Week",
+    "file": "apps/web/src/app/admin/classes-services/classes/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/classes-services/classes"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:f074ead619d3f058",
+    "title": "Clases · Day",
+    "file": "apps/web/src/app/admin/classes-services/classes/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/classes-services/classes"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:a1faf964eebe31f1",
+    "title": "Clases: filtros, contadores y carga parcial",
+    "file": "apps/web/src/app/admin/classes-services/classes/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/classes-services/classes"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:654ab21b77bd62c5",
+    "title": "Clases: diferencias entre edición de oficina y consulta del coach",
+    "file": "apps/web/src/app/admin/classes-services/classes/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/classes-services/classes"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:a934774139444913",
+    "title": "Clase: crear y editar sesión",
+    "file": "apps/web/src/app/admin/classes-services/classes/session-panel.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/classes-services/classes"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:00822c0f43f7b556",
+    "title": "Clase: serie semanal, cancelación y mensajes de validación",
+    "file": "apps/web/src/app/admin/classes-services/classes/session-panel.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/classes-services/classes"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:639966c7beeecf04",
+    "title": "Clase: aforo y límites de edad opcionales",
+    "file": "apps/web/src/app/admin/classes-services/classes/age-capacity-fields.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/classes-services/classes"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:ab469f4bb7306206",
+    "title": "Clase: registros, búsqueda de estudiante y acciones",
+    "file": "apps/web/src/app/admin/classes-services/classes/registrations-panel.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/classes-services/classes"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:d29faecce2192d88",
+    "title": "Clase: inscripción por grupo y resultados parciales",
+    "file": "apps/web/src/app/admin/classes-services/classes/group-registrations.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/classes-services/classes"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:be7e9a1ccbb789a9",
+    "title": "Sede: configuración de ubicación y perímetro",
+    "file": "apps/web/src/app/admin/classes-services/locations/site-geofence-panel.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/classes-services/locations"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:94be6d5def5ab386",
+    "title": "Asistencia: diálogos de corrección y confirmación",
+    "file": "apps/web/src/app/admin/attendance/attendance-dialog.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/attendance"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:2091c656df60731f",
+    "title": "Lista de espera: crear clase de seguimiento e historial",
+    "file": "apps/web/src/app/admin/waitlists/follow-up-class.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/waitlists"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:ce037270a8c8f55b",
+    "title": "Finanzas · Payments",
+    "file": "apps/web/src/app/admin/finance/finance-tabs.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/finance"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:13c80bb0f3dbd27a",
+    "title": "Finanzas · Owed",
+    "file": "apps/web/src/app/admin/finance/finance-tabs.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/finance"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:abd034acb799b5c1",
+    "title": "Finanzas · Renewals",
+    "file": "apps/web/src/app/admin/finance/finance-tabs.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/finance"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:0e3c0ccea73390ff",
+    "title": "Finanzas · Invoices",
+    "file": "apps/web/src/app/admin/finance/finance-tabs.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/finance"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:387b71bfc6783681",
+    "title": "Finanzas · Settings",
+    "file": "apps/web/src/app/admin/finance/finance-tabs.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/finance"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:c0318a05f35bf2fc",
+    "title": "Finanzas: registrar pago manual",
+    "file": "apps/web/src/app/admin/billing/record-payment-dialog.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/finance"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:e2c4bfc9be1c3ac7",
+    "title": "Finanzas: emitir factura",
+    "file": "apps/web/src/app/admin/billing/issue-invoice-dialog.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/finance"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:6d97507ce7f9d895",
+    "title": "Finanzas: anular pago y confirmar",
+    "file": "apps/web/src/app/admin/billing/void-payment-dialog.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/finance"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:ada4a21c79cf3bf6",
+    "title": "Tienda administrativa · Orders",
+    "file": "apps/web/src/app/admin/shop/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/shop"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:b68e4ad3f7a7ada9",
+    "title": "Tienda administrativa · History",
+    "file": "apps/web/src/app/admin/shop/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/shop"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:12281f9db16f2e34",
+    "title": "Tienda administrativa · Products",
+    "file": "apps/web/src/app/admin/shop/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/shop"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:306dca2b56e5b044",
+    "title": "Tienda administrativa · Add / Edit product",
+    "file": "apps/web/src/app/admin/shop/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/shop"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:47c3de7fc62ed672",
+    "title": "Tienda administrativa: revisar justificante y confirmar acciones",
+    "file": "apps/web/src/app/admin/shop/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/shop"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:75ecd759da382d3b",
+    "title": "Cursos administrativos · Courses",
+    "file": "apps/web/src/app/admin/courses/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/courses"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:2bd5fbe8e7797fb8",
+    "title": "Cursos administrativos · Requests",
+    "file": "apps/web/src/app/admin/courses/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/courses"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:e8870a9130dd4f18",
+    "title": "Cursos administrativos · Jobs",
+    "file": "apps/web/src/app/admin/courses/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/courses"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:dd2c46c572119021",
+    "title": "Cursos administrativos · Incidents",
+    "file": "apps/web/src/app/admin/courses/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/courses"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:69b48c6d0a6a6d5d",
+    "title": "Curso: formulario de creación y edición",
+    "file": "apps/web/src/app/admin/courses/course-editor.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/courses"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:29b9d59c21c3de09",
+    "title": "Curso: sesiones y calendario",
+    "file": "apps/web/src/app/admin/courses/course-sessions.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/courses"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:fb15ed807a5c5b19",
+    "title": "Curso: revisar solicitud y decisiones",
+    "file": "apps/web/src/app/admin/courses/course-review.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/courses"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:003da3b48f3e40c8",
+    "title": "Niveles · Belts",
+    "file": "apps/web/src/app/admin/levels/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/levels"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:ac76710d0a693cb5",
+    "title": "Niveles · Techniques",
+    "file": "apps/web/src/app/admin/levels/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/levels"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:2726bfcd58988d8a",
+    "title": "Cinturón: edición en línea, colores y técnicas",
+    "file": "apps/web/src/app/admin/levels/belt-editor.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/levels"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:85c84b940164529f",
+    "title": "Cinturón: confirmación para descartar cambios",
+    "file": "apps/web/src/app/admin/levels/belt-editor.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/levels"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:34b860320a791a63",
+    "title": "Técnicas: alta, cambio de nombre y confirmación de eliminación",
+    "file": "apps/web/src/app/admin/levels/techniques-library.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/levels"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:1d514a34136ae135",
+    "title": "Equipo: crear coach, administrador o propietario según permisos",
+    "file": "apps/web/src/app/admin/staff/direct-staff-form.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/staff"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:ce97a272f556e286",
+    "title": "Equipo: directorio y confirmación de cambio de rol",
+    "file": "apps/web/src/app/admin/staff/team-directory.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/staff"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:33cce301c1284372",
+    "title": "Equipo: disponibilidad, asignaciones y revocación",
+    "file": "apps/web/src/app/admin/staff/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/staff"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:608e6b161a6e864f",
+    "title": "Consentimientos administrativos · Versions",
+    "file": "apps/web/src/app/admin/waivers/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/waivers"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:0998762d9ddfcf67",
+    "title": "Consentimientos administrativos · Acceptances",
+    "file": "apps/web/src/app/admin/waivers/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/waivers"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:ce16c35e41d6e272",
+    "title": "Avisos: audiencia y publicación",
+    "file": "apps/web/src/app/admin/waivers/disclaimer-admin.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/waivers"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  },
+  {
+    "id": "flow:54bd0554991710fe",
+    "title": "Informes: operaciones, progreso y exportaciones",
+    "file": "apps/web/src/app/admin/reports/page.tsx",
+    "anchor": "export",
+    "routes": [
+      "/admin/reports"
+    ],
+    "context": "Recorrido agrupado para revisión manual. Abrir los elementos de este archivo para ver controles, ramas y estados individuales."
+  }
+]

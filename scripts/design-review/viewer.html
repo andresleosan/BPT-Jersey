@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BPT Jersey · Mapa de revisión</title>
+  <style>
+    :root{--purple:#2f2483;--lime:#d9f36a;--paper:#f2f1ed;--ink:#1a1a18;--muted:#65635d;--line:#d6d4cc;--green:#176b49}
+    *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 "Source Sans 3",Arial,sans-serif}button,input,select,textarea{font:inherit}button,a,input,select,textarea{touch-action:manipulation}button,select,input[type=search],input[type=url]{min-height:44px}button{cursor:pointer;border:1px solid var(--line);background:white;color:var(--ink);padding:8px 14px}button:hover{border-color:var(--purple);background:#f0efff}button.primary{background:var(--purple);color:white;border-color:var(--purple)}a{color:var(--purple);text-underline-offset:3px}a,button{overflow-wrap:anywhere}:focus-visible{outline:3px solid var(--purple);outline-offset:3px}header :focus-visible{outline-color:var(--lime)}input[type=checkbox]{width:20px;height:20px;accent-color:var(--purple)}input,select,textarea{border:1px solid #8a8880;background:white;color:var(--ink);padding:8px}textarea{width:100%;resize:vertical;min-height:90px}h1,h2,h3,p{margin-top:0}h1,h2,h3{line-height:1.1}h1{font-family:"Barlow Condensed","Arial Narrow",Impact,sans-serif;font-size:clamp(2.6rem,6vw,5.3rem);font-weight:700;letter-spacing:.02em;text-transform:uppercase;max-width:800px;margin-bottom:16px}h2{font-size:1.75rem}h3{font-size:1.15rem}small,.muted{color:var(--muted)}.eyebrow{font-size:.75rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase}.skip{position:absolute;left:12px;top:-100px;background:white;padding:12px;z-index:3}.skip:focus{top:12px}header{background:var(--purple);color:white;padding:40px max(24px,calc((100vw - 1400px)/2));border-bottom:8px solid var(--lime)}header p{max-width:760px}header .eyebrow{color:var(--lime)}header a{color:white}.header-foot{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}.stats{display:flex;gap:32px;flex-wrap:wrap;margin-top:28px}.stat b{display:block;font-size:2rem;line-height:1.1;color:var(--lime)}.stat span{font-size:.9rem}.workspace{max-width:1450px;margin:auto;padding:28px 24px 64px}.toolbar{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:18px}.toolbar label{display:flex;flex-direction:column;gap:4px;font-size:.85rem;font-weight:600}.toolbar label.grow{flex:1;min-width:220px}.toolbar select{max-width:320px}.notice{border-left:4px solid var(--purple);background:#f0efff;padding:12px 16px;margin-bottom:20px}.notice.warning{border-color:#765400;background:#fff8e6}.tools{margin:18px 0;border:1px solid var(--line);padding:12px 16px}.tools summary{cursor:pointer;font-weight:600;min-height:32px}.tools p{max-width:85ch;margin:12px 0}.tools .toolbar{margin-top:14px}.view-buttons{display:flex;gap:0}.view-buttons button[aria-pressed=true]{background:var(--ink);color:white}.progress-track{background:#d9d8d2;height:8px}.progress-fill{background:var(--green);height:100%;width:0}.map-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px}.area{background:white;border:1px solid var(--line);min-width:0}.area-header{padding:22px 22px 14px;border-bottom:1px solid var(--line)}.area-header h2{font-size:1.35rem;margin-bottom:8px}.route-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center;padding:16px 22px;border-bottom:1px solid var(--line)}.route-row:last-child{border-bottom:0}.route-row label{min-height:44px;display:flex;align-items:center}.route-title{font-weight:650;margin-bottom:3px}.route-path{font:12px/1.5 ui-monospace,monospace;color:var(--muted);overflow-wrap:anywhere}.route-row .meta{font-size:.78rem;margin-top:4px}.done .route-title,.done .item-title{color:var(--green)}.scope-heading{display:flex;justify-content:space-between;align-items:start;gap:20px;padding:24px;background:white;border:1px solid var(--line);margin-bottom:18px}.scope-heading h2{margin-bottom:8px}.scope-heading p{margin-bottom:8px}.item{border:1px solid var(--line);background:white;margin-bottom:10px}.item-top{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:12px;padding:15px 18px;align-items:start}.item-check{display:flex;align-items:center;justify-content:center;min-height:44px}.item-title{font-size:1rem;font-weight:650;overflow-wrap:anywhere;margin-bottom:4px}.badge{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--purple);margin-bottom:4px}.item details{border-top:1px solid var(--line);padding:8px 18px 8px 74px}.item summary{cursor:pointer;font-size:.85rem;min-height:30px}.item .context{overflow-wrap:anywhere;white-space:pre-wrap;font-size:.85rem;margin:12px 0}.item .source{font-size:.78rem;overflow-wrap:anywhere}.item .dimensions{display:flex;gap:18px;flex-wrap:wrap;margin:14px 0}.dimensions label{display:flex;align-items:center;gap:8px;min-height:44px}.item .note-label{display:block;font-weight:600;font-size:.85rem;margin:12px 0 4px}.item .phase{font-size:.85rem;max-width:170px}.stale{border-left:4px solid #765400}.stale-label{font-weight:600;color:#765400;font-size:.8rem}.result-bar{display:flex;justify-content:space-between;align-items:center;gap:16px;margin:18px 0}.pagination{display:flex;align-items:center;gap:14px}.empty{padding:40px;border:1px solid var(--line);background:white}.hidden,[hidden]{display:none!important}footer{margin-top:32px;padding-top:20px;border-top:1px solid var(--line);font-size:.85rem;color:var(--muted)}code{font-size:.85em;overflow-wrap:anywhere}.manual-form{display:grid;gap:12px;max-width:800px;margin-top:16px}.manual-form label{display:grid;gap:4px}.manual-form input,.manual-form select{width:100%}.count-line{font-size:.85rem;color:var(--muted)}
+    @media(max-width:800px){.map-grid{grid-template-columns:1fr}.workspace{padding:20px 14px}.item-top{grid-template-columns:32px minmax(0,1fr);padding:12px}.item .phase{grid-column:2;max-width:100%;width:100%}.item details{padding-left:16px}.scope-heading{display:block;padding:18px}.route-row{padding:14px}.toolbar label,.toolbar select{width:100%;max-width:none}.toolbar button{flex-grow:1}.stats{gap:20px}.result-bar{flex-wrap:wrap}header{padding:30px 20px}.pagination{flex-wrap:wrap}}
+    @media print{header{background:white;color:black;border-color:black;padding:15px}header .eyebrow,.stat b{color:black}.toolbar,.tools,.view-buttons,.pagination,.item select,.route-row button{display:none!important}.workspace{padding:0}.map-grid{display:block}.area{break-inside:avoid;margin-bottom:20px}.item{break-inside:avoid}footer{display:none}}
+  </style>
+</head>
+<body>
+<a class="skip" href="#main">Ir al mapa</a>
+<header>
+  <p class="eyebrow">BPT Jersey / Cuaderno de diseño</p>
+  <h1>Cada pantalla.<br>Cada detalle.</h1>
+  <p>Mapa de páginas y de lo que ocurre dentro: pestañas, formularios, pasos, confirmaciones, roles y estados. Marca cada revisión y continúa donde lo dejaste.</p>
+  <div class="stats" id="stats"></div>
+</header>
+<main class="workspace" id="main">
+  <div class="notice" id="save-status" role="status" aria-live="polite"></div>
+  <div class="toolbar">
+    <div class="view-buttons" aria-label="Vista del cuaderno">
+      <button id="map-view" aria-pressed="true">Mapa de páginas</button>
+      <button id="list-view" aria-pressed="false">Lista de verificación</button>
+    </div>
+    <button id="export">Exportar avance</button>
+    <button id="import">Importar avance</button>
+    <input type="file" id="import-file" accept="application/json,.json" hidden>
+  </div>
+  <details class="tools">
+    <summary>Cómo usar el mapa y qué cubre</summary>
+    <p><strong>1.</strong> Abre un área y pulsa «Revisar». <strong>2.</strong> Trabaja con los recorridos agrupados y después con el inventario completo. <strong>3.</strong> Guarda observaciones y marca cada elemento. <strong>4.</strong> Aprueba la página cuando hayas repasado sus partes. La aprobación de una página es manual: no marca automáticamente sus piezas.</p>
+    <p>«Hecho» significa que tú has aprobado ese elemento. «No aplica» requiere una explicación en las notas. Las casillas de móvil y escritorio sirven para registrar cada formato. Los componentes compartidos se marcan una sola vez; sus diferencias por contexto se revisan en cada página.</p>
+    <p>El guardado es local a este navegador y archivo. <strong>Exporta tu avance como copia de seguridad</strong> y para cambiar de equipo. Importar combina las revisiones por fecha; no borra las demás. La lista Markdown es una alternativa independiente y no sincroniza sus marcas con este visor.</p>
+    <p id="scope"></p>
+    <p>Las ramas y nombres técnicos son evidencia del código, no errores detectados. «Sin ruta» conserva piezas que el análisis no pudo asociar. No se han abierto sesiones reales ni se han realizado pruebas visuales. No escribas datos personales de miembros en las notas.</p>
+    <p id="coverage"></p>
+    <div class="toolbar"><label class="grow">Dirección del sitio para abrir páginas<input id="base-url" type="url" placeholder="https://www.bptjersey.com"></label><button id="save-url">Guardar dirección</button><button id="print">Imprimir vista</button></div>
+  </details>
+  <div class="toolbar" id="filters">
+    <label class="grow">Buscar<input id="search" type="search" placeholder="Página, pestaña, mensaje, control o archivo…"></label>
+    <label>Área<select id="area"><option value="">Todas las áreas</option></select></label>
+    <label>Estado<select id="status"><option value="">Todos</option><option value="pending">Pendiente</option><option value="review">En revisión</option><option value="design">Diseño definido</option><option value="implemented">Implementado</option><option value="done">Hecho / aprobado</option><option value="na">No aplica</option><option value="remaining">Todo lo que falta</option><option value="stale">Código cambiado: revisar de nuevo</option></select></label>
+  </div>
+  <div class="toolbar" id="list-filters" hidden>
+    <label>Página<select id="route"><option value="">Todas las páginas</option><option value="__loose">Sin ruta asociada</option></select></label>
+    <label>Detalle<select id="detail"><option value="guide">Páginas y recorridos agrupados</option><option value="all">Inventario completo</option><option value="component">Archivos de interfaz</option></select></label>
+    <label>Tipo<select id="kind"><option value="">Todos los tipos</option></select></label>
+    <label><span>Componentes compartidos del layout</span><input id="shared" type="checkbox"></label>
+  </div>
+  <div id="scope-heading"></div>
+  <div class="result-bar"><p id="result-count" class="count-line" role="status" aria-live="polite"></p><div id="pagination" class="pagination"></div></div>
+  <div id="content"></div>
+  <details class="tools">
+    <summary>Añadir una parte descubierta durante la revisión</summary>
+    <p>Registra una combinación de rol, estado o paso que necesite su propia revisión. Se conserva en la exportación de avance.</p>
+    <form id="manual-form" class="manual-form">
+      <label>Qué revisar<input id="manual-title" required maxlength="240" placeholder="Ejemplo: calendario de un tutor con varios hijos"></label>
+      <label>Página<select id="manual-route" required></select></label>
+      <label>Contexto<textarea id="manual-context" maxlength="3000" placeholder="Cómo llegar a esta variante y qué debe comprobarse"></textarea></label>
+      <button class="primary" type="submit">Añadir a la lista</button>
+    </form>
+  </details>
+  <footer id="footer"></footer>
+</main>
+<script type="application/json" id="inventory">__INVENTORY_JSON__</script>
+<script>
+'use strict';
+const data = JSON.parse(document.getElementById('inventory').textContent);
+const key = 'bpt-jersey-design-review-v1';
+const statuses = {pending:'Pendiente',review:'En revisión',design:'Diseño definido',implemented:'Implementado',done:'Hecho / aprobado',na:'No aplica'};
+const $ = id => document.getElementById(id);
+const el = (tag, text, cls) => { const n = document.createElement(tag); if(text !== undefined) n.textContent=text; if(cls) n.className=cls; return n; };
+let saved = {schema:1,project:'BPT-Jersey',entries:{},custom:[],baseUrl:data.baseUrl};
+let storageAvailable = true;
+function validate(raw) {
+  if (!raw || raw.schema!==1 || raw.project!=='BPT-Jersey' || !raw.entries || typeof raw.entries!=='object' || Array.isArray(raw.entries)) throw new Error('El archivo no es un avance válido de este mapa.');
+  const entries=Object.create(null);
+  for(const [id,r] of Object.entries(raw.entries)) {
+    if(!/^(route:|ui:|file:|flow:|manual:)/.test(id) || id.length>600 || !r || !Object.hasOwn(statuses,r.status) || typeof r.notes!=='string' || r.notes.length>20000 || (r.status==='na'&&!r.notes.trim()) || typeof r.updatedAt!=='string' || !Number.isFinite(Date.parse(r.updatedAt))) throw new Error('Hay revisiones con formato no válido. No se ha importado el archivo.');
+    entries[id]={status:r.status,notes:r.notes,mobile:r.mobile===true,desktop:r.desktop===true,updatedAt:r.updatedAt,fingerprint:typeof r.fingerprint==='string'?r.fingerprint:''};
+  }
+  const custom=[];
+  if(raw.custom!==undefined&&!Array.isArray(raw.custom))throw new Error('La lista de elementos manuales no es válida.');
+  for(const i of raw.custom??[]) {
+    if(!i || typeof i.id!=='string' || !i.id.startsWith('manual:') || typeof i.title!=='string' || i.title.length>240 || !Array.isArray(i.routes) || !i.routes.every(r=>data.routes.some(x=>x.route===r))) throw new Error('Hay elementos manuales con formato no válido.');
+    custom.push({id:i.id,title:i.title,context:String(i.context??'').slice(0,3000),routes:i.routes,kind:'manual',source:'manual',file:'',line:0,fingerprint:String(i.fingerprint??i.id)});
+  }
+  return {schema:1,project:'BPT-Jersey',entries,custom,baseUrl:safeBase(raw.baseUrl??data.baseUrl)};
+}
+function safeBase(value) { const u=new URL(value); if(!['http:','https:'].includes(u.protocol)||u.username||u.password) throw new Error('Usa una dirección http o https sin credenciales.'); return u.origin; }
+try { const raw=localStorage.getItem(key); if(raw) saved=validate(JSON.parse(raw)); }
+catch(e) { storageAvailable=false; $('save-status').textContent='No se pudo recuperar el guardado local. Puedes trabajar y exportar el avance. '+e.message; $('save-status').classList.add('warning'); }
+function persist() {
+  if(!storageAvailable) { $('save-status').textContent='Guardado local no disponible. Exporta el avance antes de cerrar este archivo.'; return; }
+  try { localStorage.setItem(key,JSON.stringify(saved)); $('save-status').textContent='Avance guardado en este navegador. Exporta una copia antes de cambiar de equipo o borrar los datos del navegador.'; }
+  catch(e) { storageAvailable=false; $('save-status').textContent='No se pudo guardar en el navegador. Exporta el avance para conservar los cambios.'; $('save-status').classList.add('warning'); }
+}
+if(storageAvailable) $('save-status').textContent='Avance local preparado. Marca lo que revises y exporta una copia cuando termines.';
+let mode='map', page=0;
+const pageSize=60;
+const all=()=>[...data.items,...saved.custom];
+const blank=()=>({status:'pending',notes:'',mobile:false,desktop:false,updatedAt:'',fingerprint:''});
+const record=i=>saved.entries[i.id]??blank();
+const stale=i=>{const r=record(i);return !!r.fingerprint&&r.fingerprint!==i.fingerprint;};
+const finished=i=>!stale(i)&&['done','na'].includes(record(i).status);
+const phase=i=>stale(i)?'stale':record(i).status;
+function update(i, patch, stamp=false) {
+  const next={...record(i),...patch,updatedAt:new Date().toISOString()};
+  if(stamp||!next.fingerprint) next.fingerprint=i.fingerprint;
+  saved.entries[i.id]=next;persist();renderStats();
+}
+function sourceLink(i) { const a=el('a',`${i.file}:${i.line}`);a.href=`https://github.com/andresleosan/BPT-Jersey/blob/${data.revision}/${i.file}#L${i.line}`;a.target='_blank';a.rel='noopener noreferrer';return a; }
+function pageLink(route) {const a=el('a','Abrir página ↗');a.href=new URL(route,saved.baseUrl).href;a.target='_blank';a.rel='noopener noreferrer';return a;}
+function renderStats() {
+  const list=all(), pages=list.filter(i=>i.kind==='página'), pieces=list.filter(i=>i.kind!=='página');
+  const values=[[pages.filter(finished).length+' / '+pages.length,'páginas cerradas'],[pieces.filter(finished).length+' / '+pieces.length,'partes cerradas'],[list.filter(i=>!finished(i)).length,'elementos por revisar'],[list.filter(i=>record(i).status==='na'&&!stale(i)).length,'marcados «no aplica»']];
+  $('stats').replaceChildren(...values.map(([num,label])=>{const d=el('div',undefined,'stat');d.append(el('b',num),el('span',label));return d;}));
+}
+const areas=[...new Set(data.routes.map(r=>r.area))];
+areas.forEach(a=>$('area').add(new Option(a,a)));
+data.routes.forEach(r=>{ $('route').add(new Option(`${r.route} · ${r.name}`,r.route));$('manual-route').add(new Option(`${r.route} · ${r.name}`,r.route));});
+[...new Set(data.items.map(i=>i.kind)),'manual'].sort().forEach(k=>$('kind').add(new Option(k,k)));
+$('scope').textContent=data.scope;
+$('coverage').textContent=`${data.routes.length} rutas; ${data.sourceFiles.length} archivos de código; ${data.looseFiles.length} archivos de interfaz y ${data.looseItems.length} elementos sin ruta; ${data.unresolved.length} imports locales sin resolver. Actualización del inventario: ${data.delta.added.length} altas, ${data.delta.removed.length} bajas, ${data.delta.changed.length} cambios.`;
+$('base-url').value=saved.baseUrl;
+$('footer').textContent=`Inventario del ${new Date(data.generatedAt).toLocaleString('es')}. Código base ${data.revision.slice(0,12)}. Las marcas son tuyas; el inventario no presupone que una página esté revisada.`;
+function matchStatus(i) {const s=$('status').value;return !s||(s==='remaining'?!finished(i):phase(i)===s);}
+function matches(i,ignoreDetail=false) {
+  const query=$('search').value.toLocaleLowerCase().trim(),area=$('area').value,route=$('route').value;
+  if(query&&!`${i.title} ${i.context} ${i.file} ${i.routes.join(' ')}`.toLocaleLowerCase().includes(query))return false;
+  if(area&&!i.routes.some(r=>data.routes.some(x=>x.route===r&&x.area===area)))return false;
+  if(!matchStatus(i))return false;
+  if(mode==='list') {
+    if(route==='__loose'&&i.routes.length)return false;
+    if(route&&route!=='__loose'&&!i.routes.includes(route))return false;
+    const r=data.routes.find(r=>r.route===route);
+    if(r&&!$('shared').checked&&i.source!=='curado'&&i.source!=='manual'&&i.kind!=='página'&&!r.directFiles.includes(i.file))return false;
+    if($('kind').value&&i.kind!==$('kind').value)return false;
+    if(!ignoreDetail&&$('detail').value==='guide'&&i.kind!=='página'&&i.source!=='curado'&&i.source!=='manual')return false;
+    if(!ignoreDetail&&$('detail').value==='component'&&i.kind!=='componente')return false;
+  }
+  return true;
+}
+function checkbox(i, title) {
+  const label=el('label',undefined,'item-check'),input=el('input');input.type='checkbox';input.checked=phase(i)==='done';input.setAttribute('aria-label',`${title}: ${i.title}`);input.addEventListener('change',()=>{update(i,{status:input.checked?'done':'pending'},true);render();});label.append(input);return label;
+}
+function openRoute(route) {mode='list';page=0;$('route').value=route;$('detail').value='guide';$('kind').value='';$('status').value='';$('search').value='';$('area').value='';render();$('scope-heading').scrollIntoView({block:'start'});}
+function renderMap() {
+  const query=$('search').value.toLocaleLowerCase().trim();
+  const matchingRoutes=new Set(query?all().filter(i=>`${i.title} ${i.context} ${i.file} ${i.routes.join(' ')}`.toLocaleLowerCase().includes(query)).flatMap(i=>i.routes):data.routes.map(r=>r.route));
+  const list=data.items.filter(i=>i.kind==='página'&&matchingRoutes.has(i.routes[0])&&matchStatus(i)&&(!$('area').value||data.routes.find(r=>r.id===i.id).area===$('area').value));
+  $('result-count').textContent=`${list.length} de ${data.routes.length} páginas. La casilla de cada página registra tu aprobación global.`;
+  const grid=el('div',undefined,'map-grid');
+  for(const area of areas) {
+    const rs=data.routes.filter(r=>r.area===area&&list.some(i=>i.id===r.id));if(!rs.length)continue;
+    const section=el('section',undefined,'area'),head=el('div',undefined,'area-header');
+    const count=rs.filter(r=>finished(data.items.find(i=>i.id===r.id))).length;
+    head.append(el('p',`${count} / ${rs.length} páginas cerradas`,'eyebrow'),el('h2',area));
+    const track=el('div',undefined,'progress-track'),fill=el('div',undefined,'progress-fill');fill.style.width=(count/rs.length*100)+'%';track.append(fill);head.append(track);section.append(head);
+    for(const r of rs) {
+      const i=data.items.find(i=>i.id===r.id),row=el('div',undefined,`route-row ${finished(i)?'done':''}`),body=el('div');
+      body.append(el('div',r.name,'route-title'),el('div',r.route,'route-path'));
+      const parts=all().filter(x=>x.id!==i.id&&x.routes.includes(r.route));
+      body.append(el('div',`${parts.filter(finished).length} / ${parts.length} partes asociadas · ${phase(i)==='stale'?'Código cambiado':statuses[record(i).status]}`,'meta'));
+      if(r.target)body.append(el('div',`Destino: ${r.target}`,'route-path'));
+      const button=el('button','Revisar');button.setAttribute('aria-label',`Revisar ${r.name}`);button.onclick=()=>openRoute(r.route);row.append(checkbox(i,'Aprobar página'),body,button);section.append(row);
+    }grid.append(section);
+  }
+  $('content').append(grid);if(!list.length)$('content').append(el('p','No hay páginas con estos filtros.','empty'));
+}
+function renderItem(i) {
+  const r=record(i),article=el('article',undefined,`item ${finished(i)?'done':''} ${stale(i)?'stale':''}`),top=el('div',undefined,'item-top'),body=el('div');
+  body.append(el('div',`${i.kind}${i.source==='curado'?' · recorrido agrupado':''}`,'badge'),el('div',i.title,'item-title'),el('div',i.file||i.routes.join(', '),'route-path'));
+  if(stale(i))body.append(el('div','El código cambió desde tu última revisión. Confirma de nuevo el estado al terminar.','stale-label'));
+  const select=el('select',undefined,'phase');select.setAttribute('aria-label',`Estado de ${i.title}`);Object.entries(statuses).forEach(([v,t])=>select.add(new Option(t,v)));select.value=r.status;
+  const details=el('details'),summary=el('summary','Contexto, formatos y notas');details.append(summary);
+  if(i.context)details.append(el('p',i.context,'context'));
+  if(i.file){const source=el('p',undefined,'source');source.append(sourceLink(i));details.append(source);}
+  details.append(el('p',`Rutas asociadas por código: ${i.routes.join(', ')||'Ninguna; confirmar si esta pieza sigue en uso.'}`,'source'));
+  if(i.kind==='página') details.append(el('p','Antes de aprobar: revisar sus recorridos, móvil, escritorio, teclado, roles y estados aplicables. Para rutas con identificadores, abre primero un registro desde el listado.','context'));
+  const dims=el('div',undefined,'dimensions');
+  for(const [field,labelText] of [['mobile','Móvil revisado'],['desktop','Escritorio revisado']]) {const label=el('label'),input=el('input');input.type='checkbox';input.checked=r[field];input.onchange=()=>update(i,{[field]:input.checked});label.append(input,document.createTextNode(labelText));dims.append(label);}details.append(dims);
+  const label=el('label','Observaciones, propuesta o motivo de «no aplica»','note-label'),notes=el('textarea');notes.maxLength=20000;notes.value=r.notes;notes.id=`notes-${i.id}`;label.htmlFor=notes.id;notes.oninput=()=>update(i,{notes:notes.value});details.append(label,notes);
+  select.onchange=()=>{if(select.value==='na'&&!notes.value.trim()){select.value=record(i).status;details.open=true;notes.focus();$('save-status').textContent='Explica en las notas por qué este elemento no aplica y vuelve a seleccionarlo.';return;}update(i,{status:select.value},true);render();};
+  top.append(checkbox(i,'Marcar revisado y aprobado'),body,select);article.append(top,details);return article;
+}
+function renderList() {
+  const route=data.routes.find(r=>r.route===$('route').value);
+  if(route) {
+    const block=el('section',undefined,'scope-heading'),body=el('div');body.append(el('p',route.area,'eyebrow'),el('h2',route.name),el('p',route.route,'route-path'));
+    body.append(el('p',route.target?`Esta ruta abre ${route.target}. Revisa la transición y el destino.`:'Primero revisa los recorridos; cambia a «Inventario completo» para marcar cada control, rama y estado.'));
+    block.append(body,pageLink(route.route));$('scope-heading').append(block);
+  }
+  const list=all().filter(i=>matches(i));const maxPage=Math.max(0,Math.ceil(list.length/pageSize)-1);page=Math.min(page,maxPage);
+  $('result-count').textContent=`${list.length} elementos con estos filtros · ${list.filter(finished).length} cerrados · ${list.filter(i=>!finished(i)).length} pendientes. ${$('detail').value==='guide'?'Mostrando recorridos; el detalle completo está en el selector.':''}`;
+  for(const i of list.slice(page*pageSize,(page+1)*pageSize))$('content').append(renderItem(i));
+  if(!list.length)$('content').append(el('p','No hay elementos con estos filtros. Prueba «Inventario completo» o activa los componentes compartidos.','empty'));
+  const prev=el('button','Anterior'),next=el('button','Siguiente');prev.disabled=page===0;next.disabled=page===maxPage;prev.onclick=()=>{page--;render();$('result-count').scrollIntoView();};next.onclick=()=>{page++;render();$('result-count').scrollIntoView();};
+  $('pagination').append(prev,el('span',`${page+1} / ${maxPage+1}`),next);
+}
+function render() {
+  renderStats();$('content').replaceChildren();$('pagination').replaceChildren();$('scope-heading').replaceChildren();$('list-filters').hidden=mode!=='list';$('map-view').setAttribute('aria-pressed',String(mode==='map'));$('list-view').setAttribute('aria-pressed',String(mode==='list'));
+  if(mode==='map')renderMap();else renderList();
+}
+for(const id of ['area','status','route','detail','kind','shared'])$(id).onchange=()=>{page=0;if(id==='kind'&&$('kind').value)$('detail').value='all';if(id==='detail')$('kind').value='';if(id==='route'&&$('route').value==='__loose')$('detail').value='all';render();};
+let searchTimer;$('search').oninput=()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{page=0;render();},180);};
+$('map-view').onclick=()=>{mode='map';page=0;render();};$('list-view').onclick=()=>{mode='list';page=0;render();};
+$('save-url').onclick=()=>{try{saved.baseUrl=safeBase($('base-url').value);$('base-url').value=saved.baseUrl;persist();render();}catch(e){$('save-status').textContent=e.message;}};
+$('print').onclick=()=>window.print();
+$('export').onclick=()=>{const payload={...saved,exportedAt:new Date().toISOString(),inventoryRevision:data.revision};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));const a=el('a');a.href=url;a.download=`bpt-revision-${new Date().toISOString().slice(0,10)}.json`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+$('import').onclick=()=>$('import-file').click();
+$('import-file').onchange=async event=>{
+  const file=event.target.files[0];if(!file)return;
+  try {
+    if(file.size>8*1024*1024)throw new Error('El archivo supera 8 MB.');
+    const incoming=validate(JSON.parse(await file.text()));
+    for(const [id,r] of Object.entries(incoming.entries)){const existing=saved.entries[id];if(!existing||Date.parse(r.updatedAt)>Date.parse(existing.updatedAt))saved.entries[id]=r;}
+    const custom=new Map(saved.custom.map(i=>[i.id,i]));for(const i of incoming.custom)if(!custom.has(i.id))custom.set(i.id,i);saved.custom=[...custom.values()];
+    persist();render();const ids=new Set(all().map(i=>i.id));const archived=Object.keys(saved.entries).filter(id=>!ids.has(id)).length;
+    $('save-status').textContent=`Avance importado.${archived?` ${archived} revisiones antiguas no están en este inventario; se conservan en las exportaciones.`:''} ${storageAvailable?'Guardado en este navegador.':'Exporta antes de cerrar; el guardado local no está disponible.'}`;
+  } catch(e) {$('save-status').textContent=`No se ha importado: ${e.message}`;} finally {event.target.value='';}
+};
+$('manual-form').onsubmit=event=>{
+  event.preventDefault();const title=$('manual-title').value.trim();if(!title)return;
+  const id='manual:'+(globalThis.crypto?.randomUUID?.()??`${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const item={id,title,context:$('manual-context').value.trim(),routes:[$('manual-route').value],kind:'manual',source:'manual',file:'',line:0,fingerprint:id};saved.custom.push(item);persist();openRoute(item.routes[0]);$('manual-title').value='';$('manual-context').value='';$('save-status').textContent='Parte añadida al recorrido. Se incluirá en la exportación de avance.';
+};
+render();
+</script>
+</body>
+</html>
