@@ -576,6 +576,8 @@ export async function assignLevel(input: AssignLevelInput): Promise<AssignLevelR
     toDefinitionKey: parsed.toDefinitionKey,
     promotedOn: parsed.promotedOn,
     ...(parsed.note === undefined ? {} : { note: parsed.note }),
+    ...(parsed.newLevelClasses === undefined ? {} : { newLevelClasses: parsed.newLevelClasses }),
+    ...(parsed.newLevelDays === undefined ? {} : { newLevelDays: parsed.newLevelDays }),
   };
   const result = await callValidated(
     "assignLevel",

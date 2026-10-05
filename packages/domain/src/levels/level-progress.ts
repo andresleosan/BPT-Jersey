@@ -149,6 +149,19 @@ export function daysAtLevel(currentLevelStartedAt: string | null, onIso: string)
   return Number.isFinite(elapsed) && elapsed > 0 ? Math.floor(elapsed / dayMs) : 0;
 }
 
+/** Owner corrections preserve the recorded start date while time continues to accrue. */
+export function adjustedDaysAtLevel(
+  currentLevelStartedAt: string | null,
+  onIso: string,
+  daysOffset = 0,
+): number {
+  if (currentLevelStartedAt === null) return 0;
+  const start = Date.parse(currentLevelStartedAt);
+  const current = Date.parse(onIso);
+  if (!Number.isFinite(start) || !Number.isFinite(current) || current < start) return 0;
+  return Math.max(0, daysAtLevel(currentLevelStartedAt, onIso) + daysOffset);
+}
+
 /** Same conversion buildStudentProgressSummary has always used. */
 export function minimumDaysOf(time: LevelCriteria["minimumTime"]): number | null {
   return time === null ? null : time.years * 365 + time.months * 30 + time.days;

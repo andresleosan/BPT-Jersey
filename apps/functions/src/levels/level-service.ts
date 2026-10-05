@@ -9,6 +9,7 @@ import {
   buildGraduationId,
   buildStudentProgressSummary,
   buildUninitializedStudentProgressSummary,
+  adjustedDaysAtLevel,
   countClassesAtLevel,
   daysAtLevel,
   generateRecognitionCandidates,
@@ -295,6 +296,7 @@ export type StudentLevelHead = Readonly<{
   openedByRole?: "headCoach" | "owner" | "administrator" | null;
   source?: "regyfit-import";
   importedBaseline?: ImportedBaseline;
+  daysOffset?: number;
   state: "initialized";
   schemaVersion: "1";
   createdAt: string;
@@ -761,6 +763,45 @@ export function storedImportedBaseline(value: unknown): ImportedBaseline | null 
   return parsed.data;
 }
 
+/** Missing on old heads; an invalid correction must not silently change eligibility. */
+export function storedDaysOffset(value: unknown): number {
+  if (value === undefined) return 0;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || Math.abs(value) > 1_000_000) {
+    throw new LevelStoreError("tenant", "Days adjustment is invalid");
+  }
+  return value;
+}
+
+/** A manual count is a total through today; new attendance starts tomorrow in Jersey. */
+function ownerProgressAtAssignment(
+  input: Readonly<{ newLevelClasses?: number; newLevelDays?: number }>,
+  role: string,
+  startedAt: string,
+  now: string,
+): Readonly<{ classes: number; days: number; importedBaseline: ImportedBaseline; daysOffset: number }> | null {
+  const classes = input.newLevelClasses;
+  const days = input.newLevelDays;
+  if (classes === undefined && days === undefined) return null;
+  if (role !== "owner") {
+    throw new LevelStoreError("tenant", "Only the owner can set new-level progress");
+  }
+  if (
+    classes === undefined || days === undefined ||
+    !Number.isSafeInteger(classes) || classes < 0 || classes > 10_000 ||
+    !Number.isSafeInteger(days) || days < 0 || days > 100_000
+  ) {
+    throw new LevelStoreError("invalid", "Only the owner can set both new-level counts");
+  }
+  const tomorrow = new Date(Date.parse(`${jerseyDateOf(now)}T00:00:00.000Z`) + 86_400_000)
+    .toISOString().slice(0, 10);
+  return {
+    classes,
+    days,
+    importedBaseline: { classes, cutoff: tomorrow, source: "owner-set" },
+    daysOffset: days - daysAtLevel(startedAt, now),
+  };
+}
+
 /**
  * Task 7: what a promotion records so Task 10's `voidPromotion` can put the head back, including the
  * imported baseline the promotion drops. Shared by the Firestore and in-memory stores so the two can
@@ -771,6 +812,7 @@ export type PromotionRestore = Readonly<{
   currentLevelStartedAt: string | null;
   lastApprovedPromotionId: string | null;
   importedBaseline: ImportedBaseline | null;
+  daysOffset: number;
 }>;
 
 export function promotionRestoreOf(headData: Readonly<Record<string, unknown>>): PromotionRestore {
@@ -779,6 +821,7 @@ export function promotionRestoreOf(headData: Readonly<Record<string, unknown>>):
     currentLevelStartedAt: (headData.currentLevelStartedAt as string | null) ?? null,
     lastApprovedPromotionId: (headData.lastApprovedPromotionId as string | null) ?? null,
     importedBaseline: storedImportedBaseline(headData.importedBaseline),
+    daysOffset: storedDaysOffset(headData.daysOffset),
   });
 }
 
@@ -891,6 +934,7 @@ type VoidRestoreSnapshot = Readonly<{
   currentLevelStartedAt: string;
   lastApprovedPromotionId: string | null;
   importedBaseline: unknown;
+  daysOffset: number;
 }>;
 
 /**
@@ -952,6 +996,7 @@ function voidRestoreOf(
     currentLevelStartedAt,
     lastApprovedPromotionId,
     importedBaseline: restore.importedBaseline,
+    daysOffset: storedDaysOffset(restore.daysOffset),
   });
 }
 
@@ -1231,6 +1276,7 @@ function promotionAssignmentOf(
     decidedByRole: "headCoach" | "owner" | "administrator";
     currentLevelStartedAt: string;
     importedBaseline: ImportedBaseline | null;
+    daysOffset: number;
     attendedAt: readonly string[];
     evaluations: readonly EvaluationRecord[];
     dateOfBirth: string | null;
@@ -1243,7 +1289,7 @@ function promotionAssignmentOf(
     importedBaseline: params.importedBaseline,
     until: params.input.promotedOn,
   });
-  const daysDone = daysAtLevel(params.currentLevelStartedAt, promotedAt);
+  const daysDone = adjustedDaysAtLevel(params.currentLevelStartedAt, promotedAt, params.daysOffset);
   // `listPromotionGaps` THROWS a plain Error on a key it cannot find. Both keys here are the
   // definition records the caller already resolved against the published catalogue, so the throw
   // is unreachable; an unknown key is refused as a conflict before this helper is called.
@@ -2182,6 +2228,7 @@ export function createLevelCatalogStore({
         attendedClassesCount: counted.length,
         totalHours: totalMinutes / 60,
         currentLevelStartedAt: headData.currentLevelStartedAt ?? null,
+        daysOffset: storedDaysOffset(headData.daysOffset),
         classesAtLevel: countClassesAtLevel({
           attendedAt: counted.map((record) => record.occurredAt),
           currentLevelStartedAt: (headData.currentLevelStartedAt as string | null) ?? null,
@@ -2323,6 +2370,8 @@ export function createLevelCatalogStore({
             currentDefinitionKey: head.currentDefinitionKey as string,
             currentLevelStartedAt:
               typeof head.currentLevelStartedAt === "string" ? head.currentLevelStartedAt : null,
+            importedBaseline: storedImportedBaseline(head.importedBaseline),
+            daysOffset: storedDaysOffset(head.daysOffset),
             dateOfBirth: profile.dateOfBirth,
           },
         ];
@@ -2538,6 +2587,7 @@ export function createLevelCatalogStore({
         };
         // Grill G10: the imported baseline belongs to the level it was imported at.
         delete nextHead.importedBaseline;
+        delete nextHead.daysOffset;
         transaction.set(headRef, nextHead);
         appendAuditEventInTransaction(transaction, auditRef, audit);
         return record;
@@ -2550,6 +2600,9 @@ export function createLevelCatalogStore({
       assertLevelOpeningRole(openedByRole);
       const now = params.openedAt ?? new Date().toISOString();
       assertLevelStartNotInTheFuture(input.startedOn, now);
+      const startedOn = input.startedOn ?? jerseyDateOf(now);
+      const currentLevelStartedAt = `${startedOn}T00:00:00.000Z`;
+      const ownerProgress = ownerProgressAtAssignment(input, openedByRole, currentLevelStartedAt, now);
       const headRef = firestore.doc(
         `academies/${academyId}/studentLevelProgress/${input.studentId}`,
       );
@@ -2615,12 +2668,16 @@ export function createLevelCatalogStore({
           // disagree. Without a startedOn the day is the Jersey day of `now`, and the level
           // starts at its midnight — not at the opening instant, which at the BST boundary
           // belongs to the previous Jersey day and would over-count that day's classes.
-          currentLevelStartedAt: `${input.startedOn ?? jerseyDateOf(now)}T00:00:00.000Z`,
+          currentLevelStartedAt,
+          ...(ownerProgress === null ? {} : {
+            importedBaseline: ownerProgress.importedBaseline,
+            daysOffset: ownerProgress.daysOffset,
+          }),
           lastApprovedPromotionId: null,
           openedByStaffId,
           openingNotes: input.decisionNotes,
           openedDefinitionKey: input.definitionKey,
-          openedOn: input.startedOn ?? jerseyDateOf(now),
+          openedOn: startedOn,
           openedByRole,
           state: "initialized",
           schemaVersion: "1",
@@ -2648,6 +2705,8 @@ export function createLevelCatalogStore({
       assertPromotionDecisionRole(decidedByRole);
       const now = params.decidedAt ?? new Date().toISOString();
       assertOperatorDayNotInTheFuture("Promotion date", input.promotedOn, now);
+      const newLevelStartedAt = params.levelStartedAt ?? `${input.promotedOn}T00:00:00.000Z`;
+      const ownerProgress = ownerProgressAtAssignment(input, decidedByRole, newLevelStartedAt, now);
       const promotionId = buildGraduationId(input.studentId, input.toDefinitionKey, now);
       const promotionRef = firestore.doc(`academies/${academyId}/levelPromotions/${promotionId}`);
       const headRef = firestore.doc(
@@ -2736,6 +2795,7 @@ export function createLevelCatalogStore({
           decidedByRole,
           currentLevelStartedAt: startedAt,
           importedBaseline: storedImportedBaseline(headData.importedBaseline),
+          daysOffset: storedDaysOffset(headData.daysOffset),
           attendedAt,
           evaluations,
           dateOfBirth: student.dateOfBirth ?? null,
@@ -2768,19 +2828,27 @@ export function createLevelCatalogStore({
           proposedBy: decidedByStaffId ?? decidedBy,
           decidedByStaffId,
           restore: promotionRestoreOf(headData),
+          ...(ownerProgress === null ? {} : {
+            newLevelProgress: { classes: ownerProgress.classes, days: ownerProgress.days },
+          }),
         });
         const nextHead: Record<string, unknown> = {
           ...headData,
           currentDefinitionKey: to.definitionKey,
           // The head starts at midnight on the promotion day, so the day the promotion names and
           // the day the new level counts from are one and the same.
-          currentLevelStartedAt: params.levelStartedAt ?? `${input.promotedOn}T00:00:00.000Z`,
+          currentLevelStartedAt: newLevelStartedAt,
           lastApprovedPromotionId: promotionId,
           updatedAt: now,
           updatedBy: decidedBy,
         };
         // Grill G10: the imported baseline belongs to the level it was imported at.
         delete nextHead.importedBaseline;
+        delete nextHead.daysOffset;
+        if (ownerProgress !== null) {
+          nextHead.importedBaseline = ownerProgress.importedBaseline;
+          nextHead.daysOffset = ownerProgress.daysOffset;
+        }
         transaction.set(headRef, nextHead);
         appendAuditEventInTransaction(transaction, auditRef, audit);
         return Object.freeze({
@@ -2891,6 +2959,7 @@ export function createLevelCatalogStore({
           currentDefinitionKey: restore.currentDefinitionKey,
           currentLevelStartedAt: restore.currentLevelStartedAt,
           lastApprovedPromotionId: restore.lastApprovedPromotionId,
+          daysOffset: restore.daysOffset,
           updatedAt: now,
           updatedBy: decidedBy,
         };
@@ -3625,6 +3694,7 @@ export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
         attendedClassesCount: 0,
         totalHours: 0,
         currentLevelStartedAt: head.currentLevelStartedAt,
+        daysOffset: storedDaysOffset(head.daysOffset),
         classesAtLevel: countClassesAtLevel({
           attendedAt: [],
           currentLevelStartedAt: head.currentLevelStartedAt,
@@ -3764,6 +3834,7 @@ export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
       const nextHead: Record<string, unknown> = { ...head };
       // Grill G10: the imported baseline belongs to the level it was imported at.
       delete nextHead.importedBaseline;
+      delete nextHead.daysOffset;
       heads.set(
         headKey,
         Object.freeze({
@@ -3786,6 +3857,9 @@ export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
       assertLevelOpeningRole(openedByRole);
       const now = params.openedAt ?? new Date().toISOString();
       assertLevelStartNotInTheFuture(input.startedOn, now);
+      const startedOn = input.startedOn ?? jerseyDateOf(now);
+      const currentLevelStartedAt = `${startedOn}T00:00:00.000Z`;
+      const ownerProgress = ownerProgressAtAssignment(input, openedByRole, currentLevelStartedAt, now);
       const key = `${academyId}_${input.studentId}`;
       if (heads.has(key)) throw new LevelStoreError("conflict", "Student level is already open");
       const definition = Array.from(definitions.values()).find(
@@ -3802,12 +3876,16 @@ export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
         systemId: String(definition["systemId"]),
         currentDefinitionKey: input.definitionKey,
         // Parity with the Firestore store: one day derives both opening fields.
-        currentLevelStartedAt: `${input.startedOn ?? jerseyDateOf(now)}T00:00:00.000Z`,
+        currentLevelStartedAt,
+        ...(ownerProgress === null ? {} : {
+          importedBaseline: ownerProgress.importedBaseline,
+          daysOffset: ownerProgress.daysOffset,
+        }),
         lastApprovedPromotionId: null,
         openedByStaffId,
         openingNotes: input.decisionNotes,
         openedDefinitionKey: input.definitionKey,
-        openedOn: input.startedOn ?? jerseyDateOf(now),
+        openedOn: startedOn,
         openedByRole,
         state: "initialized",
         schemaVersion: "1",
@@ -3841,6 +3919,8 @@ export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
       assertPromotionDecisionRole(decidedByRole);
       const now = params.decidedAt ?? new Date().toISOString();
       assertOperatorDayNotInTheFuture("Promotion date", input.promotedOn, now);
+      const newLevelStartedAt = params.levelStartedAt ?? `${input.promotedOn}T00:00:00.000Z`;
+      const ownerProgress = ownerProgressAtAssignment(input, decidedByRole, newLevelStartedAt, now);
       const promotionId = buildGraduationId(input.studentId, input.toDefinitionKey, now);
       const graduationKey = `${academyId}_${input.studentId}_${promotionId}`;
       const headKey = `${academyId}_${input.studentId}`;
@@ -3875,6 +3955,7 @@ export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
         decidedByRole,
         currentLevelStartedAt: head.currentLevelStartedAt,
         importedBaseline: storedImportedBaseline(head.importedBaseline),
+        daysOffset: storedDaysOffset(head.daysOffset),
         attendedAt: [],
         evaluations: studentEvaluations,
         dateOfBirth: null,
@@ -3900,17 +3981,25 @@ export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
           updatedBy: decidedBy,
           ...assignment,
           restore: promotionRestoreOf(head),
+          ...(ownerProgress === null ? {} : {
+            newLevelProgress: { classes: ownerProgress.classes, days: ownerProgress.days },
+          }),
         }),
       );
       const nextHead: Record<string, unknown> = { ...head };
       // Grill G10: the imported baseline belongs to the level it was imported at.
       delete nextHead.importedBaseline;
+      delete nextHead.daysOffset;
+      if (ownerProgress !== null) {
+        nextHead.importedBaseline = ownerProgress.importedBaseline;
+        nextHead.daysOffset = ownerProgress.daysOffset;
+      }
       heads.set(
         headKey,
         Object.freeze({
           ...(nextHead as StudentLevelHead),
           currentDefinitionKey: to.definitionKey,
-          currentLevelStartedAt: params.levelStartedAt ?? `${input.promotedOn}T00:00:00.000Z`,
+          currentLevelStartedAt: newLevelStartedAt,
           lastApprovedPromotionId: promotionId,
           updatedAt: now,
           updatedBy: decidedBy,
@@ -3988,6 +4077,7 @@ export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
         currentDefinitionKey: restore.currentDefinitionKey,
         currentLevelStartedAt: restore.currentLevelStartedAt,
         lastApprovedPromotionId: restore.lastApprovedPromotionId,
+        daysOffset: restore.daysOffset,
         updatedAt: now,
         updatedBy: decidedBy,
       };

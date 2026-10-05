@@ -8,7 +8,9 @@ import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/
 import type { z } from "zod";
 import {
   addManualAttendanceInputSchema,
+  adjustedDaysAtLevel,
   countClassesAtLevel,
+  daysAtLevel,
   editLevelHistoryInputSchema,
   importedBaselineSchema,
   jerseyDateOf,
@@ -31,6 +33,7 @@ import {
   countedAttendance,
   createLevelCatalogStore,
   promotionRestoreOf,
+  storedDaysOffset,
 } from "./level-service.js";
 import { countedClassInstants, openMatSessionIds, readDocuments } from "./progress-adjustments.js";
 
@@ -148,6 +151,10 @@ export const getProgressManagement = onCall(browserAdminCallableOptions, async (
       ? headData.currentLevelStartedAt
       : null;
   const baseline = importedBaselineSchema.safeParse(headData?.importedBaseline);
+  const daysOffset = initialized ? storedDaysOffset(headData?.daysOffset) : 0;
+  const daysAtCurrentLevel = initialized
+    ? adjustedDaysAtLevel(startedAt, new Date().toISOString(), daysOffset)
+    : 0;
   const classesAtLevel = initialized
     ? countClassesAtLevel({
         attendedAt: counted.map((record) => record.occurredAt),
@@ -228,6 +235,7 @@ export const getProgressManagement = onCall(browserAdminCallableOptions, async (
     currentDefinitionKey: initialized ? String(headData?.currentDefinitionKey) : null,
     startedOn: startedAt === null ? null : startedAt.slice(0, 10),
     classesAtLevel,
+    daysAtLevel: daysAtCurrentLevel,
     baselineCutoff:
       baseline.success && baseline.data.source === "owner-set" ? baseline.data.cutoff : null,
     undoPromotionId: lastPromotion?.get("kind") === "owner-set" ? lastPromotionId : null,
@@ -260,6 +268,8 @@ export const setProgressLevel = onCall(browserAdminCallableOptions, async (reque
   const headRef = db.doc(`${base}/studentLevelProgress/${input.studentId}`);
   const promotionId = `owner-set_${input.studentId}_${now}`;
   const classes = input.classes ?? 0;
+  const startedAt = `${input.startedOn}T00:00:00.000Z`;
+  const days = input.days ?? daysAtLevel(startedAt, now);
   await db.runTransaction(async (transaction) => {
     const head = await transaction.get(headRef);
     const headData = head.data();
@@ -309,7 +319,8 @@ export const setProgressLevel = onCall(browserAdminCallableOptions, async (reque
     transaction.set(headRef, {
       ...headData,
       currentDefinitionKey: target.definitionKey,
-      currentLevelStartedAt: `${input.startedOn}T00:00:00.000Z`,
+      currentLevelStartedAt: startedAt,
+      daysOffset: days - daysAtLevel(startedAt, now),
       lastApprovedPromotionId: promotionId,
       // D12: the owner's count is the total up to today; attendance from tomorrow adds on top.
       importedBaseline: { classes, cutoff: tomorrowInJersey(now), source: "owner-set" },
@@ -322,7 +333,7 @@ export const setProgressLevel = onCall(browserAdminCallableOptions, async (reque
       owner,
       input.studentId,
       now,
-      `Level set to ${target.name} from ${input.startedOn}, ${classes} classes`,
+      `Level set to ${target.name} from ${input.startedOn}, ${classes} classes, ${days} days`,
       input.reason,
     );
   });
@@ -334,7 +345,7 @@ export const setProgressClassCount = onCall(browserAdminCallableOptions, async (
   const input = parse(
     setProgressClassCountInputSchema,
     request.data,
-    "Enter a whole number of classes.",
+    "Enter whole numbers of classes and days.",
   );
   const now = new Date().toISOString();
   const db = getFirestore();
@@ -352,6 +363,13 @@ export const setProgressClassCount = onCall(browserAdminCallableOptions, async (
         "Open this member's level first from their record, then set it here.",
       );
     }
+    if (typeof headData.currentLevelStartedAt !== "string") {
+      throw new HttpsError("failed-precondition", "This member's level has no start date.");
+    }
+    const daysOffset = input.days === undefined
+      ? storedDaysOffset(headData.daysOffset)
+      : input.days - daysAtLevel(headData.currentLevelStartedAt, now);
+    const days = adjustedDaysAtLevel(headData.currentLevelStartedAt, now, daysOffset);
     transaction.set(headRef, {
       ...headData,
       importedBaseline: {
@@ -359,6 +377,7 @@ export const setProgressClassCount = onCall(browserAdminCallableOptions, async (
         cutoff: tomorrowInJersey(now),
         source: "owner-set",
       },
+      daysOffset,
       updatedAt: now,
       updatedBy: owner.userId,
     });
@@ -368,7 +387,7 @@ export const setProgressClassCount = onCall(browserAdminCallableOptions, async (
       owner,
       input.studentId,
       now,
-      `Classes at this level set to ${input.classes}`,
+      `Progress at this level set to ${input.classes} classes, ${days} days`,
       input.reason,
     );
   });
@@ -657,7 +676,10 @@ export const editLevelHistory = onCall(browserAdminCallableOptions, async (reque
     };
     // Imported classes belong to the row they were counted for: a correction to that same row
     // keeps them, a different row taking over drops them (as an assignment does).
-    if (current.entryId !== previous?.entryId) delete nextHead.importedBaseline;
+    if (current.entryId !== previous?.entryId) {
+      delete nextHead.importedBaseline;
+      delete nextHead.daysOffset;
+    }
     transaction.set(headRef, nextHead);
     logChange(
       transaction,

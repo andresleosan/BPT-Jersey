@@ -2,8 +2,8 @@ import { z } from "zod";
 
 import type { LevelDefinitionRecord } from "../levels/level-contracts";
 import {
+  adjustedDaysAtLevel,
   countClassesAtLevel,
-  daysAtLevel,
   jerseyDateOf,
   minimumDaysOf,
   type ImportedBaseline,
@@ -29,6 +29,7 @@ export type GraduationReview = Readonly<{
 export type GraduationInput = Readonly<{
   target: LevelDefinitionRecord | null;
   currentLevelStartedAt: string;
+  daysOffset?: number;
   importedBaseline: ImportedBaseline | null;
   /** `countedClassInstants` output, oldest first. */
   counted: readonly CountedClassInstant[];
@@ -84,7 +85,10 @@ export function assessGraduation(input: GraduationInput): GraduationAssessment {
   const minClasses = target.criteria.minClasses;
   const minDays = minimumDaysOf(target.criteria.minimumTime);
   const startDay = input.currentLevelStartedAt.slice(0, 10);
-  const periodEndsOn = addDays(startDay, minDays ?? 0);
+  const periodEndsOn = addDays(
+    startDay,
+    minDays === null ? 0 : Math.max(0, minDays - (input.daysOffset ?? 0)),
+  );
   const attendedAt = input.counted.map((entry) => entry.occurredAt);
   const classesUntil = (until?: string) =>
     countClassesAtLevel({
@@ -94,7 +98,7 @@ export function assessGraduation(input: GraduationInput): GraduationAssessment {
       ...(until === undefined ? {} : { until }),
     }).total;
   const classesDone = classesUntil();
-  const daysDone = daysAtLevel(input.currentLevelStartedAt, now);
+  const daysDone = adjustedDaysAtLevel(input.currentLevelStartedAt, now, input.daysOffset ?? 0);
   const reviews = input.reviews
     .filter((review) => review.definitionKey === target.definitionKey)
     .sort((a, b) => a.decidedAt.localeCompare(b.decidedAt));

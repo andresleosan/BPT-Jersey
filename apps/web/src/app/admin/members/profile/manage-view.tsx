@@ -4,6 +4,7 @@
 // popstate only, so a full navigation is what switches between the record and this view.
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
+  adjustedDaysAtLevel,
   daysAtLevel,
   jerseyDateOf,
   listPromotionGaps,
@@ -185,6 +186,7 @@ export function ConfirmDialog({
 
 function AssignLevelForm({
   manualDecision,
+  ownerCanSetProgress,
   studentId,
   fullName,
   age,
@@ -195,6 +197,7 @@ function AssignLevelForm({
   onDone,
 }: Readonly<{
   manualDecision: boolean;
+  ownerCanSetProgress: boolean;
   studentId: string;
   fullName: string;
   age: number | null;
@@ -208,6 +211,8 @@ function AssignLevelForm({
   const [toKey, setToKey] = useState("");
   const [promotedOn, setPromotedOn] = useState("");
   const [note, setNote] = useState("");
+  const [newLevelClasses, setNewLevelClasses] = useState("");
+  const [newLevelDays, setNewLevelDays] = useState("");
   const [reviewing, setReviewing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -221,6 +226,9 @@ function AssignLevelForm({
   const target = later.find((definition) => definition.definitionKey === toKey);
   const classesDone = card.state === "initialized" ? card.criteria.classes.completed : 0;
   const startedAt = card.state === "initialized" ? card.currentLevelStartedAt : null;
+  const daysOffset = card.state === "initialized"
+    ? card.criteria.time.elapsedDays - daysAtLevel(startedAt, new Date().toISOString())
+    : 0;
 
   // Both keys are read out of the catalogue above, so `listPromotionGaps` cannot throw here.
   // Classes are the count as of TODAY; the server recounts them up to the promotion date and has
@@ -241,7 +249,7 @@ function AssignLevelForm({
           fromDefinitionKey: current.definitionKey,
           toDefinitionKey: target.definitionKey,
           classesDone,
-          daysDone: daysAtLevel(startedAt, `${promotedOn}T00:00:00.000Z`),
+          daysDone: adjustedDaysAtLevel(startedAt, `${promotedOn}T00:00:00.000Z`, daysOffset),
           skillScores: scores.latest,
           ageYears: age,
         });
@@ -259,6 +267,14 @@ function AssignLevelForm({
     if (target === undefined || promotedOn === "") {
       setError("Choose a level and a promotion date.");
       return;
+    }
+    if (ownerCanSetProgress && (newLevelClasses !== "" || newLevelDays !== "")) {
+      const wholeCount = (value: string, max: number) =>
+        /^(0|[1-9]\d*)$/u.test(value) && Number(value) <= max;
+      if (!wholeCount(newLevelClasses, 10_000) || !wholeCount(newLevelDays, 100_000)) {
+        setError("Enter both new-level counts as whole numbers, or leave both blank.");
+        return;
+      }
     }
     setError(null);
     setDialogError(null);
@@ -282,6 +298,9 @@ function AssignLevelForm({
         toDefinitionKey: target.definitionKey,
         promotedOn,
         ...(note.trim() === "" ? {} : { note: note.trim() }),
+        ...(ownerCanSetProgress && newLevelClasses !== "" && newLevelDays !== ""
+          ? { newLevelClasses: Number(newLevelClasses), newLevelDays: Number(newLevelDays) }
+          : {}),
       });
       setReviewing(false);
       // Critical-3: the flag is NOT cleared on success. `onDone` puts the view back into
@@ -325,6 +344,38 @@ function AssignLevelForm({
           value={promotedOn}
         />
       </label>
+      {ownerCanSetProgress ? (
+        <>
+          <label htmlFor="ibjjf-new-level-classes">
+            Classes completed in the new level through today
+            <input
+              id="ibjjf-new-level-classes"
+              max={10000}
+              min={0}
+              onChange={(event) => setNewLevelClasses(event.target.value)}
+              step={1}
+              type="number"
+              value={newLevelClasses}
+            />
+          </label>
+          <label htmlFor="ibjjf-new-level-days">
+            Days completed in the new level through today
+            <input
+              id="ibjjf-new-level-days"
+              max={100000}
+              min={0}
+              onChange={(event) => setNewLevelDays(event.target.value)}
+              step={1}
+              type="number"
+              value={newLevelDays}
+            />
+          </label>
+          <p className="ibjjf-muted">
+            Enter both counts to set the new level&apos;s progress. Leave both blank to use
+            attendance and time since the promotion date.
+          </p>
+        </>
+      ) : null}
       {error === null ? null : (
         <p className="ibjjf-error" role="alert">
           {error}
@@ -342,6 +393,12 @@ function AssignLevelForm({
           onConfirm={() => void confirm()}
           title={`Promote ${fullName} from ${current.name} to ${target.name} on ${formatDay(promotedOn) ?? promotedOn}?`}
         >
+          {ownerCanSetProgress && newLevelClasses !== "" && newLevelDays !== "" ? (
+            <p>
+              The new level will start with {newLevelClasses} classes and {newLevelDays} days
+              completed through today. These counts will be recorded with the promotion.
+            </p>
+          ) : null}
           {gaps.length === 0 ? (
             <p>All criteria BPT records for this level are met as of today.</p>
           ) : (
@@ -927,6 +984,7 @@ export function ManageView({
       return (
         <OpenLevelForm
           catalog={loaded.catalog}
+          ownerCanSetProgress={role === "owner"}
           onDone={reload}
           studentId={studentId}
           today={today}
@@ -946,6 +1004,7 @@ export function ManageView({
     return (
       <AssignLevelForm
         manualDecision={role === "owner" || role === "administrator"}
+        ownerCanSetProgress={role === "owner"}
         age={age}
         current={currentDefinition}
         data={loaded}

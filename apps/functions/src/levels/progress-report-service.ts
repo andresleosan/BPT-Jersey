@@ -6,7 +6,12 @@ import {
 } from "@bpt-jersey/domain/levels";
 import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
 import type { Firestore } from "firebase-admin/firestore";
-import type { LevelCatalogStore, GenericFirestore } from "./level-service.js";
+import {
+  storedDaysOffset,
+  storedImportedBaseline,
+  type LevelCatalogStore,
+  type GenericFirestore,
+} from "./level-service.js";
 import { openMatSessionIds, readProgressAdjustments } from "./progress-adjustments.js";
 
 export class ProgressReportStoreError extends Error {
@@ -101,6 +106,8 @@ export function createFirestoreProgressReportStore(params: {
                 : undefined,
             currentLevelStartedAt:
               typeof head?.currentLevelStartedAt === "string" ? head.currentLevelStartedAt : null,
+            importedBaseline: storedImportedBaseline(head?.importedBaseline),
+            daysOffset: storedDaysOffset(head?.daysOffset),
             // T113: the age band of the target rank is applied against it; it is never reported.
             dateOfBirth: student.dateOfBirth,
           };

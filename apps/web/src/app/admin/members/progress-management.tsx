@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  daysAtLevel,
   jerseyDateOf,
   minimumDaysOf,
   type LevelCatalogProjection,
@@ -36,6 +35,7 @@ export function ProgressManagementTab({ rows }: { rows: readonly MemberOverviewR
   const [definitionKey, setDefinitionKey] = useState("");
   const [startedOn, setStartedOn] = useState(today);
   const [classes, setClasses] = useState(0);
+  const [days, setDays] = useState(0);
   const [reason, setReason] = useState("");
   const [scope, setScope] = useState<"level" | "season">("level");
   const [addDate, setAddDate] = useState("");
@@ -56,6 +56,7 @@ export function ProgressManagementTab({ rows }: { rows: readonly MemberOverviewR
         setDefinitionKey(next.currentDefinitionKey ?? "");
         setStartedOn(next.startedOn ?? today);
         setClasses(next.classesAtLevel);
+        setDays(next.daysAtLevel);
         setReason("");
       },
       (failure: unknown) => live && setError(messageOf(failure)),
@@ -81,7 +82,6 @@ export function ProgressManagementTab({ rows }: { rows: readonly MemberOverviewR
     : undefined;
   const minClasses = next?.criteria.minClasses ?? null;
   const minDays = next ? minimumDaysOf(next.criteria.minimumTime) : null;
-  const days = daysAtLevel(`${startedOn}T00:00:00.000Z`, new Date().toISOString());
   const since =
     scope === "level"
       ? (data?.startedOn ?? "0000-01-01")
@@ -105,7 +105,7 @@ export function ProgressManagementTab({ rows }: { rows: readonly MemberOverviewR
     if (!data || !member) return;
     const levelChanged =
       definitionKey !== data.currentDefinitionKey || startedOn !== data.startedOn;
-    if (!levelChanged && classes === data.classesAtLevel) return;
+    if (!levelChanged && classes === data.classesAtLevel && days === data.daysAtLevel) return;
     void run(() =>
       levelChanged
         ? setProgressLevel({
@@ -113,9 +113,15 @@ export function ProgressManagementTab({ rows }: { rows: readonly MemberOverviewR
             definitionKey,
             startedOn,
             classes,
+            days,
             reason,
           })
-        : setProgressClassCount({ studentId: member.studentId, classes, reason }),
+        : setProgressClassCount({
+            studentId: member.studentId,
+            classes,
+            ...(days === data.daysAtLevel ? {} : { days }),
+            reason,
+          }),
     );
   }
 
@@ -131,7 +137,7 @@ export function ProgressManagementTab({ rows }: { rows: readonly MemberOverviewR
   function undoLevel() {
     if (!member || !data?.undoPromotionId) return;
     const why = window.prompt(
-      "Undo the last level change? This also restores the class count from before it. Reason (at least 10 characters):",
+      "Undo the last level change? This also restores the classes and days from before it. Reason (at least 10 characters):",
       "Undone from Progress management",
     );
     if (!why) return;
@@ -206,6 +212,7 @@ export function ProgressManagementTab({ rows }: { rows: readonly MemberOverviewR
                     // D12: a new level restarts the count unless you type one; back to the
                     // current level shows its real count again.
                     setClasses(key === data.currentDefinitionKey ? data.classesAtLevel : 0);
+                    setDays(key === data.currentDefinitionKey ? data.daysAtLevel : 0);
                   }}
                   value={definitionKey}
                 >
@@ -225,9 +232,21 @@ export function ProgressManagementTab({ rows }: { rows: readonly MemberOverviewR
                   value={startedOn}
                 />
               </label>
+              <label className="admin-filter-control">
+                Days completed through today
+                <input
+                  max={100000}
+                  min={0}
+                  onChange={(event) => setDays(Math.max(0, Math.floor(Number(event.target.value) || 0)))}
+                  step={1}
+                  type="number"
+                  value={days}
+                />
+              </label>
               <p className="progress-manage-note">
                 {days} days at this level
                 {next && minDays !== null ? ` of ${minDays} required for ${next.name}` : ""}.
+                The count grows each day after you save it.
               </p>
               {data.undoPromotionId ? (
                 <button
@@ -271,7 +290,7 @@ export function ProgressManagementTab({ rows }: { rows: readonly MemberOverviewR
                 />
               </label>
               <button className="button" disabled={busy} onClick={save} type="button">
-                {busy ? "Saving…" : "Save level and classes"}
+                {busy ? "Saving…" : "Save level and progress"}
               </button>
             </fieldset>
           </div>

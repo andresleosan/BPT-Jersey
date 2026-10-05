@@ -3,11 +3,14 @@ import { err, ok, type Result } from "../result";
 import { isLevelCatalogVersion, levelCatalogVersionShapes } from "./level-catalog-v2";
 import { isCustomLevelSystemId } from "./level-editor-contracts";
 import {
+  adjustedDaysAtLevel,
+  countClassesAtLevel,
   computeLevelProgress,
   isLevelCalendarDate,
   latestSkillRatings,
   minimumDaysOf,
   type ClassesAtLevel,
+  type ImportedBaseline,
 } from "./level-progress";
 
 export * from "./level-catalog-v2";
@@ -785,6 +788,8 @@ export type ProgressReportStudent = Readonly<{
   studentId: string;
   currentDefinitionKey?: string | undefined;
   currentLevelStartedAt?: string | null | undefined;
+  importedBaseline?: ImportedBaseline | null;
+  daysOffset?: number;
   /** T113: needed for the age band of the target rank; never reported back. */
   dateOfBirth?: string | null | undefined;
 }>;
@@ -812,13 +817,12 @@ export function buildProgressReport(options: {
     bucket.push(evaluation);
     evaluationsByStudent.set(evaluation.studentId, bucket);
   }
-  const attendedCountByStudent = new Map<string, number>();
+  const attendedAtByStudent = new Map<string, string[]>();
   for (const attendance of attendances) {
     if (!studentIds.has(attendance.studentId)) continue;
-    attendedCountByStudent.set(
-      attendance.studentId,
-      (attendedCountByStudent.get(attendance.studentId) ?? 0) + 1,
-    );
+    const dates = attendedAtByStudent.get(attendance.studentId) ?? [];
+    dates.push(attendance.attendedAt);
+    attendedAtByStudent.set(attendance.studentId, dates);
   }
 
   const levelMetrics = new Map<
@@ -835,14 +839,21 @@ export function buildProgressReport(options: {
     if (student.currentDefinitionKey === undefined) {
       continue;
     }
+    const attendedAt = attendedAtByStudent.get(student.studentId) ?? [];
     const progress = buildStudentProgressSummary({
       catalog,
       studentId: student.studentId,
       currentDefinitionKey: student.currentDefinitionKey,
       evaluations: studentEvaluations,
-      attendedClassesCount: attendedCountByStudent.get(student.studentId) ?? 0,
-      totalHours: (attendedCountByStudent.get(student.studentId) ?? 0) * 1.5,
+      attendedClassesCount: attendedAt.length,
+      totalHours: attendedAt.length * 1.5,
       currentLevelStartedAt: student.currentLevelStartedAt ?? null,
+      classesAtLevel: countClassesAtLevel({
+        attendedAt,
+        currentLevelStartedAt: student.currentLevelStartedAt ?? null,
+        importedBaseline: student.importedBaseline ?? null,
+      }),
+      daysOffset: student.daysOffset ?? 0,
       dateOfBirth: student.dateOfBirth ?? null,
       now,
     });
@@ -998,6 +1009,7 @@ export function buildStudentProgressSummary(options: {
   currentLevelStartedAt?: string | null;
   /** Grill G10: classes at the current level (baseline + BPT). Omitted by legacy callers. */
   classesAtLevel?: ClassesAtLevel;
+  daysOffset?: number;
   /** T113: only the age band of the target rank is read from it; it never leaves the summary. */
   dateOfBirth?: string | null;
   now?: string;
@@ -1011,6 +1023,7 @@ export function buildStudentProgressSummary(options: {
     totalHours = 0,
     currentLevelStartedAt = null,
     classesAtLevel,
+    daysOffset = 0,
     dateOfBirth = null,
     now = new Date().toISOString(),
   } = options;
@@ -1063,14 +1076,7 @@ export function buildStudentProgressSummary(options: {
   // Calculate time criteria
   const requiredDays = minimumDaysOf(targetDefinition?.criteria.minimumTime ?? null);
 
-  let elapsedDays = 0;
-  if (currentLevelStartedAt) {
-    const startMs = new Date(currentLevelStartedAt).getTime();
-    const nowMs = new Date(now).getTime();
-    if (!Number.isNaN(startMs) && !Number.isNaN(nowMs) && nowMs >= startMs) {
-      elapsedDays = Math.floor((nowMs - startMs) / (1000 * 86400));
-    }
-  }
+  const elapsedDays = adjustedDaysAtLevel(currentLevelStartedAt, now, daysOffset);
 
   const timeMet = requiredDays === null || elapsedDays >= requiredDays;
 
@@ -1355,6 +1361,8 @@ export function generateRecognitionCandidates(options: {
     studentName: string;
     currentDefinitionKey?: string | undefined;
     currentLevelStartedAt?: string | null | undefined;
+    importedBaseline?: ImportedBaseline | null;
+    daysOffset?: number;
     /** T113: the age band of the catalog is applied against it. */
     dateOfBirth?: string | null | undefined;
   }[];
@@ -1395,6 +1403,12 @@ export function generateRecognitionCandidates(options: {
       attendedClassesCount: studentAtts.length,
       totalHours: studentAtts.length * 1.5,
       currentLevelStartedAt: student.currentLevelStartedAt ?? null,
+      classesAtLevel: countClassesAtLevel({
+        attendedAt: studentAtts.map((attendance) => attendance.attendedAt),
+        currentLevelStartedAt: student.currentLevelStartedAt ?? null,
+        importedBaseline: student.importedBaseline ?? null,
+      }),
+      daysOffset: student.daysOffset ?? 0,
       dateOfBirth: student.dateOfBirth ?? null,
       now,
     });
@@ -1609,6 +1623,8 @@ export type OpenStudentLevelInput = Readonly<{
    * the academy's day (`assertLevelStartNotInTheFuture` in `level-service.ts`), not here.
    */
   startedOn?: string;
+  newLevelClasses?: number;
+  newLevelDays?: number;
 }>;
 
 export function parseOpenStudentLevelInput(
@@ -1619,7 +1635,9 @@ export function parseOpenStudentLevelInput(
   }
   const record = raw as Record<string, unknown>;
   const issues: ValidationIssue[] = [];
-  const allowed = new Set(["studentId", "definitionKey", "decisionNotes", "startedOn"]);
+  const allowed = new Set([
+    "studentId", "definitionKey", "decisionNotes", "startedOn", "newLevelClasses", "newLevelDays",
+  ]);
   for (const key of Object.keys(record)) {
     if (!allowed.has(key)) issues.push(issue(["input", key], "unexpected_field"));
   }
@@ -1648,6 +1666,15 @@ export function parseOpenStudentLevelInput(
   ) {
     issues.push(issue(["input", "startedOn"], "invalid_started_on_date"));
   }
+  const classes = record["newLevelClasses"];
+  const days = record["newLevelDays"];
+  if (
+    (classes !== undefined || days !== undefined) &&
+    (typeof classes !== "number" || !Number.isSafeInteger(classes) || classes < 0 || classes > 10_000 ||
+      typeof days !== "number" || !Number.isSafeInteger(days) || days < 0 || days > 100_000)
+  ) {
+    issues.push(issue(["input", "newLevelClasses"], "invalid_new_level_progress"));
+  }
   if (issues.length > 0) return err(Object.freeze(issues));
   return ok(
     Object.freeze({
@@ -1655,6 +1682,7 @@ export function parseOpenStudentLevelInput(
       definitionKey: (definitionKey as string).trim(),
       decisionNotes: (decisionNotes as string).trim(),
       ...(startedOn === undefined ? {} : { startedOn: startedOn as string }),
+      ...(classes === undefined ? {} : { newLevelClasses: classes as number, newLevelDays: days as number }),
     }),
   );
 }

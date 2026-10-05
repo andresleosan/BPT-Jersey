@@ -10,15 +10,19 @@ export function OpenLevelForm({
   catalog,
   today,
   onDone,
+  ownerCanSetProgress = false,
 }: Readonly<{
   studentId: string;
   catalog: LevelCatalogProjection;
   today: string;
   onDone: (notice: string) => void;
+  ownerCanSetProgress?: boolean;
 }>) {
   const [definitionKey, setDefinitionKey] = useState("");
   const [startedOn, setStartedOn] = useState("");
   const [notes, setNotes] = useState("");
+  const [newLevelClasses, setNewLevelClasses] = useState("");
+  const [newLevelDays, setNewLevelDays] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
@@ -35,12 +39,25 @@ export function OpenLevelForm({
       setError("Choose a level, a start date and write a short note.");
       return;
     }
+    if (ownerCanSetProgress && (newLevelClasses !== "" || newLevelDays !== "")) {
+      const wholeCount = (value: string, max: number) =>
+        /^(0|[1-9]\d*)$/u.test(value) && Number(value) <= max;
+      if (!wholeCount(newLevelClasses, 10_000) || !wholeCount(newLevelDays, 100_000)) {
+        setError("Enter both progress counts as whole numbers, or leave both blank.");
+        return;
+      }
+    }
     // Set only once the submit is going through, so a refused form can be corrected and sent.
     inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
-      await openStudentLevel({ studentId, definitionKey, startedOn, decisionNotes: notes.trim() });
+      await openStudentLevel({
+        studentId, definitionKey, startedOn, decisionNotes: notes.trim(),
+        ...(ownerCanSetProgress && newLevelClasses !== "" && newLevelDays !== ""
+          ? { newLevelClasses: Number(newLevelClasses), newLevelDays: Number(newLevelDays) }
+          : {}),
+      });
       // The flag is NOT cleared here (Critical-3): `onDone` puts the view back into `loading` and
       // this form unmounts with the reload, so nothing is left clickable over the stale data.
       onDone("Level opened.");
@@ -92,6 +109,38 @@ export function OpenLevelForm({
           value={notes}
         />
       </label>
+      {ownerCanSetProgress ? (
+        <>
+          <label htmlFor="ibjjf-open-classes">
+            Classes completed at this level through today
+            <input
+              id="ibjjf-open-classes"
+              max={10000}
+              min={0}
+              onChange={(event) => setNewLevelClasses(event.target.value)}
+              step={1}
+              type="number"
+              value={newLevelClasses}
+            />
+          </label>
+          <label htmlFor="ibjjf-open-days">
+            Days completed at this level through today
+            <input
+              id="ibjjf-open-days"
+              max={100000}
+              min={0}
+              onChange={(event) => setNewLevelDays(event.target.value)}
+              step={1}
+              type="number"
+              value={newLevelDays}
+            />
+          </label>
+          <p className="ibjjf-muted">
+            Enter both counts to set the starting progress. Leave both blank to count attendance
+            and time from the start date.
+          </p>
+        </>
+      ) : null}
       {error === null ? null : (
         <p className="ibjjf-error" role="alert">
           {error}

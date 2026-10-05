@@ -7,6 +7,7 @@ const identifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u
 const recordIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,383}$/u);
 const daySchema = z.string().refine(isLevelCalendarDate, "Use a real date (YYYY-MM-DD).");
 const classesSchema = z.number().int().min(0).max(10_000);
+const daysSchema = z.number().int().min(0).max(100_000);
 /** D11: optional everywhere; blank or missing is stored as null. */
 const reasonSchema = z
   .string()
@@ -23,6 +24,7 @@ export const setProgressLevelInputSchema = z.strictObject({
   startedOn: daySchema,
   /** D12: omitted means the count restarts at 0 for the new level. */
   classes: classesSchema.optional(),
+  days: daysSchema.optional(),
   reason: reasonSchema,
 });
 export type SetProgressLevelInput = z.input<typeof setProgressLevelInputSchema>;
@@ -30,6 +32,7 @@ export type SetProgressLevelInput = z.input<typeof setProgressLevelInputSchema>;
 export const setProgressClassCountInputSchema = z.strictObject({
   studentId: identifierSchema,
   classes: classesSchema,
+  days: daysSchema.optional(),
   reason: reasonSchema,
 });
 export type SetProgressClassCountInput = z.input<typeof setProgressClassCountInputSchema>;
@@ -103,6 +106,7 @@ export const progressManagementSchema = z.strictObject({
   currentDefinitionKey: identifierSchema.nullable(),
   startedOn: daySchema.nullable(),
   classesAtLevel: z.number().int().min(0),
+  daysAtLevel: z.number().int().min(0),
   /** D13: attendance dated before this day is already inside the owner's count. */
   baselineCutoff: daySchema.nullable(),
   /** The head's latest promotion when it is an owner level change, so the tab can offer Undo. */

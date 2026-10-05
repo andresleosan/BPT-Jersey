@@ -49,6 +49,7 @@ export async function assessStudent(
   const assessment = assessGraduation({
     target: pair.target,
     currentLevelStartedAt: head.currentLevelStartedAt,
+    daysOffset: head.daysOffset,
     importedBaseline: head.importedBaseline,
     counted: await store.counted(head.studentId),
     sessions: context.sessions,

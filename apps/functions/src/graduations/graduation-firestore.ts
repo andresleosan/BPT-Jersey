@@ -4,7 +4,7 @@ import type { GraduationReview } from "@bpt-jersey/domain/graduations";
 import { adminNotificationSchema } from "@bpt-jersey/domain/memberships/admin";
 import type { SessionRecord } from "@bpt-jersey/domain/schedule";
 
-import { countedAttendance, storedImportedBaseline } from "../levels/level-service.js";
+import { countedAttendance, storedDaysOffset, storedImportedBaseline } from "../levels/level-service.js";
 import { countedClassInstants, type CountedClass } from "../levels/progress-adjustments.js";
 import { readCanonicalMemberHistoryDocuments } from "../members/member-identity-firestore.js";
 
@@ -25,6 +25,7 @@ export type Head = Readonly<{
   systemId: string;
   currentDefinitionKey: string;
   currentLevelStartedAt: string;
+  daysOffset: number;
   importedBaseline: ReturnType<typeof storedImportedBaseline>;
   lastApprovedPromotionId: string | null;
 }>;
@@ -42,6 +43,7 @@ export function createGraduationFirestore(db: Firestore, academyId: string) {
           systemId: String(data.systemId ?? ""),
           currentDefinitionKey: data.currentDefinitionKey,
           currentLevelStartedAt: startedAt,
+          daysOffset: storedDaysOffset(data.daysOffset),
           importedBaseline: storedImportedBaseline(data.importedBaseline),
           lastApprovedPromotionId:
             typeof data.lastApprovedPromotionId === "string" ? data.lastApprovedPromotionId : null,

@@ -74,6 +74,8 @@ export const assignLevelInputSchema = z.strictObject({
   // the assign service (Task 8) owns it, as the open service (Task 9) owns it for `startedOn`.
   promotedOn: dateOnlySchema,
   note: promotionNoteSchema.optional(),
+  newLevelClasses: countSchema.max(10_000).optional(),
+  newLevelDays: countSchema.max(100_000).optional(),
 });
 export type AssignLevelInput = z.infer<typeof assignLevelInputSchema>;
 
