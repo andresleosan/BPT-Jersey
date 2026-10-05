@@ -21,6 +21,8 @@ import {
   levelHistoryEntrySchema,
   listPromotionGaps,
   minimumDaysOf,
+  manualProgressError,
+  manualProgressLimits,
   promotionNoteSchema,
   assessmentEvidenceNotesSchema,
   recordSkillRatingsInputSchema,
@@ -772,33 +774,33 @@ export function storedDaysOffset(value: unknown): number {
   return value;
 }
 
-/** A manual count is a total through today; new attendance starts tomorrow in Jersey. */
+/** Manual totals are independent and attendance resumes at the saved instant. */
 function ownerProgressAtAssignment(
   input: Readonly<{ newLevelClasses?: number | undefined; newLevelDays?: number | undefined }>,
   role: string,
   startedAt: string,
   now: string,
-): Readonly<{ classes: number; days: number; importedBaseline: ImportedBaseline; daysOffset: number }> | null {
+  definitions: readonly LevelDefinitionRecord[],
+  definitionKey: string,
+) {
   const classes = input.newLevelClasses;
   const days = input.newLevelDays;
   if (classes === undefined && days === undefined) return null;
   if (role !== "owner") {
     throw new LevelStoreError("tenant", "Only the owner can set new-level progress");
   }
-  if (
-    classes === undefined || days === undefined ||
-    !Number.isSafeInteger(classes) || classes < 0 || classes > 10_000 ||
-    !Number.isSafeInteger(days) || days < 0 || days > 100_000
-  ) {
-    throw new LevelStoreError("invalid", "Only the owner can set both new-level counts");
-  }
+  const error = manualProgressError(manualProgressLimits(definitions, definitionKey), { classes, days });
+  if (error !== null) throw new LevelStoreError("invalid", error);
   const tomorrow = new Date(Date.parse(`${jerseyDateOf(now)}T00:00:00.000Z`) + 86_400_000)
     .toISOString().slice(0, 10);
   return {
-    classes,
-    days,
-    importedBaseline: { classes, cutoff: tomorrow, source: "owner-set" },
-    daysOffset: days - daysAtLevel(startedAt, now),
+    counts: { ...(classes === undefined ? {} : { classes }), ...(days === undefined ? {} : { days }) },
+    head: {
+      ...(classes === undefined ? {} : {
+        importedBaseline: { classes, cutoff: tomorrow, countedThrough: now, source: "owner-set" as const },
+      }),
+      ...(days === undefined ? {} : { daysOffset: days - daysAtLevel(startedAt, now) }),
+    },
   };
 }
 
@@ -2602,7 +2604,11 @@ export function createLevelCatalogStore({
       assertLevelStartNotInTheFuture(input.startedOn, now);
       const startedOn = input.startedOn ?? jerseyDateOf(now);
       const currentLevelStartedAt = `${startedOn}T00:00:00.000Z`;
-      const ownerProgress = ownerProgressAtAssignment(input, openedByRole, currentLevelStartedAt, now);
+      const progressCatalog = input.newLevelClasses === undefined && input.newLevelDays === undefined
+        ? null : await this.listPublished(academyId);
+      const ownerProgress = ownerProgressAtAssignment(
+        input, openedByRole, currentLevelStartedAt, now, progressCatalog?.definitions ?? [], input.definitionKey,
+      );
       const headRef = firestore.doc(
         `academies/${academyId}/studentLevelProgress/${input.studentId}`,
       );
@@ -2652,7 +2658,8 @@ export function createLevelCatalogStore({
           !definition.exists ||
           definitionData?.academyId !== academyId ||
           definitionData.definitionKey !== input.definitionKey ||
-          definitionData.systemId !== activeSystemId
+          definitionData.systemId !== activeSystemId ||
+          (progressCatalog !== null && progressCatalog.system.systemId !== activeSystemId)
         ) {
           throw new LevelStoreError("conflict", "Level definition is not current");
         }
@@ -2669,10 +2676,7 @@ export function createLevelCatalogStore({
           // starts at its midnight — not at the opening instant, which at the BST boundary
           // belongs to the previous Jersey day and would over-count that day's classes.
           currentLevelStartedAt,
-          ...(ownerProgress === null ? {} : {
-            importedBaseline: ownerProgress.importedBaseline,
-            daysOffset: ownerProgress.daysOffset,
-          }),
+          ...(ownerProgress?.head ?? {}),
           lastApprovedPromotionId: null,
           openedByStaffId,
           openingNotes: input.decisionNotes,
@@ -2706,7 +2710,6 @@ export function createLevelCatalogStore({
       const now = params.decidedAt ?? new Date().toISOString();
       assertOperatorDayNotInTheFuture("Promotion date", input.promotedOn, now);
       const newLevelStartedAt = params.levelStartedAt ?? `${input.promotedOn}T00:00:00.000Z`;
-      const ownerProgress = ownerProgressAtAssignment(input, decidedByRole, newLevelStartedAt, now);
       const promotionId = buildGraduationId(input.studentId, input.toDefinitionKey, now);
       const promotionRef = firestore.doc(`academies/${academyId}/levelPromotions/${promotionId}`);
       const headRef = firestore.doc(
@@ -2743,6 +2746,9 @@ export function createLevelCatalogStore({
           countedAttendance(attendanceSnapshot, academyId, input.studentId, attendanceSnapshot.ids),
         )
       ).map((record) => record.occurredAt);
+      const ownerProgress = ownerProgressAtAssignment(
+        input, decidedByRole, newLevelStartedAt, now, catalog.definitions, input.toDefinitionKey,
+      );
       return firestore.runTransaction(async (transaction) => {
         await assertTransactionalActor(transaction, firestore, {
           academyId,
@@ -2829,7 +2835,7 @@ export function createLevelCatalogStore({
           decidedByStaffId,
           restore: promotionRestoreOf(headData),
           ...(ownerProgress === null ? {} : {
-            newLevelProgress: { classes: ownerProgress.classes, days: ownerProgress.days },
+            newLevelProgress: ownerProgress.counts,
           }),
         });
         const nextHead: Record<string, unknown> = {
@@ -2846,8 +2852,7 @@ export function createLevelCatalogStore({
         delete nextHead.importedBaseline;
         delete nextHead.daysOffset;
         if (ownerProgress !== null) {
-          nextHead.importedBaseline = ownerProgress.importedBaseline;
-          nextHead.daysOffset = ownerProgress.daysOffset;
+          Object.assign(nextHead, ownerProgress.head);
         }
         transaction.set(headRef, nextHead);
         appendAuditEventInTransaction(transaction, auditRef, audit);
@@ -3859,7 +3864,11 @@ export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
       assertLevelStartNotInTheFuture(input.startedOn, now);
       const startedOn = input.startedOn ?? jerseyDateOf(now);
       const currentLevelStartedAt = `${startedOn}T00:00:00.000Z`;
-      const ownerProgress = ownerProgressAtAssignment(input, openedByRole, currentLevelStartedAt, now);
+      const progressCatalog = input.newLevelClasses === undefined && input.newLevelDays === undefined
+        ? null : await this.listPublished(academyId);
+      const ownerProgress = ownerProgressAtAssignment(
+        input, openedByRole, currentLevelStartedAt, now, progressCatalog?.definitions ?? [], input.definitionKey,
+      );
       const key = `${academyId}_${input.studentId}`;
       if (heads.has(key)) throw new LevelStoreError("conflict", "Student level is already open");
       const definition = Array.from(definitions.values()).find(
@@ -3877,10 +3886,7 @@ export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
         currentDefinitionKey: input.definitionKey,
         // Parity with the Firestore store: one day derives both opening fields.
         currentLevelStartedAt,
-        ...(ownerProgress === null ? {} : {
-          importedBaseline: ownerProgress.importedBaseline,
-          daysOffset: ownerProgress.daysOffset,
-        }),
+        ...(ownerProgress?.head ?? {}),
         lastApprovedPromotionId: null,
         openedByStaffId,
         openingNotes: input.decisionNotes,
@@ -3920,7 +3926,6 @@ export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
       const now = params.decidedAt ?? new Date().toISOString();
       assertOperatorDayNotInTheFuture("Promotion date", input.promotedOn, now);
       const newLevelStartedAt = params.levelStartedAt ?? `${input.promotedOn}T00:00:00.000Z`;
-      const ownerProgress = ownerProgressAtAssignment(input, decidedByRole, newLevelStartedAt, now);
       const promotionId = buildGraduationId(input.studentId, input.toDefinitionKey, now);
       const graduationKey = `${academyId}_${input.studentId}_${promotionId}`;
       const headKey = `${academyId}_${input.studentId}`;
@@ -3929,6 +3934,9 @@ export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
         this.listPublished(academyId),
         this.listStudentEvaluations(academyId, input.studentId),
       ]);
+      const ownerProgress = ownerProgressAtAssignment(
+        input, decidedByRole, newLevelStartedAt, now, catalog.definitions, input.toDefinitionKey,
+      );
       const definitionOf = (definitionKey: string) =>
         catalog.definitions.find((definition) => definition.definitionKey === definitionKey);
       const from = definitionOf(input.fromDefinitionKey);
@@ -3982,7 +3990,7 @@ export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
           ...assignment,
           restore: promotionRestoreOf(head),
           ...(ownerProgress === null ? {} : {
-            newLevelProgress: { classes: ownerProgress.classes, days: ownerProgress.days },
+            newLevelProgress: ownerProgress.counts,
           }),
         }),
       );
@@ -3991,8 +3999,7 @@ export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
       delete nextHead.importedBaseline;
       delete nextHead.daysOffset;
       if (ownerProgress !== null) {
-        nextHead.importedBaseline = ownerProgress.importedBaseline;
-        nextHead.daysOffset = ownerProgress.daysOffset;
+        Object.assign(nextHead, ownerProgress.head);
       }
       heads.set(
         headKey,

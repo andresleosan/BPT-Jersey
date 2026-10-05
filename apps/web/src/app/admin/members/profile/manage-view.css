@@ -1,0 +1,189 @@
+.ibjjf-manage {
+  max-width: none;
+  width: 100%;
+  gap: 1.5rem;
+}
+
+.ibjjf-manage-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 1.5rem;
+}
+
+.ibjjf-manage .ibjjf-form,
+.ibjjf-manage .ibjjf-history-section,
+.ibjjf-manage .ibjjf-skills {
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
+  gap: 1rem;
+  padding: clamp(1rem, 2vw, 1.5rem);
+}
+
+.ibjjf-manage h2 {
+  font-size: 2rem;
+}
+.ibjjf-manage h3 {
+  font-size: 1.5rem;
+}
+.ibjjf-manage :is(h2, h3) {
+  text-wrap: balance;
+}
+.ibjjf-manage :is(p, dd, time, label) {
+  overflow-wrap: anywhere;
+}
+
+.ibjjf-current-counts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  min-width: 0;
+}
+
+.ibjjf-manage :is(.ibjjf-form, .ibjjf-dialog) :is(input, select, textarea) {
+  width: 100%;
+  min-width: 0;
+  font-size: 1rem;
+}
+
+.ibjjf-manage input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.ibjjf-manage input:disabled {
+  background: var(--paper-edge);
+  color: var(--muted);
+  opacity: 1;
+}
+
+.ibjjf-current-counts {
+  margin: 0;
+  padding-block: 0.75rem;
+  border-block: 1px solid var(--card-edge);
+  font-variant-numeric: tabular-nums;
+}
+.ibjjf-current-counts > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 1rem;
+}
+.ibjjf-current-counts dt {
+  color: var(--muted);
+}
+.ibjjf-current-counts dd {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.ibjjf-progress-history {
+  min-width: 0;
+  border-block: 1px solid var(--card-edge);
+}
+.ibjjf-progress-history summary {
+  cursor: pointer;
+  min-height: 3.15rem;
+  padding-block: 0.75rem;
+  font-weight: 600;
+}
+.ibjjf-progress-history summary:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+.ibjjf-progress-history > :last-child:not(summary) {
+  margin-bottom: 1rem;
+}
+.ibjjf-adjustment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ibjjf-adjustment-list li {
+  display: grid;
+  gap: 0.5rem 1.5rem;
+  border-top: 1px solid var(--card-edge);
+  padding-block: 1rem;
+}
+.ibjjf-adjustment-list p {
+  margin: 0;
+}
+.ibjjf-adjustment-list time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.ibjjf-manage .ibjjf-history td {
+  overflow-wrap: anywhere;
+}
+.ibjjf-manage .ibjjf-entry-aside {
+  font-size: 1rem;
+}
+.ibjjf-manage .ibjjf-history .ibjjf-button {
+  margin: 0.25rem;
+}
+
+@media (min-width: 48rem) {
+  .ibjjf-current-counts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ibjjf-adjustment-list li {
+    grid-template-columns: minmax(10rem, 0.3fr) minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 64rem) {
+  .ibjjf-manage-actions:has(> :nth-child(2)) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* Keep labels readable when the admin sidebar leaves a compact desktop work area. */
+  .ibjjf-manage-actions > .ibjjf-form {
+    container-type: inline-size;
+  }
+}
+
+@media (max-width: 47.99rem) {
+  .ibjjf-manage-actions {
+    gap: 1rem;
+  }
+  .ibjjf-manage .ibjjf-form > .admin-auth-button {
+    width: 100%;
+    justify-content: center;
+  }
+  .ibjjf-manage .ibjjf-history,
+  .ibjjf-manage .ibjjf-history tbody,
+  .ibjjf-manage .ibjjf-history tr,
+  .ibjjf-manage .ibjjf-history td {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+  .ibjjf-manage .ibjjf-history thead {
+    display: none;
+  }
+  .ibjjf-manage .ibjjf-history tr {
+    border-bottom: 1px solid var(--card-edge);
+    padding-block: 0.75rem;
+  }
+  .ibjjf-manage .ibjjf-history td {
+    border: 0;
+    padding: 0.5rem 0;
+  }
+  .ibjjf-manage .ibjjf-history td::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--muted);
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: normal;
+    text-transform: none;
+  }
+}
+
+.ibjjf-manage .ibjjf-dialog {
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
+  box-shadow: none;
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+}

@@ -1,6 +1,42 @@
 import { z } from "zod";
 
-import { isLevelCalendarDate } from "./level-progress";
+import { isLevelCalendarDate, minimumDaysOf } from "./level-progress";
+import type { LevelDefinitionRecord } from "./level-contracts";
+
+/** Manual edits stop before the next rank's requirements; earned progress is never capped. */
+export function manualProgressLimits(
+  definitions: readonly LevelDefinitionRecord[],
+  definitionKey: string,
+) {
+  const current = definitions.find((definition) => definition.definitionKey === definitionKey);
+  const next = current === undefined ? undefined : definitions.find(
+    (definition) => definition.sequence === current.sequence + 1,
+  );
+  const below = (minimum: number | null | undefined, ceiling: number) =>
+    minimum === null || minimum === undefined || minimum <= 0
+      ? null
+      : Math.min(minimum - 1, ceiling);
+  return {
+    classes: below(next?.criteria.minClasses, 10_000),
+    days: below(minimumDaysOf(next?.criteria.minimumTime ?? null), 100_000),
+  };
+}
+
+export function manualProgressError(
+  limits: ReturnType<typeof manualProgressLimits>,
+  input: Readonly<{ classes?: number | undefined; days?: number | undefined }>,
+): string | null {
+  for (const field of ["classes", "days"] as const) {
+    const value = input[field];
+    if (value === undefined) continue;
+    const max = limits[field];
+    if (max === null) return `This level has no ${field} requirement to adjust.`;
+    if (!Number.isSafeInteger(value) || value < 0 || value > max) {
+      return `Enter ${field} as a whole number from 0 to ${max}.`;
+    }
+  }
+  return null;
+}
 
 const identifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u);
 // Promotion ids embed an ISO instant; attendance ids are `sessionId__studentId`.
@@ -31,10 +67,13 @@ export type SetProgressLevelInput = z.input<typeof setProgressLevelInputSchema>;
 
 export const setProgressClassCountInputSchema = z.strictObject({
   studentId: identifierSchema,
-  classes: classesSchema,
+  // The profile sends the level it displayed to reject a concurrent level change.
+  definitionKey: identifierSchema.optional(),
+  classes: classesSchema.optional(),
   days: daysSchema.optional(),
   reason: reasonSchema,
-});
+}).refine((input) => input.classes !== undefined || input.days !== undefined,
+  "Enter a class count or a day count.");
 export type SetProgressClassCountInput = z.input<typeof setProgressClassCountInputSchema>;
 
 export const addManualAttendanceInputSchema = z.strictObject({
@@ -109,6 +148,7 @@ export const progressManagementSchema = z.strictObject({
   daysAtLevel: z.number().int().min(0),
   /** D13: attendance dated before this day is already inside the owner's count. */
   baselineCutoff: daySchema.nullable(),
+  baselineCountedThrough: z.string().datetime().nullish(),
   /** The head's latest promotion when it is an owner level change, so the tab can offer Undo. */
   undoPromotionId: recordIdSchema.nullable(),
   attendance: z.array(progressAttendanceRowSchema).max(1000),

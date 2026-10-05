@@ -67,6 +67,19 @@ criteria; a note is optional. The server records the decision, actor and criteri
 Coach permissions remain unchanged; historical headCoach accounts still need a note below criteria.
 Academy scope, active authorisation, valid dates and current level references remain enforced.
 
+## Manual progress totals (2026-10-05)
+
+Owners can adjust classes and days independently from Members → profile → Manage without
+changing the level or its start date. Blank fields keep their current calculation. Each saved
+adjustment records the actor, automatic timestamp and totals in Progress history; no date input
+or graduation is required. Subsequent attendance, including later check-ins on the same day,
+and elapsed days continue to accumulate in the shared level-progress calculation.
+
+Manual values range from zero to one below the next level's class or day requirement. A missing
+or zero requirement has no manual input. These limits also apply to optional starting totals
+when opening or changing a level; earned progress remains uncapped. Existing owner-only access
+is preserved. Publishing requires coordinated frontend and affected Functions deployment.
+
 ## Complete administrative enrolment (2026-09-20)
 
 Office staff save personal details, then complete initial level and manual subscription/payment

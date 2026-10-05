@@ -8,6 +8,7 @@ import {
   daysAtLevel,
   jerseyDateOf,
   listPromotionGaps,
+  manualProgressLimits,
   promotionNoteSchema,
   type LevelCatalogProjection,
   type LevelDefinitionRecord,
@@ -32,6 +33,8 @@ import { AdminDataTableWrap } from "../../admin-data-table";
 import { formatCriterion } from "./ibjjf-card";
 import { safeMessage } from "./safe-message";
 import { OpenLevelForm } from "./open-level-form";
+import { CurrentProgressForm, ProgressAdjustmentHistory } from "./current-progress-form";
+import { ProgressCountFields, readManualProgress } from "./progress-count-fields";
 import { SkillsAssessment, type SkillRating } from "./skills-assessment";
 
 type Scores = Awaited<ReturnType<typeof getStudentSkillScores>>;
@@ -224,6 +227,7 @@ function AssignLevelForm({
     .filter((definition) => definition.definitionKey !== current.definitionKey)
     .sort((left, right) => left.sequence - right.sequence);
   const target = later.find((definition) => definition.definitionKey === toKey);
+  const progressLimits = manualProgressLimits(catalog.definitions, toKey);
   const classesDone = card.state === "initialized" ? card.criteria.classes.completed : 0;
   const startedAt = card.state === "initialized" ? card.currentLevelStartedAt : null;
   const daysOffset = card.state === "initialized"
@@ -268,14 +272,9 @@ function AssignLevelForm({
       setError("Choose a level and a promotion date.");
       return;
     }
-    if (ownerCanSetProgress && (newLevelClasses !== "" || newLevelDays !== "")) {
-      const wholeCount = (value: string, max: number) =>
-        /^(0|[1-9]\d*)$/u.test(value) && Number(value) <= max;
-      if (!wholeCount(newLevelClasses, 10_000) || !wholeCount(newLevelDays, 100_000)) {
-        setError("Enter both new-level counts as whole numbers, or leave both blank.");
-        return;
-      }
-    }
+    const progressError = ownerCanSetProgress
+      ? readManualProgress(progressLimits, newLevelClasses, newLevelDays).error : null;
+    if (progressError !== null) { setError(progressError); return; }
     setError(null);
     setDialogError(null);
     setReviewing(true);
@@ -298,9 +297,8 @@ function AssignLevelForm({
         toDefinitionKey: target.definitionKey,
         promotedOn,
         ...(note.trim() === "" ? {} : { note: note.trim() }),
-        ...(ownerCanSetProgress && newLevelClasses !== "" && newLevelDays !== ""
-          ? { newLevelClasses: Number(newLevelClasses), newLevelDays: Number(newLevelDays) }
-          : {}),
+        ...(ownerCanSetProgress && newLevelClasses !== "" ? { newLevelClasses: Number(newLevelClasses) } : {}),
+        ...(ownerCanSetProgress && newLevelDays !== "" ? { newLevelDays: Number(newLevelDays) } : {}),
       });
       setReviewing(false);
       // Critical-3: the flag is NOT cleared on success. `onDone` puts the view back into
@@ -318,61 +316,47 @@ function AssignLevelForm({
 
   return (
     <form aria-labelledby="ibjjf-assign-title" className="ibjjf-form" onSubmit={review}>
-      <h3 id="ibjjf-assign-title">Assign next level</h3>
-      <label htmlFor="ibjjf-assign-level">
-        Level
-        <select
-          id="ibjjf-assign-level"
-          onChange={(event) => setToKey(event.target.value)}
-          value={toKey}
-        >
-          <option value="">Select a level</option>
-          {later.map((level) => (
-            <option key={level.definitionKey} value={level.definitionKey}>
-              {level.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label htmlFor="ibjjf-assign-date">
-        Promotion date
-        <input
-          id="ibjjf-assign-date"
-          max={today}
-          onChange={(event) => setPromotedOn(event.target.value)}
-          type="date"
-          value={promotedOn}
-        />
-      </label>
-      {ownerCanSetProgress ? (
+      <h3 id="ibjjf-assign-title">Change level</h3>
+      <p className="ibjjf-muted">Record a level change and, if needed, set its starting progress.</p>
+      <div className="ibjjf-level-fields">
+        <label htmlFor="ibjjf-assign-level">
+          Level
+          <select
+            id="ibjjf-assign-level"
+            onChange={(event) => {
+              setToKey(event.target.value);
+              setNewLevelClasses("");
+              setNewLevelDays("");
+            }}
+            value={toKey}
+          >
+            <option value="">Select a level</option>
+            {later.map((level) => (
+              <option key={level.definitionKey} value={level.definitionKey}>
+                {level.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label htmlFor="ibjjf-assign-date">
+          Promotion date
+          <input
+            id="ibjjf-assign-date"
+            max={today}
+            onChange={(event) => setPromotedOn(event.target.value)}
+            type="date"
+            value={promotedOn}
+          />
+        </label>
+      </div>
+      {ownerCanSetProgress && target !== undefined ? (
         <>
-          <label htmlFor="ibjjf-new-level-classes">
-            Classes completed in the new level through today
-            <input
-              id="ibjjf-new-level-classes"
-              max={10000}
-              min={0}
-              onChange={(event) => setNewLevelClasses(event.target.value)}
-              step={1}
-              type="number"
-              value={newLevelClasses}
-            />
-          </label>
-          <label htmlFor="ibjjf-new-level-days">
-            Days completed in the new level through today
-            <input
-              id="ibjjf-new-level-days"
-              max={100000}
-              min={0}
-              onChange={(event) => setNewLevelDays(event.target.value)}
-              step={1}
-              type="number"
-              value={newLevelDays}
-            />
-          </label>
+          <ProgressCountFields
+            id="ibjjf-new-level" limits={progressLimits} classes={newLevelClasses} days={newLevelDays}
+            onClassesChange={setNewLevelClasses} onDaysChange={setNewLevelDays}
+          />
           <p className="ibjjf-muted">
-            Enter both counts to set the new level&apos;s progress. Leave both blank to use
-            attendance and time since the promotion date.
+            Optional totals for {target.name}. Leave a field blank to count attendance or time from the promotion date.
           </p>
         </>
       ) : null}
@@ -393,10 +377,10 @@ function AssignLevelForm({
           onConfirm={() => void confirm()}
           title={`Promote ${fullName} from ${current.name} to ${target.name} on ${formatDay(promotedOn) ?? promotedOn}?`}
         >
-          {ownerCanSetProgress && newLevelClasses !== "" && newLevelDays !== "" ? (
+          {ownerCanSetProgress && (newLevelClasses !== "" || newLevelDays !== "") ? (
             <p>
-              The new level will start with {newLevelClasses} classes and {newLevelDays} days
-              completed through today. These counts will be recorded with the promotion.
+              Starting progress: {[newLevelClasses === "" ? null : `${newLevelClasses} classes`, newLevelDays === "" ? null : `${newLevelDays} days`].filter(Boolean).join(", ")}.
+              These totals will be recorded with the promotion.
             </p>
           ) : null}
           {gaps.length === 0 ? (
@@ -1061,7 +1045,16 @@ export function ManageView({
       ) : null}
       {data === null ? null : (
         <>
-          {decisions(data)}
+          <div className="ibjjf-manage-actions">
+            {role === "owner" && data.card.state === "initialized" ? (
+              <CurrentProgressForm
+                studentId={studentId} catalog={data.catalog} card={data.card}
+                mayDiscardRatings={mayDiscardRatings} onDone={reload}
+              />
+            ) : null}
+            {decisions(data)}
+          </div>
+          {role === "owner" ? <ProgressAdjustmentHistory key={`progress-${attempt}`} studentId={studentId} /> : null}
           <HistoryTable
             canDecide={canDecide}
             catalog={data.catalog}

@@ -7,11 +7,12 @@ import type {
 
 const dayMs = 86_400_000;
 
-/** `owner-set` (spec D12): the owner's count up to today; `cutoff` is tomorrow (Jersey). */
+/** Legacy totals use a day cutoff; new manual totals count attendance after the save instant. */
 export type ImportedBaseline = Readonly<{
   classes: number;
   cutoff: string;
   source: "regyfit-import" | "owner-set";
+  countedThrough?: string | undefined;
 }>;
 export type ClassesAtLevel = Readonly<{ imported: number; bpt: number; total: number }>;
 
@@ -66,6 +67,8 @@ export function computeLevelProgress(
  * `cutoff` is the FIRST day counted from BPT attendance — the day after the last day included in
  * `importedBaseline.classes` — so the invariant is that every class is counted exactly once:
  * before the cutoff it is already inside the baseline, on or after it, it comes from BPT.
+ * New owner adjustments use `countedThrough` instead, so a later check-in on the same day
+ * counts immediately. Legacy/imported baselines keep their existing calendar-day semantics.
  */
 export function countClassesAtLevel(
   input: Readonly<{
@@ -87,7 +90,9 @@ export function countClassesAtLevel(
     // A Graduations promotion starts the level at the graduation class itself: that class belongs
     // to the previous level. A start at 00:00 (every other promotion) excludes nothing here.
     if (day === startDay && Date.parse(attendedAt) <= startMs) return false;
-    if (input.importedBaseline !== null && day < input.importedBaseline.cutoff) return false;
+    if (input.importedBaseline?.countedThrough !== undefined) {
+      if (Date.parse(attendedAt) <= Date.parse(input.importedBaseline.countedThrough)) return false;
+    } else if (input.importedBaseline !== null && day < input.importedBaseline.cutoff) return false;
     return input.until === undefined || day <= input.until;
   }).length;
   const imported = input.importedBaseline?.classes ?? 0;

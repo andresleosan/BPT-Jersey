@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   jerseyDateOf,
   minimumDaysOf,
+  manualProgressLimits,
+  manualProgressError,
   type LevelCatalogProjection,
   type ProgressManagement,
 } from "@bpt-jersey/domain/levels";
@@ -82,6 +84,7 @@ export function ProgressManagementTab({ rows }: { rows: readonly MemberOverviewR
     : undefined;
   const minClasses = next?.criteria.minClasses ?? null;
   const minDays = next ? minimumDaysOf(next.criteria.minimumTime) : null;
+  const limits = manualProgressLimits(definitions, definitionKey);
   const since =
     scope === "level"
       ? (data?.startedOn ?? "0000-01-01")
@@ -106,20 +109,26 @@ export function ProgressManagementTab({ rows }: { rows: readonly MemberOverviewR
     const levelChanged =
       definitionKey !== data.currentDefinitionKey || startedOn !== data.startedOn;
     if (!levelChanged && classes === data.classesAtLevel && days === data.daysAtLevel) return;
+    const counts = {
+      ...(limits.classes !== null && (levelChanged || classes !== data.classesAtLevel) ? { classes } : {}),
+      ...(limits.days !== null && (levelChanged || days !== data.daysAtLevel) ? { days } : {}),
+    };
+    const countError = manualProgressError(limits, counts);
+    if (countError !== null) { setError(countError); return; }
+    if (!levelChanged && counts.classes === undefined && counts.days === undefined) return;
     void run(() =>
       levelChanged
         ? setProgressLevel({
             studentId: member.studentId,
             definitionKey,
             startedOn,
-            classes,
-            days,
+            ...counts,
             reason,
           })
         : setProgressClassCount({
             studentId: member.studentId,
-            classes,
-            ...(days === data.daysAtLevel ? {} : { days }),
+            definitionKey: data.currentDefinitionKey ?? undefined,
+            ...counts,
             reason,
           }),
     );
@@ -235,7 +244,8 @@ export function ProgressManagementTab({ rows }: { rows: readonly MemberOverviewR
               <label className="admin-filter-control">
                 Days completed through today
                 <input
-                  max={100000}
+                  disabled={busy || limits.days === null}
+                  max={limits.days ?? undefined}
                   min={0}
                   onChange={(event) => setDays(Math.max(0, Math.floor(Number(event.target.value) || 0)))}
                   step={1}
@@ -263,8 +273,10 @@ export function ProgressManagementTab({ rows }: { rows: readonly MemberOverviewR
             <fieldset className="progress-manage-block">
               <legend>Classes at this level</legend>
               <label className="admin-filter-control">
-                Classes up to today
+                Classes completed now
                 <input
+                  disabled={busy || limits.classes === null}
+                  max={limits.classes ?? undefined}
                   min={0}
                   onChange={(event) =>
                     setClasses(Math.max(0, Math.floor(Number(event.target.value) || 0)))
@@ -354,7 +366,11 @@ export function ProgressManagementTab({ rows }: { rows: readonly MemberOverviewR
                 Add date
               </button>
             </div>
-            {data.baselineCutoff ? (
+            {data.baselineCountedThrough ? (
+              <p className="progress-manage-note">
+                Attendance after the last manual adjustment adds to the saved total, including later check-ins on the same day.
+              </p>
+            ) : data.baselineCutoff ? (
               <p className="progress-manage-note">
                 Dates before {data.baselineCutoff} are already inside the class count; adding one
                 still counts for the streak and the season ranking.

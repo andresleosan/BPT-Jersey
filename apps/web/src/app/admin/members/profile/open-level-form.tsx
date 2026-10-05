@@ -1,9 +1,10 @@
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
-import type { LevelCatalogProjection } from "@bpt-jersey/domain/levels";
+import { manualProgressLimits, type LevelCatalogProjection } from "@bpt-jersey/domain/levels";
 import { openStudentLevel, levelsSafeErrors } from "../../../../lib/levels-client";
 import { safeMessage } from "./safe-message";
+import { ProgressCountFields, readManualProgress } from "./progress-count-fields";
 
 export function OpenLevelForm({
   studentId,
@@ -26,6 +27,7 @@ export function OpenLevelForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
+  const progressLimits = manualProgressLimits(catalog.definitions, definitionKey);
   const levels = [...catalog.definitions].sort((left, right) => left.sequence - right.sequence);
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -39,14 +41,9 @@ export function OpenLevelForm({
       setError("Choose a level, a start date and write a short note.");
       return;
     }
-    if (ownerCanSetProgress && (newLevelClasses !== "" || newLevelDays !== "")) {
-      const wholeCount = (value: string, max: number) =>
-        /^(0|[1-9]\d*)$/u.test(value) && Number(value) <= max;
-      if (!wholeCount(newLevelClasses, 10_000) || !wholeCount(newLevelDays, 100_000)) {
-        setError("Enter both progress counts as whole numbers, or leave both blank.");
-        return;
-      }
-    }
+    const progressError = ownerCanSetProgress
+      ? readManualProgress(progressLimits, newLevelClasses, newLevelDays).error : null;
+    if (progressError !== null) { setError(progressError); return; }
     // Set only once the submit is going through, so a refused form can be corrected and sent.
     inFlight.current = true;
     setBusy(true);
@@ -54,9 +51,8 @@ export function OpenLevelForm({
     try {
       await openStudentLevel({
         studentId, definitionKey, startedOn, decisionNotes: notes.trim(),
-        ...(ownerCanSetProgress && newLevelClasses !== "" && newLevelDays !== ""
-          ? { newLevelClasses: Number(newLevelClasses), newLevelDays: Number(newLevelDays) }
-          : {}),
+        ...(ownerCanSetProgress && newLevelClasses !== "" ? { newLevelClasses: Number(newLevelClasses) } : {}),
+        ...(ownerCanSetProgress && newLevelDays !== "" ? { newLevelDays: Number(newLevelDays) } : {}),
       });
       // The flag is NOT cleared here (Critical-3): `onDone` puts the view back into `loading` and
       // this form unmounts with the reload, so nothing is left clickable over the stale data.
@@ -75,31 +71,37 @@ export function OpenLevelForm({
       onSubmit={(event) => void submit(event)}
     >
       <h3 id="ibjjf-open-title">Open level</h3>
-      <label htmlFor="ibjjf-open-level">
-        Level
-        <select
-          id="ibjjf-open-level"
-          onChange={(event) => setDefinitionKey(event.target.value)}
-          value={definitionKey}
-        >
-          <option value="">Select a level</option>
-          {levels.map((level) => (
-            <option key={level.definitionKey} value={level.definitionKey}>
-              {level.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label htmlFor="ibjjf-open-date">
-        Start date
-        <input
-          id="ibjjf-open-date"
-          max={today}
-          onChange={(event) => setStartedOn(event.target.value)}
-          type="date"
-          value={startedOn}
-        />
-      </label>
+      <div className="ibjjf-level-fields">
+        <label htmlFor="ibjjf-open-level">
+          Level
+          <select
+            id="ibjjf-open-level"
+            onChange={(event) => {
+              setDefinitionKey(event.target.value);
+              setNewLevelClasses("");
+              setNewLevelDays("");
+            }}
+            value={definitionKey}
+          >
+            <option value="">Select a level</option>
+            {levels.map((level) => (
+              <option key={level.definitionKey} value={level.definitionKey}>
+                {level.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label htmlFor="ibjjf-open-date">
+          Start date
+          <input
+            id="ibjjf-open-date"
+            max={today}
+            onChange={(event) => setStartedOn(event.target.value)}
+            type="date"
+            value={startedOn}
+          />
+        </label>
+      </div>
       <label htmlFor="ibjjf-open-notes">
         Notes
         <textarea
@@ -109,35 +111,14 @@ export function OpenLevelForm({
           value={notes}
         />
       </label>
-      {ownerCanSetProgress ? (
+      {ownerCanSetProgress && definitionKey !== "" ? (
         <>
-          <label htmlFor="ibjjf-open-classes">
-            Classes completed at this level through today
-            <input
-              id="ibjjf-open-classes"
-              max={10000}
-              min={0}
-              onChange={(event) => setNewLevelClasses(event.target.value)}
-              step={1}
-              type="number"
-              value={newLevelClasses}
-            />
-          </label>
-          <label htmlFor="ibjjf-open-days">
-            Days completed at this level through today
-            <input
-              id="ibjjf-open-days"
-              max={100000}
-              min={0}
-              onChange={(event) => setNewLevelDays(event.target.value)}
-              step={1}
-              type="number"
-              value={newLevelDays}
-            />
-          </label>
+          <ProgressCountFields
+            id="ibjjf-open" limits={progressLimits} classes={newLevelClasses} days={newLevelDays}
+            onClassesChange={setNewLevelClasses} onDaysChange={setNewLevelDays} disabled={busy}
+          />
           <p className="ibjjf-muted">
-            Enter both counts to set the starting progress. Leave both blank to count attendance
-            and time from the start date.
+            Optional starting totals. Leave a field blank to count attendance or time from the start date.
           </p>
         </>
       ) : null}

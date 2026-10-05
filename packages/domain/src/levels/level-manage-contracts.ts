@@ -59,11 +59,13 @@ const gapsSchema = z.array(boundedFreeText(1, 120)).max(10);
  * already included in `classes` — not simply "the import date". The invariant it guarantees is that
  * every class is counted exactly once: dated before `cutoff` it is already inside `classes`, dated
  * on or after it, it is counted from BPT attendance (`countClassesAtLevel`).
+ * New owner totals additionally carry `countedThrough`, which takes precedence over `cutoff`.
  */
 export const importedBaselineSchema = z.strictObject({
   classes: countSchema,
   cutoff: dateOnlySchema,
   source: z.enum(["regyfit-import", "owner-set"]),
+  countedThrough: z.string().datetime().optional(),
 });
 
 export const assignLevelInputSchema = z.strictObject({

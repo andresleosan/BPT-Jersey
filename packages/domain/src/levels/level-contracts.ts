@@ -1669,9 +1669,10 @@ export function parseOpenStudentLevelInput(
   const classes = record["newLevelClasses"];
   const days = record["newLevelDays"];
   if (
-    (classes !== undefined || days !== undefined) &&
-    (typeof classes !== "number" || !Number.isSafeInteger(classes) || classes < 0 || classes > 10_000 ||
-      typeof days !== "number" || !Number.isSafeInteger(days) || days < 0 || days > 100_000)
+    (classes !== undefined &&
+      (typeof classes !== "number" || !Number.isSafeInteger(classes) || classes < 0 || classes > 10_000)) ||
+    (days !== undefined &&
+      (typeof days !== "number" || !Number.isSafeInteger(days) || days < 0 || days > 100_000))
   ) {
     issues.push(issue(["input", "newLevelClasses"], "invalid_new_level_progress"));
   }
@@ -1682,7 +1683,8 @@ export function parseOpenStudentLevelInput(
       definitionKey: (definitionKey as string).trim(),
       decisionNotes: (decisionNotes as string).trim(),
       ...(startedOn === undefined ? {} : { startedOn: startedOn as string }),
-      ...(classes === undefined ? {} : { newLevelClasses: classes as number, newLevelDays: days as number }),
+      ...(classes === undefined ? {} : { newLevelClasses: classes as number }),
+      ...(days === undefined ? {} : { newLevelDays: days as number }),
     }),
   );
 }

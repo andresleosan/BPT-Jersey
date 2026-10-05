@@ -40,7 +40,7 @@ export function setProgressLevel(input: SetProgressLevelInput) {
   return call("setProgressLevel", input, z.object({ promotionId: z.string() }), "Unable to save the level. Please try again.");
 }
 export function setProgressClassCount(input: SetProgressClassCountInput) {
-  return call("setProgressClassCount", input, z.object({ classes: z.number() }), "Unable to save the class count. Please try again.");
+  return call("setProgressClassCount", input, z.object({ classes: z.number().optional() }), "Unable to save progress. Please try again.");
 }
 export function addManualAttendance(input: AddManualAttendanceInput) {
   return call("addManualAttendance", input, z.object({ id: z.string() }), "Unable to add this date. Please try again.");

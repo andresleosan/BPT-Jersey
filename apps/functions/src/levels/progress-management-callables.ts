@@ -14,6 +14,8 @@ import {
   editLevelHistoryInputSchema,
   importedBaselineSchema,
   jerseyDateOf,
+  manualProgressError,
+  manualProgressLimits,
   progressManagementSchema,
   progressStudentInputSchema,
   setAttendanceVoidInputSchema,
@@ -238,6 +240,7 @@ export const getProgressManagement = onCall(browserAdminCallableOptions, async (
     daysAtLevel: daysAtCurrentLevel,
     baselineCutoff:
       baseline.success && baseline.data.source === "owner-set" ? baseline.data.cutoff : null,
+    baselineCountedThrough: baseline.success ? baseline.data.countedThrough ?? null : null,
     undoPromotionId: lastPromotion?.get("kind") === "owner-set" ? lastPromotionId : null,
     attendance,
     history,
@@ -268,6 +271,8 @@ export const setProgressLevel = onCall(browserAdminCallableOptions, async (reque
   const headRef = db.doc(`${base}/studentLevelProgress/${input.studentId}`);
   const promotionId = `owner-set_${input.studentId}_${now}`;
   const classes = input.classes ?? 0;
+  const countError = manualProgressError(manualProgressLimits(catalog.definitions, input.definitionKey), input);
+  if (countError !== null) throw new HttpsError("invalid-argument", countError);
   const startedAt = `${input.startedOn}T00:00:00.000Z`;
   const days = input.days ?? daysAtLevel(startedAt, now);
   await db.runTransaction(async (transaction) => {
@@ -322,8 +327,7 @@ export const setProgressLevel = onCall(browserAdminCallableOptions, async (reque
       currentLevelStartedAt: startedAt,
       daysOffset: days - daysAtLevel(startedAt, now),
       lastApprovedPromotionId: promotionId,
-      // D12: the owner's count is the total up to today; attendance from tomorrow adds on top.
-      importedBaseline: { classes, cutoff: tomorrowInJersey(now), source: "owner-set" },
+      importedBaseline: { classes, cutoff: tomorrowInJersey(now), countedThrough: now, source: "owner-set" },
       updatedAt: now,
       updatedBy: owner.userId,
     });
@@ -349,6 +353,8 @@ export const setProgressClassCount = onCall(browserAdminCallableOptions, async (
   );
   const now = new Date().toISOString();
   const db = getFirestore();
+  const catalog = await createLevelCatalogStore({ firestore: db as never }).listPublished(owner.academyId);
+  await assertStudent(db, owner.academyId, input.studentId);
   const headRef = db.doc(`academies/${owner.academyId}/studentLevelProgress/${input.studentId}`);
   await db.runTransaction(async (transaction) => {
     const head = await transaction.get(headRef);
@@ -366,17 +372,29 @@ export const setProgressClassCount = onCall(browserAdminCallableOptions, async (
     if (typeof headData.currentLevelStartedAt !== "string") {
       throw new HttpsError("failed-precondition", "This member's level has no start date.");
     }
+    if (
+      headData.systemId !== catalog.system.systemId ||
+      !catalog.definitions.some((definition) => definition.definitionKey === headData.currentDefinitionKey) ||
+      (input.definitionKey !== undefined && input.definitionKey !== headData.currentDefinitionKey)
+    ) {
+      throw new HttpsError("failed-precondition", "The member's level has changed. Refresh the page before editing progress.");
+    }
+    const countError = manualProgressError(
+      manualProgressLimits(catalog.definitions, String(headData.currentDefinitionKey)), input,
+    );
+    if (countError !== null) throw new HttpsError("invalid-argument", countError);
     const daysOffset = input.days === undefined
       ? storedDaysOffset(headData.daysOffset)
       : input.days - daysAtLevel(headData.currentLevelStartedAt, now);
     const days = adjustedDaysAtLevel(headData.currentLevelStartedAt, now, daysOffset);
     transaction.set(headRef, {
       ...headData,
-      importedBaseline: {
+      ...(input.classes === undefined ? {} : { importedBaseline: {
         classes: input.classes,
         cutoff: tomorrowInJersey(now),
+        countedThrough: now,
         source: "owner-set",
-      },
+      } }),
       daysOffset,
       updatedAt: now,
       updatedBy: owner.userId,
@@ -387,11 +405,14 @@ export const setProgressClassCount = onCall(browserAdminCallableOptions, async (
       owner,
       input.studentId,
       now,
-      `Progress at this level set to ${input.classes} classes, ${days} days`,
+      `${catalog.definitions.find((definition) => definition.definitionKey === headData.currentDefinitionKey)?.name}: ${[
+        ...(input.classes === undefined ? [] : [`classes set to ${input.classes}`]),
+        ...(input.days === undefined ? [] : [`days set to ${days}`]),
+      ].join(", ")}`,
       input.reason,
     );
   });
-  return { classes: input.classes };
+  return { ...(input.classes === undefined ? {} : { classes: input.classes }) };
 });
 
 export const addManualAttendance = onCall(browserAdminCallableOptions, async (request) => {
