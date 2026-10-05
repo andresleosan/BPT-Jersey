@@ -276,3 +276,9 @@ export async function listAdminWaitlistGroups(): Promise<AdminWaitlistGroups> {
     throw new Error(groupsError);
   }
 }
+
+export async function listPendingPastWaitlists(cursor?: string): Promise<{ groups: readonly AdminWaitlistGroup[]; cursor: string | null }> {
+  const callable = httpsCallable<{ cursor?: string }, { groups: unknown[]; cursor: string | null }>(getFirebaseFunctions(), "listPendingPastWaitlists");
+  const result = await callable(cursor ? { cursor } : {});
+  return { groups: result.data.groups.map(parseGroup), cursor: result.data.cursor };
+}

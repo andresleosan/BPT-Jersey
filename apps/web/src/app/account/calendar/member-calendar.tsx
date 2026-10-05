@@ -68,7 +68,7 @@ type MemberCalendarProps = Readonly<{
    * Rendered after the check-in slider and before the purple header: the streak panel (T042V2).
    * A function receives the selected participant and renders nothing until one is selected.
    */
-  topSlot?: ReactNode | ((studentId: string) => ReactNode);
+  topSlot?: ReactNode | ((studentId: string, refresh: () => void) => ReactNode);
   /** Non-null for the selected participant: rendered in place of the week (and check-in); the selector stays. */
   gate?: (studentId: string) => ReactNode | null;
   /** Called with every participant id whenever the loaded list changes (the gate checks exactly these). */
@@ -664,7 +664,7 @@ export function MemberCalendar({
       : undefined;
   const candidateScope = candidate && participant ? loadedWeekScope : undefined;
   const top =
-    typeof topSlot === "function" ? (selectedStudentId ? topSlot(selectedStudentId) : null) : topSlot;
+    typeof topSlot === "function" ? (selectedStudentId ? topSlot(selectedStudentId, () => setReloadToken((value) => value + 1)) : null) : topSlot;
   const blocked = selectedStudentId ? (gate?.(selectedStudentId) ?? null) : null;
 
   // A teen account neither sees nor manages the plan (B3): the bands keep their text, not the link.

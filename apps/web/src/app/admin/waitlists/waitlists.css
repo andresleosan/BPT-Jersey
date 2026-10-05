@@ -91,3 +91,11 @@
     width: 100%;
   }
 }
+
+.waitlist-follow-up, .waitlist-past { display: grid; gap: 1rem; padding-block: 1rem; }
+.waitlist-follow-up details, .waitlist-past { border-top: 1px solid var(--card-edge, #d6d4cc); }
+.waitlist-follow-up summary, .waitlist-past > summary { min-height: 44px; padding-block: .75rem; cursor: pointer; font-weight: 600; }
+.waitlist-follow-up > button { justify-self: start; }
+.waitlist-follow-up-history { list-style: none; padding: 0; margin-block: 1rem; }
+.waitlist-follow-up-history li { display: grid; gap: .5rem; padding-block: 1rem; border-bottom: 1px solid var(--card-edge, #d6d4cc); }
+@media (max-width: 47.99rem) { .waitlist-follow-up button, .waitlist-past > button { width: 100%; min-height: 44px; } }

@@ -1,6 +1,6 @@
 # Cupos por edad e invitaciones desde Waitlist
 
-Fecha: 2026-10-05. Estado: diseño conversacional aprobado; especificación pendiente de revisión.
+Fecha: 2026-10-05. Estado: especificación aprobada e implementada; activación en producción pendiente.
 
 ## Objetivo y decisiones aprobadas
 

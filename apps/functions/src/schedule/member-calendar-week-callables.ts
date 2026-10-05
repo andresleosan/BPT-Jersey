@@ -1,3 +1,5 @@
+import { readAgeOccupancy } from "./age-capacity.js";
+import type { BookingFirestore, BookingTransaction } from "./booking-transaction-service.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { parsePlanRecord } from "@bpt-jersey/domain/memberships";
@@ -224,8 +226,13 @@ export const getMemberCalendarWeek = onCall(
       )
       .catch(() => ({}));
 
+    const withAgeAvailability = await Promise.all(visible.map(async (session) => {
+      if (!session.ageCapacities?.length) return session;
+      const ageAvailability = await db.runTransaction((tx) => readAgeOccupancy({ firestore: db as unknown as BookingFirestore, transaction: tx as unknown as BookingTransaction, academyId: actor.academyId, session, now: new Date().toISOString() }), { readOnly: true }).catch(() => null);
+      return { ...session, ageAvailability };
+    }));
     return {
-      sessions: visible,
+      sessions: withAgeAvailability,
       programs,
       bookings,
       attendance: attendanceForActor(actor, attendance),

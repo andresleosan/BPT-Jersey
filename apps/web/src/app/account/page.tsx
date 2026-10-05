@@ -9,6 +9,7 @@ import { AdultClaimGate } from "./adult-claim";
 import { MyShopReadyNotice } from "../shop/shop-ready-notice";
 import { MemberCalendar } from "./calendar/member-calendar";
 import { GraduationNotices } from "./graduation/graduation-notices";
+import { WaitlistInvitations } from "./waitlist-invitations";
 import { IntroNotices } from "./intro-notices";
 import { StreakPanel } from "./streak/streak-panel";
 import { PendingTermsBanner, WaiverGate } from "./waiver-acceptance";
@@ -55,9 +56,10 @@ function AccountContent() {
             session={{ role, displayName }}
             gate={gate}
             onParticipants={track}
-            topSlot={(studentId) => (
+            topSlot={(studentId, refresh) => (
               <>
                 <IntroNotices />
+                <WaitlistInvitations key={`waitlist-${studentId}`} studentId={studentId} onBooked={refresh} />
                 <MyShopReadyNotice />
                 <PendingTermsBanner studentId={studentId} />
                 <StreakPanel key={studentId} studentId={studentId} />

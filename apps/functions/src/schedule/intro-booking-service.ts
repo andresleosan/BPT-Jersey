@@ -1,3 +1,4 @@
+import { ageCapacityFull } from "./age-capacity.js";
 import type { AuditEventDraft, ClassActorRole } from "@bpt-jersey/domain/audit";
 import { hasAcceptedEnrolmentWaiver } from "../consents/enrolment-waiver-acceptance.js";
 import {
@@ -499,6 +500,9 @@ export async function requestIntroBooking(
       if (value.status === "confirmed" && typeof value.studentId === "string") {
         confirmed.add(value.studentId);
       }
+    }
+    if (await ageCapacityFull({ firestore, transaction, academyId, session, studentId, now: command.now })) {
+      return fail("capacity", "No places remain for this age");
     }
     if (session.capacity !== null && confirmed.size >= session.capacity) {
       return fail("capacity", "Intro Class capacity is no longer available");

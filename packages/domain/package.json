@@ -339,6 +339,16 @@
       "types": "./src/schedule/groups.ts",
       "import": "./src/schedule/groups.ts",
       "default": "./lib/schedule/groups.js"
+    },
+    "./schedule/age-capacity": {
+      "types": "./src/schedule/age-capacity.ts",
+      "import": "./src/schedule/age-capacity.ts",
+      "default": "./lib/schedule/age-capacity.js"
+    },
+    "./schedule/waitlist-invitations": {
+      "types": "./src/schedule/waitlist-invitations.ts",
+      "import": "./src/schedule/waitlist-invitations.ts",
+      "default": "./lib/schedule/waitlist-invitations.js"
     }
   },
   "scripts": {

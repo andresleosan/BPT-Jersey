@@ -174,3 +174,24 @@ advertised: the public landing price list, enrolment and member plan requests mu
 offer it (`administrativePlanIds` in `packages/domain/src/memberships/plan-contracts.ts`). Only
 the owner can assign it, from Members → profile; administrators and coaches cannot. Members see
 it only on their own account once the owner has assigned it to them; no other member sees it.
+
+## Optional age capacities and next-class invitations (2026-10-05, activation pending)
+
+Owners can add exact-age limits to ordinary sessions. Only configured ages receive an extra
+maximum; all bookings still respect total capacity and existing eligibility. Ages are calculated
+on the session's Jersey date from the canonical profile. Confirmed bookings and active offers
+consume capacity; invitations do not. Copies and weekly sessions retain configured limits.
+Edits cannot reduce capacity below existing bookings and holds. Sessions without limits keep
+their current booking behaviour.
+
+Waitlist lets the owner create one later class and invite pending members, including those
+waiting for past sessions. Members and guardians confirm or decline in their account. Explicit
+confirmation uses the existing booking transaction and resolves the original waitlist atomically;
+declining or finding the class full leaves the original wait intact. Current memberships are
+checked at acceptance. The class is also open to other eligible members. No external messages
+or automatic bookings are sent by this feature.
+
+Creation is idempotent, invitation batches are resumable, and owner history remains accessible
+after the original queue is empty. Capacity changes, invitations and responses retain actor/time.
+The interface is disabled until `NEXT_PUBLIC_AGE_WAITLIST_ENABLED=true` is set after coordinated
+backend/index publication. See `docs/runbooks/age-capacity-waitlist.md` for activation and recovery.

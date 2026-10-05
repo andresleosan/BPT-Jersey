@@ -1,3 +1,4 @@
+import { parseAgeCapacities, type AgeCapacity, type AgeAvailability } from "./age-capacity";
 import { err, ok, type Result } from "../result";
 import {
   parseSessionBookingRules,
@@ -211,6 +212,9 @@ export type ClassRecord = Readonly<{
 }>;
 
 export type SessionRecord = Readonly<{
+  /** Read projection only, never accepted in mutation inputs. null means unavailable. */
+  ageAvailability?: readonly AgeAvailability[] | null;
+  ageCapacities?: readonly AgeCapacity[];
   courseId?: string;
   courseOrdinal?: number;
   courseSessionCount?: number;
@@ -288,6 +292,8 @@ export type UpdateClassInput = Readonly<{
 }>;
 
 export type CreateSessionInput = Readonly<{
+  copySourceSessionId?: string;
+  ageCapacities?: readonly AgeCapacity[];
   classId?: string | null;
   programId: string;
   locationId: LocationId;
@@ -310,6 +316,7 @@ export type CreateSessionInput = Readonly<{
 }>;
 
 export type UpdateSessionInput = Readonly<{
+  ageCapacities?: readonly AgeCapacity[];
   repeatScope?: "single" | "following";
   sessionId: string;
   title?: string;
@@ -812,6 +819,7 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
   }
 
   const {
+    copySourceSessionId,
     classId = null,
     programId,
     locationId,
@@ -831,8 +839,10 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
     repeatWeekly,
     accessMode = "membership",
     curriculum,
+    ageCapacities,
   } = input;
 
+  if (copySourceSessionId !== undefined && (typeof copySourceSessionId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(copySourceSessionId))) return err("Invalid source class");
   if (
     classId !== null &&
     classId !== undefined &&
@@ -909,6 +919,8 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
   if (repeatWeekly !== undefined && typeof repeatWeekly !== "boolean") {
     return err("repeatWeekly must be a boolean");
   }
+  const ages = parseAgeCapacities(ageCapacities, typeof capacity === "number" ? capacity : 300);
+  if (!ages.ok) return err(ages.error);
   const extras = parseSessionExtras(instructorIds, bookingRules, waitingList);
   if (!extras.ok) return err(extras.error);
   const curriculumResult =
@@ -917,6 +929,7 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
 
   return ok(
     Object.freeze({
+      ...(typeof copySourceSessionId === "string" ? { copySourceSessionId } : {}),
       classId: typeof classId === "string" ? classId.trim() : null,
       programId: programId.trim(),
       locationId: locationId.trim(),
@@ -934,6 +947,7 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
       ...(ageRange !== undefined ? { ageRange: parsedAgeRange } : {}),
       ...(levelRange !== undefined ? { levelRange: parsedLevelRange } : {}),
       ...extras.value,
+      ...(ageCapacities !== undefined ? { ageCapacities: ages.value } : {}),
       ...(typeof repeatWeekly === "boolean" ? { repeatWeekly } : {}),
       ...(curriculumResult?.ok ? { curriculum: curriculumResult.value } : {}),
     }),
@@ -960,6 +974,7 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
     repeatWeekly,
     accessMode,
     curriculum,
+    ageCapacities,
   } = input;
   if (repeatScope !== undefined && repeatScope !== "single" && repeatScope !== "following") {
     return err("repeatScope must be single or following");
@@ -984,6 +999,7 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
       repeatWeekly,
       accessMode,
       curriculum,
+      ageCapacities,
     ].every((value) => value === undefined)
   ) {
     return err("At least one session field must be updated");
@@ -1050,6 +1066,8 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
   if (accessMode !== undefined && !classAccessModes.includes(accessMode as ClassAccessMode)) {
     return err("accessMode must be membership, intro or private-lesson");
   }
+  const ages = parseAgeCapacities(ageCapacities, typeof capacity === "number" ? capacity : 300);
+  if (!ages.ok) return err(ages.error);
   const extras = parseSessionExtras(instructorIds, bookingRules, waitingList);
   if (!extras.ok) return err(extras.error);
   const curriculumResult =
@@ -1067,6 +1085,7 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
   if (typeof startAt === "string") result.startAt = startAt;
   if (typeof endAt === "string") result.endAt = endAt;
   if (capacity !== undefined) result.capacity = capacity;
+  if (ageCapacities !== undefined) result.ageCapacities = ages.value;
   if (typeof minParticipants === "number") result.minParticipants = minParticipants;
   if (descriptionResult) result.description = descriptionResult.value;
   if (extras.value.instructorIds !== undefined) result.instructorIds = extras.value.instructorIds;

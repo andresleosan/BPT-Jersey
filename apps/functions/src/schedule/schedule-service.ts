@@ -1,3 +1,4 @@
+import { parseAgeCapacities } from "@bpt-jersey/domain/schedule/age-capacity";
 import { readCanonicalMemberHistoryDocuments } from "../members/member-identity-firestore.js";
 import { ensureCourseBooking } from "../courses/course-access.js";
 import { filterPublishedCourseSessions } from "../courses/course-publication.js";
@@ -481,6 +482,8 @@ function mergeSessionUpdate(
   if (Date.parse(endAt) <= Date.parse(startAt)) throw new Error("Session must end after it starts");
   const capacity = input.capacity === undefined ? current.capacity : input.capacity;
   const minParticipants = input.minParticipants ?? current.minParticipants;
+  const ages = parseAgeCapacities(input.ageCapacities ?? current.ageCapacities, capacity);
+  if (!ages.ok) throw new Error(ages.error);
   const curriculum =
     input.curriculum === undefined ? current.curriculum : (input.curriculum ?? undefined);
   const { curriculum: _currentCurriculum, ...sessionWithoutCurriculum } = current;
@@ -489,6 +492,7 @@ function mergeSessionUpdate(
   return Object.freeze({
     ...sessionWithoutCurriculum,
     ...(curriculum ? { curriculum } : {}),
+    ...(input.ageCapacities !== undefined ? { ageCapacities: ages.value } : {}),
     title: input.title ?? current.title,
     locationId: input.locationId ?? current.locationId,
     programId: input.programId ?? current.programId,
@@ -747,6 +751,7 @@ async function copyWeekWith(
         endAt: shiftIsoInZone(session.endAt, days, timezone),
         // checked above: no source session is uncapped
         capacity: session.capacity as number,
+        ...(session.ageCapacities ? { ageCapacities: session.ageCapacities } : {}),
         minParticipants: session.minParticipants,
         isSeminar: session.isSeminar,
         ...(session.description !== undefined ? { description: session.description } : {}),
@@ -1468,6 +1473,7 @@ export function createFirestoreScheduleStore(options: {
         ...(input.bookingRules !== undefined ? { bookingRules: input.bookingRules } : {}),
         ...(input.waitingList !== undefined ? { waitingList: input.waitingList } : {}),
         ...(input.curriculum !== undefined ? { curriculum: input.curriculum } : {}),
+        ...(input.ageCapacities !== undefined ? { ageCapacities: input.ageCapacities } : {}),
       });
 
       if (input.repeatWeekly) {
@@ -1476,7 +1482,13 @@ export function createFirestoreScheduleStore(options: {
             ?.timezone ?? "Europe/Jersey";
         return weekly.create(record, timezone);
       }
-      await docRef.set(record);
+      if (record.ageCapacities?.length) {
+        const db = firestore as unknown as Firestore;
+        const batch = db.batch();
+        batch.create(db.doc(`academies/${academyId}/sessions/${sessionId}`), record);
+        batch.create(db.collection(`academies/${academyId}/ageCapacityHistory`).doc(), { sessionId, before: [], after: record.ageCapacities, actorId, at: now });
+        await batch.commit();
+      } else await docRef.set(record);
       return record;
     },
 
@@ -2506,6 +2518,7 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
         ...(input.bookingRules !== undefined ? { bookingRules: input.bookingRules } : {}),
         ...(input.waitingList !== undefined ? { waitingList: input.waitingList } : {}),
         ...(input.curriculum !== undefined ? { curriculum: input.curriculum } : {}),
+        ...(input.ageCapacities !== undefined ? { ageCapacities: input.ageCapacities } : {}),
       });
 
       if (!sessionsMap.has(academyId)) {

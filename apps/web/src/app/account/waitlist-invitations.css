@@ -1,0 +1,12 @@
+.member-waitlist-invitations { background: #fff; color: #1a1a18; padding: 1.25rem; border: 1px solid var(--card-edge, #d6d4cc); border-radius: 1rem; display: grid; gap: 1rem; text-align: left; }
+.member-waitlist-invitations h2, .member-waitlist-invitations h3, .member-waitlist-invitations p { margin: 0; overflow-wrap: anywhere; }
+.member-waitlist-invitations h2 { font-size: 1.75rem; }
+.member-invitations-loading { min-height: 5rem; background: #e8e7e3; padding: 1rem; border-radius: .5rem; }
+.member-waitlist-invitations h3 { font-size: 1.35rem; }
+.member-waitlist-invitations article { display: grid; gap: .75rem; padding-block: 1rem; border-top: 1px solid #d6d4cc; }
+.member-waitlist-invitations p { max-width: 65ch; font-size: 1rem; }
+.member-invitation-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
+.member-waitlist-invitations .button { min-height: 44px; border-radius: 999px; }
+.member-waitlist-invitations .button-primary { background: #2f2483; color: #fff; }
+.member-waitlist-invitations .button-secondary { background: #fff; color: #1a1a18; border: 1px solid #8a8880; }
+@media (max-width: 47.99rem) { .member-invitation-actions { flex-direction: column; } .member-invitation-actions .button { width: 100%; } }

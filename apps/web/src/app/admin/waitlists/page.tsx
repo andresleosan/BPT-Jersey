@@ -1,15 +1,18 @@
 "use client";
 
+import { ageWaitlistEnabled } from "../../../lib/age-waitlist-feature";
 import { useEffect, useRef, useState } from "react";
 
 import {
+  listPendingPastWaitlists,
   issueNextAdminWaitlistOffer,
   listAdminWaitlistGroups,
   type AdminWaitlistGroup,
   type AdminWaitlistItem,
 } from "../../../lib/admin-waitlist-client";
 import { locationLabel } from "../../../lib/location-label";
-import { useWaitlistIssuePermission } from "../admin-gate";
+import { FollowUpClass, FollowUpHistory } from "./follow-up-class";
+import { useAdminOrStaffSession, useWaitlistIssuePermission } from "../admin-gate";
 import { AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 
 import "../admin.css";
@@ -47,7 +50,18 @@ function writeGroupToUrl(groupId: string): void {
   window.history.replaceState(null, "", url);
 }
 
-export function AdminWaitlistsPage({ canIssue = true }: { canIssue?: boolean }) {
+export function AdminWaitlistsPage({ canIssue = true, canCreate = false }: { canIssue?: boolean; canCreate?: boolean }) {
+  const [pastGroups, setPastGroups] = useState<readonly AdminWaitlistGroup[]>([]);
+  const [pastCursor, setPastCursor] = useState<string | null>(null);
+  const [pastLoaded, setPastLoaded] = useState(false);
+  const [pastBusy, setPastBusy] = useState(false);
+  async function loadPast(cursor?: string) {
+    if (pastBusy) return;
+    setPastBusy(true);
+    try { const page = await listPendingPastWaitlists(cursor); setPastGroups((rows) => cursor ? [...rows, ...page.groups] : page.groups); setPastCursor(page.cursor); setPastLoaded(true); }
+    catch { setError("Older waitlists could not be loaded. Please try again."); }
+    finally { setPastBusy(false); }
+  }
   const [groups, setGroups] = useState<readonly AdminWaitlistGroup[]>([]);
   const [truncated, setTruncated] = useState(false);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -230,6 +244,7 @@ export function AdminWaitlistsPage({ canIssue = true }: { canIssue?: boolean }) 
                         </button>
                       ) : null}
                     </div>
+                    {canCreate && <FollowUpClass sourceSessionId={session.sessionId} waiting={session.entries.length} />}
                     {hasActiveOffer ? (
                       <p className="admin-waitlist-active-note" id={noteId}>
                         An offer is already active for this date.
@@ -259,11 +274,26 @@ export function AdminWaitlistsPage({ canIssue = true }: { canIssue?: boolean }) 
           ))}
         </div>
       )}
+      {canCreate && <FollowUpHistory />}
+      {ageWaitlistEnabled && <details className="waitlist-past" onToggle={(event) => { if (event.currentTarget.open && !pastLoaded) void loadPast(); }}>
+        <summary>Pending waitlists from earlier classes</summary>
+        {pastLoaded && !pastGroups.length && <p>No earlier waitlists on this page.</p>}
+        {pastGroups.map((group, index) => <section key={`${group.groupId}-${index}`} className="waitlists-group">
+          <h3>{group.title}</h3>
+          {group.sessions.map((session) => <div className="waitlists-session" key={session.sessionId}>
+            <h4>{formatDateTime(session.startAt)}</h4><p>{session.entries.length} waiting on this page</p>
+            {canCreate && <FollowUpClass sourceSessionId={session.sessionId} waiting={session.entries.length} />}
+          </div>)}
+        </section>)}
+        <button type="button" className="admin-auth-button" disabled={pastBusy} onClick={() => void loadPast()}>{pastBusy ? "Loading..." : "Refresh earlier waitlists"}</button>
+        {pastCursor && <button type="button" className="admin-auth-button" disabled={pastBusy} onClick={() => void loadPast(pastCursor)}>Load more waitlists</button>}
+      </details>}
     </section>
   );
 }
 
 export default function AdminWaitlistsRoute() {
   const canIssue = useWaitlistIssuePermission();
-  return <AdminWaitlistsPage canIssue={canIssue} />;
+  const session = useAdminOrStaffSession();
+  return <AdminWaitlistsPage canIssue={canIssue} canCreate={ageWaitlistEnabled && session.role === "owner"} />;
 }

@@ -1,5 +1,9 @@
 "use client";
 
+import { AgeCapacityFields, type AgeCapacityDraft } from "./age-capacity-fields";
+import { getSessionAgeAvailability } from "../../../../lib/waitlist-invitations-client";
+import { parseAgeCapacities, type AgeAvailability } from "@bpt-jersey/domain/schedule/age-capacity";
+
 import { lazy, Suspense, useEffect, useRef, useState, type ReactElement } from "react";
 
 import type {
@@ -38,6 +42,10 @@ const privateFormId = "cs-private-lesson-form";
 const privateMinutes = 45;
 
 export type SessionPanelProps = Readonly<{
+  canManageAgeLimits?: boolean;
+  followUp?: boolean;
+  followUpNotice?: string;
+  saveNewSession?: (input: CreateSessionInput) => Promise<SessionRecord>;
   mode: "create" | "edit";
   session?: SessionRecord | undefined;
   catalog: ScheduleCatalogResponse;
@@ -54,6 +62,7 @@ export type SessionPanelProps = Readonly<{
 type CancelUntil = "start" | "end" | "custom";
 
 type Draft = Readonly<{
+  ageCapacities: readonly AgeCapacityDraft[];
   repeatWeekly: boolean;
   date: string;
   startTime: string;
@@ -116,6 +125,7 @@ function draftFor(
     const custom = rules !== "defined";
     const cancelUntil = custom ? rules.cancelUntil : "start";
     return {
+      ageCapacities: (session.ageCapacities ?? []).map((row) => ({ age: String(row.age), capacity: String(row.capacity) })),
       repeatWeekly: session.repeatWeekly ?? false,
       date: localParts(session.startAt, timezone).date,
       startTime: timeFrom(session.startAt, timezone),
@@ -140,6 +150,7 @@ function draftFor(
   const date = defaults?.date ?? localParts(new Date().toISOString(), timezone).date;
   const startTime = defaults?.startTime ?? "17:00";
   return {
+    ageCapacities: [],
     repeatWeekly: false,
     date,
     startTime,
@@ -197,6 +208,10 @@ function instantsOf(draft: Draft, timezone: string): { startAt: string; endAt: s
 }
 
 export function SessionPanel({
+  canManageAgeLimits = false,
+  followUp = false,
+  followUpNotice,
+  saveNewSession,
   mode,
   session,
   catalog,
@@ -209,9 +224,16 @@ export function SessionPanel({
   onCancelled,
   onClose,
 }: SessionPanelProps): ReactElement {
+  const [ageAvailability, setAgeAvailability] = useState<readonly AgeAvailability[] | null>();
+  useEffect(() => {
+    let active = true;
+    if (!session?.ageCapacities?.length || followUp) return;
+    void getSessionAgeAvailability(session.sessionId).then((result) => { if (active) setAgeAvailability(result.rows); }).catch(() => { if (active) setAgeAvailability(null); });
+    return () => { active = false; };
+  }, [session?.sessionId, followUp]);
   const [current, setCurrent] = useState<"create" | "edit">(mode);
   const [draft, setDraft] = useState<Draft>(() =>
-    draftFor(mode, session, catalog, timezone, defaults),
+    followUp && session ? { ...draftFor("edit", session, catalog, timezone, defaults), repeatWeekly: false, date: defaults?.date ?? "" } : draftFor(mode, session, catalog, timezone, defaults),
   );
   const [repeatScope, setRepeatScope] = useState<"single" | "following">("single");
   const [confirming, setConfirming] = useState(false);
@@ -266,6 +288,7 @@ export function SessionPanel({
   }
 
   const capacityValue = Number(draft.capacity);
+  const parsedAges = parseAgeCapacities(draft.ageCapacities.map((row) => ({ age: row.age === "" ? NaN : Number(row.age), capacity: row.capacity === "" ? NaN : Number(row.capacity) })), capacityValue);
   const capacityInvalid =
     draft.capacity.trim() === "" ||
     !Number.isInteger(capacityValue) ||
@@ -314,6 +337,7 @@ export function SessionPanel({
         if (Date.parse(startAt) !== Date.parse(session.startAt)) changes.startAt = startAt;
         if (Date.parse(endAt) !== Date.parse(session.endAt)) changes.endAt = endAt;
         if (capacity !== session.capacity) changes.capacity = capacity;
+        if (canManageAgeLimits && parsedAges.ok && JSON.stringify(parsedAges.value) !== JSON.stringify(session.ageCapacities ?? [])) changes.ageCapacities = parsedAges.value;
         if (minimumValue !== session.minParticipants) changes.minParticipants = minimumValue;
         if ((instructorIds[0] ?? "") !== session.instructorId)
           changes.instructorId = instructorIds[0] ?? "";
@@ -341,6 +365,10 @@ export function SessionPanel({
       }
       const program = catalog.programs.find((row) => row.programId === draft.programId);
       const input: CreateSessionInput = {
+        ...(followUp && session?.ageRange !== undefined ? { ageRange: session.ageRange } : {}),
+        ...(followUp && session?.levelRange !== undefined ? { levelRange: session.levelRange } : {}),
+        ...(followUp && session?.description !== undefined ? { description: session.description } : {}),
+        ...(session && !followUp ? { copySourceSessionId: session.sessionId } : {}),
         programId: draft.programId,
         locationId: draft.locationId,
         instructorId: instructorIds[0] ?? "",
@@ -348,6 +376,7 @@ export function SessionPanel({
         startAt,
         endAt,
         capacity,
+        ...(parsedAges.ok && parsedAges.value.length ? { ageCapacities: parsedAges.value } : {}),
         minParticipants: minimumValue,
         instructorIds,
         bookingRules,
@@ -356,7 +385,7 @@ export function SessionPanel({
         ...(curriculum ? { curriculum } : {}),
         ...(draft.repeatWeekly ? { repeatWeekly: true } : {}),
       };
-      onSaved(await saveSession(input));
+      onSaved(await (saveNewSession ?? saveSession)(input));
     } catch (failure) {
       setError(messageOf(failure, "Unable to save the class"));
     } finally {
@@ -397,6 +426,7 @@ export function SessionPanel({
     endsBeforeStart ||
     noTrainer ||
     capacityInvalid ||
+    !parsedAges.ok ||
     minimumError !== null ||
     curriculumInvalid;
 
@@ -415,7 +445,7 @@ export function SessionPanel({
           <div>
             <p className="cs-session-eyebrow">Classes &amp; services</p>
             <h2 id={dialogTitleId} ref={titleRef} tabIndex={-1}>
-              {editing ? (canEdit ? "Edit session" : "Session details") : "Create session"}
+              {editing ? (canEdit ? "Edit session" : "Session details") : followUp ? "Create next class" : "Create session"}
             </h2>
           </div>
           <button
@@ -428,6 +458,7 @@ export function SessionPanel({
             Close
           </button>
         </div>
+        {followUpNotice && <p className="cs-notice" role="status">{followUpNotice}</p>}
         {session?.courseId && canReadMemberships && (
           <p className="cs-notice">
             This session belongs to a finite course.{' '}
@@ -458,7 +489,7 @@ export function SessionPanel({
               Registrations
             </button>
           </div>
-        ) : canEdit && canReadMemberships ? (
+        ) : canEdit && canReadMemberships && !followUp ? (
           <div className="cs-session-switcher" aria-label="What to create">
             <button
               type="button"
@@ -587,16 +618,16 @@ export function SessionPanel({
                 type="checkbox"
                 checked={draft.repeatWeekly}
                 disabled={
-                  readOnly ||
+                  followUp || readOnly ||
                   (editing && Boolean(session?.weeklySeriesId) && repeatScope === "single")
                 }
                 aria-describedby="cs-repeat-help"
-                onChange={(event) => patch({ repeatWeekly: event.target.checked })}
+                onChange={(event) => { if (!followUp) patch({ repeatWeekly: event.target.checked }); }}
               />
               Repeat every week
             </label>
             <p id="cs-repeat-help" className="cs-session-help">
-              {editing && session?.weeklySeriesId && repeatScope === "single"
+              {followUp ? "This creates one class and invites members from the original waitlist." : editing && session?.weeklySeriesId && repeatScope === "single"
                 ? "Changes affect this date only. Choose this and following sessions to change or stop weekly repetition."
                 : "Same day and local time every week, with no end date. Trainers, capacity and booking rules repeat; registrations do not."}
             </p>
@@ -628,7 +659,7 @@ export function SessionPanel({
                 <span>Class/service type</span>
                 <select
                   value={draft.programId}
-                  disabled={readOnly || locked}
+                  disabled={followUp || readOnly || locked}
                   title={locked ? lockedHint : undefined}
                   onChange={(event) => patch({ programId: event.target.value })}
                 >
@@ -645,7 +676,7 @@ export function SessionPanel({
                 <span>Class access</span>
                 <select
                   value={draft.accessMode}
-                  disabled={readOnly || locked}
+                  disabled={followUp || readOnly || locked}
                   title={locked ? lockedHint : undefined}
                   onChange={(event) =>
                     patch({
@@ -734,6 +765,8 @@ export function SessionPanel({
                 ) : null}
               </div>
             </div>
+            <AgeCapacityFields availability={ageAvailability} rows={draft.ageCapacities} onChange={(ageCapacities) => patch({ ageCapacities })} disabled={readOnly || draft.accessMode !== "membership"} maximum={capacityValue} canManage={canManageAgeLimits} />
+            {!parsedAges.ok && <p className="cs-notice" data-kind="error" role="alert">{parsedAges.error}</p>}
             <h3>Trainers</h3>
             <ul className="cs-trainers">
               {trainerKeys.map((key) => (
@@ -1002,7 +1035,7 @@ export function SessionPanel({
             disabled={blocked}
             onClick={() => void submit()}
           >
-            {busy ? "Saving…" : editing ? "Save changes" : "Create session"}
+            {busy ? "Saving…" : editing ? "Save changes" : followUp ? "Create next class" : "Create session"}
           </button>
         ) : null}
       </footer>

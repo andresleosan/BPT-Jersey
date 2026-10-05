@@ -424,3 +424,9 @@ export {
   cancelPrivateLessonBooking,
   schedulePrivateLessons,
 } from "./schedule/schedule-callables.js";
+
+export { getWaitlistClassSource, createWaitlistClass, listWaitlistClassInvitations, respondWaitlistClassInvitation, listWaitlistClassHistory } from "./schedule/waitlist-invitations.js";
+
+export { listPendingPastWaitlists } from "./schedule/admin-waitlist-groups.js";
+
+export { getSessionAgeAvailability } from "./schedule/age-capacity.js";

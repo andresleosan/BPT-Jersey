@@ -1,5 +1,6 @@
 "use client";
 
+import { ageWaitlistEnabled } from "../../../../lib/age-waitlist-feature";
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 
 import type { SessionRecord } from "@bpt-jersey/domain/schedule";
@@ -739,6 +740,7 @@ function ClassesContent(): ReactElement {
       </div>
       {catalog !== null && panel !== null && (panel.mode === "create" || edited !== undefined) ? (
         <SessionPanel
+          canManageAgeLimits={ageWaitlistEnabled && session.role === "owner"}
           mode={panel.mode}
           session={edited}
           catalog={catalog}

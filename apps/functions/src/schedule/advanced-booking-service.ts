@@ -1,3 +1,5 @@
+import { ageCapacityFull, readAgeOccupancy, studentAgeAt } from "./age-capacity.js";
+import type { SessionRecord } from "@bpt-jersey/domain/schedule";
 import { createMemberAccessService } from "../members/member-access-service.js";
 import { createHash } from "node:crypto";
 import { HttpsError } from "firebase-functions/v2/https";
@@ -15,6 +17,7 @@ import {
 import { parseMembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import {
+  BookingTransactionError,
   confirmBookingInTransaction,
   readConfirmedBookingReplayInTransaction,
   systemBookingAuditActor,
@@ -713,7 +716,12 @@ export function createFirestoreWaitlistStore({
         if (activeOffers.length > 1) {
           throw new WaitlistStoreError("conflict", "Multiple active waitlist offers");
         }
-        if (confirmed + activeOffers.length < storedSession.capacity) {
+        const ageFull = await ageCapacityFull({ firestore: firestore as unknown as BookingFirestore, transaction: transaction as unknown as BookingTransaction, academyId, session: sessionDoc.data() as SessionRecord, studentId, now });
+        if ((sessionDoc.data() as SessionRecord).ageCapacities?.length) {
+          try { await validateBookingOfferInTransaction({ firestore: firestore as unknown as BookingFirestore, transaction: transaction as unknown as BookingTransaction, academyId, request: { sessionId, studentId, membershipId }, actorId, actorIp: null, actorRole: "system", now }); }
+          catch (error) { if (!(error instanceof BookingTransactionError) || error.code !== "capacity") throw error; }
+        }
+        if (confirmed + activeOffers.length < storedSession.capacity && !ageFull) {
           throw new WaitlistStoreError("ineligible", "Session still has available capacity");
         }
         const state = positionState(positionDoc, academyId, sessionId);
@@ -872,7 +880,18 @@ export function createFirestoreWaitlistStore({
             compareDateTimes(left.requestedAt, right.requestedAt) ||
             left.waitlistId.localeCompare(right.waitlistId),
         );
-        const candidate = waiting[0];
+        let candidate = waiting[0];
+        const ageSession = sessionDoc.data() as SessionRecord;
+        if (ageSession.ageCapacities?.length) {
+          const reader = { firestore: firestore as unknown as BookingFirestore, transaction: transaction as unknown as BookingTransaction, academyId };
+          const limits = await readAgeOccupancy({ ...reader, session: ageSession, now });
+          candidate = undefined;
+          for (const entry of waiting) {
+            const person = await studentAgeAt(reader, entry.studentId, ageSession.startAt);
+            const limit = limits.find((row) => row.age === person.age);
+            if (!limit || limit.occupied < limit.capacity) { candidate = entry; break; }
+          }
+        }
         const candidateTarget =
           candidate === undefined
             ? undefined

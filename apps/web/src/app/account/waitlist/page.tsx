@@ -1,5 +1,7 @@
 "use client";
 
+import { WaitlistInvitations } from "../waitlist-invitations";
+
 import Link from "next/link";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
@@ -359,6 +361,7 @@ function WaitlistContent() {
         </p>
       ) : (
         <div className="waitlist-layout">
+          {selectedStudentId && <WaitlistInvitations key={selectedStudentId} studentId={selectedStudentId} />}
           <section className="waitlist-join-card" aria-labelledby="waitlist-join-title">
             <div>
               <p className="account-eyebrow">Join a queue</p>

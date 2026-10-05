@@ -282,6 +282,8 @@ export type CalendarMemberContext = Readonly<{
 
 export type DerivedSessionStatus = Readonly<{
   status: CalendarSessionStatus;
+  fullReason?: "age";
+  placesRemaining?: number;
   lockedReason?: LockedReason;
 }>;
 
@@ -491,10 +493,18 @@ export function deriveSessionStatus(input: {
   ) {
     return Object.freeze({ status: "locked", lockedReason: "weekly_limit" });
   }
+  if (input.session.ageCapacities?.length) {
+    if (!input.member.dateOfBirth || !input.session.ageAvailability) return Object.freeze({ status: "closed" });
+    const age = ageOnDate(input.member.dateOfBirth, dateKeyInJersey(new Date(input.session.startAt)));
+    const limit = input.session.ageAvailability.find((row) => row.age === age);
+    if (limit && limit.occupied >= limit.capacity) return Object.freeze({ status: "full", fullReason: "age" });
+  }
   if (input.bookedCount >= input.session.capacity) {
     return Object.freeze({ status: "full" });
   }
-  return Object.freeze({ status: "open" });
+  const age = typeof input.member.dateOfBirth === "string" ? ageOnDate(input.member.dateOfBirth, dateKeyInJersey(new Date(input.session.startAt))) : null;
+  const limit = input.session.ageAvailability?.find((row) => row.age === age);
+  return Object.freeze({ status: "open", ...(limit ? { placesRemaining: Math.max(0, Math.min(limit.capacity - limit.occupied, input.session.capacity - input.bookedCount)) } : {}) });
 }
 
 export function canCancelBooking(session: Pick<SessionRecord, "startAt">, now: Date): boolean {

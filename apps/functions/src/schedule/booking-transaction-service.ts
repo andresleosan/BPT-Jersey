@@ -1,3 +1,4 @@
+import { ageCapacityFull } from "./age-capacity.js";
 import { groupKey } from "./group-keys.js";
 import { canonicalMemberIdentityIds } from "../members/member-identity-resolution.js";
 import { ageOnDate, dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
@@ -959,6 +960,9 @@ async function executeBookingInTransaction(
         "Plan access is not eligible",
       );
     }
+  }
+  if (await ageCapacityFull({ ...input, session: storedSession, studentId, ...(reservationWaitlistId ? { excludeWaitlistId: reservationWaitlistId } : {}) })) {
+    return invalid("capacity", "No places remain for this age");
   }
   if (occupied.confirmed + occupied.reserved >= storedSession.capacity) {
     return invalid("capacity", "Session capacity reached");

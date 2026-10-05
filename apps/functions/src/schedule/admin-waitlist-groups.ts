@@ -1,4 +1,4 @@
-import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { FieldPath, getFirestore, type Firestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
 import type { WaitlistEntryRecord } from "@bpt-jersey/domain/schedule/advanced-booking";
@@ -80,19 +80,20 @@ export function groupWaitlistEntries(
   entries: readonly WaitlistEntryRecord[],
   sessions: readonly WaitlistGroupSession[],
   now: string,
+  includePast = false,
 ): readonly WaitlistGroup[] {
   const nowMs = Date.parse(now);
   const sessionsById = new Map(
     sessions
       .filter((item) => {
         const startMs = Date.parse(item.startAt);
-        return item.status === "scheduled" && startMs > nowMs && startMs <= nowMs + horizonMs;
+        return includePast || (item.status === "scheduled" && startMs > nowMs && startMs <= nowMs + horizonMs);
       })
       .map((item) => [item.sessionId, item] as const),
   );
   const bySession = new Map<string, WaitlistEntryRecord[]>();
   for (const entry of entries) {
-    if (!sessionsById.has(entry.sessionId) || !isActive(entry, nowMs)) continue;
+    if (!sessionsById.has(entry.sessionId) || !(includePast ? liveStatuses.includes(entry.status) : isActive(entry, nowMs))) continue;
     const list = bySession.get(entry.sessionId) ?? [];
     list.push(entry);
     bySession.set(entry.sessionId, list);
@@ -252,3 +253,27 @@ export const listAdminWaitlistGroups = onCall(scheduleCallableOptions, async (re
     reader: createFirestoreWaitlistGroupsReader(getFirestore()),
   })(request),
 );
+
+/** Pending queues survive the original date. Bounded, explicit pagination replaces a history scan. */
+export const listPendingPastWaitlists = onCall(scheduleCallableOptions, async (request) => {
+  const actor = requireUserActor(request);
+  if (!staffRoles.has(actor.role)) throw new HttpsError("permission-denied", "Staff access required");
+  const db = getFirestore(), base = `academies/${actor.academyId}`;
+  let query = db.collection(`${base}/waitlistEntries`).where("status", "in", liveStatuses).orderBy(FieldPath.documentId()).limit(51);
+  if (request.data?.cursor !== undefined) {
+    if (typeof request.data.cursor !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,319}$/.test(request.data.cursor)) throw new HttpsError("invalid-argument", "Invalid cursor");
+    query = query.startAfter(request.data.cursor);
+  }
+  const snapshot = await query.get();
+  const entries = snapshot.docs.slice(0, 50).map((doc) => parseStoredWaitlist(doc.data(), actor.academyId, doc.id));
+  const ids = [...new Set(entries.map((entry) => entry.sessionId))];
+  const docs = ids.length ? await db.getAll(...ids.map((id) => db.doc(`${base}/sessions/${id}`))) : [];
+  const now = new Date().toISOString();
+  const sessions = docs.flatMap((doc) => {
+    const data = doc.data();
+    if (!data || data.courseId || data.accessMode === "private-lesson" || data.startAt > now) return [];
+    const session = readSession(doc.id, data);
+    return session ? [session] : [];
+  });
+  return { groups: groupWaitlistEntries(entries, sessions, now, true), cursor: snapshot.size > 50 ? snapshot.docs[49]!.id : null };
+});

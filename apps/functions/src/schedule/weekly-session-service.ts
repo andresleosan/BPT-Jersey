@@ -1,3 +1,5 @@
+import { assertAgeCapacityEdit } from "./age-capacity.js";
+import type { BookingFirestore, BookingTransaction } from "./booking-transaction-service.js";
 import type { DocumentReference, Firestore } from "firebase-admin/firestore";
 import type {
   ListSessionsQuery,
@@ -154,6 +156,9 @@ export function createWeeklySessionStore(firestore: Firestore) {
       const batch = firestore.batch();
       batch.create(seriesCollection(session.academyId).doc(series.seriesId), series);
       batch.create(sessionsCollection(session.academyId).doc(session.sessionId), first);
+      if (session.ageCapacities?.length) batch.create(firestore.collection(`academies/${session.academyId}/ageCapacityHistory`).doc(), {
+        sessionId: session.sessionId, before: [], after: session.ageCapacities, actorId: session.createdBy, at: session.createdAt,
+      });
       await batch.commit();
       return first;
     },
@@ -173,8 +178,21 @@ export function createWeeklySessionStore(firestore: Firestore) {
         if (!allowHistorical && current.status !== "scheduled")
           throw new Error("Only scheduled sessions can be edited");
         const updated = merge(current, input, actor, new Date().toISOString());
+        const audit = (before: SessionRecord, after: SessionRecord) => {
+          if (JSON.stringify(before.ageCapacities ?? []) !== JSON.stringify(after.ageCapacities ?? []) ||
+            ((before.ageCapacities?.length || after.ageCapacities?.length) && (before.startAt !== after.startAt || before.capacity !== after.capacity))) {
+            tx.create(firestore.collection(`academies/${academy}/ageCapacityHistory`).doc(), {
+              sessionId: after.sessionId, before: before.ageCapacities ?? [], after: after.ageCapacities ?? [],
+              oldCapacity: before.capacity, capacity: after.capacity,
+              oldStartAt: before.startAt, startAt: after.startAt, actorId: actor, at: after.updatedAt,
+            });
+          }
+        };
+        const check = (before: SessionRecord, after: SessionRecord) => assertAgeCapacityEdit({ firestore: firestore as unknown as BookingFirestore, transaction: tx as unknown as BookingTransaction, academyId: academy, current: before, updated: after, now: new Date().toISOString() });
+        await check(current, updated);
         if (!current.weeklySeriesId) {
           if (!input.repeatWeekly) {
+            audit(current, updated);
             tx.set(sessionRef, updated);
             return updated;
           }
@@ -184,6 +202,7 @@ export function createWeeklySessionStore(firestore: Firestore) {
             status: updated.status,
             cancellationReason: updated.cancellationReason,
           };
+          audit(current, updated);
           tx.create(seriesCollection(academy).doc(series.seriesId), series);
           tx.set(sessionRef, first);
           return first;
@@ -196,6 +215,7 @@ export function createWeeklySessionStore(firestore: Firestore) {
           if (input.repeatWeekly !== undefined && input.repeatWeekly !== current.repeatWeekly)
             throw new Error("Choose this and following sessions to change weekly repetition");
           const single = { ...updated, weeklyOverride: true };
+          audit(current, single);
           tx.set(sessionRef, single);
           return single;
         }
@@ -212,9 +232,12 @@ export function createWeeklySessionStore(firestore: Firestore) {
           updated,
           input.repeatWeekly ?? current.repeatWeekly ?? true,
         );
+        const changes = future.map((row) => ({ row, changed: reviseWeeklySession(next, row, current.sessionId, updated) }));
+        for (const { row, changed } of changes) if (changed !== row) await check(row, changed);
         tx.set(seriesRef, next);
         for (const row of future) {
           const changed = reviseWeeklySession(next, row, current.sessionId, updated);
+          if (changed !== row) audit(row, changed);
           if (changed !== row) tx.set(sessionsCollection(academy).doc(row.sessionId), changed);
         }
         return reviseWeeklySession(next, current, current.sessionId, updated);

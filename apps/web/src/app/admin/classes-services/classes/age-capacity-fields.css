@@ -1,0 +1,14 @@
+.cs-age-limits { display: grid; gap: 1rem; padding-block: 1rem; border-block: 1px solid var(--card-edge, #d6d4cc); }
+.cs-age-limits h3, .cs-age-limits p { margin: 0; }
+.cs-age-limit-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 1rem; align-items: end; }
+.cs-age-limit-row:has(.cs-age-occupancy) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto; }
+.cs-age-limit-row label { display: grid; gap: .5rem; font-weight: 600; }
+.cs-age-limit-row input { width: 100%; min-width: 0; min-height: 3rem; font-size: 1rem; }
+.cs-age-limits > button { justify-self: start; }
+@media (min-width: 48rem) and (max-width: 64rem) {
+  .cs-age-limit-row, .cs-age-limit-row:has(.cs-age-occupancy) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 47.99rem) {
+  .cs-age-limit-row, .cs-age-limit-row:has(.cs-age-occupancy) { grid-template-columns: minmax(0, 1fr); gap: .75rem; padding-block: .5rem; }
+  .cs-age-limits button { width: 100%; min-height: 44px; }
+}

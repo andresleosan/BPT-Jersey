@@ -165,7 +165,7 @@ export function SessionCard({
     };
     action = (
       <>
-        <span className="session-action session-action--static">Full</span>
+        <span className="session-action session-action--static">{derived.fullReason === "age" ? "Your age group is full" : "Full"}</span>
         {waitlist === "joined" ? (
           <p className="session-note" role="status">
             You&apos;re on the waitlist. We&apos;ll offer you a place if one opens.
@@ -218,6 +218,7 @@ export function SessionCard({
         {session.instructorName ? ` · ${session.instructorName}` : ""}
         {isIntro ? " · Free Intro Class" : ""}
       </p>
+      {derived.placesRemaining !== undefined && <p className="session-note">{derived.placesRemaining} places left for your age</p>}
       {session.levelRange || session.ageRange ? (
         <p className="session-detail">{`${levelRangeLabel(session.levelRange)} · ${ageRangeLabel(session.ageRange)}`}</p>
       ) : null}

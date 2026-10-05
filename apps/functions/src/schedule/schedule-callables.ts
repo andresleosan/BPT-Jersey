@@ -654,6 +654,19 @@ export function createSaveSessionHandler(options: { store: ScheduleStore }) {
     if (!parsed.ok) {
       throw new HttpsError("invalid-argument", parsed.error);
     }
+    if (parsed.value.ageCapacities !== undefined && actor.role !== "owner") {
+      const source = parsed.value.copySourceSessionId ? await store.getSession(actor.academyId, parsed.value.copySourceSessionId) : null;
+      if (!source || JSON.stringify(source.ageCapacities ?? []) !== JSON.stringify(parsed.value.ageCapacities)) {
+        throw new HttpsError("permission-denied", "Only the owner can change age-specific limits");
+      }
+    }
+    if (parsed.value.ageCapacities?.length && ((parsed.value.accessMode ?? "membership") !== "membership" || parsed.value.isSeminar)) {
+      throw new HttpsError("invalid-argument", "Age limits are for ordinary classes");
+    }
+    if (parsed.value.ageCapacities?.length) {
+      const program = (await store.listPrograms(actor.academyId)).find((row) => row.programId === parsed.value.programId);
+      if (isIntroductionClass(parsed.value, program)) throw new HttpsError("invalid-argument", "Age limits are for ordinary classes");
+    }
     if (
       parsed.value.curriculum !== undefined &&
       actor.role !== "owner" &&
@@ -717,6 +730,9 @@ export function createUpdateSessionHandler(options: { store: ScheduleStore }) {
         "permission-denied",
         "Office access required to change session type or site",
       );
+    if (parsed.value.ageCapacities !== undefined && actor.role !== "owner") {
+      throw new HttpsError("permission-denied", "Only the owner can change age-specific limits");
+    }
     if (
       parsed.value.curriculum !== undefined &&
       actor.role !== "owner" &&
