@@ -410,6 +410,7 @@ export {
   confirmPaygClassPayment,
   getPaygClassProofUrl,
   preparePaygClassPayment,
+  rejectPaygClassProof,
   uploadPaygClassProof,
 } from "./schedule/payg-class-payment.js";
 export {

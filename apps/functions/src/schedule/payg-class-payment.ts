@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import { getFirestore, type DocumentData, type Firestore } from "firebase-admin/firestore";
+import { createHash, randomUUID } from "node:crypto";
+import { FieldValue, getFirestore, type DocumentData, type Firestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { buildBookingId, buildBookingIdCandidates, type PaygBookingPayment } from "@bpt-jersey/domain/schedule";
@@ -142,6 +142,8 @@ export const confirmPaygClassPayment = onCall(scheduleCallableOptions, async (re
   const view = await store.getInvoice({ academyId: actor.academyId }, invoice.invoiceId);
   if (view.balanceMinor === 0) return { status: "paid" as const };
   const transfer = (booking.paygPayment as PaygBookingPayment | undefined)?.method === "bank_transfer";
+  // Coaches take cash at the door only: a transfer is checked against its screenshot by the office.
+  if (transfer && actor.role !== "owner" && actor.role !== "administrator") throw new HttpsError("permission-denied", "The office checks transfer payments.");
   await store.recordManualPayment({
     academyId: actor.academyId, actorId: actor.userId, invoiceId: invoice.invoiceId,
     amountMinor: view.balanceMinor, method: transfer ? "bank_transfer" : "cash",
@@ -163,6 +165,40 @@ export const uploadPaygClassProof = onCall({ ...scheduleCallableOptions, secrets
   const validated = validateIntroProof(input.data.contentType, input.data.base64);
   await createPrivateStorageR2Client().putObject(paygProofKey(actor.academyId, actor.userId, buildBookingId(input.data.sessionId, input.data.studentId), validated.proofId), validated.bytes, input.data.contentType);
   return { proofId: validated.proofId };
+});
+
+/**
+ * Office-only: the screenshot does not show this class paid. The booking stays and the class is
+ * owed again ("Needs to pay"); the member can pay at the academy. The object stays in R2 as evidence.
+ */
+export const rejectPaygClassProof = onCall(scheduleCallableOptions, async (request) => {
+  const actor = await requireActiveOfficeActor(request);
+  const input = classPaymentSchema.safeParse(request.data);
+  if (!input.success) throw new HttpsError("invalid-argument", "Choose a member and class.");
+  const db = getFirestore();
+  const booking = await readConfirmedPaygBooking(db, actor.academyId, input.data.sessionId, input.data.studentId);
+  const payment = booking.paygPayment as PaygBookingPayment | undefined;
+  if (payment?.method !== "bank_transfer") throw new HttpsError("failed-precondition", "There is no transfer to reject.");
+  // A transfer someone already accepted is settled money: undo it in Billing, not here.
+  const invoice = await ensurePaygClassInvoice(db, { academyId: actor.academyId, actorId: actor.userId, ...input.data, membershipId: String(booking.membershipId) });
+  if ((await paygFinanceStore(db).getInvoice({ academyId: actor.academyId }, invoice.invoiceId)).balanceMinor === 0) {
+    throw new HttpsError("failed-precondition", "This class is already paid. Refresh the roster.");
+  }
+  const root = `academies/${actor.academyId}`;
+  const ref = db.doc(`${root}/bookings/${String(booking.bookingId)}`);
+  const now = new Date().toISOString();
+  await db.runTransaction(async (tx) => {
+    const current = (await tx.get(ref)).data();
+    if (current?.status !== "confirmed" || current.paygPayment?.method !== "bank_transfer" || current.paygPayment.proofId !== payment.proofId) {
+      throw new HttpsError("aborted", "This booking changed. Refresh and try again.");
+    }
+    tx.update(ref, { paygPayment: FieldValue.delete(), updatedAt: now, updatedBy: actor.userId });
+    tx.create(db.collection(`${root}/auditEvents`).doc(), {
+      eventId: randomUUID(), academyId: actor.academyId, actorId: actor.userId, action: "booking.payg_transfer_rejected",
+      targetRef: ref.path, purpose: "PAYG transfer screenshot rejected by the office", correlationId: String(booking.bookingId), occurredAt: now, schemaVersion: "1",
+    });
+  });
+  return { status: "rejected" as const };
 });
 
 /** Office-only, 60-second signed view of the member's transfer screenshot. */

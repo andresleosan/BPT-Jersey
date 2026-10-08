@@ -17,6 +17,7 @@ import {
   correctAttendance,
   getPreClassView,
   getSessionOperationalView,
+  listSessionBookings,
   listSessions,
   reconcileSessionNoShows,
   recordCheckIn,
@@ -24,10 +25,12 @@ import {
   walkInFailureMessage,
   recordCheckout,
 } from "../../../lib/schedule-client";
+import { confirmPaygClassPayment, getPaygClassProofUrl, rejectPaygClassProof } from "../../../lib/groups-client";
+import { useAdminOrStaffSession } from "../admin-gate";
 import { AdminFilterBar, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 import { AdminDataTable } from "../admin-data-table";
 import { AttendanceDialog, type AttendanceDialogState } from "./attendance-dialog";
-import { SessionRoster, type SessionRosterState } from "./session-roster";
+import { SessionRoster, type PaygActions, type SessionRosterState } from "./session-roster";
 
 import "../admin.css";
 import "./attendance.css";
@@ -127,6 +130,9 @@ export function AttendancePage() {
   const [dialogError, setDialogError] = useState("");
   const [operationError, setOperationError] = useState("");
   const [notice, setNotice] = useState("");
+  const [proof, setProof] = useState<Readonly<{ name: string; url: string }>>();
+  const actorRole = useAdminOrStaffSession().role;
+  const office = actorRole === "owner" || actorRole === "administrator";
   const [busyKey, setBusyKey] = useState<string>();
   // "town" on the server-prerendered markup and until the effect below seeds the saved choice
   // after mount, so the static export never hydration-mismatches against localStorage.
@@ -156,6 +162,7 @@ export function AttendancePage() {
     setData({ status: "loading", date });
     setOperationError("");
     setNotice("");
+    setProof(undefined);
     void loadAttendanceViews(date).then(
       (nextViews) => {
         if (!active) return;
@@ -195,12 +202,27 @@ export function AttendancePage() {
     const seq = (rosterRequests.current[sessionId] = (rosterRequests.current[sessionId] ?? 0) + 1);
     const isCurrent = () => mountedRef.current && rosterRequests.current[sessionId] === seq;
     try {
-      const view = cursor ? await courseApi.roster({sessionId, cursor}) : await getPreClassView(sessionId);
+      // ponytail: payment labels re-read with every roster poll; cache per session if reads cost too much.
+      const [view, payments] = await Promise.all([
+        cursor ? courseApi.roster({sessionId, cursor}) : getPreClassView(sessionId),
+        cursor
+          ? Promise.resolve(undefined)
+          : listSessionBookings(sessionId).then(
+              (bookings) => Object.fromEntries(bookings.filter((booking) => booking.status === "confirmed").map((booking) => [booking.studentId, booking.paymentLabel])),
+              () => undefined,
+            ),
+      ]);
       if (!isCurrent()) return;
-      setRosters((current) => ({
-        ...current,
-        [sessionId]: { status: "ready", attendees: cursor && current[sessionId]?.status === "ready" ? [...current[sessionId].attendees, ...view.attendees] : view.attendees, cursor: view.cursor ?? null },
-      }));
+      setRosters((current) => {
+        const previous = current[sessionId];
+        const kept = previous?.status === "ready" ? previous.payments : undefined;
+        // A failed payment read keeps the last labels rather than falling back to a plain Clock in.
+        const merged = cursor ? kept : payments ?? kept;
+        return {
+          ...current,
+          [sessionId]: { status: "ready", attendees: cursor && previous?.status === "ready" ? [...previous.attendees, ...view.attendees] : view.attendees, cursor: view.cursor ?? null, ...(merged ? { payments: merged } : {}) },
+        };
+      });
     } catch {
       if (!isCurrent()) return;
       setRosters((current) => ({ ...current, [sessionId]: { status: "error" } }));
@@ -232,6 +254,7 @@ export function AttendancePage() {
 
   function choosePremises(next: LocationId): void {
     setPremises(next);
+    setProof(undefined);
     try {
       localStorage.setItem(premisesStorageKey, next);
     } catch {
@@ -290,6 +313,8 @@ export function AttendancePage() {
         await refreshAfterSuccess(`${displayName} marked present.`);
       } catch (error) {
         setOperationError(`${displayName}: ${walkInFailureMessage(error)}`);
+        // A PAYG walk-in is booked before payment: show the row so the payment can be confirmed.
+        void loadRoster(sessionId);
       } finally {
         setBusyStudentId(undefined);
         setBusyKey(undefined);
@@ -297,6 +322,76 @@ export function AttendancePage() {
     },
     [loadRoster, refreshAfterSuccess],
   );
+  /** One pay-as-you-go step: settle the class payment, then clock in. */
+  const handlePayAndClockIn = useCallback(
+    async (sessionId: string, studentId: string, displayName: string): Promise<void> => {
+      setBusyStudentId(studentId);
+      setBusyKey(`pay:${sessionId}:${studentId}`);
+      setOperationError("");
+      setNotice("");
+      try {
+        try {
+          await confirmPaygClassPayment(sessionId, studentId);
+        } catch (error) {
+          setOperationError(`${displayName}: ${error instanceof Error && error.message ? error.message : "Unable to confirm the payment."} Nothing was changed.`);
+          return;
+        }
+        try {
+          await recordCheckIn({ sessionId, studentId, method: "manual" });
+        } catch (error) {
+          setProof(undefined);
+          await loadRoster(sessionId);
+          const reason = (error as { details?: { reason?: unknown } } | null)?.details?.reason;
+          setOperationError(
+            reason === "conflict"
+              ? `Payment confirmed for ${displayName}, who is already checked in.`
+              : `Payment confirmed for ${displayName}, but the clock-in failed. Use Clock in to try again.`,
+          );
+          return;
+        }
+        setProof(undefined);
+        await loadRoster(sessionId);
+        setClockMs(Date.now());
+        await refreshAfterSuccess(`Payment confirmed and clock-in recorded for ${displayName}.`);
+      } finally {
+        setBusyStudentId(undefined);
+        setBusyKey(undefined);
+      }
+    },
+    [loadRoster, refreshAfterSuccess],
+  );
+  const handleViewTransfer = useCallback(async (sessionId: string, studentId: string, displayName: string) => {
+    setOperationError("");
+    try {
+      setProof({ name: displayName, url: await getPaygClassProofUrl(sessionId, studentId) });
+    } catch (error) {
+      setOperationError(`${displayName}: ${error instanceof Error && error.message ? error.message : "Unable to open the transfer."}`);
+    }
+  }, []);
+  const handleRejectTransfer = useCallback(
+    async (sessionId: string, studentId: string, displayName: string): Promise<void> => {
+      setBusyStudentId(studentId);
+      setOperationError("");
+      setNotice("");
+      try {
+        await rejectPaygClassProof(sessionId, studentId);
+        setProof(undefined);
+        await loadRoster(sessionId);
+        setNotice(`Transfer rejected for ${displayName}. The class shows as not paid.`);
+      } catch (error) {
+        setOperationError(`${displayName}: ${error instanceof Error && error.message ? error.message : "Unable to reject the transfer."}`);
+      } finally {
+        setBusyStudentId(undefined);
+      }
+    },
+    [loadRoster],
+  );
+  const paygFor = (sessionId: string): PaygActions => ({
+    office,
+    onPayAndClockIn: (studentId, displayName) => void handlePayAndClockIn(sessionId, studentId, displayName),
+    onViewTransfer: (studentId, displayName) => void handleViewTransfer(sessionId, studentId, displayName),
+    onRejectTransfer: (studentId, displayName) => void handleRejectTransfer(sessionId, studentId, displayName),
+  });
   const rows = useMemo(() => rowsFromViews(views), [views]);
   const sessionOptions = useMemo(
     () => ["All sessions", ...new Set(rows.map((row) => row.sessionLabel))],
@@ -574,6 +669,19 @@ export function AttendancePage() {
         </p>
       ) : null}
 
+      {proof ? (
+        <figure className="attendance-proof" aria-label={`${proof.name}'s transfer screenshot`}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- 60-second signed private URL */}
+          <img alt={`Transfer screenshot sent by ${proof.name}`} src={proof.url} />
+          <figcaption>
+            <span>Transfer from {proof.name}. Check the amount, date and reference.</span>
+            <button className="button attendance-secondary" onClick={() => setProof(undefined)} type="button">
+              Close
+            </button>
+          </figcaption>
+        </figure>
+      ) : null}
+
       {isLoading ? <p role="status">Loading today&apos;s classes...</p> : null}
       {!isLoading && data.status === "ready" && siteSessions.length === 0 ? (
         <p className="admin-empty-state">No classes at {locationLabel(premises)} on this date.</p>
@@ -590,6 +698,7 @@ export function AttendancePage() {
             onWalkIn={(studentId, displayName) =>
               void handleWalkIn(s.sessionId, studentId, displayName)
             }
+            payg={paygFor(s.sessionId)}
             roster={rosters[s.sessionId] ?? { status: "loading" }}
             session={s}
             onLoadMore={() => {const roster = rosters[s.sessionId]; if (roster?.status === "ready" && roster.cursor) void loadRoster(s.sessionId, roster.cursor);}}

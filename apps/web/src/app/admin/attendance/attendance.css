@@ -606,3 +606,104 @@
   margin: 0;
   padding: 0;
 }
+
+/* Pay-as-you-go: payment chip and actions on a roster row. The row wraps so the chip and the
+   actions never squeeze the name. */
+.attendance-roster li {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.attendance-roster-name {
+  flex: 1 1 12rem;
+}
+
+.attendance-payment {
+  border-left: 0.35rem solid currentColor;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 0.25rem 0.5rem;
+  text-transform: uppercase;
+}
+
+.attendance-payment-paid {
+  background: #e7f6ee;
+  color: #176b49;
+}
+
+.attendance-payment-due {
+  background: #fff4dc;
+  color: #7a4b00;
+}
+
+.attendance-payment-note {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.attendance-roster-actions,
+.attendance-reject-confirm {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.attendance-reject-confirm {
+  flex-basis: 100%;
+}
+
+.attendance-secondary {
+  background: transparent;
+  border-color: var(--mat-ink);
+  color: var(--mat-ink);
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+}
+
+.attendance-secondary:hover {
+  background: var(--mat-ink);
+  color: var(--gi-white);
+}
+
+.attendance-secondary:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 4px;
+}
+
+.attendance-proof {
+  background: var(--gi-white);
+  border: 1px solid var(--card-edge);
+  display: grid;
+  gap: 0.75rem;
+  margin: 0 0 1.5rem;
+  max-width: 32rem;
+  padding: 1rem;
+}
+
+.attendance-proof img {
+  display: block;
+  max-height: 70vh;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.attendance-proof figcaption {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+@media (max-width: 47.99rem) {
+  .attendance-roster-actions {
+    flex-basis: 100%;
+  }
+
+  .attendance-roster-actions .button,
+  .attendance-roster li > .attendance-clock-in {
+    flex: 1 1 auto;
+  }
+}

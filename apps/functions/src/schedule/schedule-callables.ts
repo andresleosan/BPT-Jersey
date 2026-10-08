@@ -67,6 +67,7 @@ import {
 import { enrolmentStorageSecrets } from "../members/enrolment-payment-proof.js";
 import { createPrivateStorageR2Client } from "../storage/r2-client.js";
 import { attachPaygBookingPayment, voidUnpaidPaygInvoice } from "./payg-booking-payment.js";
+import { ensurePaygClassInvoice } from "./payg-class-payment.js";
 import {
   scheduleCallableOptions,
   scheduleReadCallableOptions,
@@ -1332,6 +1333,13 @@ export function createStaffWalkInAttendanceHandler(options: { store: ScheduleSto
               walkIn: true,
             }),
           );
+          // A PAYG walk-in owes this class: issue its charge so staff can confirm payment and clock in.
+          const plan = (await firestore.doc(`${academyPath}/plans/${String(membership.data().planId)}`).get()).data();
+          if (plan?.billingPeriod === "per-session") {
+            // The booking is already made: a failed charge falls through to check-in, which answers
+            // "payment", and confirming the payment issues the charge again.
+            await ensurePaygClassInvoice(firestore, { academyId: actor.academyId, actorId: actor.userId, sessionId, studentId, membershipId: membership.id }).catch(() => undefined);
+          }
         }
       } catch (error) {
         return mapBookingError(error);

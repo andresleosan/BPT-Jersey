@@ -238,8 +238,9 @@ export function RegistrationsPanel({
               </span>
               {/* Every roster viewer is staff (listSessionBookings is staff-only); the server
                   re-checks staff roles in confirmPaygClassPayment (payg-class-payment.ts). */}
+              {/* Coaches take cash only: a transfer is accepted by the office against its screenshot. */}
               {booking.paymentLabel === "PAYG Pay at venue" ||
-              booking.paymentLabel === "PAYG Transfer sent" ||
+              (booking.paymentLabel === "PAYG Transfer sent" && canReadMemberships) ||
               booking.paymentLabel === "PAYG Needs to pay" ? (
                 <button className="cs-button" type="button" disabled={busy} onClick={async () => {
                   setBusy(true); setMessages([]);

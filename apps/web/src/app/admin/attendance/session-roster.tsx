@@ -3,17 +3,42 @@
 import { useEffect, useState } from "react";
 
 import { searchAttendanceMembers } from "../../../lib/schedule-client";
-import type { SessionRecord } from "@bpt-jersey/domain/schedule";
+import type { SessionRecord, SessionRegistrationRecord } from "@bpt-jersey/domain/schedule";
 import {
   deriveRosterTag,
   type PreClassAttendee,
   type RosterTag,
 } from "@bpt-jersey/domain/schedule/pre-class";
 
+export type PaymentLabel = SessionRegistrationRecord["paymentLabel"];
+
 export type SessionRosterState =
   | Readonly<{ status: "loading" }>
-  | Readonly<{ status: "ready"; attendees: readonly PreClassAttendee[]; cursor?: string | null }>
+  | Readonly<{
+      status: "ready";
+      attendees: readonly PreClassAttendee[];
+      cursor?: string | null;
+      /** Per student, from the session's registrations; missing when that read failed. */
+      payments?: Readonly<Record<string, PaymentLabel>>;
+    }>
   | Readonly<{ status: "error" }>;
+
+/** Only pay-as-you-go classes carry a chip: subscriptions, courses and intros are paid elsewhere. */
+const paymentChips: Partial<Readonly<Record<PaymentLabel, string>>> = {
+  "PAYG Paid": "Class paid",
+  "PAYG Needs to pay": "Class not paid",
+  "PAYG Pay at venue": "Pays at the academy",
+  "PAYG Transfer sent": "Transfer to check",
+};
+const unpaidLabels: readonly PaymentLabel[] = ["PAYG Needs to pay", "PAYG Pay at venue", "PAYG Transfer sent"];
+
+export type PaygActions = Readonly<{
+  /** Owner and administrators see the screenshot and accept transfers; coaches take cash only. */
+  office: boolean;
+  onPayAndClockIn: (studentId: string, displayName: string) => void;
+  onViewTransfer: (studentId: string, displayName: string) => void;
+  onRejectTransfer: (studentId: string, displayName: string) => void;
+}>;
 
 const tagLabels: Readonly<Record<RosterTag, string>> = {
   ready: "Ready",
@@ -119,6 +144,7 @@ export function SessionRoster({
   nowMs,
   onClockIn,
   onWalkIn,
+  payg,
   roster,
   session,
 }: {
@@ -127,10 +153,13 @@ export function SessionRoster({
   nowMs: number;
   onClockIn: (studentId: string, displayName: string) => void;
   onWalkIn?: (studentId: string, displayName: string) => void;
+  payg?: PaygActions;
   roster: SessionRosterState;
   session: SessionRecord;
 }) {
+  const [rejecting, setRejecting] = useState<string>();
   const cancelled = session.status === "cancelled";
+  const payments = roster.status === "ready" ? roster.payments : undefined;
   const booked =
     roster.status === "ready" ? roster.attendees.filter((a) => a.source === "booked") : [];
   const rows = booked.map((attendee) => ({
@@ -175,16 +204,62 @@ export function SessionRoster({
           {rows.map(({ attendee, tag }) => {
             const busy = busyStudentId !== undefined;
             const mine = busyStudentId === attendee.studentId;
+            const payment = payments?.[attendee.studentId];
+            const chip = payment ? paymentChips[payment] : undefined;
+            const unpaid = payment !== undefined && unpaidLabels.includes(payment);
+            const transfer = payment === "PAYG Transfer sent";
+            const canClockIn = !cancelled && (tag === "booked" || tag === "late");
+            const name = attendee.displayName;
             return (
               <li key={attendee.studentId}>
-                <span className="attendance-roster-name">{attendee.displayName}</span>
+                <span className="attendance-roster-name">{name}</span>
                 <span className={`attendance-tag attendance-tag-${tag}`}>{tagLabels[tag]}</span>
-                {!cancelled && (tag === "booked" || tag === "late") ? (
+                {chip ? (
+                  <span className={`attendance-payment ${unpaid ? "attendance-payment-due" : "attendance-payment-paid"}`}>{chip}</span>
+                ) : null}
+                {canClockIn && unpaid && payg ? (
+                  transfer && !payg.office ? (
+                    <span className="attendance-payment-note">The office checks this transfer</span>
+                  ) : (
+                    <span className="attendance-roster-actions">
+                      {transfer ? (
+                        <button aria-label={`View ${name}'s transfer`} className="button attendance-secondary" disabled={busy} onClick={() => payg.onViewTransfer(attendee.studentId, name)} type="button">
+                          View transfer
+                        </button>
+                      ) : null}
+                      <button
+                        aria-label={transfer ? `Accept ${name}'s transfer and clock in` : `Mark ${name}'s class paid at the academy and clock in`}
+                        className="button attendance-clock-in"
+                        disabled={busy}
+                        onClick={() => payg.onPayAndClockIn(attendee.studentId, name)}
+                        type="button"
+                      >
+                        {mine ? "Saving..." : transfer ? "Accept transfer & clock in" : "Paid at academy & clock in"}
+                      </button>
+                      {transfer && rejecting !== attendee.studentId ? (
+                        <button aria-label={`Reject ${name}'s transfer`} className="button attendance-secondary" disabled={busy} onClick={() => setRejecting(attendee.studentId)} type="button">
+                          Reject
+                        </button>
+                      ) : null}
+                      {transfer && rejecting === attendee.studentId ? (
+                        <span className="attendance-reject-confirm" role="group" aria-label={`Reject ${name}'s transfer`}>
+                          <span>The class will show as not paid.</span>
+                          <button className="button attendance-secondary" disabled={busy} onClick={() => { setRejecting(undefined); payg.onRejectTransfer(attendee.studentId, name); }} type="button">
+                            Reject transfer
+                          </button>
+                          <button className="button attendance-secondary" disabled={busy} onClick={() => setRejecting(undefined)} type="button">
+                            Keep
+                          </button>
+                        </span>
+                      ) : null}
+                    </span>
+                  )
+                ) : canClockIn ? (
                   <button
-                    aria-label={`Clock in ${attendee.displayName}`}
+                    aria-label={`Clock in ${name}`}
                     className="button attendance-clock-in"
                     disabled={busy}
-                    onClick={() => onClockIn(attendee.studentId, attendee.displayName)}
+                    onClick={() => onClockIn(attendee.studentId, name)}
                     type="button"
                   >
                     {mine ? "Clocking in..." : "Clock in"}

@@ -10,10 +10,17 @@ vi.mock("../../lib/schedule-client", () => ({
   listClasses: vi.fn().mockResolvedValue([]),
   listSessions: vi.fn().mockResolvedValue([]),
   getSessionOperationalView: vi.fn(),
+  listSessionBookings: vi.fn().mockResolvedValue([]),
   saveClass: vi.fn(),
   saveSession: vi.fn(),
 }));
 
+vi.mock("./admin-gate", () => ({ useAdminOrStaffSession: () => ({ role: "owner" }) }));
+vi.mock("../../lib/groups-client", () => ({
+  confirmPaygClassPayment: vi.fn(),
+  getPaygClassProofUrl: vi.fn(),
+  rejectPaygClassProof: vi.fn(),
+}));
 vi.mock("../../lib/crm-client", () => ({
   listCrmLeads: vi.fn().mockResolvedValue([]),
 }));

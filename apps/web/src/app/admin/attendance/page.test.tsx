@@ -16,6 +16,7 @@ const schedule = vi.hoisted(() => ({
   correctAttendance: vi.fn(),
   getPreClassView: vi.fn(),
   getSessionOperationalView: vi.fn(),
+  listSessionBookings: vi.fn(async () => []),
   listSessions: vi.fn(),
   reconcileSessionNoShows: vi.fn(),
   recordCheckIn: vi.fn(),
@@ -23,6 +24,12 @@ const schedule = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../lib/schedule-client", () => schedule);
+vi.mock("../admin-gate", () => ({ useAdminOrStaffSession: () => ({ role: "owner" }) }));
+vi.mock("../../../lib/groups-client", () => ({
+  confirmPaygClassPayment: vi.fn(),
+  getPaygClassProofUrl: vi.fn(),
+  rejectPaygClassProof: vi.fn(),
+}));
 
 import { AttendancePage } from "./page";
 
