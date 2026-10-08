@@ -2,11 +2,12 @@ import { randomUUID } from "node:crypto";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
-import { deleteCoachAccountSchema, setCoachBeltSchema, setOwnerTeachesSchema, type CoachBelt } from "@bpt-jersey/domain/staff/team-access";
+import { coachMemberAccessPath, deleteCoachAccountSchema, setCoachBeltSchema, setOwnerTeachesSchema, type CoachBelt } from "@bpt-jersey/domain/staff/team-access";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { requireActiveOfficeActor } from "../auth/office-actor.js";
 import { enrolmentStorageSecrets } from "../members/enrolment-payment-proof.js";
 import { createPrivateStorageR2Client } from "../storage/r2-client.js";
+import { readMemberCoachRole } from "./member-coach-access.js";
 
 /** Coach profiles of one login. Direct accounts use staffId === uid; invited ones do not. */
 export async function coachProfiles(db: Firestore, academyId: string, userId: string) {
@@ -58,9 +59,11 @@ export const deleteCoachAccount = onCall({ ...browserAdminCallableOptions, secre
     throw error;
   });
   const profiles = await coachProfiles(db, actor.academyId, userId);
+  // A member with coach access keeps their login: only the coach side is removed.
+  const memberRole = await readMemberCoachRole(db, actor.academyId, userId);
   // A deactivated coach has no role claim left, only a coach profile.
   const claimRole = user?.customClaims?.role;
-  const isCoach = claimRole === undefined ? profiles.length > 0 : ["coach", "headCoach"].includes(String(claimRole));
+  const isCoach = memberRole !== null || (claimRole === undefined ? profiles.length > 0 : ["coach", "headCoach"].includes(String(claimRole)));
   if (user && (user.customClaims?.academyId !== actor.academyId || !isCoach)) {
     throw new HttpsError("failed-precondition", "Only coach accounts can be deleted. Change the role to Coach first.");
   }
@@ -99,13 +102,16 @@ export const deleteCoachAccount = onCall({ ...browserAdminCallableOptions, secre
   for (const doc of (await db.collection("staffLoginCredentials").where("userId", "==", userId).get()).docs) batch.delete(doc.ref);
   const website = await base.collection("coachWebsite").doc(userId).get();
   if (website.exists) batch.delete(website.ref);
-  batch.set(base.collection("users").doc(userId), { active: false, status: "inactive", deletedAt: now, updatedAt: now, updatedBy: actor.userId }, { merge: true });
+  if (memberRole) batch.delete(db.doc(coachMemberAccessPath(actor.academyId, userId)));
+  else batch.set(base.collection("users").doc(userId), { active: false, status: "inactive", deletedAt: now, updatedAt: now, updatedBy: actor.userId }, { merge: true });
   batch.create(base.collection("auditEvents").doc(), coachAudit(actor.academyId, actor.userId, userId, "staff.coach_deleted", "coach account deletion", now));
   await batch.commit();
   // Auth goes last: if it fails, the account stays visible in the directory and a second Delete finishes it.
   const photoKey = website.data()?.photoKey;
   if (typeof photoKey === "string") await createPrivateStorageR2Client().deleteObject(photoKey).catch(() => undefined);
-  if (user) await auth.deleteUser(userId).catch((error: { code?: string }) => { if (error.code !== "auth/user-not-found") throw error; });
+  if (memberRole) {
+    if (user) await auth.setCustomUserClaims(userId, { ...user.customClaims, academyId: actor.academyId, role: memberRole });
+  } else if (user) await auth.deleteUser(userId).catch((error: { code?: string }) => { if (error.code !== "auth/user-not-found") throw error; });
   return { deleted: true as const };
 });
 

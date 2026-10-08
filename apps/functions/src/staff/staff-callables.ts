@@ -7,6 +7,7 @@ import { requireUserActor } from "../auth/user-authorization.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { withSharedRoleLock, type SyntheticFirestore } from "../auth/admin-provisioning.js";
+import { readMemberCoachRole } from "./member-coach-access.js";
 import {
   createStaffStore,
   MAX_STAFF_LIST_RECORDS,
@@ -31,6 +32,8 @@ type ClaimsLockControl = Readonly<{ retain: () => void }>;
 export type StaffCallableServices = Readonly<{
   auth: StaffAuthService;
   store: StaffStore;
+  /** Member role to restore for a member account with coach access; null otherwise. */
+  memberCoachRole?: (academyId: string, userId: string) => Promise<"adultStudent" | "guardian" | null>;
   withClaimsLock: <T>(
     academyId: string,
     actorId: string,
@@ -297,6 +300,14 @@ async function applyClaims(
   assertClaimsScope(current, profile.academyId);
   const hasAdministrativeRole = current.role === "owner" || current.role === "administrator";
   if (hasAdministrativeRole) return;
+  const memberRole = (await services.memberCoachRole?.(profile.academyId, userId)) ?? null;
+  // A member with coach access: sign-in picks the mode, so activating leaves the claim alone and
+  // deactivating returns the account to member mode instead of leaving it without a role.
+  if (memberRole) {
+    if (profile.active || current.role === memberRole) return;
+    await services.auth.setCustomUserClaims(userId, { ...current, academyId: profile.academyId, role: memberRole });
+    return;
+  }
   const next: Record<string, unknown> = { ...current, academyId: profile.academyId };
   if (profile.active) next.role = profile.role;
   else delete next.role;
@@ -543,6 +554,7 @@ export function staffCallableServices(): StaffCallableServices {
     }),
     withClaimsLock: (academyId, actorId, userId, operation) =>
       withSharedRoleLock(firestore, academyId, actorId, userId, operation),
+    memberCoachRole: (academyId, userId) => readMemberCoachRole(getFirestore(), academyId, userId),
     auth: {
       getUser: async (userId) => {
         const user = await getAuth().getUser(userId);

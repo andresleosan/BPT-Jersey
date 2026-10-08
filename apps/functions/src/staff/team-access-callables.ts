@@ -41,6 +41,9 @@ function services(request: CallableRequest): TeamAccessServices {
       }
       return profiles;
     },
+    async memberCoachUsers(academyId) {
+      return new Set((await firestore.collection(`academies/${academyId}/coachMemberAccess`).get()).docs.map((doc) => doc.id));
+    },
     async demoteToCoach(actor, uid) {
       await withSharedRoleLock(firestore as unknown as SyntheticFirestore, actor.academyId, actor.uid, uid, async () => {
         const user = await auth.getUser(uid);

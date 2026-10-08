@@ -47,6 +47,8 @@ export type TeamAccessServices = Readonly<{
   coachProfilesByUser(academyId: string): Promise<ReadonlyMap<string, TeamCoachProfile>>;
   /** Owner/administrator → coach: claims, users.adminRole and an active coach profile. */
   demoteToCoach(actor: AdminActor, uid: string): Promise<void>;
+  /** Member accounts that also have coach access (coachMemberAccess ids). */
+  memberCoachUsers?(academyId: string): Promise<ReadonlySet<string>>;
   now(): Date;
 }>;
 function verifiedApplication(request: CallableRequest): void {
@@ -87,11 +89,14 @@ export async function listTeamDirectoryHandler(
   if (!input.success) throw new HttpsError("invalid-argument", "Invalid directory request.");
   const page = await services.auth.listUsers(1000, input.data.pageToken);
   const coaches = await services.coachProfilesByUser(actor.academyId);
+  const members = (await services.memberCoachUsers?.(actor.academyId)) ?? new Set<string>();
   const people = page.users
     .filter(
       (user) =>
         user.customClaims?.academyId === actor.academyId &&
         (["owner", "administrator", "headCoach", "coach"].includes(String(user.customClaims.role)) ||
+          // A member with coach access is listed in either mode.
+          members.has(user.uid) ||
           // Deactivated coaches lose the role claim but keep their coach profile.
           (user.customClaims.role === undefined && coaches.has(user.uid))),
     )
@@ -99,8 +104,9 @@ export async function listTeamDirectoryHandler(
       userId: user.uid,
       name: user.displayName?.trim() ?? "",
       email: user.email ?? null,
-      role: user.customClaims!.role ?? "coach",
+      role: members.has(user.uid) ? "coach" : (user.customClaims!.role ?? "coach"),
       coach: coaches.get(user.uid) ?? null,
+      ...(members.has(user.uid) ? { alsoMember: true } : {}),
     }));
   return teamDirectoryResponseSchema.parse({ people, nextPageToken: page.pageToken ?? null });
 }
@@ -113,6 +119,11 @@ export async function changeTeamRoleHandler(
   if (!input.success) throw new HttpsError("invalid-argument", "Invalid role change.");
   if (input.data.userId === actor.uid)
     throw new HttpsError("failed-precondition", "Ask another owner to change your role.");
+  if ((await services.memberCoachUsers?.(actor.academyId))?.has(input.data.userId))
+    throw new HttpsError(
+      "failed-precondition",
+      "This coach is also a member. Remove coach access before giving office access.",
+    );
   if (input.data.role === "coach") await services.demoteToCoach(actor, input.data.userId);
   else
     await services.grant(

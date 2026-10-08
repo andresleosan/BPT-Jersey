@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore, Timestamp, type DocumentReference } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { coachMemberAccessPath } from "@bpt-jersey/domain/staff/team-access";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { clientIpFromRequest } from "../audit/client-ip.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
@@ -54,6 +55,21 @@ export async function deleteMemberAccountHandler(
   const familyId = typeof student.familyId === "string" ? student.familyId : undefined;
   const loginId = typeof student.userId === "string" ? student.userId : undefined;
 
+  // The login goes too, unless it is also another member's login or a guardian of someone else.
+  let deleteLogin = false;
+  if (loginId) {
+    const [otherStudents, guardianOf] = await Promise.all([
+      firestore.collection(`${root}/students`).where("userId", "==", loginId).limit(2).get(),
+      firestore.collection(`${root}/relationships`).where("adultUserId", "==", loginId).get(),
+    ]);
+    deleteLogin =
+      otherStudents.docs.every((document) => document.id === studentId) &&
+      guardianOf.docs.every((document) => document.get("studentId") === studentId);
+  }
+  // Checked before any booking is cancelled: a member who is also a coach keeps everything.
+  if (deleteLogin && loginId && (await firestore.doc(coachMemberAccessPath(actor.academyId, loginId)).get()).exists)
+    throw new HttpsError("failed-precondition", "This member is also a coach. Remove coach access first in Staff.");
+
   const byStudent = (name: string) => firestore.collection(`${root}/${name}`).where("studentId", "==", studentId).get();
   const bookings = await byStudent("bookings");
   const store = createFirestoreScheduleStore({
@@ -96,18 +112,7 @@ export async function deleteMemberAccountHandler(
     }
   }
 
-  // The login goes too, unless it is also another member's login or a guardian of someone else.
-  let deleteLogin = false;
-  if (loginId) {
-    const [otherStudents, guardianOf] = await Promise.all([
-      firestore.collection(`${root}/students`).where("userId", "==", loginId).limit(2).get(),
-      firestore.collection(`${root}/relationships`).where("adultUserId", "==", loginId).get(),
-    ]);
-    deleteLogin =
-      otherStudents.docs.every((document) => document.id === studentId) &&
-      guardianOf.docs.every((document) => document.get("studentId") === studentId);
-    if (deleteLogin) refs.push(firestore.doc(`${root}/users/${loginId}`));
-  }
+  if (deleteLogin && loginId) refs.push(firestore.doc(`${root}/users/${loginId}`));
 
   const unique = [...new Map(refs.map((reference) => [reference.path, reference])).values()];
   const documents = (await firestore.getAll(...unique)).filter((document) => document.exists);
