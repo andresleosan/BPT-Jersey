@@ -22,7 +22,7 @@ import {
   toAuthMessage,
 } from "../../lib/login-flow";
 import type { LoginAudience, StaffDestination } from "../../lib/login-flow";
-import { acceptStaffInvitation } from "../../lib/team-access-client";
+import { acceptStaffInvitation, switchAccessMode } from "../../lib/team-access-client";
 import { isStaffNumber, signInWithStaffId } from "../../lib/staff-login-client";
 
 type LoginMode = "sign-in" | "create-client";
@@ -108,6 +108,15 @@ export function LoginForm({ audience }: LoginFormProps) {
   }
 
   async function completeSignIn(credential: UserCredential, googleSignIn = false): Promise<void> {
+    // A member with coach access uses one login for both areas: the page picks the mode. Accounts
+    // with a single mode get `false` and continue exactly as before. Not forced: the credential was
+    // just issued, so its token already carries the current claim.
+    const before = await credential.user.getIdTokenResult();
+    const wrongMode = isStaff
+      ? ["adultStudent", "guardian"].includes(String(before.claims.role))
+      : ["coach", "headCoach"].includes(String(before.claims.role));
+    if (wrongMode) await switchAccessMode(isStaff ? "coach" : "member");
+
     if (!isStaff) {
       // Staff can use the public sign-in without being sent to the subscriber portal, which turns
       // a staff session away. Authority comes from the refreshed token, never from the email or URL.
