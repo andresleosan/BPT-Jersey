@@ -74,9 +74,11 @@ export type SelfCheckInCandidate =
   | Readonly<{ kind: "checkedIn"; session: SessionRecord; attendance: AttendanceRecord }>;
 
 /**
- * The earliest session whose window is open and that the student holds a confirmed booking for.
- * Attendance of any method turns it into `checkedIn` (decision 6: attendance is the seam with the
- * coach team; decision 16: the confirmation card survives reloads).
+ * The earliest session whose window is open, that the student holds a confirmed booking for and
+ * has no attendance in yet — so a member already in one class can check in to the next one they
+ * booked. Only when every open booked session is attended does it return the latest as `checkedIn`
+ * (decision 6: attendance of any method is the seam with the coach team; decision 16: the
+ * confirmation card survives reloads).
  */
 export function nextSelfCheckInSession(input: {
   sessions: readonly SessionRecord[];
@@ -98,7 +100,7 @@ export function nextSelfCheckInSession(input: {
         isSelfCheckInWindowOpen(s, isOpenMatProgram(programs.get(s.programId)), input.nowMs),
     )
     .sort((a, b) => a.startAt.localeCompare(b.startAt));
-  const session = open[0];
+  const session = open.find((s) => !attendance.has(s.sessionId)) ?? open[open.length - 1];
   if (!session) return undefined;
   const record = attendance.get(session.sessionId);
   return record ? { kind: "checkedIn", session, attendance: record } : { kind: "ready", session };
