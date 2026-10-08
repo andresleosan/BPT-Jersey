@@ -83,16 +83,23 @@ export const switchAccessMode = onCall(browserAdminCallableOptions, async (reque
   const input = switchAccessModeSchema.safeParse(request.data);
   if (!input.success) throw new HttpsError("invalid-argument", "Invalid access mode.");
   const db = getFirestore();
+  const coachActive = async () =>
+    (await readMemberCoachRole(db, actor.academyId, actor.userId)) !== null &&
+    (await coachProfiles(db, actor.academyId, actor.userId)).some((doc) => doc.data().active === true);
   const memberRole = await readMemberCoachRole(db, actor.academyId, actor.userId);
   if (!memberRole) throw new HttpsError("failed-precondition", "This account has one access mode.");
-  if (input.data.mode === "coach") {
-    const active = (await coachProfiles(db, actor.academyId, actor.userId)).some((doc) => doc.data().active === true);
-    if (!active) throw new HttpsError("failed-precondition", "Coach access is not active.");
-  }
+  if (input.data.mode === "coach" && !(await coachActive()))
+    throw new HttpsError("failed-precondition", "Coach access is not active.");
   const role = input.data.mode === "coach" ? "coach" : memberRole;
   const user = await getAuth().getUser(actor.userId);
   if (user.customClaims?.role === role) return { switched: false };
   // Keeps the claims already there (only academyId, role and non-authority keys pass requireUserActor).
   await getAuth().setCustomUserClaims(actor.userId, { ...user.customClaims, academyId: actor.academyId, role });
+  // The office may have removed or deactivated coach access while this ran (Delete/Deactivate write
+  // the member role without this lock): re-check after writing so a stale coach claim never stays.
+  if (role === "coach" && !(await coachActive())) {
+    await getAuth().setCustomUserClaims(actor.userId, { ...user.customClaims, academyId: actor.academyId, role: memberRole });
+    throw new HttpsError("failed-precondition", "Coach access is not active.");
+  }
   return { switched: true };
 });
