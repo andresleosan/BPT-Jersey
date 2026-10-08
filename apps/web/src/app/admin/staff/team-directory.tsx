@@ -13,6 +13,7 @@ import {
 import { useAdminGateSession } from "../admin-gate";
 import { AdminDataTable } from "../admin-data-table";
 import { DirectStaffForm } from "./direct-staff-form";
+import { MemberCoachAccessForm } from "./member-coach-access-form";
 
 type TeamRole = "coach" | "administrator" | "owner";
 type Review = { person: TeamDirectoryPerson; role: TeamRole };
@@ -171,7 +172,7 @@ export function TeamDirectoryContent({
               label: "Email",
               render: (person) => person.email || "Email not provided",
             },
-            { key: "role", label: "Role", render: (person) => teamRoleLabels[person.role] },
+            { key: "role", label: "Role", render: (person) => (person.alsoMember ? "Coach · also a member" : teamRoleLabels[person.role]) },
             {
               key: "website",
               label: "Website",
@@ -208,6 +209,8 @@ export function TeamDirectoryContent({
                     render: (person: TeamDirectoryPerson) =>
                       person.userId === session.uid ? (
                         "Your account"
+                      ) : person.alsoMember ? (
+                        "Member account"
                       ) : (
                         <button
                           className="staff-row-action"
@@ -282,6 +285,7 @@ export function TeamDirectoryContent({
           </div>
         </form>
       )}
+      <MemberCoachAccessForm onCreated={() => void loadDirectory()} />
       <DirectStaffForm session={session} onCreated={() => void loadDirectory()} />
       {review && (
         <section className="staff-card staff-role-review" aria-labelledby="staff-role-review-title">

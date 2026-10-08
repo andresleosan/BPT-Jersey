@@ -9,6 +9,8 @@ import {
   getCoachWebsiteProfileSchema, setCoachWebsiteProfileSchema, coachWebsiteProfileSchema, type SetCoachWebsiteProfileInput,
   type ChangeTeamRoleInput, type StaffInvitationInput,
   type CoachBelt, type SetCoachBeltInput, type SetOwnerTeachesInput, type DeleteCoachAccountInput,
+  listCoachEligibleMembersSchema, coachEligibleMembersResponseSchema, grantMemberCoachAccessSchema, switchAccessModeResultSchema,
+  type GrantMemberCoachAccessInput, type AccessMode,
 } from "@bpt-jersey/domain/staff/team-access";
 import { getFirebaseFunctions } from "./firebase-client";
 
@@ -60,5 +62,19 @@ export async function deleteCoachAccount(input: DeleteCoachAccountInput) {
   } catch (error) {
     const reason = (error as { code?: string }).code === "functions/failed-precondition" && error instanceof Error ? error.message : "";
     throw new Error(reason || "Unable to delete this coach. Refresh the team directory and try again.");
+  }
+}
+export function listCoachEligibleMembers(query: string) {
+  return call("listCoachEligibleMembers", listCoachEligibleMembersSchema.parse({ query }), coachEligibleMembersResponseSchema, "Unable to search members. Please try again.").then((result) => result.members);
+}
+export function grantMemberCoachAccess(input: GrantMemberCoachAccessInput) {
+  return call("grantMemberCoachAccess", grantMemberCoachAccessSchema.parse(input), z.strictObject({ granted: z.literal(true) }), "Unable to give coach access. Check that the member is an active adult and not already staff.");
+}
+/** true when the claim changed; false when there was nothing to change or the account has one access mode. */
+export async function switchAccessMode(mode: AccessMode): Promise<boolean> {
+  try {
+    return switchAccessModeResultSchema.parse((await httpsCallable<unknown, unknown>(getFirebaseFunctions(), "switchAccessMode")({ mode })).data).switched;
+  } catch {
+    return false;
   }
 }
