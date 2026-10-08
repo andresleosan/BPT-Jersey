@@ -6,6 +6,7 @@ import {
   staffInvitationInputSchema, staffInvitationSchema, staffInvitationListSchema, invitationIdentitySchema,
   setCoachBeltSchema, setCoachBeltResultSchema, setOwnerTeachesSchema, setOwnerTeachesResultSchema,
   deleteCoachAccountSchema, deleteCoachAccountResultSchema,
+  getCoachWebsiteProfileSchema, setCoachWebsiteProfileSchema, coachWebsiteProfileSchema, type SetCoachWebsiteProfileInput,
   type ChangeTeamRoleInput, type StaffInvitationInput,
   type CoachBelt, type SetCoachBeltInput, type SetOwnerTeachesInput, type DeleteCoachAccountInput,
 } from "@bpt-jersey/domain/staff/team-access";
@@ -43,6 +44,14 @@ export function setCoachBelt(input: SetCoachBeltInput) {
 }
 export function setOwnerTeaches(input: SetOwnerTeachesInput) {
   return call("setOwnerTeaches", setOwnerTeachesSchema.parse(input), setOwnerTeachesResultSchema, "Unable to update this owner. Choose a belt and try again.");
+}
+export function getCoachWebsiteProfile(userId: string) {
+  return call("getCoachWebsiteProfile", getCoachWebsiteProfileSchema.parse({ userId }), coachWebsiteProfileSchema, "Unable to load this coach's website card. Please try again.");
+}
+export function setCoachWebsiteProfile(input: SetCoachWebsiteProfileInput) {
+  const parsed = setCoachWebsiteProfileSchema.safeParse(input);
+  if (!parsed.success) return Promise.reject(new Error("Keep the description within the limit and use a photo under 2 MB."));
+  return call("setCoachWebsiteProfile", parsed.data, coachWebsiteProfileSchema, "Unable to save this website card. Check the photo and try again.");
 }
 /** Unlike call(), keeps the server's reason when a coach still has classes to reassign. */
 export async function deleteCoachAccount(input: DeleteCoachAccountInput) {

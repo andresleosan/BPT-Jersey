@@ -5,6 +5,9 @@ import { onRequest } from "firebase-functions/v2/https";
 import { coachBeltLabels, coachBelts, coachBeltSchema, type CoachBelt } from "@bpt-jersey/domain/staff/team-access";
 import { browserOrigins } from "../auth/callable-options.js";
 import { coursesAcademyId } from "../courses/course-public-http.js";
+import { enrolmentStorageSecrets } from "../members/enrolment-payment-proof.js";
+import { createPrivateStorageR2Client } from "../storage/r2-client.js";
+import { coachWebsitePath, signCoachPhoto } from "./coach-website-profile.js";
 
 /** Coaches, plus owners who teach (active coach profile). Administrators never appear. */
 const websiteRoles = ["coach", "headCoach", "owner"];
@@ -13,7 +16,7 @@ export function sortPublicCoaches<T extends { name: string; belt: CoachBelt }>(r
   return [...rows].sort((a, b) => coachBelts.indexOf(a.belt) - coachBelts.indexOf(b.belt) || a.name.localeCompare(b.name, "en"));
 }
 
-export const coachesPublic = onRequest({ cors: browserOrigins, invoker: "public", timeoutSeconds: 15, memory: "256MiB" }, async (request, response) => {
+export const coachesPublic = onRequest({ cors: browserOrigins, invoker: "public", timeoutSeconds: 15, memory: "256MiB", secrets: enrolmentStorageSecrets }, async (request, response) => {
   response.set("X-Content-Type-Options", "nosniff");
   if (request.method !== "GET") { response.set("Allow", "GET"); response.status(405).json({ error: "method_not_allowed" }); return; }
   const academyId = coursesAcademyId.value();
@@ -27,11 +30,18 @@ export const coachesPublic = onRequest({ cors: browserOrigins, invoker: "public"
     }
     // ponytail: getUsers takes at most 100 identifiers; chunk if the team ever passes 100 coaches.
     const users = belts.size === 0 ? [] : (await getAuth().getUsers([...belts.keys()].slice(0, 100).map((uid) => ({ uid })))).users;
-    const coaches = sortPublicCoaches(
-      users
-        .filter((user) => !user.disabled && user.customClaims?.academyId === academyId && websiteRoles.includes(String(user.customClaims?.role)) && user.displayName?.trim())
-        .map((user) => ({ name: user.displayName!.trim(), belt: belts.get(user.uid)! })),
-    ).map((coach) => ({ ...coach, beltLabel: coachBeltLabels[coach.belt] }));
+    const shown = users.filter((user) => !user.disabled && user.customClaims?.academyId === academyId && websiteRoles.includes(String(user.customClaims?.role)) && user.displayName?.trim());
+    const db = getFirestore();
+    const r2 = createPrivateStorageR2Client();
+    const websites = shown.length === 0 ? [] : await db.getAll(...shown.map((user) => db.doc(coachWebsitePath(academyId, user.uid))));
+    const rows = await Promise.all(shown.map(async (user, index) => {
+      const website = websites[index]?.data();
+      const bio = typeof website?.bio === "string" ? website.bio.trim() : "";
+      // A photo that cannot be signed only hides the photo, never the coach.
+      const photoUrl = await signCoachPhoto(r2, website?.photoKey).catch(() => null);
+      return { name: user.displayName!.trim(), belt: belts.get(user.uid)!, ...(bio ? { bio } : {}), ...(photoUrl ? { photoUrl } : {}) };
+    }));
+    const coaches = sortPublicCoaches(rows).map((coach) => ({ ...coach, beltLabel: coachBeltLabels[coach.belt] }));
     response.set("Cache-Control", "public, max-age=60");
     response.status(200).json({ coaches });
   } catch (error) {

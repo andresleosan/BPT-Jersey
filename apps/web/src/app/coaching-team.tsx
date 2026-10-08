@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { publicCoachesResponseSchema, type PublicCoach } from "@bpt-jersey/domain/staff/team-access";
+import { CoachCard } from "./coach-card";
 
 const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 const emulatorPort = process.env.NEXT_PUBLIC_FIREBASE_FUNCTIONS_EMULATOR_PORT;
@@ -40,15 +41,19 @@ export function CoachingTeam() {
       <ul className="instructor-list">
         {coaches === undefined
           ? [0, 1, 2].map((index) => (
-              <li className="instructor-card" key={index} aria-hidden="true">
-                <strong>&nbsp;</strong>
-                <span>&nbsp;</span>
+              <li key={index} aria-hidden="true">
+                <div className="instructor-card">
+                  <div className="instructor-photo" />
+                  <div className="instructor-body">
+                    <strong>&nbsp;</strong>
+                    <span>&nbsp;</span>
+                  </div>
+                </div>
               </li>
             ))
           : coaches.map((coach) => (
-              <li className="instructor-card" key={`${coach.belt}:${coach.name}`}>
-                <strong>{coach.name}</strong>
-                <span>{coach.beltLabel}</span>
+              <li key={`${coach.belt}:${coach.name}`}>
+                <CoachCard coach={coach} />
               </li>
             ))}
       </ul>

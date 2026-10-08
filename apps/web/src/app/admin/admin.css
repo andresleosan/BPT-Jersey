@@ -2554,7 +2554,8 @@ a.admin-birthday-badge:focus-visible,
 }
 
 .staff-field input,
-.staff-field select {
+.staff-field select,
+.staff-field textarea {
   background: var(--canvas);
   border: 1px solid var(--line);
   border-radius: 0;
@@ -2570,6 +2571,7 @@ a.admin-birthday-badge:focus-visible,
 
 .staff-field input:focus-visible,
 .staff-field select:focus-visible,
+.staff-field textarea:focus-visible,
 .staff-row-action:focus-visible,
 .staff-primary-button:focus-visible,
 .staff-secondary-button:focus-visible {
@@ -5531,4 +5533,46 @@ a.admin-birthday-badge:focus-visible,
 /* SHOP-000001 broke after the hyphen in the narrow Order column. */
 .shop-admin-page td[data-label="Order"] strong {
   white-space: nowrap;
+}
+
+/* Coach website card: fields beside a preview at the narrowest landing column (16rem). */
+.coach-card-fields {
+  align-items: start;
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1fr) 16rem;
+  margin-block: 1.25rem;
+}
+
+.coach-card-fields-inputs {
+  align-content: start;
+  display: grid;
+  gap: 0.85rem;
+  justify-items: start;
+}
+
+.coach-card-fields-inputs .staff-field {
+  justify-self: stretch;
+}
+
+.coach-card-fields .staff-field textarea {
+  resize: vertical;
+}
+
+.coach-card-preview {
+  border: 1px solid var(--card-edge);
+  display: flex;
+  width: 16rem;
+}
+
+.coach-website-card {
+  border-top: 1px solid var(--card-edge);
+  margin-top: 1.25rem;
+  padding-top: 0.25rem;
+}
+
+@media (max-width: 48rem) {
+  .coach-card-fields {
+    grid-template-columns: 1fr;
+  }
 }

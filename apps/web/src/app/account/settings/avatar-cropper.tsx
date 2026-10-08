@@ -16,7 +16,11 @@ export type CroppedAvatar = Readonly<{
  * A file the browser cannot decode (an SVG, a broken file) throws the one fixed message.
  * ponytail: fixed centre crop; drag-to-frame only if Luis asks for it.
  */
-export async function cropToSquareWebp(file: File): Promise<CroppedAvatar> {
+export async function cropToSquareWebp(
+  file: File,
+  /** Another output (the coach card is 600×800) keeps the same centre crop at that ratio. */
+  size: Readonly<{ width: number; height: number }> = { width: 512, height: 512 },
+): Promise<CroppedAvatar> {
   if (!acceptedTypes.has(file.type)) throw new Error(settingsMessages.photoType);
   if (file.size > maxSourceBytes) throw new Error(settingsMessages.photoTooLarge);
   let bitmap: ImageBitmap;
@@ -26,21 +30,24 @@ export async function cropToSquareWebp(file: File): Promise<CroppedAvatar> {
   } catch {
     throw new Error(settingsMessages.photoType);
   }
-  const side = Math.min(bitmap.width, bitmap.height);
+  const ratio = size.width / size.height;
+  const cropWidth = Math.min(bitmap.width, bitmap.height * ratio);
+  const cropHeight = cropWidth / ratio;
   const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = 512;
+  canvas.width = size.width;
+  canvas.height = size.height;
   const context = canvas.getContext("2d");
-  if (!context || side === 0) throw new Error(settingsMessages.photoType);
+  if (!context || cropWidth === 0) throw new Error(settingsMessages.photoType);
   context.drawImage(
     bitmap,
-    (bitmap.width - side) / 2,
-    (bitmap.height - side) / 2,
-    side,
-    side,
+    (bitmap.width - cropWidth) / 2,
+    (bitmap.height - cropHeight) / 2,
+    cropWidth,
+    cropHeight,
     0,
     0,
-    512,
-    512,
+    size.width,
+    size.height,
   );
   bitmap.close();
   const blob = await new Promise<Blob>((resolve, reject) =>

@@ -560,18 +560,61 @@ button:focus-visible {
   border: 1px solid var(--line);
   display: grid;
   gap: 1px;
-  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
   list-style: none;
   margin: 2.25rem 0 0;
   padding: 0;
 }
 
+.instructor-list > li {
+  display: flex;
+}
+
 .instructor-card {
   background: var(--canvas);
   display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+/* Every card keeps the same 3:4 frame, photo or not, so the row lines up. */
+.instructor-photo {
+  aspect-ratio: 3 / 4;
+  background: var(--paper-edge);
+  display: grid;
+  overflow: hidden;
+  place-items: center;
+}
+
+.instructor-photo img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.instructor-photo span {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 4rem;
+  letter-spacing: 0.035em;
+}
+
+.instructor-body {
+  display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  padding: 1.5rem 1.25rem;
+  padding: 1.25rem 1.25rem 1.5rem;
+}
+
+/* Five lines at most; coach-card.tsx picks the largest size between 1.125rem and 0.8125rem that fits. */
+.instructor-bio {
+  font-size: 1rem;
+  line-height: 1.45;
+  margin: 0.6rem 0 0;
+  max-height: calc(1.45em * 5);
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 
 .instructor-card strong {

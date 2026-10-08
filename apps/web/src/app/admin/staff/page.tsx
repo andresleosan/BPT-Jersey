@@ -17,11 +17,12 @@ import {
   type PermissionGrantView,
 } from "../../../lib/staff-permissions-client";
 import type { TeamDirectoryPerson } from "@bpt-jersey/domain/staff/team-access";
-import { teamRoleLabels } from "@bpt-jersey/domain/staff/team-access";
+import { coachBeltLabels, teamRoleLabels } from "@bpt-jersey/domain/staff/team-access";
 
 import { useAdminGateSession } from "../admin-gate";
 import { AdminSectionHeader } from "../admin-ui";
 
+import { CoachWebsiteCard } from "./coach-website-card";
 import { CoachWebsiteControls } from "./coach-website-controls";
 import { TeamDirectory } from "./team-directory";
 
@@ -262,6 +263,18 @@ export function StaffAdminPage() {
                 if (message.endsWith("was deleted.")) setSelected(undefined);
               }}
             />
+            {selected.coach?.belt && (session.role === "owner" || selected.role !== "owner") ? (
+              <CoachWebsiteCard
+                key={selected.userId}
+                beltLabel={coachBeltLabels[selected.coach.belt]}
+                name={selected.name || selected.email || "Coach"}
+                onSaved={(message) => {
+                  setStatus(message);
+                  setRefreshKey((key) => key + 1);
+                }}
+                userId={selected.userId}
+              />
+            ) : null}
           </section>
 
           {selectedProfile ? (

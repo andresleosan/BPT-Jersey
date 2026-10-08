@@ -14,10 +14,11 @@ const signatures: Record<"image/jpeg" | "image/png" | "image/webp", (b: Buffer) 
 
 export class PhotoRejected extends Error {}
 
-/** Q3: size first, magic bytes, one decoded frame, then a fresh 512×512 WebP without metadata. */
+/** Q3: size first, magic bytes, one decoded frame, then a fresh WebP (512×512 by default) without metadata. */
 export async function sanitiseAvatar(
   bytes: Buffer,
   mime: "image/jpeg" | "image/png" | "image/webp",
+  size: Readonly<{ width: number; height: number }> = { width: 512, height: 512 },
 ): Promise<Buffer> {
   if (bytes.length === 0 || bytes.length > maxBytes || !signatures[mime]?.(bytes))
     throw new PhotoRejected();
@@ -30,7 +31,7 @@ export async function sanitiseAvatar(
     const meta = await image.metadata();
     if ((meta.pages ?? 1) !== 1 || !meta.width || !meta.height) throw new PhotoRejected();
     // sharp drops EXIF/ICC/XMP unless withMetadata() is called.
-    return await image.rotate().resize(512, 512, { fit: "cover" }).webp({ quality: 82 }).toBuffer();
+    return await image.rotate().resize(size.width, size.height, { fit: "cover" }).webp({ quality: 82 }).toBuffer();
   } catch {
     throw new PhotoRejected();
   }

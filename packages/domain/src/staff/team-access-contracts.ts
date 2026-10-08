@@ -104,15 +104,44 @@ export const setOwnerTeachesSchema = z
 export const setOwnerTeachesResultSchema = z.strictObject({ teaches: z.boolean() });
 export const deleteCoachAccountSchema = z.strictObject({ userId: z.string().min(1).max(128) });
 export const deleteCoachAccountResultSchema = z.strictObject({ deleted: z.literal(true) });
+/** The landing card shows the bio in at most five lines; this cap keeps it there at the narrowest card. */
+export const coachBioMaxLength = 160;
+const coachBioSchema = z.string().trim().max(coachBioMaxLength);
+const coachPhotoBase64Max = 4 * Math.ceil((2 * 1024 * 1024) / 3);
+
 export const publicCoachSchema = z.strictObject({
   name: z.string().min(1).max(256),
   belt: coachBeltSchema,
   beltLabel: z.string().min(1).max(64),
+  // Optional so a web build and a function build of different ages still read each other.
+  bio: coachBioSchema.optional(),
+  photoUrl: z.url({ protocol: /^https?$/ }).max(4096).optional(),
+});
+export const getCoachWebsiteProfileSchema = z.strictObject({ userId: z.string().min(1).max(128) });
+export const coachWebsiteProfileSchema = z.strictObject({
+  bio: coachBioSchema,
+  photoUrl: z.url({ protocol: /^https?$/ }).max(4096).nullable(),
+});
+/** photo: omitted keeps the current one, null removes it, an image replaces it (3:4, re-encoded). */
+export const setCoachWebsiteProfileSchema = z.strictObject({
+  userId: z.string().min(1).max(128),
+  bio: coachBioSchema,
+  photo: z
+    .union([
+      z.null(),
+      z.strictObject({
+        base64: z.string().min(4).max(coachPhotoBase64Max),
+        mime: z.enum(["image/jpeg", "image/png", "image/webp"]),
+      }),
+    ])
+    .optional(),
 });
 export const publicCoachesResponseSchema = z.strictObject({
   coaches: z.array(publicCoachSchema).max(100),
 });
 export type PublicCoach = z.infer<typeof publicCoachSchema>;
+export type CoachWebsiteProfile = z.infer<typeof coachWebsiteProfileSchema>;
+export type SetCoachWebsiteProfileInput = z.infer<typeof setCoachWebsiteProfileSchema>;
 export type SetCoachBeltInput = z.infer<typeof setCoachBeltSchema>;
 export type SetOwnerTeachesInput = z.infer<typeof setOwnerTeachesSchema>;
 export type DeleteCoachAccountInput = z.infer<typeof deleteCoachAccountSchema>;

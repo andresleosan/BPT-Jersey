@@ -5,6 +5,8 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { deleteCoachAccountSchema, setCoachBeltSchema, setOwnerTeachesSchema, type CoachBelt } from "@bpt-jersey/domain/staff/team-access";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { requireActiveOfficeActor } from "../auth/office-actor.js";
+import { enrolmentStorageSecrets } from "../members/enrolment-payment-proof.js";
+import { createPrivateStorageR2Client } from "../storage/r2-client.js";
 
 /** Coach profiles of one login. Direct accounts use staffId === uid; invited ones do not. */
 export async function coachProfiles(db: Firestore, academyId: string, userId: string) {
@@ -41,7 +43,8 @@ function upcomingLabel(title: unknown, startAt: string): string {
   return `${typeof title === "string" && title ? title : "Session"} on ${new Date(startAt).toLocaleString("en-GB", { timeZone: "Europe/Jersey", dateStyle: "medium", timeStyle: "short" })}`;
 }
 
-export const deleteCoachAccount = onCall(browserAdminCallableOptions, async (request) => {
+/** Carries the storage secrets so the website photo goes with the coach. */
+export const deleteCoachAccount = onCall({ ...browserAdminCallableOptions, secrets: enrolmentStorageSecrets }, async (request) => {
   const actor = await requireActiveOfficeActor(request);
   if (actor.role !== "owner") throw new HttpsError("permission-denied", "Only an owner can delete a coach.");
   const input = deleteCoachAccountSchema.safeParse(request.data);
@@ -94,10 +97,14 @@ export const deleteCoachAccount = onCall(browserAdminCallableOptions, async (req
   }
   for (const doc of (await base.collection("staffPermissionGrants").where("subjectUserId", "==", userId).get()).docs) batch.delete(doc.ref);
   for (const doc of (await db.collection("staffLoginCredentials").where("userId", "==", userId).get()).docs) batch.delete(doc.ref);
+  const website = await base.collection("coachWebsite").doc(userId).get();
+  if (website.exists) batch.delete(website.ref);
   batch.set(base.collection("users").doc(userId), { active: false, status: "inactive", deletedAt: now, updatedAt: now, updatedBy: actor.userId }, { merge: true });
   batch.create(base.collection("auditEvents").doc(), coachAudit(actor.academyId, actor.userId, userId, "staff.coach_deleted", "coach account deletion", now));
   await batch.commit();
   // Auth goes last: if it fails, the account stays visible in the directory and a second Delete finishes it.
+  const photoKey = website.data()?.photoKey;
+  if (typeof photoKey === "string") await createPrivateStorageR2Client().deleteObject(photoKey).catch(() => undefined);
   if (user) await auth.deleteUser(userId).catch((error: { code?: string }) => { if (error.code !== "auth/user-not-found") throw error; });
   return { deleted: true as const };
 });
