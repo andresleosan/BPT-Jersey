@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { coachBeltLabels, coachBelts, type CoachBelt, type TeamDirectoryPerson } from "@bpt-jersey/domain/staff/team-access";
-import { deleteCoachAccount, setCoachBelt, setOwnerTeaches } from "../../../lib/team-access-client";
+import { deleteCoachAccount, setCoachBelt, setCoachWebsiteVisibility, setOwnerTeaches } from "../../../lib/team-access-client";
 
 /** Website settings of one person: belt, «Teaches» for owners, delete for coaches. */
 export function CoachWebsiteControls({ person, owner, onChanged }: { person: TeamDirectoryPerson; owner: boolean; onChanged: (message: string, updated?: TeamDirectoryPerson) => void }) {
@@ -14,6 +14,9 @@ export function CoachWebsiteControls({ person, owner, onChanged }: { person: Tea
   const isCoach = person.role === "coach" || person.role === "headCoach";
   const isOwner = person.role === "owner";
   const teaches = isOwner && person.coach?.active === true;
+  // Hide/Show only changes the landing page; coach access stays as it is.
+  const listed = person.coach?.active === true && !!person.coach.belt;
+  const hidden = person.coach?.hidden === true;
 
   async function run(action: () => Promise<unknown>, done: string, updated?: TeamDirectoryPerson, onFail?: () => void) {
     setBusy(true);
@@ -74,14 +77,33 @@ export function CoachWebsiteControls({ person, owner, onChanged }: { person: Tea
           <span>Teaches — show on website</span>
         </label>
       )}
+      {listed && person.coach && (
+        <div className="coach-visibility" role="group" aria-label="Landing page">
+          <p className="coach-visibility-state">{hidden ? "Hidden from the website" : "Shown on the website"}</p>
+          <button
+            className="staff-secondary-button"
+            type="button"
+            disabled={busy}
+            onClick={() => void run(
+              () => setCoachWebsiteVisibility({ userId: person.userId, hidden: !hidden }),
+              hidden ? `${name} is shown on the website again.` : `${name} is hidden from the website. Coach access is unchanged.`,
+              { ...person, coach: { ...person.coach!, hidden: !hidden } },
+            )}
+          >
+            {hidden ? "Show on website" : "Hide from website"}
+          </button>
+        </div>
+      )}
       {isCoach && owner && !confirming && (
         <button className="staff-secondary-button" type="button" disabled={busy} onClick={() => setConfirming(true)}>
           Delete coach
         </button>
       )}
       {isCoach && owner && confirming && (
-        <div role="group" aria-label={`Delete ${name}`}>
-          <p id={`delete-coach-${person.userId}`}>This deletes {name}&apos;s login and removes them from the website. It cannot be undone. Type the coach&apos;s name to confirm.</p>
+        <div className="coach-delete-confirm" role="group" aria-label={`Delete ${name}`}>
+          <p id={`delete-coach-${person.userId}`}>{person.alsoMember
+            ? <>This removes {name}&apos;s coach access and takes them off the website. Their member account stays. Type the coach&apos;s name to confirm.</>
+            : <>This deletes {name}&apos;s login and removes them from the website. It cannot be undone. Type the coach&apos;s name to confirm.</>}</p>
           <input autoFocus aria-describedby={`delete-coach-${person.userId}`} aria-label="Coach name" value={typed} onChange={(event) => setTyped(event.target.value)} />
           <button
             className="staff-primary-button"

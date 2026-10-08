@@ -93,6 +93,15 @@ export function StaffAdminPage() {
     void refreshGrants();
   }, [refreshGrants]);
 
+  // On phones the panel opens far below the row that was tapped: bring it into view and focus it.
+  const selectedUserId = selected?.userId;
+  useEffect(() => {
+    if (!selectedUserId) return;
+    const heading = document.getElementById("staff-selected-title");
+    heading?.scrollIntoView({ block: "start", behavior: "smooth" });
+    heading?.focus({ preventScroll: true });
+  }, [selectedUserId]);
+
   async function handleRevoke(grantId: string): Promise<void> {
     if (busy) return;
     setMutation("revoke");
@@ -245,12 +254,17 @@ export function StaffAdminPage() {
           {error}
         </p>
       ) : null}
+      {status ? (
+        <p aria-live="polite" className="staff-message staff-message-success" role="status">
+          {status}
+        </p>
+      ) : null}
       {selected ? (
         <section className="staff-selected-panel" aria-labelledby="staff-selected-title">
           <p className="admin-eyebrow">Manage · {teamRoleLabels[selected.role]}</p>
-          <h3 id="staff-selected-title">{selected.name || selected.email || "Team member"}</h3>
+          <h3 id="staff-selected-title" tabIndex={-1}>{selected.name || selected.email || "Team member"}</h3>
 
-          <section className="staff-card staff-operation-card">
+          <section className="staff-card staff-manage-section">
             <h4>Website</h4>
             <CoachWebsiteControls
               key={`${selected.userId}:${refreshKey}`}
@@ -279,22 +293,27 @@ export function StaffAdminPage() {
 
           {selectedProfile ? (
             <>
-              <section className="staff-card staff-operation-card">
-                <p>Coaching availability and assignments are managed below.</p>
-                {selected?.role === "coach" || selected?.role === "headCoach" ? (
+              {selected?.role === "coach" || selected?.role === "headCoach" ? (
+                <section className="staff-card staff-manage-section">
+                  <h4>Coach access</h4>
+                  <p className="staff-hint">
+                    {selectedProfile.active
+                      ? "Active: they can sign in to Coach. Deactivating pauses that access and takes them off the website until reactivated."
+                      : "Paused: they cannot sign in to Coach and are not on the website."}
+                  </p>
                   <button
                     className="staff-secondary-button"
                     disabled={busy}
                     onClick={() => void handleActiveUpdate()}
                     type="button"
                   >
-                    {selectedProfile.active ? "Deactivate coach profile" : "Activate coach profile"}
+                    {selectedProfile.active ? "Deactivate coach access" : "Reactivate coach access"}
                   </button>
-                ) : null}
-              </section>
+                </section>
+              ) : null}
 
           <form
-            className="staff-card staff-operation-card"
+            className="staff-card staff-manage-section"
             onSubmit={(event) => void handleAvailability(event)}
           >
             <h4>Availability</h4>
@@ -373,7 +392,7 @@ export function StaffAdminPage() {
           </form>
 
           <form
-            className="staff-card staff-operation-card"
+            className="staff-card staff-manage-section"
             onSubmit={(event) => void handleAssignment(event)}
           >
             <h4>Assignment</h4>
@@ -474,11 +493,6 @@ export function StaffAdminPage() {
         )}
       </section>
 
-      {status ? (
-        <p aria-live="polite" className="staff-message staff-message-success" role="status">
-          {status}
-        </p>
-      ) : null}
     </section>
   );
 }

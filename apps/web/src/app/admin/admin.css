@@ -5576,3 +5576,247 @@ a.admin-birthday-badge:focus-visible,
     grid-template-columns: 1fr;
   }
 }
+
+/* Staff page: add-to-team disclosures, member search and the Manage panel sections. */
+.staff-add {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.staff-add > h4 {
+  font-size: 1.05rem;
+  margin: 0.5rem 0 0;
+}
+
+.staff-add-option {
+  background: var(--gi-white);
+  border: 1px solid var(--card-edge);
+}
+
+.staff-add-option > summary {
+  align-items: center;
+  cursor: pointer;
+  display: grid;
+  gap: 0.15rem 1rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  list-style: none;
+  min-height: 3.5rem;
+  padding: 0.85rem 1rem;
+}
+
+.staff-add-option > summary::-webkit-details-marker {
+  display: none;
+}
+
+.staff-add-option > summary::after {
+  color: var(--bpt-purple-dark);
+  content: "+";
+  font-size: 1.5rem;
+  font-weight: 700;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  line-height: 1;
+}
+
+.staff-add-option[open] > summary::after {
+  content: "\2212";
+}
+
+.staff-add-option > summary:hover {
+  background: var(--canvas);
+}
+
+.staff-add-option > summary:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: -3px;
+}
+
+.staff-add-option-title {
+  color: var(--mat-ink);
+  font-weight: 700;
+}
+
+.staff-add-option-hint {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.staff-add-option[open] > summary {
+  border-bottom: 1px solid var(--card-edge);
+}
+
+.staff-add-option > .staff-add-form {
+  padding: 1.25rem 1rem 1.5rem;
+}
+
+.staff-add-form {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.staff-add-form > .staff-hint,
+.staff-add-form > p {
+  margin: 0;
+  max-width: 65ch;
+}
+
+.staff-add-form .staff-form-grid + .staff-primary-button {
+  margin-top: 0.5rem;
+}
+
+.staff-search-row {
+  align-items: end;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 24rem) auto;
+  justify-content: start;
+}
+
+.staff-search-row > button {
+  white-space: nowrap;
+}
+
+.staff-member-results {
+  border: 0;
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.staff-member-results > legend {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.4rem;
+  padding: 0;
+  text-transform: uppercase;
+}
+
+.staff-member-option {
+  align-items: center;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  max-width: 36rem;
+  min-height: 3.25rem;
+  padding: 0.6rem 0.85rem;
+}
+
+.staff-member-option:has(input:checked) {
+  border-color: var(--bpt-purple);
+  box-shadow: inset 0 0 0 1px var(--bpt-purple);
+}
+
+.staff-member-option input {
+  accent-color: var(--bpt-purple);
+  height: 1.15rem;
+  width: 1.15rem;
+}
+
+.staff-member-option > span {
+  display: grid;
+  min-width: 0;
+}
+
+.staff-member-option > span > span {
+  color: var(--muted);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.staff-manage-section {
+  display: grid;
+  gap: 1rem;
+  justify-items: start;
+}
+
+.staff-manage-section > h4 {
+  margin-bottom: 0.25rem;
+}
+
+.staff-manage-section > p {
+  margin: 0;
+  max-width: 65ch;
+}
+
+.staff-manage-section > .coach-website-controls,
+.staff-manage-section > .coach-website-card {
+  justify-self: stretch;
+}
+
+.coach-website-controls {
+  display: grid;
+  gap: 1rem;
+  justify-items: start;
+}
+
+.coach-website-controls > .staff-field {
+  max-width: 22rem;
+  width: 100%;
+}
+
+.coach-visibility {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+}
+
+.coach-visibility-state {
+  font-weight: 700;
+  margin: 0;
+}
+
+.coach-delete-confirm {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+  max-width: 36rem;
+}
+
+.coach-delete-confirm > p {
+  margin: 0;
+}
+
+.coach-delete-confirm > input {
+  border: 1px solid var(--line);
+  min-height: 2.9rem;
+  padding: 0.65rem 0.7rem;
+  width: 100%;
+}
+
+.staff-selected-panel > .staff-secondary-button {
+  justify-self: start;
+}
+
+.staff-selected-panel > h3:focus {
+  outline: none;
+}
+
+@media (max-width: 42rem) {
+  .staff-search-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .staff-search-row > button {
+    justify-self: start;
+  }
+
+  .staff-add-option > .staff-add-form {
+    padding-inline: 0.85rem;
+  }
+
+  .staff-team-directory .admin-data-table td {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+  }
+}
+
+.staff-manage-section > .staff-form-grid {
+  justify-self: stretch;
+}

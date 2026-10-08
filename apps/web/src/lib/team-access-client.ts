@@ -11,6 +11,7 @@ import {
   type CoachBelt, type SetCoachBeltInput, type SetOwnerTeachesInput, type DeleteCoachAccountInput,
   listCoachEligibleMembersSchema, coachEligibleMembersResponseSchema, grantMemberCoachAccessSchema, switchAccessModeResultSchema,
   type GrantMemberCoachAccessInput, type AccessMode,
+  setCoachWebsiteVisibilitySchema, setCoachWebsiteVisibilityResultSchema, type SetCoachWebsiteVisibilityInput,
 } from "@bpt-jersey/domain/staff/team-access";
 import { getFirebaseFunctions } from "./firebase-client";
 
@@ -77,4 +78,7 @@ export async function switchAccessMode(mode: AccessMode): Promise<boolean> {
   } catch {
     return false;
   }
+}
+export function setCoachWebsiteVisibility(input: SetCoachWebsiteVisibilityInput) {
+  return call("setCoachWebsiteVisibility", setCoachWebsiteVisibilitySchema.parse(input), setCoachWebsiteVisibilityResultSchema, "Unable to change website visibility. Refresh the team directory and try again.");
 }

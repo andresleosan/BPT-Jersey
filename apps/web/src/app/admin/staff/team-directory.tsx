@@ -179,7 +179,7 @@ export function TeamDirectoryContent({
               render: (person: TeamDirectoryPerson) =>
                 person.role === "administrator"
                   ? "—"
-                  : person.coach?.active && person.coach.belt
+                  : person.coach?.active && person.coach.belt && !person.coach.hidden
                     ? `Shown · ${coachBeltLabels[person.coach.belt]}`
                     : "Hidden",
             },
@@ -285,8 +285,24 @@ export function TeamDirectoryContent({
           </div>
         </form>
       )}
-      <MemberCoachAccessForm onCreated={() => void loadDirectory()} />
-      <DirectStaffForm session={session} onCreated={() => void loadDirectory()} />
+      <section className="staff-add" aria-labelledby="staff-add-title">
+        <h4 id="staff-add-title">Add to the team</h4>
+        {/* Collapsed by default so the directory stays the first thing on the page, on phones too. */}
+        <details className="staff-add-option">
+          <summary>
+            <span className="staff-add-option-title">Existing member</span>
+            <span className="staff-add-option-hint">Give coach access with their member login</span>
+          </summary>
+          <MemberCoachAccessForm onCreated={() => void loadDirectory()} />
+        </details>
+        <details className="staff-add-option">
+          <summary>
+            <span className="staff-add-option-title">New staff account</span>
+            <span className="staff-add-option-hint">Create a login with an initial password</span>
+          </summary>
+          <DirectStaffForm session={session} onCreated={() => void loadDirectory()} />
+        </details>
+      </section>
       {review && (
         <section className="staff-card staff-role-review" aria-labelledby="staff-role-review-title">
           <h3 id="staff-role-review-title">Confirm staff access</h3>

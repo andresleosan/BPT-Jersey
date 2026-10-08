@@ -21,7 +21,8 @@ export function MemberCoachAccessForm({ onCreated }: { onCreated: () => void }) 
     finally { setBusy(false); }
   }
 
-  async function grant() {
+  async function grant(event: FormEvent) {
+    event.preventDefault();
     const member = results?.find((item) => item.userId === selected);
     if (!member || !belt) return;
     setBusy(true); setMessage("");
@@ -35,35 +36,34 @@ export function MemberCoachAccessForm({ onCreated }: { onCreated: () => void }) 
   }
 
   return (
-    <section className="staff-card" aria-labelledby="member-coach-access-title">
-      <p className="admin-eyebrow">Existing member</p>
-      <h3 id="member-coach-access-title">Give coach access to a member</h3>
-      <p className="staff-hint">Adult members and guardians only. They keep their member login and use it for both: /login opens their member area, /staff/login opens Coach.</p>
-      <form className="staff-form-grid" onSubmit={(event) => void search(event)}>
-        <label className="staff-field">Member name or email<input value={query} onChange={(e) => setQuery(e.target.value)} minLength={2} maxLength={120} required /></label>
-        <button className="staff-row-action" type="submit" disabled={busy}>{busy && !results ? "Searching..." : "Search"}</button>
+    <div className="staff-add-form">
+      <p className="staff-hint">Adult members and guardians only. They keep their member login: /login opens their member area, /staff/login opens Coach.</p>
+      <form className="staff-search-row" role="search" onSubmit={(event) => void search(event)}>
+        <label className="staff-field">Member name or email<input value={query} onChange={(e) => setQuery(e.target.value)} minLength={2} maxLength={120} required autoComplete="off" /></label>
+        <button className="staff-secondary-button" type="submit" disabled={busy}>{busy && !results ? "Searching…" : "Search"}</button>
       </form>
-      {results && results.length === 0 ? <p role="status" className="staff-message">No adult members match. Members who are already staff are not listed.</p> : null}
+      {results && results.length === 0 ? <p role="status" className="staff-hint">No adult members match. Members who are already staff are not listed.</p> : null}
       {results && results.length > 0 ? (
-        <fieldset className="staff-field" disabled={busy}>
-          <legend>Member</legend>
-          {results.map((member) => (
-            <label key={member.userId}>
-              <input type="radio" name="member-coach" value={member.userId} checked={selected === member.userId} onChange={() => setSelected(member.userId)} />
-              {" "}{member.name || "(no name)"} · {member.email}
-            </label>
-          ))}
-        </fieldset>
-      ) : null}
-      {results && results.length > 0 ? (
-        <div className="staff-form-grid">
-          <label className="staff-field">Belt shown on the website<select value={belt} onChange={(e) => setBelt(e.target.value as CoachBelt)} required><option value="" disabled>Choose a belt</option>{coachBelts.map((value) => <option key={value} value={value}>{coachBeltLabels[value]}</option>)}</select></label>
-        </div>
-      ) : null}
-      {results && results.length > 0 ? (
-        <button className="staff-primary-button" type="button" disabled={busy || !selected || !belt} onClick={() => void grant()}>{busy ? "Saving..." : "Give coach access"}</button>
+        <form className="staff-add-form" onSubmit={(event) => void grant(event)}>
+          <fieldset className="staff-member-results" disabled={busy}>
+            <legend>Choose the member</legend>
+            {results.map((member) => (
+              <label key={member.userId} className="staff-member-option">
+                <input type="radio" name="member-coach" value={member.userId} checked={selected === member.userId} onChange={() => setSelected(member.userId)} />
+                <span>
+                  <strong>{member.name || "Name not on file"}</strong>
+                  <span>{member.email}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+          <div className="staff-search-row">
+            <label className="staff-field">Belt shown on the website<select value={belt} onChange={(e) => setBelt(e.target.value as CoachBelt)} required><option value="" disabled>Choose a belt</option>{coachBelts.map((value) => <option key={value} value={value}>{coachBeltLabels[value]}</option>)}</select></label>
+            <button className="staff-primary-button" type="submit" disabled={busy || !selected || !belt}>{busy ? "Saving…" : "Give coach access"}</button>
+          </div>
+        </form>
       ) : null}
       {message ? <p role="status" className="staff-message">{message}</p> : null}
-    </section>
+    </div>
   );
 }
