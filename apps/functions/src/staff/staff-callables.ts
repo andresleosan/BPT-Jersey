@@ -304,7 +304,8 @@ async function applyClaims(
   // A member with coach access: sign-in picks the mode, so activating leaves the claim alone and
   // deactivating returns the account to member mode instead of leaving it without a role.
   if (memberRole) {
-    if (profile.active || current.role === memberRole) return;
+    // Already in member mode (possibly a newer member role than the stored one): leave it.
+    if (profile.active || current.role === "adultStudent" || current.role === "guardian") return;
     await services.auth.setCustomUserClaims(userId, { ...current, academyId: profile.academyId, role: memberRole });
     return;
   }

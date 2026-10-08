@@ -196,6 +196,12 @@ export async function acceptStaffInvitationHandler(
       issuer.customClaims.academyId !== invitation.academyId
     )
       throw new HttpsError("permission-denied", "The invitation needs to be renewed by an owner.");
+    // Same rule as Change role: a member with coach access keeps a member profile, never office access.
+    if ((await services.memberCoachUsers?.(invitation.academyId))?.has(user.uid))
+      throw new HttpsError(
+        "failed-precondition",
+        "This coach is also a member. Remove coach access before giving office access.",
+      );
     await services.grant(
       {
         uid: issuer.uid,

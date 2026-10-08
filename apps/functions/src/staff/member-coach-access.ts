@@ -86,12 +86,18 @@ export const switchAccessMode = onCall(browserAdminCallableOptions, async (reque
   const coachActive = async () =>
     (await readMemberCoachRole(db, actor.academyId, actor.userId)) !== null &&
     (await coachProfiles(db, actor.academyId, actor.userId)).some((doc) => doc.data().active === true);
-  const memberRole = await readMemberCoachRole(db, actor.academyId, actor.userId);
-  if (!memberRole) throw new HttpsError("failed-precondition", "This account has one access mode.");
+  const storedRole = await readMemberCoachRole(db, actor.academyId, actor.userId);
+  if (!storedRole) throw new HttpsError("failed-precondition", "This account has one access mode.");
+  const user = await getAuth().getUser(actor.userId);
+  // The live claim wins while in member mode: an adult who adds a child becomes a guardian after
+  // the grant, and switching back must restore that, not the role stored at grant time.
+  const liveRole = memberCoachRoleSchema.safeParse(user.customClaims?.role);
+  const memberRole = liveRole.success ? liveRole.data : storedRole;
+  if (memberRole !== storedRole)
+    await db.doc(coachMemberAccessPath(actor.academyId, actor.userId)).update({ memberRole });
   if (input.data.mode === "coach" && !(await coachActive()))
     throw new HttpsError("failed-precondition", "Coach access is not active.");
   const role = input.data.mode === "coach" ? "coach" : memberRole;
-  const user = await getAuth().getUser(actor.userId);
   if (user.customClaims?.role === role) return { switched: false };
   // Keeps the claims already there (only academyId, role and non-authority keys pass requireUserActor).
   await getAuth().setCustomUserClaims(actor.userId, { ...user.customClaims, academyId: actor.academyId, role });
