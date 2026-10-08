@@ -1,4 +1,5 @@
 import type { Firestore } from "firebase-admin/firestore";
+import { coachMemberAccessPath, isCoachAccountType } from "@bpt-jersey/domain/staff/team-access";
 import { readCanonicalMemberHistoryDocuments } from "../members/member-identity-firestore.js";
 import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 import { createHash, randomUUID } from "node:crypto";
@@ -731,11 +732,15 @@ async function assertTransactionalActor(
     firestore.doc(`academies/${input.academyId}/staff/${input.actorStaffId}`),
   );
   const parsed = parseStaffProfile(staff.data());
+  // A member account with coach access keeps accountType "client".
+  const dualAccess = (
+    await transaction.get(firestore.doc(coachMemberAccessPath(input.academyId, input.actorId)))
+  ).exists;
   if (
     !staff.exists ||
     userData.userId !== input.actorId ||
     userData.academyId !== input.academyId ||
-    userData.accountType !== "staff" ||
+    !isCoachAccountType(userData.accountType, dualAccess) ||
     userData.active !== true ||
     userData.status !== "active" ||
     !parsed.ok ||

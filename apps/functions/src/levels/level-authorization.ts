@@ -1,4 +1,5 @@
 import { resolveCanonicalStudentIdInTransaction } from "../members/member-identity-resolution.js";
+import { coachMemberAccessPath, isCoachAccountType } from "@bpt-jersey/domain/staff/team-access";
 import { createMemberAccessService } from "../members/member-access-service.js";
 import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 import { getAuth } from "firebase-admin/auth";
@@ -99,6 +100,7 @@ function activeStaffUser(
   document: LevelAuthorizationDocument,
   academyId: string,
   userId: string,
+  dualAccess: boolean,
 ): boolean {
   const value = document.data;
   return (
@@ -107,7 +109,7 @@ function activeStaffUser(
     value !== undefined &&
     value.userId === userId &&
     value.academyId === academyId &&
-    value.accountType === "staff" &&
+    isCoachAccountType(value.accountType, dualAccess) &&
     value.active === true &&
     value.status === "active"
   );
@@ -180,11 +182,15 @@ async function activeActor(
   }
 
   if (staffRoles.has(actor.role)) {
-    const [user, staffDocuments] = await Promise.all([
+    const [user, staffDocuments, dualDocument] = await Promise.all([
       dependencies.getDocument(`academies/${actor.academyId}/users/${actor.userId}`),
       dependencies.queryDocuments(`academies/${actor.academyId}/staff`, "userId", actor.userId, 2),
+      dependencies.getDocument(coachMemberAccessPath(actor.academyId, actor.userId)),
     ]).catch(() => unavailable());
-    if (!activeStaffUser(user, actor.academyId, actor.userId) || staffDocuments.length !== 1) {
+    if (
+      !activeStaffUser(user, actor.academyId, actor.userId, dualDocument.exists) ||
+      staffDocuments.length !== 1
+    ) {
       return denied();
     }
     const staffDocument = staffDocuments[0];

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
+import { coachMemberAccessPath, isCoachAccountType } from "@bpt-jersey/domain/staff/team-access";
 import {
   parseStaffAvailabilityWindow,
   parseStaffProfile,
@@ -326,6 +327,7 @@ function assertUserIdentity(
   snapshot: StaffDocumentSnapshot,
   academyId: string,
   userId: string,
+  dualAccess: boolean,
 ): StaffDocumentData {
   if (!snapshot.exists) throw new StaffStoreError("precondition", "Canonical user is unavailable");
   const data = snapshot.data();
@@ -337,14 +339,19 @@ function assertUserIdentity(
   ) {
     throw new StaffStoreError("tenant", "Canonical user tenant mismatch");
   }
-  if (data.accountType !== "staff") {
+  if (!isCoachAccountType(data.accountType, dualAccess)) {
     throw new StaffStoreError("precondition", "Canonical user is not eligible");
   }
   return data;
 }
 
-function assertUser(snapshot: StaffDocumentSnapshot, academyId: string, userId: string): void {
-  const data = assertUserIdentity(snapshot, academyId, userId);
+function assertUser(
+  snapshot: StaffDocumentSnapshot,
+  academyId: string,
+  userId: string,
+  dualAccess: boolean,
+): void {
+  const data = assertUserIdentity(snapshot, academyId, userId, dualAccess);
   if (data.active !== true || data.status !== "active") {
     throw new StaffStoreError("precondition", "Canonical user is not eligible");
   }
@@ -642,7 +649,11 @@ export function createStaffStore(dependencies: StaffStoreDependencies): StaffSto
 
       return dependencies.firestore.runTransaction(async (transaction) => {
         const userSnapshot = documentSnapshot(await transaction.get(userReference));
-        assertUser(userSnapshot, academyId, userId);
+        // A member account with coach access keeps accountType "client".
+        const dualAccess = documentSnapshot(
+          await transaction.get(dependencies.firestore.doc(coachMemberAccessPath(academyId, userId))),
+        ).exists;
+        assertUser(userSnapshot, academyId, userId, dualAccess);
         const requestedSnapshot = documentSnapshot(await transaction.get(staffReference));
         if (requestedSnapshot.exists) {
           const existingProfile = storedStaff(requestedSnapshot, staffId);
@@ -706,6 +717,11 @@ export function createStaffStore(dependencies: StaffStoreDependencies): StaffSto
           ),
           academyId,
           current.userId,
+          documentSnapshot(
+            await transaction.get(
+              dependencies.firestore.doc(coachMemberAccessPath(academyId, current.userId)),
+            ),
+          ).exists,
         );
         if (current.role === input.role) return current;
         const next: StaffProfile = {
@@ -748,6 +764,11 @@ export function createStaffStore(dependencies: StaffStoreDependencies): StaffSto
           ),
           academyId,
           current.userId,
+          documentSnapshot(
+            await transaction.get(
+              dependencies.firestore.doc(coachMemberAccessPath(academyId, current.userId)),
+            ),
+          ).exists,
         );
         if (input.active && (user.active !== true || user.status !== "active")) {
           throw new StaffStoreError("precondition", "Canonical user is not eligible");
