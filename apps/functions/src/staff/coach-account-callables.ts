@@ -68,6 +68,9 @@ export const deleteCoachAccount = onCall({ ...browserAdminCallableOptions, secre
     throw new HttpsError("failed-precondition", "Only coach accounts can be deleted. Change the role to Coach first.");
   }
   if (!user && profiles.length === 0) throw new HttpsError("not-found", "This coach no longer exists.");
+  // A member login is never deleted here, even if its coachMemberAccess mark is already gone.
+  if (!memberRole && (await base.collection("users").doc(userId).get()).data()?.accountType === "client")
+    throw new HttpsError("failed-precondition", "This account is a member login. Remove coach access from Staff, not the member account.");
 
   // Sessions and classes store the staffId; direct accounts use the uid as staffId.
   const ids = [...new Set([userId, ...profiles.map((profile) => profile.id)])];
@@ -112,8 +115,12 @@ export const deleteCoachAccount = onCall({ ...browserAdminCallableOptions, secre
   if (memberRole) {
     // Read the claim again after the docs are gone: a switch to coach mode may have landed meanwhile.
     // Only a coach claim is replaced; in member mode the live claim may be newer than the stored role.
-    const live = user ? await auth.getUser(userId).catch(() => null) : null;
-    if (live && ["coach", "headCoach"].includes(String(live.customClaims?.role))) await auth.setCustomUserClaims(userId, { ...live.customClaims, academyId: actor.academyId, role: memberRole });
+    // Fails closed: if the account cannot be read, the member role is written anyway.
+    if (user) {
+      const live = await auth.getUser(userId).catch(() => undefined);
+      if (!live) await auth.setCustomUserClaims(userId, { academyId: actor.academyId, role: memberRole });
+      else if (["coach", "headCoach"].includes(String(live.customClaims?.role))) await auth.setCustomUserClaims(userId, { ...live.customClaims, academyId: actor.academyId, role: memberRole });
+    }
   } else if (user) await auth.deleteUser(userId).catch((error: { code?: string }) => { if (error.code !== "auth/user-not-found") throw error; });
   return { deleted: true as const };
 });
