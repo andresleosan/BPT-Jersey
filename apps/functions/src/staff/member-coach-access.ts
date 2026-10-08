@@ -15,6 +15,7 @@ import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { requireActiveOfficeActor } from "../auth/office-actor.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { activateCoachProfile, coachAudit, coachProfiles } from "./coach-account-callables.js";
+import { profileNames } from "./profile-names.js";
 
 /** The member role to restore, or null when the account is not a member with coach access. */
 export async function readMemberCoachRole(db: Firestore, academyId: string, userId: string): Promise<MemberCoachRole | null> {
@@ -58,23 +59,26 @@ export const listCoachEligibleMembers = onCall(browserAdminCallableOptions, asyn
   const needle = input.data.query.toLowerCase();
   const db = getFirestore();
   const staff = new Set((await db.collection(`academies/${actor.academyId}/staff`).get()).docs.map((doc) => String(doc.data().userId)));
-  const members: { userId: string; name: string; email: string }[] = [];
   // ponytail: scans Auth like listTeamDirectory (no index); fine for a few thousand accounts.
+  const candidates: { uid: string; email: string; authName: string }[] = [];
   let pageToken: string | undefined;
   do {
     const page = await getAuth().listUsers(1000, pageToken);
     for (const user of page.users) {
-      if (members.length >= 20) break;
-      const name = user.displayName?.trim() ?? "";
       if (
         user.disabled || !user.email || user.customClaims?.academyId !== actor.academyId ||
-        !memberCoachRoleSchema.safeParse(user.customClaims?.role).success || staff.has(user.uid) ||
-        !(name.toLowerCase().includes(needle) || user.email.toLowerCase().includes(needle))
+        !memberCoachRoleSchema.safeParse(user.customClaims?.role).success || staff.has(user.uid)
       ) continue;
-      members.push({ userId: user.uid, name, email: user.email });
+      candidates.push({ uid: user.uid, email: user.email, authName: user.displayName?.trim() ?? "" });
     }
     pageToken = page.pageToken;
-  } while (pageToken && members.length < 20);
+  } while (pageToken);
+  // Member logins often have no Auth name: the member profile holds it.
+  const names = await profileNames(db, actor.academyId, candidates.filter((item) => !item.authName).map((item) => item.uid));
+  const members = candidates
+    .map((item) => ({ userId: item.uid, name: item.authName || names.get(item.uid) || "", email: item.email }))
+    .filter((item) => item.name.toLowerCase().includes(needle) || item.email.toLowerCase().includes(needle))
+    .slice(0, 20);
   return coachEligibleMembersResponseSchema.parse({ members });
 });
 

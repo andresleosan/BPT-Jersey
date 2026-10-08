@@ -3,7 +3,7 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { warn } from "firebase-functions/logger";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
-import { getCoachWebsiteProfileSchema, setCoachWebsiteProfileSchema } from "@bpt-jersey/domain/staff/team-access";
+import { getCoachWebsiteProfileSchema, setCoachWebsiteProfileSchema, setCoachWebsiteVisibilitySchema } from "@bpt-jersey/domain/staff/team-access";
 import { PhotoRejected, sanitiseAvatar } from "../account-settings/profile-photo.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { requireActiveOfficeActor } from "../auth/office-actor.js";
@@ -83,7 +83,8 @@ export const setCoachWebsiteProfile = onCall({ ...storageOptions, memory: "512Mi
     const current = (await tx.get(ref)).data();
     const oldKey = typeof current?.photoKey === "string" ? current.photoKey : null;
     const photoKey = newKey === undefined ? oldKey : newKey;
-    tx.set(ref, { userId, academyId: actor.academyId, bio, photoKey, schemaVersion: "1", updatedAt: now, updatedBy: actor.userId });
+    // Keeps Hide/Show: the card text and photo never change whether the coach is listed.
+    tx.set(ref, { userId, academyId: actor.academyId, bio, photoKey, ...(current?.hidden === true ? { hidden: true } : {}), schemaVersion: "1", updatedAt: now, updatedBy: actor.userId });
     tx.create(db.collection(`academies/${actor.academyId}/auditEvents`).doc(), coachAudit(actor.academyId, actor.userId, userId, "staff.coach_website_profile_set", "coach photo and description shown on the website", now));
     return { oldKey, photoKey };
   });
@@ -91,4 +92,19 @@ export const setCoachWebsiteProfile = onCall({ ...storageOptions, memory: "512Mi
     await r2.deleteObject(oldKey).catch(() => warn("Coach photo object could not be deleted", { academyId: actor.academyId, userId }));
   }
   return { bio, photoUrl: await signCoachPhoto(r2, photoKey) };
+});
+
+/** Hide/Show on the landing page only: coach access, belt and card stay as they are. */
+export const setCoachWebsiteVisibility = onCall(browserAdminCallableOptions, async (request) => {
+  const input = setCoachWebsiteVisibilitySchema.safeParse(request.data);
+  if (!input.success) throw new HttpsError("invalid-argument", "Choose a coach.");
+  const { userId, hidden } = input.data;
+  const actor = await requireEditableCoach(request, userId);
+  const db = getFirestore();
+  const now = new Date().toISOString();
+  const batch = db.batch();
+  batch.set(db.doc(coachWebsitePath(actor.academyId, userId)), { userId, academyId: actor.academyId, hidden, schemaVersion: "1", updatedAt: now, updatedBy: actor.userId }, { merge: true });
+  batch.create(db.collection(`academies/${actor.academyId}/auditEvents`).doc(), coachAudit(actor.academyId, actor.userId, userId, hidden ? "staff.coach_website_hidden" : "staff.coach_website_shown", "coach visibility on the website", now));
+  await batch.commit();
+  return { hidden };
 });

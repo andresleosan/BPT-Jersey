@@ -46,6 +46,8 @@ export const teamCoachProfileSchema = z.strictObject({
   staffKey: z.string().min(1).max(128),
   active: z.boolean(),
   belt: coachBeltSchema.nullable(),
+  /** Hidden from the landing page only; coach access is unchanged. Optional for older builds. */
+  hidden: z.boolean().optional(),
 });
 export type TeamCoachProfile = z.infer<typeof teamCoachProfileSchema>;
 export const teamEmailSchema = z.string().trim().toLowerCase().email().max(320);
@@ -138,6 +140,13 @@ export const setCoachWebsiteProfileSchema = z.strictObject({
     ])
     .optional(),
 });
+/** Show or hide a coach on the landing page without touching their coach access. */
+export const setCoachWebsiteVisibilitySchema = z.strictObject({
+  userId: z.string().min(1).max(128),
+  hidden: z.boolean(),
+});
+export const setCoachWebsiteVisibilityResultSchema = z.strictObject({ hidden: z.boolean() });
+export type SetCoachWebsiteVisibilityInput = z.infer<typeof setCoachWebsiteVisibilitySchema>;
 export const publicCoachesResponseSchema = z.strictObject({
   coaches: z.array(publicCoachSchema).max(100),
 });

@@ -8,6 +8,7 @@ import { coursesAcademyId } from "../courses/course-public-http.js";
 import { enrolmentStorageSecrets } from "../members/enrolment-payment-proof.js";
 import { createPrivateStorageR2Client } from "../storage/r2-client.js";
 import { coachWebsitePath, signCoachPhoto } from "./coach-website-profile.js";
+import { profileNames } from "./profile-names.js";
 
 /** Coaches, plus owners who teach (active coach profile). Administrators never appear. */
 const websiteRoles = ["coach", "headCoach", "owner"];
@@ -30,8 +31,19 @@ export const coachesPublic = onRequest({ cors: browserOrigins, invoker: "public"
     }
     // ponytail: getUsers takes at most 100 identifiers; chunk if the team ever passes 100 coaches.
     const users = belts.size === 0 ? [] : (await getAuth().getUsers([...belts.keys()].slice(0, 100).map((uid) => ({ uid })))).users;
-    const shown = users.filter((user) => !user.disabled && user.customClaims?.academyId === academyId && websiteRoles.includes(String(user.customClaims?.role)) && user.displayName?.trim());
     const db = getFirestore();
+    // Members with coach access stay listed in member mode; hidden coaches never are.
+    const [memberCoaches, hiddenCoaches] = await Promise.all([
+      db.collection(`academies/${academyId}/coachMemberAccess`).get(),
+      db.collection(`academies/${academyId}/coachWebsite`).where("hidden", "==", true).get(),
+    ]);
+    const dual = new Set(memberCoaches.docs.map((doc) => doc.id));
+    const hidden = new Set(hiddenCoaches.docs.map((doc) => doc.id));
+    const eligible = users.filter((user) => !user.disabled && user.customClaims?.academyId === academyId && !hidden.has(user.uid) && (websiteRoles.includes(String(user.customClaims?.role)) || dual.has(user.uid)));
+    // Member logins often have no Auth name: the academy profile holds it.
+    const names = await profileNames(db, academyId, eligible.filter((user) => !user.displayName?.trim()).map((user) => user.uid));
+    const named = eligible.map((user) => ({ user, name: user.displayName?.trim() || names.get(user.uid) || "" })).filter((item) => item.name);
+    const shown = named.map((item) => item.user);
     const r2 = createPrivateStorageR2Client();
     const websites = shown.length === 0 ? [] : await db.getAll(...shown.map((user) => db.doc(coachWebsitePath(academyId, user.uid))));
     const rows = await Promise.all(shown.map(async (user, index) => {
@@ -39,7 +51,7 @@ export const coachesPublic = onRequest({ cors: browserOrigins, invoker: "public"
       const bio = typeof website?.bio === "string" ? website.bio.trim() : "";
       // A photo that cannot be signed only hides the photo, never the coach.
       const photoUrl = await signCoachPhoto(r2, website?.photoKey).catch(() => null);
-      return { name: user.displayName!.trim(), belt: belts.get(user.uid)!, ...(bio ? { bio } : {}), ...(photoUrl ? { photoUrl } : {}) };
+      return { name: named[index]!.name, belt: belts.get(user.uid)!, ...(bio ? { bio } : {}), ...(photoUrl ? { photoUrl } : {}) };
     }));
     const coaches = sortPublicCoaches(rows).map((coach) => ({ ...coach, beltLabel: coachBeltLabels[coach.belt] }));
     response.set("Cache-Control", "public, max-age=60");

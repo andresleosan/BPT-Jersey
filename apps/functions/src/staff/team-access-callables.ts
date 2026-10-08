@@ -11,6 +11,7 @@ import {
   type SyntheticFirestore,
 } from "../auth/admin-provisioning.js";
 import { activateCoachProfile, coachAudit } from "./coach-account-callables.js";
+import { profileNames } from "./profile-names.js";
 import { createTeamInvitationStore } from "./team-invitations-firestore.js";
 import {
   listTeamDirectoryHandler,
@@ -30,17 +31,27 @@ function services(request: CallableRequest): TeamAccessServices {
     invitations: createTeamInvitationStore(firestore, request.auth?.uid ?? "anonymous"),
     now: () => new Date(),
     async coachProfilesByUser(academyId) {
-      const snapshot = await firestore.collection(`academies/${academyId}/staff`).get();
+      const [snapshot, websites] = await Promise.all([
+        firestore.collection(`academies/${academyId}/staff`).get(),
+        firestore.collection(`academies/${academyId}/coachWebsite`).where("hidden", "==", true).get(),
+      ]);
+      const hidden = new Set(websites.docs.map((doc) => doc.id));
       const profiles = new Map<string, TeamCoachProfile>();
       for (const doc of snapshot.docs) {
         const data = doc.data();
         if (typeof data.userId !== "string") continue;
         const belt = coachBeltSchema.safeParse(data.belt);
-        const profile = { staffKey: doc.id, active: data.active === true, belt: belt.success ? belt.data : null };
+        const profile = {
+          staffKey: doc.id,
+          active: data.active === true,
+          belt: belt.success ? belt.data : null,
+          ...(hidden.has(data.userId) ? { hidden: true } : {}),
+        };
         if (!profiles.get(data.userId)?.active) profiles.set(data.userId, profile);
       }
       return profiles;
     },
+    profileNames: (academyId, userIds) => profileNames(firestore, academyId, userIds),
     async memberCoachUsers(academyId) {
       return new Set((await firestore.collection(`academies/${academyId}/coachMemberAccess`).get()).docs.map((doc) => doc.id));
     },

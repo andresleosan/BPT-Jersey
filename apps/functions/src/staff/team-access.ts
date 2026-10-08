@@ -49,6 +49,8 @@ export type TeamAccessServices = Readonly<{
   demoteToCoach(actor: AdminActor, uid: string): Promise<void>;
   /** Member accounts that also have coach access (coachMemberAccess ids). */
   memberCoachUsers?(academyId: string): Promise<ReadonlySet<string>>;
+  /** users/{uid}.displayName for logins without an Auth name (member logins). */
+  profileNames?(academyId: string, userIds: readonly string[]): Promise<ReadonlyMap<string, string>>;
   now(): Date;
 }>;
 function verifiedApplication(request: CallableRequest): void {
@@ -108,7 +110,15 @@ export async function listTeamDirectoryHandler(
       coach: coaches.get(user.uid) ?? null,
       ...(members.has(user.uid) ? { alsoMember: true } : {}),
     }));
-  return teamDirectoryResponseSchema.parse({ people, nextPageToken: page.pageToken ?? null });
+  const names =
+    (await services.profileNames?.(
+      actor.academyId,
+      people.filter((person) => !person.name).map((person) => person.userId),
+    )) ?? new Map<string, string>();
+  return teamDirectoryResponseSchema.parse({
+    people: people.map((person) => ({ ...person, name: person.name || names.get(person.userId) || "" })),
+    nextPageToken: page.pageToken ?? null,
+  });
 }
 export async function changeTeamRoleHandler(
   request: CallableRequest,

@@ -309,7 +309,7 @@ export {
 export { createStaffWithPassword } from "./staff/direct-staff-creation.js";
 export { grantMemberCoachAccess, listCoachEligibleMembers, switchAccessMode } from "./staff/member-coach-access.js";
 export { deleteCoachAccount, setCoachBelt, setOwnerTeaches } from "./staff/coach-account-callables.js";
-export { getCoachWebsiteProfile, setCoachWebsiteProfile } from "./staff/coach-website-profile.js";
+export { getCoachWebsiteProfile, setCoachWebsiteProfile, setCoachWebsiteVisibility } from "./staff/coach-website-profile.js";
 
 export {
   listTeamDirectory,
