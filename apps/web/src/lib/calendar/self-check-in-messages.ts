@@ -4,8 +4,11 @@ function field(value: unknown, key: string): unknown {
     : undefined;
 }
 
+import { selfCheckInAdvertisedRadiusMeters } from "@bpt-jersey/domain/schedule";
+
 const fallback = "Couldn't check you in. Try again or ask a coach.";
-const genericOutsideMessage = "You're too far from the gym. Get to the gym and try again.";
+const within = "You need to be within " + selfCheckInAdvertisedRadiusMeters + " m of the gym to check in.";
+const genericOutsideMessage = within + " Get closer and try again.";
 
 /** Decision 12: one sentence per refusal code from selfCheckIn; all other errors use the fallback. */
 export function selfCheckInFailureMessage(error: unknown): string {
@@ -18,7 +21,7 @@ export function selfCheckInFailureMessage(error: unknown): string {
   switch (reason) {
     case "outside":
       return typeof distance === "number" && Number.isFinite(distance) && distance >= 0 && Number.isInteger(distance)
-        ? "You're " + distance + " m away. Get to the gym and try again."
+        ? within + " You're " + distance + " m away."
         : genericOutsideMessage;
     case "imprecise":
       return "Your location isn't precise enough yet. Turn on Precise Location, step near the entrance and try again.";

@@ -106,7 +106,7 @@ export function nextSelfCheckInSession(input: {
   return record ? { kind: "checkedIn", session, attendance: record } : { kind: "ready", session };
 }
 
-/** Decision 14: readings wider than this are refused; the distance itself must still be ≤ 50 m. */
+/** Decision 14: readings wider than this are refused; the distance itself must still be ≤ checkInProximityRadiusMeters. */
 export const selfCheckInMaxAccuracyMeters = 100;
 
 export type SelfCheckInPosition = Readonly<{

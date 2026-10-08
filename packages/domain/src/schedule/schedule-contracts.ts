@@ -87,8 +87,14 @@ export type LocationRecord = Readonly<{
   schemaVersion: "1";
 }>;
 
-/** The check-in eligibility radius fixed by BRIEF decision 5. It is not configurable per site. */
-export const checkInProximityRadiusMeters = 50;
+/**
+ * The check-in eligibility radius. Not configurable per site. Raised 50 → 150 m (2026-10-08) so GPS
+ * drift indoors never refuses a member on the mat; members are told 100 m (selfCheckInAdvertisedRadiusMeters).
+ */
+export const checkInProximityRadiusMeters = 150;
+
+/** What members are told, deliberately tighter than the real radius so they check in close by. */
+export const selfCheckInAdvertisedRadiusMeters = 100;
 
 /** How stale a device measurement may be and still be considered for the signal. */
 export const checkInProximityMaxAgeMs = 10 * 60 * 1000;
