@@ -110,8 +110,10 @@ export const deleteCoachAccount = onCall({ ...browserAdminCallableOptions, secre
   const photoKey = website.data()?.photoKey;
   if (typeof photoKey === "string") await createPrivateStorageR2Client().deleteObject(photoKey).catch(() => undefined);
   if (memberRole) {
-    // Only from coach mode: in member mode the live claim may be newer than the stored role.
-    if (user && ["coach", "headCoach"].includes(String(claimRole))) await auth.setCustomUserClaims(userId, { ...user.customClaims, academyId: actor.academyId, role: memberRole });
+    // Read the claim again after the docs are gone: a switch to coach mode may have landed meanwhile.
+    // Only a coach claim is replaced; in member mode the live claim may be newer than the stored role.
+    const live = user ? await auth.getUser(userId).catch(() => null) : null;
+    if (live && ["coach", "headCoach"].includes(String(live.customClaims?.role))) await auth.setCustomUserClaims(userId, { ...live.customClaims, academyId: actor.academyId, role: memberRole });
   } else if (user) await auth.deleteUser(userId).catch((error: { code?: string }) => { if (error.code !== "auth/user-not-found") throw error; });
   return { deleted: true as const };
 });
