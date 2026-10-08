@@ -58,6 +58,8 @@ export const teamDirectoryPersonSchema = z.strictObject({
   email: z.string().max(320).nullable(),
   role: teamRoleSchema,
   coach: teamCoachProfileSchema.nullable(),
+  /** Set when the account is also a member (coachMemberAccess); optional so old builds still parse. */
+  alsoMember: z.boolean().optional(),
 });
 export const teamDirectoryResponseSchema = z.strictObject({
   people: z.array(teamDirectoryPersonSchema).max(1000),
@@ -139,6 +141,46 @@ export const setCoachWebsiteProfileSchema = z.strictObject({
 export const publicCoachesResponseSchema = z.strictObject({
   coaches: z.array(publicCoachSchema).max(100),
 });
+/** Adult member roles that may also hold coach access. Teens never. */
+export const memberCoachRoles = ["adultStudent", "guardian"] as const;
+export const memberCoachRoleSchema = z.enum(memberCoachRoles);
+export type MemberCoachRole = z.infer<typeof memberCoachRoleSchema>;
+/** Marks a member account that also has coach access and remembers which member role to restore. */
+export function coachMemberAccessPath(academyId: string, userId: string): string {
+  return `academies/${academyId}/coachMemberAccess/${userId}`;
+}
+/** Coach checks accept a staff profile, or a member profile whose account also has coach access. */
+export function isCoachAccountType(accountType: unknown, dualAccess: boolean): boolean {
+  return accountType === "staff" || (dualAccess && accountType === "client");
+}
+export const coachMemberAccessSchema = z.strictObject({
+  userId: z.string().min(1).max(128),
+  academyId: z.string().min(1).max(128),
+  memberRole: memberCoachRoleSchema,
+  grantedAt: z.iso.datetime(),
+  grantedBy: z.string().min(1).max(128),
+  schemaVersion: z.literal("1"),
+});
+export const grantMemberCoachAccessSchema = z.strictObject({
+  userId: z.string().min(1).max(128),
+  belt: coachBeltSchema,
+});
+export const listCoachEligibleMembersSchema = z.strictObject({
+  query: z.string().trim().min(2).max(120),
+});
+export const coachEligibleMemberSchema = z.strictObject({
+  userId: z.string().min(1).max(128),
+  name: z.string().max(256),
+  email: z.string().max(320),
+});
+export const coachEligibleMembersResponseSchema = z.strictObject({
+  members: z.array(coachEligibleMemberSchema).max(20),
+});
+export const switchAccessModeSchema = z.strictObject({ mode: z.enum(["coach", "member"]) });
+export const switchAccessModeResultSchema = z.strictObject({ switched: z.boolean() });
+export type AccessMode = z.infer<typeof switchAccessModeSchema>["mode"];
+export type GrantMemberCoachAccessInput = z.infer<typeof grantMemberCoachAccessSchema>;
+export type CoachEligibleMember = z.infer<typeof coachEligibleMemberSchema>;
 export type PublicCoach = z.infer<typeof publicCoachSchema>;
 export type CoachWebsiteProfile = z.infer<typeof coachWebsiteProfileSchema>;
 export type SetCoachWebsiteProfileInput = z.infer<typeof setCoachWebsiteProfileSchema>;
