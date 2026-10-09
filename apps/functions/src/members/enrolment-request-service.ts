@@ -667,6 +667,24 @@ export function createEnrolmentRequestStore(
         });
         if (!candidate.ok)
           throw new EnrolmentRequestStoreError("invalid", "Enrolment request contract rejected");
+        // Submit and withdraw can be looped, and every submission lands in the office queue and
+        // notifies the office. A real applicant needs a handful per day at most.
+        const limitReference = firestore.doc(
+          `${collectionPath(academyId, "enrolmentSubmitLimits")}/${actorId}`,
+        );
+        const limit = asDocument(await transaction.get(limitReference)).data();
+        const nowMs = Date.parse(now);
+        const fresh = typeof limit?.until !== "number" || limit.until <= nowMs;
+        const count = fresh ? 0 : Number(limit?.count);
+        if (!Number.isSafeInteger(count) || count >= 5)
+          throw new EnrolmentRequestStoreError(
+            "precondition",
+            "Too many enrolment requests today. Try again tomorrow or ask reception.",
+          );
+        transaction.set(limitReference, {
+          count: count + 1,
+          until: fresh ? nowMs + 86_400_000 : Number(limit?.until),
+        });
         transaction.create(reference, candidate.value);
         transaction.set(holdReference, {
           submittedBy: actorId,

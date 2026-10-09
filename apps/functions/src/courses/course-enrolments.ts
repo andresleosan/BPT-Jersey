@@ -48,6 +48,13 @@ async function createCourseEnrolment(db: Firestore, actor: CourseActor, value: R
     const unavailable = course.committedSeats >= course.capacity || !queue.empty;
     if (!waitlist && unavailable) courseFailure("full", "All places are reserved. You can join the unpaid waitlist.");
     if (waitlist && !unavailable) courseFailure("conflict", "A place is available. Reserve it to receive the payment details.");
+    // Each held place blocks a seat for 24 h unpaid: one applicant (any Google account) must not be
+    // able to hold the whole course with invented participants.
+    if (!waitlist) {
+      const mine = await tx.get(courseCollection(db, actor.academyId, "courseEnrolments").where("applicantUid", "==", actor.uid).where("courseId", "==", input.courseId));
+      if (mine.docs.filter(doc => doc.data().seatCommitted === true && ["held", "offered", "correction"].includes(String(doc.data().status))).length >= 4)
+        courseFailure("conflict", "You already hold 4 unpaid places on this course. Pay or cancel one, or contact the office.");
+    }
     const consumeLimit = await readCourseRateLimit(db, tx, actor.academyId, actor.uid, "reserve", Date.parse(now));
     const enrolment: CourseEnrolment = {enrolmentId, academyId: actor.academyId, courseId: input.courseId, applicantUid: actor.uid, participant: participant.participant, participantKey: participant.participantKey, studentId: participant.studentId, status: waitlist ? "waitlisted" : "held", revision: 1, priceMinor: course.priceMinor, currency: "GBP", courseRevision: course.revision, acceptedTerms: course.cancellationTerms, acceptedAt: now, transferReference: `BPT${enrolmentId.replaceAll("-", "").slice(0, 15).toUpperCase()}`, reference: "", proofId: null, expiresAt: waitlist ? null : new Date(Date.parse(now) + 86_400_000).toISOString(), submittedAt: null, approvedAt: null, accessFrom: null, queuedAt: waitlist ? now : null, decisionReason: null, createdAt: now, updatedAt: now, seatCommitted: !waitlist, receivedMinor: 0, refundedMinor: 0, pendingRefundMinor: 0};
     consumeLimit();

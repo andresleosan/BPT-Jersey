@@ -338,6 +338,21 @@ export function createShopStore(dependencies: ShopStoreDependencies): ShopStore 
             throw new ShopStoreError("conflict", "Order request id reused with a different basket");
           return stored;
         }
+        // Any Google account can order, and the office list holds 500: cap open orders per buyer so
+        // one account cannot bury the real ones. ponytail: scans 100 orders, enough for any buyer.
+        const openOrders = asQuery(
+          await transaction.get(
+            firestore
+              .collection(collectionPath(academyId, "shopOrders"))
+              .where("customerUserId", "==", actorId)
+              .limit(100),
+          ),
+        ).docs.filter((document) => !["collected", "cancelled"].includes(String(document.data()?.status)));
+        if (openOrders.length >= 5)
+          throw new ShopStoreError(
+            "precondition",
+            "You already have 5 open orders. Collect or cancel one before ordering again.",
+          );
         // Every read happens before any write, as Firestore transactions require.
         const counterReference = firestore.doc(
           `${collectionPath(academyId, "shopCounters")}/orders`,

@@ -1373,7 +1373,15 @@ export function createFirestoreScheduleStore(options: {
       academyId: string,
       query: ListSessionsQuery,
     ): Promise<readonly SessionRecord[]> {
-      await weekly.materialise(academyId, query);
+      // Any signed-in account (even a self-registered shopper) can read the calendar, and each new
+      // session fires the group trigger that books its members. Materialise only up to a horizon;
+      // further out, return what already exists instead of writing years of sessions and bookings.
+      const horizon = Date.now() + 180 * 86_400_000;
+      if (Date.parse(query.from) <= horizon)
+        await weekly.materialise(academyId, {
+          ...query,
+          to: new Date(Math.min(Date.parse(query.to), horizon)).toISOString(),
+        });
       // A range on the single field startAt needs no composite index; location and program stay
       // in memory so any combination of filters keeps working without one.
       const snapshot = await firestore
