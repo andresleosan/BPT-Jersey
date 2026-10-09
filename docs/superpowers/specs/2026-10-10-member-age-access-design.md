@@ -96,7 +96,7 @@ solo actúa con un plan activo; en trial o sin plan no cambia nada.
   5. Si la edad real es menor de 16 y el rango llega a 16+, aparece una banda roja de DESIGN.md
      («Gets access to adult (16+) classes») y una casilla de confirmación obligatoria antes de
      *Save*.
-  6. *Remove range* quita solo el rango (motivo de la retirada en el historial).
+  6. *Remove range* quita solo el rango; queda en el historial con autor, fecha y el rango anterior.
 - Diseño: radio 0 en admin, tabla con filetes de 1 px, estados con borde izquierdo, acciones en
   línea, sin spinners (esqueleto). Al implementar se aplican `impeccable` y `taste-skill` sobre
   `DESIGN.md`.
