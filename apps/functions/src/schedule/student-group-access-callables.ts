@@ -7,7 +7,9 @@ import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { parseEffectiveStudentProfileAt } from "@bpt-jersey/domain/profiles";
 import {
+  effectiveAgeRange,
   effectiveGroupProgramIds,
+  saveStudentAgeRangeSchema,
   saveStudentGroupAccessSchema,
   studentGroupAccessQuerySchema,
   studentGroupAccessSchema,
@@ -38,6 +40,7 @@ export function readAccess(data: FirebaseFirestore.DocumentData | undefined, aca
     dateOfBirth: dateOfBirth ?? null,
     ...(typeof data?.reason === "string" ? { reason: data.reason } : {}),
     ...(data?.expiresOn === undefined ? {} : { expiresOn: data.expiresOn }),
+    ...(data?.ageRange ? { ageRange: data.ageRange } : {}),
   });
   if (!result.success) throw new HttpsError("failed-precondition", "Group access is unavailable.");
   return result.data;
@@ -45,9 +48,12 @@ export function readAccess(data: FirebaseFirestore.DocumentData | undefined, aca
 
 /** Members only learn which groups are open to them today, never the office's reason or dates. */
 export function memberView(access: ReturnType<typeof readAccess>) {
+  const today = dateKeyInJersey(new Date());
+  const ageRange = effectiveAgeRange(access, today);
   return {
     studentId: access.studentId, revision: access.revision, dateOfBirth: access.dateOfBirth,
-    programIds: [...effectiveGroupProgramIds(access, dateKeyInJersey(new Date()))],
+    programIds: [...effectiveGroupProgramIds(access, today)],
+    ...(ageRange ? { ageRange } : {}),
   };
 }
 
@@ -119,6 +125,7 @@ export const saveStudentGroupAccess = onCall(browserAdminCallableOptions, async 
       academyId: actor.academyId, studentId: input.studentId,
       programIds: next.programIds, revision: next.revision,
       ...(next.reason === undefined ? {} : { reason: next.reason }), expiresOn: next.expiresOn,
+      ageRange: previous.ageRange ?? null,
       updatedBy: actor.userId, updatedAt: changedAt,
     });
     transaction.create(eventRef, {
@@ -138,4 +145,85 @@ export const saveStudentGroupAccess = onCall(browserAdminCallableOptions, async 
     });
     return next;
   });
+});
+
+export const saveStudentAgeRange = onCall(browserAdminCallableOptions, async (request) => {
+  const actor = await requireActiveOfficeActor(request);
+  const parsed = saveStudentAgeRangeSchema.safeParse(request.data);
+  if (!parsed.success) throw new HttpsError("invalid-argument", "Check the ages, reason and end date.");
+  const input = parsed.data;
+  const db = getFirestore();
+  const base = `academies/${actor.academyId}`;
+  const accessRef = db.doc(`${base}/studentGroupAccess/${input.studentId}`);
+  const eventRef = db.collection(`${base}/studentGroupAccessEvents`).doc();
+  return db.runTransaction(async (transaction) => {
+    const [studentSnapshot, accessSnapshot] = await transaction.getAll(
+      db.doc(`${base}/students/${input.studentId}`), accessRef,
+    );
+    const student = readStudent(studentSnapshot!.data(), actor.academyId, input.studentId);
+    const previous = readAccess(accessSnapshot!.data(), actor.academyId, input.studentId, student.dateOfBirth);
+    if (previous.revision !== input.revision) {
+      throw new HttpsError("aborted", "Access changed. Reload before saving.");
+    }
+    const next = { ...previous, ageRange: input.ageRange, revision: previous.revision + 1 };
+    const changedAt = new Date().toISOString();
+    // merge: the extra groups, their reason and end date stay exactly as they are.
+    transaction.set(accessRef, {
+      academyId: actor.academyId, studentId: input.studentId,
+      ageRange: input.ageRange, revision: next.revision,
+      updatedBy: actor.userId, updatedAt: changedAt,
+    }, { merge: true });
+    transaction.create(eventRef, {
+      academyId: actor.academyId, studentId: input.studentId,
+      beforeAgeRange: previous.ageRange ?? null, afterAgeRange: input.ageRange,
+      revision: next.revision, actorId: actor.userId, actorRole: actor.role,
+      occurredAt: changedAt, action: "member.age-range.updated",
+    });
+    transaction.create(db.collection(`${base}/auditEvents`).doc(), {
+      eventId: eventRef.id, academyId: actor.academyId, actorId: actor.userId,
+      action: "member.age-range.updated", targetRef: accessRef.path,
+      purpose: "training age range", correlationId: eventRef.id,
+      occurredAt: changedAt, schemaVersion: "1",
+    });
+    return next;
+  });
+});
+
+export const listStudentAccessExceptions = onCall(browserAdminCallableOptions, async (request) => {
+  const actor = await requireActiveOfficeActor(request);
+  const db = getFirestore();
+  const base = `academies/${actor.academyId}`;
+  const today = dateKeyInJersey(new Date());
+  // ponytail: one read of a small collection (one doc per member with an exception), no index.
+  const snapshot = await db.collection(`${base}/studentGroupAccess`).limit(1000).get();
+  const live = snapshot.docs
+    .map((doc) => ({ id: doc.id, data: doc.data() }))
+    .filter(({ id, data }) => data.academyId === actor.academyId && data.studentId === id)
+    .map(({ id, data }) => {
+      const access = studentGroupAccessSchema.safeParse({
+        studentId: id, programIds: data.programIds ?? [], revision: data.revision ?? 0,
+        dateOfBirth: null, expiresOn: data.expiresOn ?? null,
+        ...(data.ageRange ? { ageRange: data.ageRange } : {}),
+      });
+      return access.success ? access.data : undefined;
+    })
+    .filter((access) => access !== undefined)
+    .filter((access) => effectiveGroupProgramIds(access, today).length > 0 || effectiveAgeRange(access, today) !== null);
+  const students = live.length
+    ? await db.getAll(...live.map((access) => db.doc(`${base}/students/${access.studentId}`)))
+    : [];
+  return {
+    rows: live.flatMap((access, index) => {
+      const student = students[index]?.data();
+      if (!student || student.academyId !== actor.academyId) return [];
+      return [{
+        studentId: access.studentId,
+        fullName: typeof student.fullName === "string" ? student.fullName : "",
+        dateOfBirth: typeof student.dateOfBirth === "string" ? student.dateOfBirth : null,
+        programIds: effectiveGroupProgramIds(access, today),
+        ageRange: effectiveAgeRange(access, today) ? access.ageRange ?? null : null,
+        expiresOn: access.expiresOn ?? null,
+      }];
+    }),
+  };
 });

@@ -328,6 +328,8 @@ export {
 export {
   getStudentGroupAccess,
   saveStudentGroupAccess,
+  saveStudentAgeRange,
+  listStudentAccessExceptions,
 } from "./schedule/student-group-access-callables.js";
 
 export {
