@@ -82,3 +82,8 @@ Assets/
 .impeccable/
 docs/audits/
 .firebase-release-e2e.json
+
+# Capturas locales de QA, permisos locales del agente e informes de auditoría: nunca al repo público (B-26)
+qa/.shot/
+.claude/settings.local.json
+security_best_practices_report.md
