@@ -15,6 +15,8 @@ allowBuilds:
 
 overrides:
   nanoid: 3.3.18
+  # get-uri's Client API is unchanged; v6 also rejects FTP bounce hosts by default.
+  "get-uri>basic-ftp": 6.2.2
   "proxy-addr@<2.0.8": 2.0.8
   "qs@<6.16.0": 6.16.0
   "@fastify/busboy@>=3 <3.2.2": 3.2.2
