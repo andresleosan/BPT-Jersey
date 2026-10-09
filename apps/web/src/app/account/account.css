@@ -903,6 +903,12 @@ html:has(dialog[open]:modal) {
   font-weight: 800;
 }
 
+/* Member age range: a quiet note, not a band — it widens access, it does not warn. */
+.member-calendar-range {
+  color: var(--muted);
+  margin: 1rem var(--member-gutter, clamp(1rem, 4vw, 3rem)) 0;
+}
+
 /* Pay-as-you-go: how this class is paid for, asked at booking. */
 .payg-dialog {
   border: 0;
