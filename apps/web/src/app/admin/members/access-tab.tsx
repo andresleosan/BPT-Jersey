@@ -20,7 +20,11 @@ import {
 } from "@bpt-jersey/domain/schedule/member-calendar";
 
 import { getLevelCatalog } from "../../../lib/levels-client";
-import { getProgressManagement, setProgressLevel } from "../../../lib/progress-management-client";
+import {
+  getProgressManagement,
+  setProgressClassCount,
+  setProgressLevel,
+} from "../../../lib/progress-management-client";
 import { getScheduleCatalog } from "../../../lib/schedule-client";
 import {
   getStudentGroupAccess,
@@ -89,13 +93,14 @@ export function AccessTab({ rows, isOwner }: { rows: readonly MemberOverviewRow[
   const [listError, setListError] = useState<string>();
   const [listToken, setListToken] = useState(0);
   const [programs, setPrograms] = useState<readonly ProgramRecord[]>([]);
+  const [programsError, setProgramsError] = useState(false);
   const [query, setQuery] = useState("");
   const [member, setMember] = useState<Member | null>(null);
 
   useEffect(() => {
     getScheduleCatalog().then(
       (catalog) => setPrograms(catalog.programs),
-      () => setPrograms([]),
+      () => setProgramsError(true),
     );
   }, []);
 
@@ -140,6 +145,12 @@ export function AccessTab({ rows, isOwner }: { rows: readonly MemberOverviewRow[
       {listError ? (
         <p className="progress-manage-error" role="alert">
           {listError}
+        </p>
+      ) : null}
+
+      {programsError ? (
+        <p className="progress-manage-error" role="alert">
+          Class types are unavailable. Reload to see which types open.
         </p>
       ) : null}
 
@@ -254,6 +265,7 @@ export function AccessTab({ rows, isOwner }: { rows: readonly MemberOverviewRow[
           member={member}
           onSaved={() => setListToken((token) => token + 1)}
           programs={programs}
+          programsError={programsError}
           today={today}
         />
       ) : null}
@@ -266,12 +278,14 @@ function MemberAccess({
   member,
   onSaved,
   programs,
+  programsError,
   today,
 }: {
   isOwner: boolean;
   member: Member;
   onSaved: () => void;
   programs: readonly ProgramRecord[];
+  programsError: boolean;
   today: string;
 }) {
   const { studentId, fullName } = member;
@@ -473,11 +487,13 @@ function MemberAccess({
           <p aria-live="polite" className="access-opens">
             {rangeError
               ? rangeError
-              : range
-                ? opens.length
-                  ? `Opens: ${opens.map((program) => program.name).join(", ")}`
-                  : "Opens no extra class types"
-                : "Enter From to see which class types open."}
+              : programsError
+                ? ""
+                : range
+                  ? opens.length
+                    ? `Opens: ${opens.map((program) => program.name).join(", ")}`
+                    : "Opens no extra class types"
+                  : "Enter From to see which class types open."}
           </p>
 
           {adultWarning ? (
@@ -636,22 +652,25 @@ function LevelBlock({
   );
   const options = useMemo(() => {
     if (!range) return definitions;
+    // The saved level and the one picked here always stay selectable.
+    const kept = (key: string) => key === data?.currentDefinitionKey || key === definitionKey;
     const fitting = definitions.filter(
       (definition) =>
-        definition.definitionKey === data?.currentDefinitionKey ||
+        kept(definition.definitionKey) ||
         ageRangeAdmits(
           { minAge: definition.criteria.minAge ?? 0, maxAge: definition.criteria.maxAge },
           range,
         ),
     );
-    return fitting.some((definition) => definition.definitionKey !== data?.currentDefinitionKey)
-      ? fitting
-      : definitions;
-  }, [definitions, range, data?.currentDefinitionKey]);
+    return fitting.some((definition) => !kept(definition.definitionKey)) ? fitting : definitions;
+  }, [definitions, range, data?.currentDefinitionKey, definitionKey]);
   const limits = manualProgressLimits(definitions, definitionKey);
+  const levelChanged = data !== null && definitionKey !== (data.currentDefinitionKey ?? "");
+  const classesChanged = data !== null && classes !== data.classesAtLevel;
+  const changed = levelChanged || (classesChanged && limits.classes !== null);
 
   function save() {
-    if (!data || definitionKey === "") return;
+    if (!data || definitionKey === "" || !changed) return;
     const counts = limits.classes !== null ? { classes } : {};
     const countError = manualProgressError(limits, counts);
     if (countError !== null) {
@@ -661,7 +680,22 @@ function LevelBlock({
     setBusy(true);
     setError(undefined);
     setNotice(undefined);
-    setProgressLevel({ studentId, definitionKey, startedOn: today, ...counts, reason: "Age range access" })
+    // Only a new level restarts its time; a class count alone keeps the level and its start date.
+    const request = levelChanged
+      ? setProgressLevel({
+          studentId,
+          definitionKey,
+          startedOn: today,
+          ...counts,
+          reason: "Age range access",
+        })
+      : setProgressClassCount({
+          studentId,
+          definitionKey: data.currentDefinitionKey ?? undefined,
+          classes,
+          reason: "Age range access",
+        });
+    request
       .then(
         () => {
           setNotice("Level saved.");
@@ -725,7 +759,7 @@ function LevelBlock({
               ? "This level has no class requirement to adjust."
               : `From 0 to ${limits.classes}. The level starts today.`}
           </p>
-          <button className="button" disabled={busy} onClick={save} type="button">
+          <button className="button" disabled={busy || !changed} onClick={save} type="button">
             {busy ? "Saving…" : "Save level"}
           </button>
         </>
