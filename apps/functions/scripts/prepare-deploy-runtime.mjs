@@ -19,7 +19,15 @@ export async function prepareDeployRuntime({
   packageValue.dependencies.zod = "4.4.3";
   delete packageValue.devDependencies;
   await writeFile(packagePath, `${JSON.stringify(packageValue, null, 2)}\n`, "utf8");
-  await writeFile(new URL("pnpm-workspace.yaml", deployRoot), 'packages:\n  - "."\n', "utf8");
+  // Keep the exact security overrides recorded in the source lockfile. Dropping
+  // them can either reject a frozen install or resolve vulnerable dependencies.
+  const sourceWorkspace = await readFile(new URL("pnpm-workspace.yaml", repositoryRoot), "utf8");
+  const overrides = sourceWorkspace.match(/^overrides:\r?\n(?:(?:[ \t].*|)\r?\n)*/m)?.[0] ?? "";
+  await writeFile(
+    new URL("pnpm-workspace.yaml", deployRoot),
+    `packages:\n  - "."\n\n${overrides}`,
+    "utf8",
+  );
 
   await cp(new URL("packages/domain/lib/", repositoryRoot), new URL("lib/domain/", deployRoot), {
     recursive: true,
