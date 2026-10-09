@@ -6,6 +6,8 @@ import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/
 import { defineSecret } from "firebase-functions/params";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
+import { isCurrentActorSession } from "../auth/active-session.js";
+import { reserveEnrolmentProof } from "./enrolment-proof-reservation.js";
 import { createPrivateStorageR2Client, type R2Client } from "../storage/r2-client.js";
 
 export const enrolmentStorageSecrets = [
@@ -57,11 +59,24 @@ export async function uploadEnrolmentPaymentProofHandler(
   )
     throw new HttpsError("invalid-argument", "Choose a valid PNG or JPEG screenshot up to 2 MB.");
   const proofId = createHash("sha256").update(bytes).digest("hex");
-  await storage.putObject(
-    enrolmentProofKey(actor.academyId, actor.userId, requestId, proofId),
-    bytes,
-    contentType,
-  );
+  if (!(await isCurrentActorSession(actor, request)))
+    throw new HttpsError("permission-denied", "Your account access has changed. Sign in again.");
+  // The application uploads before submitting. Reserve ownership server-side
+  // instead of requiring a submitted request and breaking that flow.
+  const reservation = await reserveEnrolmentProof(getFirestore(), actor, requestId, proofId);
+  if (reservation.ready) return { proofId };
+  try {
+    await storage.putObject(
+      enrolmentProofKey(actor.academyId, actor.userId, requestId, proofId),
+      bytes,
+      contentType,
+    );
+    await reservation.finish("ready");
+  } catch (error) {
+    // Failed storage attempts still consume quota; only release the owned lease.
+    await reservation.finish("failed").catch(() => undefined);
+    throw error;
+  }
   return { proofId };
 }
 export const uploadEnrolmentPaymentProof = onCall(

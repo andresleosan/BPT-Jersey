@@ -368,7 +368,21 @@ export async function uploadEnrolmentPaymentProof(requestId: string, file: File)
     const result = (await httpsCallable<unknown, unknown>(getFirebaseFunctions(), "uploadEnrolmentPaymentProof")({ requestId, contentType: file.type, base64: data })).data;
     if (!isRecord(result) || typeof result.proofId !== "string" || !/^[a-f0-9]{64}$/u.test(result.proofId)) throw new Error();
     return result.proofId;
-  } catch { throw new Error("Unable to upload the screenshot. Your details are still here; please retry."); }
+  } catch (error) {
+    if (isRecord(error) && typeof error.code === "string") {
+      if (error.code.endsWith("resource-exhausted")) {
+        const requestLimit = isRecord(error.details) && error.details.reason === "request-limit";
+        throw new Error(requestLimit
+          ? "This request has reached its screenshot limit. Your details are still here; contact the office for help."
+          : "You have reached today's screenshot limit. Your details are still here; try again tomorrow.");
+      }
+      if (error.code.endsWith("aborted"))
+        throw new Error("Your screenshot is already uploading. Please wait a moment before retrying.");
+      if (error.code.endsWith("unauthenticated"))
+        throw new Error("Sign in again before uploading your screenshot.");
+    }
+    throw new Error("Unable to upload the screenshot. Your details are still here; please retry.");
+  }
 }
 
 export async function getEnrolmentPaymentInstructions() {
