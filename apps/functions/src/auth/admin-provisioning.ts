@@ -646,9 +646,16 @@ async function setClaimsAndPersist(
     }
     throw error;
   }
-  // A revoked administrator keeps an ID token with the old role for up to 1 h: end those sessions.
-  if (action === "revoke") await services.auth.revokeRefreshTokens?.(uid);
+  // A demoted account keeps an ID token with the old role for up to 1 h: end those sessions. Both a
+  // revoke and a grant of a lower role (owner -> administrator) are demotions.
+  if ((adminRoleRank.get(previousClaims.role) ?? 0) > (adminRoleRank.get(nextClaims.role) ?? 0))
+    await services.auth.revokeRefreshTokens?.(uid);
 }
+
+const adminRoleRank = new Map<unknown, number>([
+  ["owner", 2],
+  ["administrator", 1],
+]);
 
 export async function provisionAdminRoleWithServices(
   request: CallableRequest,
