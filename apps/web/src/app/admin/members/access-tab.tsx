@@ -412,6 +412,10 @@ function MemberAccess({
       setError("Enter a reason for the age range.");
       return;
     }
+    if (expiresOn && expiresOn < today) {
+      setError("The end date has already passed.");
+      return;
+    }
     void submit({ ...range, reason: reason.trim(), expiresOn: expiresOn || null });
   }
 
@@ -757,7 +761,7 @@ function LevelBlock({
           <p className="access-opens">
             {limits.classes === null
               ? "This level has no class requirement to adjust."
-              : `From 0 to ${limits.classes}. The level starts today.`}
+              : `From 0 to ${limits.classes}.${levelChanged ? " The level starts today." : ""}`}
           </p>
           <button className="button" disabled={busy || !changed} onClick={save} type="button">
             {busy ? "Saving…" : "Save level"}

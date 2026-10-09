@@ -272,6 +272,7 @@ function openingAgeBand(
   definition: Readonly<Record<string, unknown>> | undefined,
   dateOfBirth: unknown,
   now: string,
+  trainingRange?: Readonly<{ minAge: number; maxAge: number | null }> | null,
 ): AgeBandEvaluation {
   const criteria = definition?.criteria;
   const band =
@@ -285,6 +286,7 @@ function openingAgeBand(
       band === undefined ? null : { minAge: whole(band.minAge), maxAge: whole(band.maxAge) },
     dateOfBirth: typeof dateOfBirth === "string" ? dateOfBirth : null,
     now,
+    trainingRange: trainingRange ?? null,
   });
 }
 
@@ -2677,7 +2679,7 @@ export function createLevelCatalogStore({
           firestore,
           academyId,
         );
-        const [head, definition, existingAudit] = await Promise.all([
+        const [head, definition, existingAudit, access] = await Promise.all([
           transaction.get(headRef),
           transaction.get(
             firestore.doc(
@@ -2685,6 +2687,9 @@ export function createLevelCatalogStore({
             ),
           ),
           transaction.get(auditRef),
+          transaction.get(
+            firestore.doc(`academies/${academyId}/studentGroupAccess/${input.studentId}`),
+          ),
         ]);
         if (head.exists) {
           throw new LevelStoreError("conflict", "Student level is already open");
@@ -2734,6 +2739,7 @@ export function createLevelCatalogStore({
             definitionData,
             (student as { dateOfBirth?: unknown }).dateOfBirth,
             now,
+            storedTrainingRange(access.data(), academyId, jerseyDateOf(now)),
           ),
         };
       });

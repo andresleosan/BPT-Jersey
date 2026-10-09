@@ -152,6 +152,10 @@ export const saveStudentAgeRange = onCall(browserAdminCallableOptions, async (re
   const parsed = saveStudentAgeRangeSchema.safeParse(request.data);
   if (!parsed.success) throw new HttpsError("invalid-argument", "Check the ages, reason and end date.");
   const input = parsed.data;
+  const endsOn = input.ageRange?.expiresOn;
+  if (endsOn && endsOn < dateKeyInJersey(new Date())) {
+    throw new HttpsError("invalid-argument", "The end date has already passed.");
+  }
   const db = getFirestore();
   const base = `academies/${actor.academyId}`;
   const accessRef = db.doc(`${base}/studentGroupAccess/${input.studentId}`);

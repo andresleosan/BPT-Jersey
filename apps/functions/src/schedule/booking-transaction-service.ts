@@ -872,9 +872,10 @@ async function executeBookingInTransaction(
     ...(groupData?.ageRange ? { ageRange: groupData.ageRange } : {}),
   });
   if (!groupAccess.success) return invalid("invalid", "Group access is invalid");
-  const today = dateKeyInJersey(new Date());
-  const additionalProgramIds = effectiveGroupProgramIds(groupAccess.data, today);
-  const trainingRange = effectiveAgeRange(groupAccess.data, today);
+  // An exception authorises sessions up to its end date, not bookings made before it.
+  const sessionDay = localDate(storedSession.startAt);
+  const additionalProgramIds = effectiveGroupProgramIds(groupAccess.data, sessionDay);
+  const trainingRange = effectiveAgeRange(groupAccess.data, sessionDay);
   // The office's training age range opens a type exactly like an extra group (same waivers).
   const additionalAccess =
     additionalProgramIds.includes(storedSession.programId) ||
