@@ -73,7 +73,12 @@ function services(request: CallableRequest): TeamAccessServices {
       // Reuse the existing cross-Auth/Firestore lock, audit and compensation rather than writing claims here.
       const delegatedRequest = {
         app: request.app,
-        auth: { uid: actor.uid, token: { academyId: actor.academyId, role: actor.role } },
+        auth: {
+          uid: actor.uid,
+          token: transition === "team"
+            ? request.auth!.token
+            : { academyId: actor.academyId, role: actor.role },
+        },
         data: { action: "grant" },
       } as unknown as CallableRequest;
       if (target.role === "coach") {
@@ -115,6 +120,7 @@ function services(request: CallableRequest): TeamAccessServices {
                 email: user.email ?? null,
                 displayName: user.displayName ?? null,
                 disabled: user.disabled,
+                ...(user.tokensValidAfterTime ? { tokensValidAfterTime: user.tokensValidAfterTime } : {}),
                 providerData: user.providerData,
                 customClaims: user.customClaims ?? {},
               };

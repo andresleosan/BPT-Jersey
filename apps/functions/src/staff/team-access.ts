@@ -9,6 +9,7 @@ import {
   type TeamDirectoryResponse,
 } from "@bpt-jersey/domain/staff/team-access";
 import { requireAdminActor, type AdminActor } from "../auth/admin-authorization.js";
+import { assertActiveSession } from "../auth/active-session.js";
 
 export type TeamAccount = Readonly<{
   uid: string;
@@ -16,6 +17,7 @@ export type TeamAccount = Readonly<{
   emailVerified: boolean;
   displayName?: string;
   disabled: boolean;
+  tokensValidAfterTime?: string;
   customClaims?: Record<string, unknown>;
   providerData: readonly { providerId: string }[];
 }>;
@@ -71,6 +73,7 @@ async function currentActor(
   if (ownerOnly && actor.role !== "owner")
     throw new HttpsError("permission-denied", "Only an owner can manage administrative access.");
   const current = await services.auth.getUser(actor.uid);
+  assertActiveSession(request, current);
   if (
     current.disabled ||
     current.customClaims?.academyId !== actor.academyId ||
@@ -181,6 +184,7 @@ export async function acceptStaffInvitationHandler(
   if (token.firebase?.sign_in_provider !== "google.com" || token.email_verified !== true)
     throw new HttpsError("failed-precondition", "Use Google with your verified invitation email.");
   const user = await services.auth.getUser(request.auth!.uid);
+  assertActiveSession(request, user);
   if (
     user.disabled ||
     !user.emailVerified ||

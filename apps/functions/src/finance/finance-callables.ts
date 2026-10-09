@@ -17,6 +17,7 @@ import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { createFamilyStore, type FamilyStore } from "../families/family-service.js";
 import { requireUserActor } from "../auth/user-authorization.js";
+import { isCurrentActorSession } from "../auth/active-session.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import {
   FinanceStoreError,
@@ -47,7 +48,7 @@ export type FinanceCallableServices = Readonly<{
     academyId: string,
     userId: string,
   ) => Promise<FinanceStudentScope | undefined>;
-  isActorActive: (actor: UserActorContext) => Promise<boolean>;
+  isActorActive: (actor: UserActorContext, request: CallableRequest<unknown>) => Promise<boolean>;
   /** The editor's name as the office knows it, stamped on a payment edit; null when unknown. */
   actorDisplayName?: ((actor: UserActorContext) => Promise<string | null>) | undefined;
 }>;
@@ -220,7 +221,7 @@ async function requireActiveActor(
 ): Promise<UserActorContext> {
   const actor = requireUserActor(request);
   try {
-    if (!(await services.isActorActive(actor))) permissionDenied();
+    if (!(await services.isActorActive(actor, request))) permissionDenied();
   } catch (error) {
     if (error instanceof HttpsError) throw error;
     throw new FinanceCallableError("failed-precondition", "Finance operation is not available");
@@ -522,7 +523,7 @@ function financeCallableServices(): FinanceCallableServices {
     }),
     payerFamilyIds: (academyId, actorId) => listPayerFamilyIds(academyId, actorId, firestore),
     findStudentByUserId,
-    isActorActive: async (actor) => !(await getAuth().getUser(actor.userId)).disabled,
+    isActorActive: isCurrentActorSession,
     actorDisplayName: async (actor) => {
       const profile = await firestore
         .doc(`academies/${actor.academyId}/users/${actor.userId}`)

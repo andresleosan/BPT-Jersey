@@ -20,6 +20,7 @@ import type { StaffFamilyProjection } from "@bpt-jersey/domain/families";
 
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { requireUserActor } from "../auth/user-authorization.js";
+import { isCurrentActorSession } from "../auth/active-session.js";
 import { createFamilyStore, type FamilyStore } from "../families/family-service.js";
 import {
   createMembershipStore,
@@ -46,7 +47,7 @@ export type MembershipCallableServices = Readonly<{
     academyId: string,
     userId: string,
   ) => Promise<MembershipStudentScope | undefined>;
-  isActorActive: (actor: UserActorContext) => Promise<boolean>;
+  isActorActive: (actor: UserActorContext, request: CallableRequest<unknown>) => Promise<boolean>;
   now?: () => string;
 }>;
 
@@ -191,7 +192,7 @@ async function requireActiveActor(
 ): Promise<UserActorContext> {
   const actor = requireUserActor(request);
   try {
-    if (!(await services.isActorActive(actor))) permissionDenied();
+    if (!(await services.isActorActive(actor, request))) permissionDenied();
   } catch (error) {
     if (error instanceof HttpsError) throw error;
     throw new HttpsError("failed-precondition", "Membership operation is not available");
@@ -470,7 +471,7 @@ function membershipCallableServices(): MembershipCallableServices {
         return [...new Set(ids)];
       }),
     findStudentByUserId,
-    isActorActive: async (actor) => !(await getAuth().getUser(actor.userId)).disabled,
+    isActorActive: isCurrentActorSession,
   };
 }
 

@@ -1,4 +1,4 @@
-import { getAuth } from "firebase-admin/auth";
+import { isCurrentActorSession } from "../auth/active-session.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import {
@@ -17,7 +17,7 @@ import {
 
 export type FinancialDashboardCallableServices = Readonly<{
   store: FinancialDashboardStore;
-  isActorActive: (actor: UserActorContext) => Promise<boolean>;
+  isActorActive: (actor: UserActorContext, request: CallableRequest<unknown>) => Promise<boolean>;
 }>;
 
 const allowedRoles = Object.freeze(["owner", "administrator"] as const);
@@ -43,7 +43,7 @@ export function createGetFinancialDashboardHandler(services: FinancialDashboardC
     const month = parsePayload(request.data);
 
     try {
-      if (!(await services.isActorActive(actor))) permissionDenied();
+      if (!(await services.isActorActive(actor, request))) permissionDenied();
       return { dashboard: await services.store.getFinancialDashboard(actor.academyId, month) };
     } catch (error) {
       if (error instanceof HttpsError) throw error;
@@ -71,7 +71,7 @@ function callableServices(): FinancialDashboardCallableServices {
   }
   return {
     store: defaultStore,
-    isActorActive: async (actor) => !(await getAuth().getUser(actor.userId)).disabled,
+    isActorActive: isCurrentActorSession,
   };
 }
 

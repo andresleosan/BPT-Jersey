@@ -17,6 +17,7 @@ import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { assertAcademyScope, requireAdminActor } from "./admin-authorization.js";
 import type { AdminActor } from "./admin-authorization.js";
 import { browserAdminCallableOptions } from "./callable-options.js";
+import { assertActiveSession } from "./active-session.js";
 
 export type FirestoreDocumentData = Record<string, unknown>;
 
@@ -57,6 +58,7 @@ type AdminUserRecord = {
   email: string | null;
   displayName: string | null;
   disabled: boolean;
+  tokensValidAfterTime?: string;
   providerData: ReadonlyArray<{ providerId: string }>;
   customClaims: Record<string, unknown>;
 };
@@ -654,6 +656,18 @@ export async function provisionAdminRoleWithServices(
   const actor = requireAdminActor(request);
   requireVerifiedAppCheck(request);
   requireOwner(actor);
+  // Revalidate the issuer on every entry, including the direct legacy callable.
+  const issuer = await services.auth.getUser(actor.uid);
+  if (
+    issuer.disabled ||
+    issuer.customClaims.academyId !== actor.academyId ||
+    issuer.customClaims.role !== "owner"
+  ) {
+    throw new HttpsError("permission-denied", "Current owner access is required.");
+  }
+  // Invitations carry recorded authority, not the inviter's browser session. The
+  // server-only transition still requires their current owner authority above.
+  if (transition !== "invitation") assertActiveSession(request, issuer);
   const target = parseOrThrow(
     (transition === "team" ? teamTargetSchema : targetSchema).safeParse(targetInput),
     "Invalid administrative target",
@@ -745,14 +759,12 @@ function defaultServices(): AdminProvisioningServices {
     auth: {
       getUser: async (uid) => {
         const user = await auth.getUser(uid);
-        if (!user.email) {
-          throw new HttpsError("failed-precondition", "The Firebase user must have an email");
-        }
         return {
           uid: user.uid,
-          email: user.email,
+          email: user.email ?? null,
           displayName: user.displayName ?? null,
           disabled: user.disabled,
+          ...(user.tokensValidAfterTime ? { tokensValidAfterTime: user.tokensValidAfterTime } : {}),
           providerData: user.providerData,
           customClaims: user.customClaims ?? {},
         };
