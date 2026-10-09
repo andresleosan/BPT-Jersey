@@ -202,12 +202,21 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
     );
   }
   async function officeVouchedEmail(uid: string): Promise<boolean> {
-    const found = await d.firestore
-      .collection(`academies/${academyId}/enrolmentEmailVerificationAuthorisations`)
-      .where("accountUserId", "==", uid)
-      .limit(1)
-      .get();
-    return !found.empty;
+    const [attested, enrolments] = await Promise.all([
+      d.firestore
+        .collection(`academies/${academyId}/enrolmentEmailVerificationAuthorisations`)
+        .where("accountUserId", "==", uid)
+        .limit(1)
+        .get(),
+      // Approvals before the attestation record existed left no trace, but an approved enrolment is
+      // exactly where D8 marks the email verified: count it too, so older accounts fail closed.
+      d.firestore
+        .collection(`academies/${academyId}/enrolmentRequests`)
+        .where("submittedBy", "==", uid)
+        .limit(20)
+        .get(),
+    ]);
+    return !attested.empty || enrolments.docs.some((doc) => doc.get("status") === "approved");
   }
   async function account(uid: string, purpose: "recovery" | "history" = "recovery") {
     safeSegment(uid);
