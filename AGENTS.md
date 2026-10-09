@@ -28,8 +28,11 @@ No process books classes for a member without explicit authorisation (ADR-018): 
   actions already authorized. This workflow does not grant new production access.
 - Cloudflare Pages already deploys the production web automatically on push to
   `main`; the operator wants to retain this behavior. A requested fix and push
-  includes that web publication. Verify its Cloudflare Pages check for the exact
-  commit without dispatching test workflows. Firebase Functions remain a separate
+  includes that web publication. Since the repository was recreated on 2026-10-09,
+  a GitHub push webhook calls the Pages deploy hook `github-push` (branch `main`),
+  so GitHub shows no Cloudflare check: verify the Pages deployment for the exact
+  commit in Cloudflare (trigger `deploy_hook`) without dispatching test workflows.
+  Firebase Functions remain a separate
   deployment unless their automation is explicitly configured and authorized.
 
 ## Standing skill preferences
