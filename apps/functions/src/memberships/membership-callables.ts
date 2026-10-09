@@ -13,7 +13,7 @@ import {
   type MembershipRecord,
   type MembershipStatus,
 } from "@bpt-jersey/domain/memberships/lifecycle";
-import { administrativePlanIds, planIds, type PlanId } from "@bpt-jersey/domain/memberships";
+import { planIds, type PlanId } from "@bpt-jersey/domain/memberships";
 import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
 import type { UserActorContext } from "@bpt-jersey/domain";
 import type { StaffFamilyProjection } from "@bpt-jersey/domain/families";
@@ -302,28 +302,17 @@ export async function createMembershipHandler(
   request: CallableRequest<unknown>,
   services: MembershipCallableServices,
 ): Promise<MembershipProjection> {
-  const actor = await requireReader(request, services);
+  // Office only: a member-created "trial" had no end date, invoice or expiry job, so any adult or
+  // guardian could book every class for free. Members join through enrolment, intro conversion
+  // and manageMemberSubscription, none of which call this (ADR-013).
+  const actor = await requireAdministrator(request, services);
   const payload = parseCreatePayload(request.data);
   try {
-    const scope =
-      actor.role === "owner" || actor.role === "administrator"
-        ? Object.freeze({
-            academyId: actor.academyId,
-            ...(payload.familyId === undefined
-              ? {}
-              : { familyIds: Object.freeze([payload.familyId]) }),
-            studentIds: Object.freeze([payload.studentId]),
-          })
-        : await readerScope(actor, services, payload.familyId, payload.studentId);
-    if (
-      actor.role !== "owner" &&
-      actor.role !== "administrator" &&
-      (actor.role === "teenStudent" ||
-        payload.status !== "trial" ||
-        administrativePlanIds.includes(payload.planId))
-    ) {
-      permissionDenied();
-    }
+    const scope = Object.freeze({
+      academyId: actor.academyId,
+      ...(payload.familyId === undefined ? {} : { familyIds: Object.freeze([payload.familyId]) }),
+      studentIds: Object.freeze([payload.studentId]),
+    });
     const record = await services.store.createMembership({
       academyId: actor.academyId,
       actorId: actor.userId,
@@ -332,7 +321,6 @@ export async function createMembershipHandler(
       studentId: payload.studentId,
       planId: payload.planId,
       status: payload.status,
-      memberActor: actor.role !== "owner" && actor.role !== "administrator",
       scope,
     });
     if (!scopeContains(scope, record)) permissionDenied();
