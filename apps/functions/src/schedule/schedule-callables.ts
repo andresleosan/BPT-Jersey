@@ -67,7 +67,8 @@ import {
 import { enrolmentStorageSecrets } from "../members/enrolment-payment-proof.js";
 import { createPrivateStorageR2Client } from "../storage/r2-client.js";
 import { attachPaygBookingPayment, voidUnpaidPaygInvoice } from "./payg-booking-payment.js";
-import { ensurePaygClassInvoice } from "./payg-class-payment.js";
+import { assertCoachNearClass, ensurePaygClassInvoice } from "./payg-class-payment.js";
+import { isCurrentActorSession } from "../auth/active-session.js";
 import {
   scheduleCallableOptions,
   scheduleReadCallableOptions,
@@ -141,9 +142,19 @@ export async function requireStudentScope(
   request: CallableRequest<unknown>,
   studentId: string,
   options: StudentScopeOptions,
+  mutation = false,
 ): Promise<void> {
   const actor = requireUserActor(request);
-  if (staffRoles.includes(actor.role as (typeof staffRoles)[number])) return;
+  if (staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
+    if (!mutation) return;
+    // ADR-018/ADR-010: bookings come from the office (or a headCoach registering in Classes &
+    // Services) and from the member; a coach only reads. A token from before a demotion is not enough.
+    if (actor.role === "coach")
+      throw new HttpsError("permission-denied", "The office manages bookings for members");
+    if (!(await isCurrentActorSession(actor, request)))
+      throw new HttpsError("permission-denied", "Access denied for this student");
+    return;
+  }
   await requireMemberAccountActor(request);
   if (
     (actor.role === "guardian" || actor.role === "adultStudent" || actor.role === "teenStudent") &&
@@ -453,6 +464,8 @@ export function createCopyWeekHandler(options: { store: ScheduleStore }) {
     const actor = requireManager(request, "copy a week");
     const parsed = parseCopyWeekInput(request.data);
     if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
+    // Copying bookings books members, which ADR-018 leaves to the office; record who did it.
+    if (parsed.value.copyBookings) await requireActiveOfficeActor(request);
     try {
       const timezone = await academyTimezone(options.store, actor.academyId);
       return {
@@ -461,6 +474,7 @@ export function createCopyWeekHandler(options: { store: ScheduleStore }) {
           parsed.value,
           timezone,
           actor.userId,
+          { ip: clientIpFromRequest(request), role: actor.role },
         ),
       };
     } catch (error) {
@@ -686,10 +700,8 @@ export function createCancelSessionHandler(options: { store: ScheduleStore }) {
   const { store } = options;
 
   return async (request: CallableRequest<unknown>) => {
-    const actor = requireUserActor(request);
-    if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
-      throw new HttpsError("permission-denied", "Staff access required to cancel sessions");
-    }
+    // ADR-010: a coach only reads Classes; cancelling is for managers, as the UI already shows.
+    const actor = requireManager(request, "cancel sessions");
 
     const data = request.data as { sessionId?: unknown; reason?: unknown };
     if (!data || typeof data.sessionId !== "string" || !data.sessionId.trim()) {
@@ -700,6 +712,10 @@ export function createCancelSessionHandler(options: { store: ScheduleStore }) {
       typeof data.reason === "string" && data.reason.trim()
         ? data.reason.trim()
         : "Cancelled by staff";
+    // Members see this text; keep it short.
+    if (reason.length > 200) {
+      throw new HttpsError("invalid-argument", "The cancellation reason must be at most 200 characters");
+    }
     const cancelled = await store.cancelSession(
       actor.academyId,
       data.sessionId.trim(),
@@ -804,7 +820,7 @@ export function createRequestBookingHandler(options: StudentScopeOptions) {
       throw new HttpsError("invalid-argument", parsed.error);
     }
 
-    await requireStudentScope(request, parsed.value.studentId, options);
+    await requireStudentScope(request, parsed.value.studentId, options, true);
 
     try {
       const booking =
@@ -868,9 +884,12 @@ export function createBulkBookEligibleSessionsHandler(options: StudentScopeOptio
   const { store } = options;
   return async (request: CallableRequest<unknown>) => {
     const actor = requireUserActor(request);
+    // "Book all my classes" is the member's own action (ADR-018); staff register groups instead.
+    if (staffRoles.includes(actor.role as (typeof staffRoles)[number]))
+      throw new HttpsError("permission-denied", "Members book their own classes");
     const parsed = parseBulkBookEligibleSessionsInput(request.data);
     if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
-    await requireStudentScope(request, parsed.value.studentId, options);
+    await requireStudentScope(request, parsed.value.studentId, options, true);
 
     const [sessions, existing] = await Promise.all([
       store.listSessions(actor.academyId, { from: parsed.value.from, to: parsed.value.to }),
@@ -945,7 +964,7 @@ export function createCancelBookingHandler(options: StudentScopeOptions) {
 
     const isStaff = staffRoles.includes(actor.role as (typeof staffRoles)[number]);
 
-    await requireStudentScope(request, parsed.value.studentId, options);
+    await requireStudentScope(request, parsed.value.studentId, options, true);
 
     const booking = await store.cancelBooking(
       actor.academyId,
@@ -1054,6 +1073,11 @@ export function createCheckInHandler(options: { store: ScheduleStore }) {
         "failed-precondition",
         "QR, PIN, and name-search check-in require a verified academy credential",
       );
+    }
+    // Attendance counts towards belts: a coach marks it around class time, the office corrects later.
+    if (actor.role === "coach" || actor.role === "headCoach") {
+      const session = await store.getSession(actor.academyId, parsed.value.sessionId);
+      assertCoachNearClass(session ?? undefined, 2, 12);
     }
 
     let attendance: Awaited<ReturnType<ScheduleStore["recordCheckIn"]>>;
@@ -1283,6 +1307,8 @@ export function createStaffWalkInAttendanceHandler(options: { store: ScheduleSto
     if (!session || session.status === "cancelled" || typeof session.startAt !== "string") {
       throw new HttpsError("not-found", "Class is not available");
     }
+    // A walk-in books, marks attendance (counted for belts) and may invoice: only around class time.
+    if (actor.role === "coach" || actor.role === "headCoach") assertCoachNearClass(session, 2, 12);
     const booked = await firestore
       .collection(`${academyPath}/bookings`)
       .where("sessionId", "==", sessionId)

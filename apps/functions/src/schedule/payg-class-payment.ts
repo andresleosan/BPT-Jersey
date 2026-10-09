@@ -9,6 +9,7 @@ import { parseMembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle"
 import { parseInvoiceRecord, type InvoiceRecord } from "@bpt-jersey/domain/finance";
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
+import { isCurrentActorSession } from "../auth/active-session.js";
 import { requireActiveOfficeActor } from "../auth/office-actor.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { createFinanceStore, type FinanceStore } from "../finance/finance-service.js";
@@ -125,6 +126,28 @@ export const preparePaygClassPayment = onCall(scheduleCallableOptions, async (re
 });
 
 /**
+ * Coaches act on a class around its own time (attendance on the mat, cash at the door); anything
+ * earlier or later is an office correction. Without this a coach could mark or charge any class of
+ * the academy, months back or ahead.
+ */
+export function assertCoachNearClass(
+  session: DocumentData | undefined,
+  hoursBefore: number,
+  hoursAfter: number,
+): void {
+  const start = typeof session?.startAt === "string" ? Date.parse(session.startAt) : Number.NaN;
+  const end = typeof session?.endAt === "string" ? Date.parse(session.endAt) : start;
+  const now = Date.now();
+  if (
+    !Number.isFinite(start) ||
+    !Number.isFinite(end) ||
+    now < start - hoursBefore * 3_600_000 ||
+    now > end + hoursAfter * 3_600_000
+  )
+    throw new HttpsError("failed-precondition", "Only the office can change this class outside its time.");
+}
+
+/**
  * One action on the session roster: the class invoice exists from the booking, so confirming a
  * payment only settles what is still owed. Staff confirm before or after the class — a member who
  * pays at reception on arrival is the ordinary case — so the session's start time is not a gate.
@@ -132,9 +155,15 @@ export const preparePaygClassPayment = onCall(scheduleCallableOptions, async (re
 export const confirmPaygClassPayment = onCall(scheduleCallableOptions, async (request) => {
   const actor = requireUserActor(request);
   if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) throw new HttpsError("permission-denied", "Staff access required to confirm payment.");
+  // This writes to the finance ledger: a token issued before a demotion must not be enough.
+  if (actor.role === "owner" || actor.role === "administrator") await requireActiveOfficeActor(request);
+  else if (!(await isCurrentActorSession(actor, request))) throw new HttpsError("permission-denied", "Staff access required to confirm payment.");
   const input = classPaymentSchema.safeParse(request.data);
   if (!input.success) throw new HttpsError("invalid-argument", "Choose a member and class.");
   const db = getFirestore();
+  // Before or after the class is fine, but a coach cannot settle a class from another day.
+  if (actor.role === "coach" || actor.role === "headCoach")
+    assertCoachNearClass((await db.doc(`academies/${actor.academyId}/sessions/${input.data.sessionId}`).get()).data(), 24, 24);
   const booking = await readConfirmedPaygBooking(db, actor.academyId, input.data.sessionId, input.data.studentId);
   const membershipId = String(booking.membershipId);
   const invoice = await ensurePaygClassInvoice(db, { academyId: actor.academyId, actorId: actor.userId, ...input.data, membershipId });

@@ -269,6 +269,7 @@ export type ScheduleStore = Readonly<{
     input: CopyWeekInput,
     timezone: string,
     actorId: string,
+    auditActor?: BookingAuditActor,
   ) => Promise<readonly SessionRecord[]>;
   deleteWeek: (
     academyId: string,
@@ -707,6 +708,7 @@ async function copyWeekWith(
   input: CopyWeekInput,
   timezone: string,
   actorId: string,
+  auditActor?: BookingAuditActor,
 ): Promise<readonly SessionRecord[]> {
   const from = weekRangeOrThrow(input.fromWeekStart, timezone);
   const to = weekRangeOrThrow(input.toWeekStart, timezone);
@@ -777,6 +779,7 @@ async function copyWeekWith(
             membershipId: booking.membershipId,
           },
           actorId,
+          auditActor,
         );
       } catch (error) {
         // ponytail: a place the member is no longer entitled to does not travel with them; a
@@ -1406,8 +1409,9 @@ export function createFirestoreScheduleStore(options: {
       input: CopyWeekInput,
       timezone: string,
       actorId: string,
+      auditActor?: BookingAuditActor,
     ): Promise<readonly SessionRecord[]> {
-      return copyWeekWith(this, academyId, input, timezone, actorId);
+      return copyWeekWith(this, academyId, input, timezone, actorId, auditActor);
     },
 
     deleteWeek(
@@ -2465,8 +2469,9 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
       input: CopyWeekInput,
       timezone: string,
       actorId: string,
+      auditActor?: BookingAuditActor,
     ): Promise<readonly SessionRecord[]> {
-      return copyWeekWith(this, academyId, input, timezone, actorId);
+      return copyWeekWith(this, academyId, input, timezone, actorId, auditActor);
     },
 
     deleteWeek(
