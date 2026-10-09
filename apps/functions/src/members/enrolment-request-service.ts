@@ -154,6 +154,10 @@ export type EnrolmentRequestStore = Readonly<{
     enrolmentRequestId: string,
   ) => Promise<EnrolmentRequestRecord>;
   authoriseEmailVerification: (input: AuthoriseEnrolmentEmailVerificationInput) => Promise<void>;
+  /** D8: the approval vouched for the applicant's email. Not proof of the mailbox (recovery checks it). */
+  recordOfficeVouchedEmail?: (
+    input: AuthoriseEnrolmentEmailVerificationInput & Readonly<{ accountUserId: string }>,
+  ) => Promise<void>;
   submit: (input: SubmitEnrolmentRequestInput) => Promise<EnrolmentRequestRecord>;
   listForAcademy: (academyId: string) => Promise<EnrolmentRequestPage>;
   listForSubmitter: (
@@ -482,6 +486,25 @@ export function createEnrolmentRequestStore(
           actorId,
           authorisedAt,
           purpose: "administrator-attested-email-control",
+        });
+      });
+    },
+    async recordOfficeVouchedEmail(input) {
+      const academyId = id(input.academyId, "academy");
+      // Same collection as the explicit attestation above, so one query finds either.
+      const decision = firestore
+        .collection(collectionPath(academyId, "enrolmentEmailVerificationAuthorisations"))
+        .doc();
+      await firestore.runTransaction(async (transaction) => {
+        transaction.create(decision, {
+          schemaVersion: "1",
+          academyId,
+          enrolmentRequestId: id(input.enrolmentRequestId, "enrolment request"),
+          accountUserId: id(input.accountUserId, "account"),
+          accountEmail: input.accountEmail,
+          actorId: id(input.actorId, "actor"),
+          authorisedAt: timestamp(input.now),
+          purpose: "approval-attested-email-control",
         });
       });
     },

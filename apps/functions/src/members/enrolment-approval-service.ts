@@ -468,8 +468,19 @@ export function createEnrolmentApprovalService(
         // before any write, because the family writer and the member-facing checks (profile,
         // levels) refuse an unverified address.
         stage = "account_email";
-        if ((await dependencies.auth.getUser(account.userId)).emailVerified !== true)
+        if ((await dependencies.auth.getUser(account.userId)).emailVerified !== true) {
+          // Trace first: the office, not the mailbox, vouches for this address, so account
+          // recovery must not treat it as proof of ownership of someone else's record.
+          await dependencies.store.recordOfficeVouchedEmail?.({
+            academyId: input.actor.academyId,
+            actorId: input.actor.actorId,
+            now: input.now,
+            enrolmentRequestId: record.enrolmentRequestId,
+            accountEmail: account.email.trim().toLowerCase(),
+            accountUserId: account.userId,
+          });
           await dependencies.auth.updateUser(account.userId, { emailVerified: true });
+        }
         stage = record.existingMember
           ? "existing_member"
           : role === "adultStudent"

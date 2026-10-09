@@ -59,6 +59,7 @@ export type RecoveryAuthUser = Readonly<{
   email?: string;
   displayName?: string;
   customClaims?: Record<string, unknown>;
+  providerData?: ReadonlyArray<Readonly<{ providerId: string; email?: string }>>;
 }>;
 export type MemberRecoveryDependencies = Readonly<{
   firestore: Firestore;
@@ -189,6 +190,24 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
     const record = sources.find((s) => s.kind === kind && s.recordId === recordId);
     if (!record) conflict();
     return archiveForLegacyMember(record, sources);
+  }
+  function emailProvedByGoogle(user: RecoveryAuthUser): boolean {
+    const email = user.email?.trim().toLowerCase();
+    return (
+      !!email &&
+      (user.providerData ?? []).some(
+        (provider) =>
+          provider.providerId === "google.com" && provider.email?.trim().toLowerCase() === email,
+      )
+    );
+  }
+  async function officeVouchedEmail(uid: string): Promise<boolean> {
+    const found = await d.firestore
+      .collection(`academies/${academyId}/enrolmentEmailVerificationAuthorisations`)
+      .where("accountUserId", "==", uid)
+      .limit(1)
+      .get();
+    return !found.empty;
   }
   async function account(uid: string, purpose: "recovery" | "history" = "recovery") {
     safeSegment(uid);
@@ -843,6 +862,14 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
   async function complete(value: unknown, uid: string): Promise<CompleteMemberRecoveryResult> {
     const input = parse(completeMemberRecoveryInputSchema, value);
     const user = await account(uid);
+    // D8 lets the office vouch for an applicant's email. That is not proof of the mailbox: anyone
+    // can open a password account with someone else's address, so it must not unlock another
+    // person's member record. Google sign-in with that address does prove it.
+    if (!emailProvedByGoogle(user) && (await officeVouchedEmail(uid)))
+      throw new HttpsError(
+        "failed-precondition",
+        "Sign in with Google using this email, or ask the office to link your membership.",
+      );
     const time = now();
     const outcome = await d.firestore.runTransaction(async (t) => {
       const ticket = await load(t, input.recoveryId);
