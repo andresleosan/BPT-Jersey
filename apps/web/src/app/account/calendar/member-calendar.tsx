@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 
 import { weekRangeFor } from "@bpt-jersey/domain/schedule/classes-services";
 import {
-  ageRangeLabel,
+  ageSpanLabel,
   calendarMaxOffsetDays,
   calendarTimeZone,
   canViewMemberSession,
@@ -744,7 +744,7 @@ export function MemberCalendar({
       ) : null}
       {selectedWeek?.groupAccess?.ageRange ? (
         <p className="member-calendar-range">
-          You can also book classes for ages {ageRangeLabel(selectedWeek.groupAccess.ageRange)}.
+          You can also book classes for ages {ageSpanLabel(selectedWeek.groupAccess.ageRange)}.
         </p>
       ) : null}
       <section aria-label="Calendar" className="member-body">

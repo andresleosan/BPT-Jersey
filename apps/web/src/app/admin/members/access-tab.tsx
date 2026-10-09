@@ -9,10 +9,11 @@ import {
 } from "@bpt-jersey/domain/levels";
 import type { MemberOverviewRow } from "@bpt-jersey/domain/members/overview";
 import type { ProgramRecord } from "@bpt-jersey/domain/schedule";
+import type { ProgramAgeRange } from "@bpt-jersey/domain/schedule/classes-services";
 import {
   ageOnDate,
   ageRangeAdmits,
-  ageRangeLabel,
+  ageSpanLabel,
   dateKeyInJersey,
   type MemberAgeRange,
   type SaveStudentAgeRange,
@@ -35,7 +36,6 @@ import {
 import { AdminDataTable } from "../admin-data-table";
 import { GroupAccessEditor } from "./profile/group-access-editor";
 
-type Bounds = Readonly<{ minAge: number; maxAge: number | null }>;
 type Member = Readonly<{ studentId: string; fullName: string; age?: number | undefined }>;
 
 const conflictMessage = "Another administrator changed this access. Reload before saving again.";
@@ -46,14 +46,6 @@ function messageOf(error: unknown): string {
     : "Something went wrong. Please try again.";
 }
 
-function codeOf(error: unknown): unknown {
-  return typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
-}
-
-function yearsLabel(dateOfBirth: string | null, today: string): string {
-  return dateOfBirth ? `${ageOnDate(dateOfBirth, today)} years` : "Age unknown";
-}
-
 function dayLabel(key: string): string {
   return new Date(`${key}T12:00:00Z`).toLocaleDateString("en-GB", {
     day: "numeric",
@@ -61,11 +53,6 @@ function dayLabel(key: string): string {
     year: "numeric",
     timeZone: "UTC",
   });
-}
-
-function earliest(...keys: readonly (string | null | undefined)[]): string | null {
-  const present = keys.filter((key): key is string => typeof key === "string");
-  return present.length ? [...present].sort()[0]! : null;
 }
 
 function sameRange(left: MemberAgeRange | null | undefined, right: MemberAgeRange | null | undefined) {
@@ -179,14 +166,16 @@ export function AccessTab({ rows, isOwner }: { rows: readonly MemberOverviewRow[
               render: (row) => (
                 <span className="access-member-cell">
                   <strong>{row.fullName || "Unnamed member"}</strong>
-                  <span>{yearsLabel(row.dateOfBirth, today)}</span>
+                  <span>
+                    {row.dateOfBirth ? `${ageOnDate(row.dateOfBirth, today)} years` : "Age unknown"}
+                  </span>
                 </span>
               ),
             },
             {
               key: "range",
               label: "Age range",
-              render: (row) => (row.ageRange ? ageRangeLabel(row.ageRange) : "—"),
+              render: (row) => (row.ageRange ? ageSpanLabel(row.ageRange) : "—"),
             },
             {
               key: "extra",
@@ -198,7 +187,7 @@ export function AccessTab({ rows, isOwner }: { rows: readonly MemberOverviewRow[
               key: "ends",
               label: "Ends",
               render: (row) => {
-                const ends = earliest(row.ageRange?.expiresOn, row.expiresOn);
+                const ends = [row.ageRange?.expiresOn, row.expiresOn].filter(Boolean).sort()[0];
                 return ends ? dayLabel(ends) : "—";
               },
             },
@@ -333,7 +322,7 @@ function MemberAccess({
   const realAge = dateOfBirth ? ageOnDate(dateOfBirth, today) : (member.age ?? null);
   const min = ageValue(minAge);
   const max = maxAge.trim() === "" ? null : ageValue(maxAge);
-  const range: Bounds | null =
+  const range: ProgramAgeRange | null =
     min !== undefined && max !== undefined && (max === null || max >= min)
       ? { minAge: min, maxAge: max }
       : null;
@@ -392,7 +381,7 @@ function MemberAccess({
       );
       onSaved();
     } catch (failure) {
-      if (codeOf(failure) === "functions/aborted") {
+      if ((failure as { code?: unknown } | null)?.code === "functions/aborted") {
         setConflict(true);
         setError(conflictMessage);
       } else {
@@ -617,7 +606,7 @@ function LevelBlock({
   studentId,
   today,
 }: {
-  range: Bounds | null;
+  range: ProgramAgeRange | null;
   studentId: string;
   today: string;
 }) {

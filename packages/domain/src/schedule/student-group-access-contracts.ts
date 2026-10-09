@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { programAgeLimits } from "./classes-services-contracts";
+import { programAgeLimits, type ProgramAgeRange } from "./classes-services-contracts";
 
 const id = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u);
 const dateKey = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u);
@@ -61,21 +61,18 @@ export function effectiveGroupProgramIds(
 export type StudentGroupAccess = z.infer<typeof studentGroupAccessSchema>;
 export type SaveStudentGroupAccess = z.infer<typeof saveStudentGroupAccessSchema>;
 
-type Bounds = Readonly<{ minAge: number; maxAge: number | null }>;
-
 /** The range still in force today (Jersey day, inclusive), without the office-only context. */
 export function effectiveAgeRange(
   access: Pick<StudentGroupAccess, "ageRange">,
   todayKey: string,
-): Bounds | null {
+): ProgramAgeRange | null {
   const range = access.ageRange;
   if (!range || (range.expiresOn && range.expiresOn < todayKey)) return null;
   return { minAge: range.minAge, maxAge: range.maxAge };
 }
 
-/** A class type opens through the range when both age ranges overlap. No type range = all ages. */
-export function ageRangeAdmits(program: Bounds | null | undefined, range: Bounds): boolean {
-  if (!program) return true;
+/** A class type opens through the range when both age ranges overlap. */
+export function ageRangeAdmits(program: ProgramAgeRange, range: ProgramAgeRange): boolean {
   const programTop = program.maxAge ?? Number.POSITIVE_INFINITY;
   const rangeTop = range.maxAge ?? Number.POSITIVE_INFINITY;
   return program.minAge <= rangeTop && range.minAge <= programTop;
@@ -84,7 +81,7 @@ export function ageRangeAdmits(program: Bounds | null | undefined, range: Bounds
 /** Class types the range opens today; callers add them to the extra groups (same waivers). */
 export function rangeExtraProgramIds(
   access: Pick<StudentGroupAccess, "ageRange">,
-  programs: readonly Readonly<{ programId: string; ageRange?: Bounds | null }>[],
+  programs: readonly Readonly<{ programId: string; ageRange?: ProgramAgeRange | null }>[],
   todayKey: string,
 ): string[] {
   const range = effectiveAgeRange(access, todayKey);
@@ -95,6 +92,31 @@ export function rangeExtraProgramIds(
     .map((p) => p.programId);
 }
 
-export function ageRangeLabel(range: Bounds): string {
+export function ageSpanLabel(range: ProgramAgeRange): string {
   return range.maxAge === null ? `${range.minAge}+` : `${range.minAge}–${range.maxAge}`;
+}
+
+/** The range in force on a Jersey day, read from this member's stored studentGroupAccess doc. */
+export function storedTrainingRange(
+  data: unknown,
+  academyId: string,
+  studentId: string,
+  todayKey: string,
+): ProgramAgeRange | null {
+  if (typeof data !== "object" || data === null) return null;
+  const doc = data as Readonly<Record<string, unknown>>;
+  if (doc.academyId !== academyId || doc.studentId !== studentId) return null;
+  const parsed = memberAgeRangeSchema.safeParse(doc.ageRange).data;
+  return effectiveAgeRange({ ageRange: parsed ?? null }, todayKey);
+}
+
+/** storedTrainingRange for every document of the studentGroupAccess collection, by member id. */
+export function trainingRangesById(
+  docs: readonly Readonly<{ id: string; data(): unknown }>[],
+  academyId: string,
+  todayKey: string,
+): Map<string, ProgramAgeRange | null> {
+  return new Map(
+    docs.map((d) => [d.id, storedTrainingRange(d.data(), academyId, d.id, todayKey)]),
+  );
 }

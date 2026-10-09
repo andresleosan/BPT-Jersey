@@ -3,9 +3,10 @@ import { coachMemberAccessPath, isCoachAccountType } from "@bpt-jersey/domain/st
 import { readCanonicalMemberHistoryDocuments } from "../members/member-identity-firestore.js";
 import {
   dateKeyInJersey,
-  effectiveAgeRange,
-  memberAgeRangeSchema,
+  storedTrainingRange,
+  trainingRangesById,
 } from "@bpt-jersey/domain/schedule/member-calendar";
+import type { ProgramAgeRange } from "@bpt-jersey/domain/schedule/classes-services";
 import { createHash, randomUUID } from "node:crypto";
 
 import {
@@ -272,7 +273,7 @@ function openingAgeBand(
   definition: Readonly<Record<string, unknown>> | undefined,
   dateOfBirth: unknown,
   now: string,
-  trainingRange?: Readonly<{ minAge: number; maxAge: number | null }> | null,
+  trainingRange?: ProgramAgeRange | null,
 ): AgeBandEvaluation {
   const criteria = definition?.criteria;
   const band =
@@ -375,17 +376,6 @@ function assertValidAcademyId(academyId: string): void {
   if (!safeIdentifierPattern.test(academyId)) {
     throw new LevelStoreError("invalid", `Invalid academyId: ${academyId}`);
   }
-}
-
-/** The office's training age range in force today, read from a studentGroupAccess document. */
-export function storedTrainingRange(
-  data: Record<string, unknown> | undefined,
-  academyId: string,
-  today: string,
-): Readonly<{ minAge: number; maxAge: number | null }> | null {
-  if (!data || data.academyId !== academyId) return null;
-  const parsed = memberAgeRangeSchema.safeParse(data.ageRange).data;
-  return effectiveAgeRange({ ageRange: parsed ?? null }, today);
 }
 
 export type GenericDocumentSnapshot = Readonly<{
@@ -2263,6 +2253,7 @@ export function createLevelCatalogStore({
         trainingRange: storedTrainingRange(
           accessSnapshot.data(),
           academyId,
+          studentId,
           dateKeyInJersey(new Date()),
         ),
       });
@@ -2371,12 +2362,10 @@ export function createLevelCatalogStore({
         firestore.collection(`academies/${academyId}/medicalLeaves`).get(),
         firestore.collection(`academies/${academyId}/studentGroupAccess`).get(),
       ]);
-      const today = dateKeyInJersey(new Date());
-      const trainingRanges = new Map(
-        accessSnapshot.docs.map((document) => [
-          document.id,
-          storedTrainingRange(document.data(), academyId, today),
-        ]),
+      const trainingRanges = trainingRangesById(
+        accessSnapshot.docs,
+        academyId,
+        dateKeyInJersey(new Date()),
       );
       const heads = new Map(
         withinLimit(headSnapshot, "Progress heads").docs.map((document) => {
@@ -2739,7 +2728,7 @@ export function createLevelCatalogStore({
             definitionData,
             (student as { dateOfBirth?: unknown }).dateOfBirth,
             now,
-            storedTrainingRange(access.data(), academyId, jerseyDateOf(now)),
+            storedTrainingRange(access.data(), academyId, input.studentId, jerseyDateOf(now)),
           ),
         };
       });

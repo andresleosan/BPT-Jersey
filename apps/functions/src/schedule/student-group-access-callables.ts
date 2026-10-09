@@ -201,17 +201,14 @@ export const listStudentAccessExceptions = onCall(browserAdminCallableOptions, a
   // ponytail: one read of a small collection (one doc per member with an exception), no index.
   const snapshot = await db.collection(`${base}/studentGroupAccess`).limit(1000).get();
   const live = snapshot.docs
-    .map((doc) => ({ id: doc.id, data: doc.data() }))
-    .filter(({ id, data }) => data.academyId === actor.academyId && data.studentId === id)
-    .map(({ id, data }) => {
-      const access = studentGroupAccessSchema.safeParse({
-        studentId: id, programIds: data.programIds ?? [], revision: data.revision ?? 0,
-        dateOfBirth: null, expiresOn: data.expiresOn ?? null,
-        ...(data.ageRange ? { ageRange: data.ageRange } : {}),
-      });
-      return access.success ? access.data : undefined;
+    .flatMap((doc) => {
+      // A document that does not fit (other academy, other member, bad shape) is skipped.
+      try {
+        return [readAccess(doc.data(), actor.academyId, doc.id, undefined)];
+      } catch {
+        return [];
+      }
     })
-    .filter((access) => access !== undefined)
     .filter((access) => effectiveGroupProgramIds(access, today).length > 0 || effectiveAgeRange(access, today) !== null);
   const students = live.length
     ? await db.getAll(...live.map((access) => db.doc(`${base}/students/${access.studentId}`)))

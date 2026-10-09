@@ -2,6 +2,7 @@ import type { ValidationIssue } from "../errors";
 import { err, ok, type Result } from "../result";
 import { isLevelCatalogVersion, levelCatalogVersionShapes } from "./level-catalog-v2";
 import { isCustomLevelSystemId } from "./level-editor-contracts";
+import type { ProgramAgeRange } from "../schedule/classes-services-contracts";
 import {
   adjustedDaysAtLevel,
   countClassesAtLevel,
@@ -793,7 +794,7 @@ export type ProgressReportStudent = Readonly<{
   /** T113: needed for the age band of the target rank; never reported back. */
   dateOfBirth?: string | null | undefined;
   /** The office's training age range, for the same age band; never reported back. */
-  trainingRange?: Readonly<{ minAge: number; maxAge: number | null }> | null;
+  trainingRange?: ProgramAgeRange | null;
 }>;
 
 export function buildProgressReport(options: {
@@ -966,7 +967,7 @@ export function evaluateAgeBand(input: {
   dateOfBirth?: string | null;
   now?: string;
   /** Office-granted training age range in force today; it meets the band when the ranges overlap. */
-  trainingRange?: Readonly<{ minAge: number; maxAge: number | null }> | null;
+  trainingRange?: ProgramAgeRange | null;
 }): AgeBandEvaluation {
   const requiredMinAge = input.criteria?.minAge ?? null;
   const requiredMaxAge = input.criteria?.maxAge ?? null;
@@ -1024,7 +1025,7 @@ export function buildStudentProgressSummary(options: {
   /** T113: only the age band of the target rank is read from it; it never leaves the summary. */
   dateOfBirth?: string | null;
   /** Office-granted training age range in force today; passed to the age band check. */
-  trainingRange?: Readonly<{ minAge: number; maxAge: number | null }> | null;
+  trainingRange?: ProgramAgeRange | null;
   now?: string;
 }): InitializedStudentProgressSummary {
   const {
@@ -1380,7 +1381,7 @@ export function generateRecognitionCandidates(options: {
     daysOffset?: number;
     /** T113: the age band of the catalog is applied against it. */
     dateOfBirth?: string | null | undefined;
-    trainingRange?: Readonly<{ minAge: number; maxAge: number | null }> | null;
+    trainingRange?: ProgramAgeRange | null;
   }[];
   evaluations: readonly EvaluationRecord[];
   attendances: readonly { studentId: string; attendedAt: string }[];

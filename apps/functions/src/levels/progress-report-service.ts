@@ -5,12 +5,11 @@ import {
   type ProgressReportStudent,
 } from "@bpt-jersey/domain/levels";
 import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
-import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
+import { dateKeyInJersey, trainingRangesById } from "@bpt-jersey/domain/schedule/member-calendar";
 import type { Firestore } from "firebase-admin/firestore";
 import {
   storedDaysOffset,
   storedImportedBaseline,
-  storedTrainingRange,
   type LevelCatalogStore,
   type GenericFirestore,
 } from "./level-service.js";
@@ -62,12 +61,10 @@ export function createFirestoreProgressReportStore(params: {
         // ponytail: GenericFirestore has no getAll; one query reads only the members with a grant.
         params.firestore.collection(`academies/${academyId}/studentGroupAccess`).get(),
       ]);
-      const today = dateKeyInJersey(new Date());
-      const trainingRanges = new Map(
-        accessSnapshot.docs.map((document) => [
-          document.id,
-          storedTrainingRange(document.data(), academyId, today),
-        ]),
+      const trainingRanges = trainingRangesById(
+        accessSnapshot.docs,
+        academyId,
+        dateKeyInJersey(new Date()),
       );
       for (const snapshot of [
         studentsSnapshot,

@@ -6,11 +6,7 @@ import {
   type PreClassView,
 } from "@bpt-jersey/domain/schedule/pre-class";
 import type { AttendanceRecord, BookingRecord, SessionRecord } from "@bpt-jersey/domain/schedule";
-import {
-  dateKeyInJersey,
-  effectiveAgeRange,
-  memberAgeRangeSchema,
-} from "@bpt-jersey/domain/schedule/member-calendar";
+import { dateKeyInJersey, trainingRangesById } from "@bpt-jersey/domain/schedule/member-calendar";
 
 /**
  * T114: the reads behind the pre-class view. Everything it shows is canonical - the session, its
@@ -215,22 +211,13 @@ export function createPreClassService(options: {
           options.firestore.doc(`academies/${academyId}/studentGroupAccess/${id}`).get(),
         ),
       );
-      const today = dateKeyInJersey(new Date());
-      const ranges = new Map(
-        accessDocs.flatMap((doc) => {
-          const data = doc.data();
-          if (!data || data.academyId !== academyId || !data.ageRange) return [];
-          const parsed = memberAgeRangeSchema.safeParse(data.ageRange);
-          if (!parsed.success) return [];
-          const range = effectiveAgeRange({ ageRange: parsed.data }, today);
-          return range ? [[doc.id, range] as const] : [];
-        }),
-      );
+      const ranges = trainingRangesById(accessDocs, academyId, dateKeyInJersey(new Date()));
       return Object.freeze({
         ...view,
-        attendees: view.attendees.map((a) =>
-          ranges.has(a.studentId) ? { ...a, ageRange: ranges.get(a.studentId)! } : a,
-        ),
+        attendees: view.attendees.map((a) => {
+          const ageRange = ranges.get(a.studentId);
+          return ageRange ? { ...a, ageRange } : a;
+        }),
       });
     },
   };

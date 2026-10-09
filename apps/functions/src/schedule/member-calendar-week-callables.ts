@@ -113,13 +113,14 @@ export const getMemberCalendarWeek = onCall(
       profile.studentId,
       profile.dateOfBirth,
     );
-    const accessView = memberView(storedAccess);
-    const rangeIds = rangeExtraProgramIds(storedAccess, programs, dateKeyInJersey(new Date()));
     // The range's types join the extra groups, so the client recomputes the same calendar.
-    const groupAccess = {
-      ...accessView,
-      programIds: [...new Set([...accessView.programIds, ...rangeIds])],
-    };
+    const groupAccess = memberView(storedAccess);
+    groupAccess.programIds = [
+      ...new Set([
+        ...groupAccess.programIds,
+        ...rangeExtraProgramIds(storedAccess, programs, dateKeyInJersey(new Date())),
+      ]),
+    ];
     const parsedMembership = records.membership.exists
       ? parseMembershipRecord(records.membership.data())
       : undefined;

@@ -5,6 +5,7 @@ import type {
   SessionOperationalStatus,
   SessionRecord,
 } from "./schedule-contracts";
+import type { ProgramAgeRange } from "./classes-services-contracts";
 
 /**
  * T114: the pre-class view of the coach. Before a class starts, the panel shows who is booked and
@@ -40,7 +41,7 @@ export type PreClassAttendee = Readonly<{
   comparableSessionCount: number;
   lastAttendedAt: string | null;
   /** Office-granted training age range in force today; never the reason or end date. */
-  ageRange?: Readonly<{ minAge: number; maxAge: number | null }>;
+  ageRange?: ProgramAgeRange;
 }>;
 
 export type PreClassView = Readonly<{

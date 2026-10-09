@@ -6,7 +6,7 @@ import {
   type UpcomingBirthday,
   type UpcomingBirthdayTrainingCenter,
 } from "@bpt-jersey/domain/birthdays";
-import { ageRangeLabel } from "@bpt-jersey/domain/schedule/member-calendar";
+import { ageSpanLabel } from "@bpt-jersey/domain/schedule/member-calendar";
 import type { PreClassView } from "@bpt-jersey/domain/schedule/pre-class";
 import {
   checkInOverrideReasonMaxLength,
@@ -722,7 +722,9 @@ export default function CoachDashboardPage() {
                             {attendee.source === "booked"
                               ? "Booked"
                               : `Regular · ${attendee.attendedCount} of the last ${attendee.comparableSessionCount}`}
-                            {attendee.ageRange ? ` · Age range ${ageRangeLabel(attendee.ageRange)}` : ""}
+                            {attendee.ageRange
+                              ? ` · Age range ${ageSpanLabel(attendee.ageRange)}`
+                              : ""}
                           </div>
                         </div>
                         <span>{attendee.source === "booked" ? "Booked" : "Suggested"}</span>
