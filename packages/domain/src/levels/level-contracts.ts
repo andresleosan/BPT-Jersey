@@ -962,6 +962,8 @@ export function evaluateAgeBand(input: {
   criteria: Pick<LevelCriteria, "minAge" | "maxAge"> | null;
   dateOfBirth?: string | null;
   now?: string;
+  /** Office-granted training age range in force today; it meets the band when the ranges overlap. */
+  trainingRange?: Readonly<{ minAge: number; maxAge: number | null }> | null;
 }): AgeBandEvaluation {
   const requiredMinAge = input.criteria?.minAge ?? null;
   const requiredMaxAge = input.criteria?.maxAge ?? null;
@@ -971,12 +973,18 @@ export function evaluateAgeBand(input: {
   if (requiredMinAge === null && requiredMaxAge === null) {
     return Object.freeze({ requiredMinAge, requiredMaxAge, ageYears, met: true });
   }
+  const range = input.trainingRange ?? null;
+  const rangeFits =
+    range !== null &&
+    (requiredMaxAge === null || range.minAge <= requiredMaxAge) &&
+    (requiredMinAge === null || (range.maxAge ?? Number.POSITIVE_INFINITY) >= requiredMinAge);
   if (ageYears === null) {
-    return Object.freeze({ requiredMinAge, requiredMaxAge, ageYears: null, met: false });
+    return Object.freeze({ requiredMinAge, requiredMaxAge, ageYears: null, met: rangeFits });
   }
   const met =
-    (requiredMinAge === null || ageYears >= requiredMinAge) &&
-    (requiredMaxAge === null || ageYears <= requiredMaxAge);
+    rangeFits ||
+    ((requiredMinAge === null || ageYears >= requiredMinAge) &&
+      (requiredMaxAge === null || ageYears <= requiredMaxAge));
   return Object.freeze({ requiredMinAge, requiredMaxAge, ageYears, met });
 }
 
@@ -1012,6 +1020,8 @@ export function buildStudentProgressSummary(options: {
   daysOffset?: number;
   /** T113: only the age band of the target rank is read from it; it never leaves the summary. */
   dateOfBirth?: string | null;
+  /** Office-granted training age range in force today; passed to the age band check. */
+  trainingRange?: Readonly<{ minAge: number; maxAge: number | null }> | null;
   now?: string;
 }): InitializedStudentProgressSummary {
   const {
@@ -1025,6 +1035,7 @@ export function buildStudentProgressSummary(options: {
     classesAtLevel,
     daysOffset = 0,
     dateOfBirth = null,
+    trainingRange = null,
     now = new Date().toISOString(),
   } = options;
 
@@ -1092,6 +1103,7 @@ export function buildStudentProgressSummary(options: {
     criteria: targetDefinition?.criteria ?? null,
     dateOfBirth,
     now,
+    trainingRange,
   });
 
   const overallEligible =
@@ -1365,6 +1377,7 @@ export function generateRecognitionCandidates(options: {
     daysOffset?: number;
     /** T113: the age band of the catalog is applied against it. */
     dateOfBirth?: string | null | undefined;
+    trainingRange?: Readonly<{ minAge: number; maxAge: number | null }> | null;
   }[];
   evaluations: readonly EvaluationRecord[];
   attendances: readonly { studentId: string; attendedAt: string }[];
@@ -1410,6 +1423,7 @@ export function generateRecognitionCandidates(options: {
       }),
       daysOffset: student.daysOffset ?? 0,
       dateOfBirth: student.dateOfBirth ?? null,
+      trainingRange: student.trainingRange ?? null,
       now,
     });
 

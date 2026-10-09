@@ -39,6 +39,8 @@ export type PreClassAttendee = Readonly<{
   attendedCount: number;
   comparableSessionCount: number;
   lastAttendedAt: string | null;
+  /** Office-granted training age range in force today; never the reason or end date. */
+  ageRange?: Readonly<{ minAge: number; maxAge: number | null }>;
 }>;
 
 export type PreClassView = Readonly<{
