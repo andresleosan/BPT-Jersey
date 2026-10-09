@@ -5,10 +5,12 @@ import {
   type ProgressReportStudent,
 } from "@bpt-jersey/domain/levels";
 import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
+import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 import type { Firestore } from "firebase-admin/firestore";
 import {
   storedDaysOffset,
   storedImportedBaseline,
+  storedTrainingRange,
   type LevelCatalogStore,
   type GenericFirestore,
 } from "./level-service.js";
@@ -44,14 +46,29 @@ export function createFirestoreProgressReportStore(params: {
   return {
     async getProgressReport(academyId) {
       assertAcademyId(academyId);
-      const [catalog, studentsSnapshot, headsSnapshot, assessmentsSnapshot, attendanceSnapshot] =
-        await Promise.all([
-          params.levelStore.listPublished(academyId),
-          params.firestore.collection(`academies/${academyId}/students`).get(),
-          params.firestore.collection(`academies/${academyId}/studentLevelProgress`).get(),
-          params.firestore.collection(`academies/${academyId}/assessments`).get(),
-          params.firestore.collection(`academies/${academyId}/attendance`).get(),
-        ]);
+      const [
+        catalog,
+        studentsSnapshot,
+        headsSnapshot,
+        assessmentsSnapshot,
+        attendanceSnapshot,
+        accessSnapshot,
+      ] = await Promise.all([
+        params.levelStore.listPublished(academyId),
+        params.firestore.collection(`academies/${academyId}/students`).get(),
+        params.firestore.collection(`academies/${academyId}/studentLevelProgress`).get(),
+        params.firestore.collection(`academies/${academyId}/assessments`).get(),
+        params.firestore.collection(`academies/${academyId}/attendance`).get(),
+        // ponytail: GenericFirestore has no getAll; one query reads only the members with a grant.
+        params.firestore.collection(`academies/${academyId}/studentGroupAccess`).get(),
+      ]);
+      const today = dateKeyInJersey(new Date());
+      const trainingRanges = new Map(
+        accessSnapshot.docs.map((document) => [
+          document.id,
+          storedTrainingRange(document.data(), academyId, today),
+        ]),
+      );
       for (const snapshot of [
         studentsSnapshot,
         headsSnapshot,
@@ -110,6 +127,7 @@ export function createFirestoreProgressReportStore(params: {
             daysOffset: storedDaysOffset(head?.daysOffset),
             // T113: the age band of the target rank is applied against it; it is never reported.
             dateOfBirth: student.dateOfBirth,
+            trainingRange: trainingRanges.get(student.studentId) ?? null,
           };
         });
 

@@ -6,6 +6,11 @@ import {
   type PreClassView,
 } from "@bpt-jersey/domain/schedule/pre-class";
 import type { AttendanceRecord, BookingRecord, SessionRecord } from "@bpt-jersey/domain/schedule";
+import {
+  dateKeyInJersey,
+  effectiveAgeRange,
+  memberAgeRangeSchema,
+} from "@bpt-jersey/domain/schedule/member-calendar";
 
 /**
  * T114: the reads behind the pre-class view. Everything it shows is canonical - the session, its
@@ -185,7 +190,7 @@ export function createPreClassService(options: {
           }),
         );
 
-      return buildPreClassView({
+      const view = buildPreClassView({
         session,
         bookings: bookingDocs
           .map((document) => document.data())
@@ -201,6 +206,31 @@ export function createPreClassService(options: {
         history,
         students,
         now,
+      });
+      // The office's training age range, so the coach sees why a member is outside the type's ages.
+      // ponytail: PreClassFirestore has no getAll; one doc read per booked member, in parallel.
+      const bookedIds = view.attendees.filter((a) => a.source === "booked").map((a) => a.studentId);
+      const accessDocs = await Promise.all(
+        bookedIds.map((id) =>
+          options.firestore.doc(`academies/${academyId}/studentGroupAccess/${id}`).get(),
+        ),
+      );
+      const today = dateKeyInJersey(new Date());
+      const ranges = new Map(
+        accessDocs.flatMap((doc) => {
+          const data = doc.data();
+          if (!data || data.academyId !== academyId || !data.ageRange) return [];
+          const parsed = memberAgeRangeSchema.safeParse(data.ageRange);
+          if (!parsed.success) return [];
+          const range = effectiveAgeRange({ ageRange: parsed.data }, today);
+          return range ? [[doc.id, range] as const] : [];
+        }),
+      );
+      return Object.freeze({
+        ...view,
+        attendees: view.attendees.map((a) =>
+          ranges.has(a.studentId) ? { ...a, ageRange: ranges.get(a.studentId)! } : a,
+        ),
       });
     },
   };

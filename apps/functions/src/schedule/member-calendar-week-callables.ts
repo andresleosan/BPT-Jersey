@@ -12,6 +12,8 @@ import {
 } from "@bpt-jersey/domain/schedule";
 import {
   canViewMemberSession,
+  dateKeyInJersey,
+  rangeExtraProgramIds,
   studentGroupAccessQuerySchema,
   type CalendarMemberContext,
 } from "@bpt-jersey/domain/schedule/member-calendar";
@@ -105,9 +107,19 @@ export const getMemberCalendarWeek = onCall(
     ]);
 
     const profile = readStudent(records.student.data(), actor.academyId, records.studentId);
-    const groupAccess = memberView(
-      readAccess(records.access.data(), actor.academyId, profile.studentId, profile.dateOfBirth),
+    const storedAccess = readAccess(
+      records.access.data(),
+      actor.academyId,
+      profile.studentId,
+      profile.dateOfBirth,
     );
+    const accessView = memberView(storedAccess);
+    const rangeIds = rangeExtraProgramIds(storedAccess, programs, dateKeyInJersey(new Date()));
+    // The range's types join the extra groups, so the client recomputes the same calendar.
+    const groupAccess = {
+      ...accessView,
+      programIds: [...new Set([...accessView.programIds, ...rangeIds])],
+    };
     const parsedMembership = records.membership.exists
       ? parseMembershipRecord(records.membership.data())
       : undefined;

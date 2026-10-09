@@ -1,7 +1,11 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { coachMemberAccessPath, isCoachAccountType } from "@bpt-jersey/domain/staff/team-access";
 import { readCanonicalMemberHistoryDocuments } from "../members/member-identity-firestore.js";
-import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
+import {
+  dateKeyInJersey,
+  effectiveAgeRange,
+  memberAgeRangeSchema,
+} from "@bpt-jersey/domain/schedule/member-calendar";
 import { createHash, randomUUID } from "node:crypto";
 
 import {
@@ -369,6 +373,17 @@ function assertValidAcademyId(academyId: string): void {
   if (!safeIdentifierPattern.test(academyId)) {
     throw new LevelStoreError("invalid", `Invalid academyId: ${academyId}`);
   }
+}
+
+/** The office's training age range in force today, read from a studentGroupAccess document. */
+export function storedTrainingRange(
+  data: Record<string, unknown> | undefined,
+  academyId: string,
+  today: string,
+): Readonly<{ minAge: number; maxAge: number | null }> | null {
+  if (!data || data.academyId !== academyId) return null;
+  const parsed = memberAgeRangeSchema.safeParse(data.ageRange).data;
+  return effectiveAgeRange({ ageRange: parsed ?? null }, today);
 }
 
 export type GenericDocumentSnapshot = Readonly<{
@@ -2148,7 +2163,7 @@ export function createLevelCatalogStore({
         throw new LevelStoreError("tenant", "Progress head is invalid");
       }
       // Bound reads to this athlete's linked identities and referenced sessions.
-      const [catalog, evaluations, attendanceSnapshot] = await Promise.all([
+      const [catalog, evaluations, attendanceSnapshot, accessSnapshot] = await Promise.all([
         preloadedCatalog ?? this.listPublished(academyId),
         this.listStudentEvaluations(academyId, studentId),
         readCanonicalMemberHistoryDocuments(
@@ -2158,6 +2173,7 @@ export function createLevelCatalogStore({
           "attendance",
           MAX_LEVEL_RECORDS,
         ),
+        firestore.doc(`academies/${academyId}/studentGroupAccess/${studentId}`).get(),
       ]);
       if (
         catalog.system.systemId !== headData.systemId ||
@@ -2242,6 +2258,11 @@ export function createLevelCatalogStore({
           importedBaseline: storedImportedBaseline(headData.importedBaseline),
         }),
         dateOfBirth: student.dateOfBirth ?? null,
+        trainingRange: storedTrainingRange(
+          accessSnapshot.data(),
+          academyId,
+          dateKeyInJersey(new Date()),
+        ),
       });
     },
 
@@ -2338,6 +2359,7 @@ export function createLevelCatalogStore({
         assessmentSnapshot,
         attendanceSnapshot,
         leaveSnapshot,
+        accessSnapshot,
       ] = await Promise.all([
         this.listPublished(academyId),
         firestore.collection(`academies/${academyId}/students`).get(),
@@ -2345,7 +2367,15 @@ export function createLevelCatalogStore({
         firestore.collection(`academies/${academyId}/assessments`).get(),
         firestore.collection(`academies/${academyId}/attendance`).get(),
         firestore.collection(`academies/${academyId}/medicalLeaves`).get(),
+        firestore.collection(`academies/${academyId}/studentGroupAccess`).get(),
       ]);
+      const today = dateKeyInJersey(new Date());
+      const trainingRanges = new Map(
+        accessSnapshot.docs.map((document) => [
+          document.id,
+          storedTrainingRange(document.data(), academyId, today),
+        ]),
+      );
       const heads = new Map(
         withinLimit(headSnapshot, "Progress heads").docs.map((document) => {
           const value = document.data();
@@ -2380,6 +2410,7 @@ export function createLevelCatalogStore({
             importedBaseline: storedImportedBaseline(head.importedBaseline),
             daysOffset: storedDaysOffset(head.daysOffset),
             dateOfBirth: profile.dateOfBirth,
+            trainingRange: trainingRanges.get(profile.studentId) ?? null,
           },
         ];
       });

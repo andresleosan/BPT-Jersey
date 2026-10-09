@@ -5,6 +5,8 @@ import { ageOnDate, dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-c
 import { programAdmits } from "@bpt-jersey/domain/schedule/classes-services";
 import { createMemberAccessService } from "../members/member-access-service.js";
 import {
+  ageRangeAdmits,
+  effectiveAgeRange,
   effectiveGroupProgramIds,
   studentGroupAccessSchema,
 } from "@bpt-jersey/domain/schedule/member-calendar";
@@ -867,13 +869,17 @@ async function executeBookingInTransaction(
     revision: groupData?.revision ?? 0,
     dateOfBirth: storedStudent.dateOfBirth ?? null,
     expiresOn: groupData?.expiresOn ?? null,
+    ...(groupData?.ageRange ? { ageRange: groupData.ageRange } : {}),
   });
   if (!groupAccess.success) return invalid("invalid", "Group access is invalid");
-  const additionalProgramIds = effectiveGroupProgramIds(
-    groupAccess.data,
-    dateKeyInJersey(new Date()),
-  );
-  const additionalAccess = additionalProgramIds.includes(storedSession.programId);
+  const today = dateKeyInJersey(new Date());
+  const additionalProgramIds = effectiveGroupProgramIds(groupAccess.data, today);
+  const trainingRange = effectiveAgeRange(groupAccess.data, today);
+  // The office's training age range opens a type exactly like an extra group (same waivers).
+  const additionalAccess =
+    additionalProgramIds.includes(storedSession.programId) ||
+    (trainingRange !== null && storedProgram.ageRange != null &&
+      ageRangeAdmits(storedProgram.ageRange, trainingRange));
   const week = weekStart(storedSession.startAt);
   const quotaKey = quotaId(studentId, week);
   const quotaRef = input.firestore.doc(path(academyId, "bookingQuotaStates") + "/" + quotaKey);

@@ -792,6 +792,8 @@ export type ProgressReportStudent = Readonly<{
   daysOffset?: number;
   /** T113: needed for the age band of the target rank; never reported back. */
   dateOfBirth?: string | null | undefined;
+  /** The office's training age range, for the same age band; never reported back. */
+  trainingRange?: Readonly<{ minAge: number; maxAge: number | null }> | null;
 }>;
 
 export function buildProgressReport(options: {
@@ -855,6 +857,7 @@ export function buildProgressReport(options: {
       }),
       daysOffset: student.daysOffset ?? 0,
       dateOfBirth: student.dateOfBirth ?? null,
+      trainingRange: student.trainingRange ?? null,
       now,
     });
 
