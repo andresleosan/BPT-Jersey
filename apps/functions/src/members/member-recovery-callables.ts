@@ -59,7 +59,9 @@ function services(): MemberRecoveryCallableServices & { service: MemberRecoveryS
   };
 }
 function appCheck(request: CallableRequest<unknown>) {
-  if (!request.app) throw new HttpsError("unauthenticated", "Verified App Check is required");
+  // With consumeAppCheckToken a replayed token still verifies; it is only marked alreadyConsumed.
+  if (!request.app || request.app.alreadyConsumed)
+    throw new HttpsError("unauthenticated", "Verified App Check is required");
 }
 async function handled<T>(fn: () => Promise<T>): Promise<T> {
   try {
