@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
 import { requireAdminActor } from "../auth/admin-authorization.js";
+import { requireActiveOfficeActor } from "../auth/office-actor.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
@@ -25,9 +26,18 @@ import {
 type StaffAuthService = Readonly<{
   getUser: (userId: string) => Promise<Readonly<{ customClaims?: Record<string, unknown> }>>;
   setCustomUserClaims: (userId: string, claims: Record<string, unknown>) => Promise<void>;
+  revokeRefreshTokens?: (userId: string) => Promise<void>;
 }>;
 
 type ClaimsLockControl = Readonly<{ retain: () => void }>;
+
+// A lower or missing staff claim after a change is a demotion: its old sessions must end.
+const staffClaimRank = new Map<unknown, number>([
+  ["coach", 1],
+  ["headCoach", 2],
+]);
+const lowersStaffRole = (from: unknown, to: unknown) =>
+  (staffClaimRank.get(from) ?? 0) > (staffClaimRank.get(to) ?? 0);
 
 export type StaffCallableServices = Readonly<{
   auth: StaffAuthService;
@@ -307,6 +317,8 @@ async function applyClaims(
     // Already in member mode (possibly a newer member role than the stored one): leave it.
     if (profile.active || current.role === "adultStudent" || current.role === "guardian") return;
     await services.auth.setCustomUserClaims(userId, { ...current, academyId: profile.academyId, role: memberRole });
+    // An ID token keeps the coach claim for up to 1 h; revoking ends the sessions issued under it.
+    await services.auth.revokeRefreshTokens?.(userId);
     return;
   }
   const next: Record<string, unknown> = { ...current, academyId: profile.academyId };
@@ -350,6 +362,7 @@ async function applyClaims(
     if (error instanceof HttpsError) throw error;
     throw new HttpsError("failed-precondition", "Staff claims synchronization failed");
   }
+  if (lowersStaffRole(current.role, next.role)) await services.auth.revokeRefreshTokens?.(userId);
 }
 
 async function withClaimsMutation<T>(
@@ -562,25 +575,34 @@ export function staffCallableServices(): StaffCallableServices {
         return { customClaims: user.customClaims ?? {} };
       },
       setCustomUserClaims: (userId, claims) => getAuth().setCustomUserClaims(userId, claims),
+      revokeRefreshTokens: (userId) => getAuth().revokeRefreshTokens(userId),
     },
   };
 }
 
-export const createStaffProfile = onCall(browserAdminCallableOptions, async (request) =>
-  createStaffProfileHandler(request, staffCallableServices()),
-);
-export const updateStaffProfile = onCall(browserAdminCallableOptions, async (request) =>
-  updateStaffProfileHandler(request, staffCallableServices()),
-);
-export const setStaffActive = onCall(browserAdminCallableOptions, async (request) =>
-  setStaffActiveHandler(request, staffCallableServices()),
-);
-export const replaceStaffAvailability = onCall(browserAdminCallableOptions, async (request) =>
-  replaceStaffAvailabilityHandler(request, staffCallableServices()),
-);
-export const replaceStaffAssignments = onCall(browserAdminCallableOptions, async (request) =>
-  replaceStaffAssignmentsHandler(request, staffCallableServices()),
-);
+// These write staff profiles and role claims, so a token issued before the caller was demoted or
+// revoked must not be enough: check live Auth first. (Team access reuses the handlers directly,
+// after its own live check of the inviter.)
+export const createStaffProfile = onCall(browserAdminCallableOptions, async (request) => {
+  await requireActiveOfficeActor(request);
+  return createStaffProfileHandler(request, staffCallableServices());
+});
+export const updateStaffProfile = onCall(browserAdminCallableOptions, async (request) => {
+  await requireActiveOfficeActor(request);
+  return updateStaffProfileHandler(request, staffCallableServices());
+});
+export const setStaffActive = onCall(browserAdminCallableOptions, async (request) => {
+  await requireActiveOfficeActor(request);
+  return setStaffActiveHandler(request, staffCallableServices());
+});
+export const replaceStaffAvailability = onCall(browserAdminCallableOptions, async (request) => {
+  await requireActiveOfficeActor(request);
+  return replaceStaffAvailabilityHandler(request, staffCallableServices());
+});
+export const replaceStaffAssignments = onCall(browserAdminCallableOptions, async (request) => {
+  await requireActiveOfficeActor(request);
+  return replaceStaffAssignmentsHandler(request, staffCallableServices());
+});
 export const listStaffProfiles = onCall(browserAdminCallableOptions, async (request) =>
   listStaffProfilesHandler(request, staffCallableServices()),
 );

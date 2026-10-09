@@ -66,6 +66,8 @@ function services(request: CallableRequest): TeamAccessServices {
         batch.create(firestore.collection(`academies/${actor.academyId}/auditEvents`).doc(), coachAudit(actor.academyId, actor.uid, uid, "admin.role.changed_to_coach", "administrative role management", now));
         await batch.commit();
         await auth.setCustomUserClaims(uid, { ...user.customClaims, academyId: actor.academyId, role: "coach" });
+        // The old ID token still says owner/administrator for up to 1 h: end those sessions.
+        await auth.revokeRefreshTokens(uid);
       });
     },
     async grant(actor, target, transition) {

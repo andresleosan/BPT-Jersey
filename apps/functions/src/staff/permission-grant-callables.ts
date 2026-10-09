@@ -8,6 +8,7 @@ import {
 } from "@bpt-jersey/domain/staff/permission-grants";
 
 import { browserOrigins } from "../auth/callable-options.js";
+import { requireActiveOfficeActor } from "../auth/office-actor.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import {
   PermissionGrantError,
@@ -152,14 +153,19 @@ function service(): PermissionGrantService {
   });
 }
 
-export const grantStaffPermission = onCall(permissionGrantCallableOptions, (request) =>
-  createGrantStaffPermissionHandler({ service: service() })(request),
-);
+// Delegated permissions widen what a coach can do, so a token issued before the caller lost the
+// office role must not be enough: check live Auth (claims, disabled, revoked sessions) first.
+export const grantStaffPermission = onCall(permissionGrantCallableOptions, async (request) => {
+  await requireActiveOfficeActor(request);
+  return createGrantStaffPermissionHandler({ service: service() })(request);
+});
 
-export const revokeStaffPermission = onCall(permissionGrantCallableOptions, (request) =>
-  createRevokeStaffPermissionHandler({ service: service() })(request),
-);
+export const revokeStaffPermission = onCall(permissionGrantCallableOptions, async (request) => {
+  await requireActiveOfficeActor(request);
+  return createRevokeStaffPermissionHandler({ service: service() })(request);
+});
 
-export const listStaffPermissionGrants = onCall(permissionGrantCallableOptions, (request) =>
-  createListStaffPermissionGrantsHandler({ service: service() })(request),
-);
+export const listStaffPermissionGrants = onCall(permissionGrantCallableOptions, async (request) => {
+  await requireActiveOfficeActor(request);
+  return createListStaffPermissionGrantsHandler({ service: service() })(request);
+});

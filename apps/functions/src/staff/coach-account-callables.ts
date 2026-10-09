@@ -120,6 +120,8 @@ export const deleteCoachAccount = onCall({ ...browserAdminCallableOptions, secre
       const live = await auth.getUser(userId).catch(() => undefined);
       if (!live) await auth.setCustomUserClaims(userId, { academyId: actor.academyId, role: memberRole });
       else if (["coach", "headCoach"].includes(String(live.customClaims?.role))) await auth.setCustomUserClaims(userId, { ...live.customClaims, academyId: actor.academyId, role: memberRole });
+      // Sessions issued in coach mode keep the coach claim for up to 1 h: end them.
+      await auth.revokeRefreshTokens(userId);
     }
   } else if (user) await auth.deleteUser(userId).catch((error: { code?: string }) => { if (error.code !== "auth/user-not-found") throw error; });
   return { deleted: true as const };

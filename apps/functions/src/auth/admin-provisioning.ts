@@ -67,6 +67,7 @@ export type AdminProvisioningServices = Readonly<{
   auth: Readonly<{
     getUser: (uid: string) => Promise<AdminUserRecord>;
     setCustomUserClaims: (uid: string, claims: Record<string, unknown>) => Promise<void>;
+    revokeRefreshTokens?: (uid: string) => Promise<void>;
   }>;
   firestore: SyntheticFirestore;
 }>;
@@ -645,6 +646,8 @@ async function setClaimsAndPersist(
     }
     throw error;
   }
+  // A revoked administrator keeps an ID token with the old role for up to 1 h: end those sessions.
+  if (action === "revoke") await services.auth.revokeRefreshTokens?.(uid);
 }
 
 export async function provisionAdminRoleWithServices(
@@ -770,6 +773,7 @@ function defaultServices(): AdminProvisioningServices {
         };
       },
       setCustomUserClaims: (uid, claims) => auth.setCustomUserClaims(uid, claims),
+      revokeRefreshTokens: (uid) => auth.revokeRefreshTokens(uid),
     },
     firestore: firestore as unknown as SyntheticFirestore,
   };
