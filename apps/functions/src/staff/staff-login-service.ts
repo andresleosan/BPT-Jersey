@@ -122,6 +122,9 @@ export function createStaffLoginService(firestore: Firestore, auth: Auth) {
           throw new HttpsError("aborted", "Account changed. Sign in again.");
         tx.update(ref, { ...hashed, updatedAt: new Date().toISOString() });
       });
+      // This password is stored outside Firebase Auth, so updating its hash does
+      // not invalidate Firebase refresh tokens automatically.
+      await auth.revokeRefreshTokens(userId);
       const user = await auth.getUser(userId);
       // Only strip the flag; adding it to staff-ID accounts would fail requireUserActor's claim check.
       const remaining = { ...(user.customClaims ?? {}) };

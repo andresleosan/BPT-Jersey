@@ -27,9 +27,20 @@ export async function linkStaffGoogle() {
 }
 export async function changeStaffPassword(staffNumber: string, password: string, newPassword: string) {
   await httpsCallable(getFirebaseFunctions(), "changeStaffIdPassword")({ staffNumber, password, newPassword });
+  // The server revoked every previous session. Restore only this browser after
+  // authenticating with the replacement password; never reuse its refresh token.
+  try {
+    await signInWithStaffId(staffNumber, newPassword);
+  } catch {
+    throw Object.assign(new Error("Sign in with your new password."), {
+      code: "staff/password-changed-sign-in-required",
+    });
+  }
 }
 export function staffAccessError(error: unknown): string {
   const code = typeof error === "object" && error !== null && "code" in error ? error.code : "";
+  if (code === "staff/password-changed-sign-in-required")
+    return "Your password has changed. Sign out and sign in with your new password.";
   if (code === "auth/credential-already-in-use" || code === "auth/email-already-in-use")
     return "This Google account is already linked to another profile. Ask the office for help; your coach profile has not changed.";
   if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request")
