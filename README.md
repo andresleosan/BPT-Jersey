@@ -25,7 +25,10 @@ formato, lint, tipos y build; compilar solo lo necesario para un despliegue auto
 La configuracion inicial no se repite en un entorno que ya funciona.
 
 Revisar el codigo y el estado Git para confirmar la entrega, indicando que no se
-corrieron tests. Publicar en GitHub no despliega las funciones de Firebase.
+corrieron tests. Cada push a `main` publica automaticamente la web en Cloudflare
+Pages; este comportamiento esta autorizado y debe mantenerse. Confirmar el check
+de Cloudflare Pages del commit publicado no implica ejecutar suites de pruebas.
+Publicar en GitHub no despliega las funciones de Firebase.
 
 ## Requisitos
 

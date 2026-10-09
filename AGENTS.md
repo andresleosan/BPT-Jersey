@@ -26,6 +26,11 @@ No process books classes for a member without explicit authorisation (ADR-018): 
 - GitHub publication and Firebase deployment are separate operations. Reuse any
   existing authorization for the relevant deployment scope; do not ask again for
   actions already authorized. This workflow does not grant new production access.
+- Cloudflare Pages already deploys the production web automatically on push to
+  `main`; the operator wants to retain this behavior. A requested fix and push
+  includes that web publication. Verify its Cloudflare Pages check for the exact
+  commit without dispatching test workflows. Firebase Functions remain a separate
+  deployment unless their automation is explicitly configured and authorized.
 
 ## Standing skill preferences
 
