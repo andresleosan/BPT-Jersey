@@ -12,6 +12,7 @@ import { DataReview } from "./data-review";
 import { flagLabels, levelLabel } from "./member-overview-labels";
 import { FamiliesView } from "./families-view";
 import { ProgressManagementTab } from "./progress-management";
+import { AccessTab } from "./access-tab";
 import { recordHref } from "./profile/member-record";
 
 import "../admin.css";
@@ -21,6 +22,7 @@ export const memberViews = [
   { value: "families", label: "Families" },
   { value: "review", label: "Data review" },
   { value: "progress", label: "Progress management" },
+  { value: "access", label: "Access" },
 ] as const;
 export type MemberView = (typeof memberViews)[number]["value"];
 
@@ -373,6 +375,8 @@ export function MembersWorkspace() {
         </div>
       ) : view === "progress" && isOwner ? (
         <ProgressManagementTab rows={state.overview.rows} />
+      ) : view === "access" ? (
+        <AccessTab isOwner={isOwner} rows={state.overview.rows} />
       ) : view === "families" ? (
         <FamiliesView rows={state.overview.rows} />
       ) : view === "review" ? (

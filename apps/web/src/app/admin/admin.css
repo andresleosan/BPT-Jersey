@@ -5820,3 +5820,139 @@ a.admin-birthday-badge:focus-visible,
 .staff-manage-section > .staff-form-grid {
   justify-self: stretch;
 }
+
+/* Members → Access (2026-10-10) */
+.access-tab {
+  display: grid;
+  gap: 1.25rem;
+}
+.access-head {
+  display: grid;
+  gap: 0.5rem;
+}
+.access-head h3,
+.access-member h3 {
+  margin: 0;
+}
+.access-lead {
+  margin: 0;
+  max-width: 58ch;
+}
+.access-skeleton {
+  background: #e8e7e3;
+  min-height: 9rem;
+}
+.access-empty {
+  display: grid;
+  gap: 0.35rem;
+}
+.access-empty p {
+  margin: 0;
+}
+.access-empty-title {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.access-member-cell {
+  display: grid;
+  gap: 0.15rem;
+}
+.access-member-cell span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.access-member {
+  display: grid;
+  gap: 1rem;
+}
+.access-member h3:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 4px;
+}
+.access-grid {
+  align-items: start;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 48rem) {
+  .access-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.access-range-pair {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.access-member .admin-filter-control input,
+.access-member .admin-filter-control select,
+.access-member .admin-filter-control textarea {
+  font-size: 1rem;
+  min-height: 3rem;
+  min-width: 0;
+}
+.access-member .admin-filter-control textarea {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--mat-ink);
+  font-family: inherit;
+  letter-spacing: normal;
+  padding: 0.55rem 0.65rem;
+  resize: vertical;
+  text-transform: none;
+}
+.access-member .admin-filter-control textarea:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 2px;
+}
+.access-opens {
+  color: #65635d;
+  font-size: 0.9rem;
+  margin: 0;
+}
+.access-warning {
+  background: #fff0f2;
+  border-left: 0.35rem solid #8d1c2f;
+  color: #721626;
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+}
+.access-warning p {
+  margin: 0;
+}
+.access-warning-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.access-confirm {
+  align-items: center;
+  display: flex;
+  font-weight: 600;
+  gap: 0.6rem;
+  min-height: 2.75rem;
+}
+.access-confirm input {
+  height: 1.25rem;
+  width: 1.25rem;
+}
+.access-actions,
+.access-load-error {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.access-load-error p {
+  margin: 0;
+}
+.access-level-note {
+  align-self: start;
+}
