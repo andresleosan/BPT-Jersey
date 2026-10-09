@@ -118,7 +118,8 @@ export const getMemberRecoveryHistory = onCall(options, async (request) => {
   if (input && !input.success) throw new HttpsError("invalid-argument", "Select a member to view their history");
   return handled(() => services().service.history(actor.userId, input?.data?.studentId, input?.data?.cursor));
 });
-export const beginMemberRecovery = onCall(options, (request) =>
+// Unauthenticated and it reads the directory: each call spends a fresh App Check token.
+export const beginMemberRecovery = onCall({ ...options, consumeAppCheckToken: true }, (request) =>
   beginMemberRecoveryHandler(request, services()),
 );
 export const completeMemberRecovery = onCall(options, (request) =>

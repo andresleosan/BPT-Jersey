@@ -6,7 +6,7 @@ import { getFirebaseAuth, getFirebaseFunctions } from "./firebase-client";
 export const isStaffNumber = (value: string) => /^[1-9]\d{5}$/u.test(value.trim());
 export async function signInWithStaffId(staffNumber: string, password: string) {
   const call = httpsCallable<{ staffNumber: string; password: string }, { token: string }>(
-    getFirebaseFunctions(), "signInStaffWithId",
+    getFirebaseFunctions(), "signInStaffWithId", { limitedUseAppCheckTokens: true },
   );
   const result = await call({ staffNumber: staffNumber.trim(), password });
   return signInWithCustomToken(getFirebaseAuth(), result.data.token);
@@ -26,7 +26,7 @@ export async function linkStaffGoogle() {
   await result.user.getIdToken(true);
 }
 export async function changeStaffPassword(staffNumber: string, password: string, newPassword: string) {
-  await httpsCallable(getFirebaseFunctions(), "changeStaffIdPassword")({ staffNumber, password, newPassword });
+  await httpsCallable(getFirebaseFunctions(), "changeStaffIdPassword", { limitedUseAppCheckTokens: true })({ staffNumber, password, newPassword });
   // The server revoked every previous session. Restore only this browser after
   // authenticating with the replacement password; never reuse its refresh token.
   try {

@@ -11,14 +11,17 @@ const options = {
   concurrency: 4,
   memory: "512MiB" as const,
 };
-export const signInStaffWithId = onCall(options, async (request) => {
+// Each attempt spends a fresh App Check token (the client asks for limited-use tokens), so a script
+// cannot cheaply lock a Staff ID out by burning its failure budget.
+const attemptOptions = { ...options, consumeAppCheckToken: true };
+export const signInStaffWithId = onCall(attemptOptions, async (request) => {
   if (!request.app) throw new HttpsError("unauthenticated", "Verified application required.");
   return createStaffLoginService(getFirestore(), getAuth()).signIn(
     request.data,
     request.rawRequest.ip ?? "unknown",
   );
 });
-export const changeStaffIdPassword = onCall(options, async (request) => {
+export const changeStaffIdPassword = onCall(attemptOptions, async (request) => {
   if (!request.app || !request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
   return createStaffLoginService(getFirestore(), getAuth()).changePassword(
     request.data,

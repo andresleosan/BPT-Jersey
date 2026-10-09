@@ -17,9 +17,14 @@ export function sortPublicCoaches<T extends { name: string; belt: CoachBelt }>(r
   return [...rows].sort((a, b) => coachBelts.indexOf(a.belt) - coachBelts.indexOf(b.belt) || a.name.localeCompare(b.name, "en"));
 }
 
-export const coachesPublic = onRequest({ cors: browserOrigins, invoker: "public", timeoutSeconds: 15, memory: "256MiB", secrets: enrolmentStorageSecrets }, async (request, response) => {
+// ponytail: per-instance cache for the same 60 s the Cache-Control header promises. Every anonymous
+// hit otherwise ran Auth and Firestore reads and signed R2 URLs; maxInstances caps the rest.
+let cached: { at: number; body: unknown } | undefined;
+
+export const coachesPublic = onRequest({ cors: browserOrigins, invoker: "public", timeoutSeconds: 15, memory: "256MiB", maxInstances: 2, secrets: enrolmentStorageSecrets }, async (request, response) => {
   response.set("X-Content-Type-Options", "nosniff");
   if (request.method !== "GET") { response.set("Allow", "GET"); response.status(405).json({ error: "method_not_allowed" }); return; }
+  if (cached && Date.now() - cached.at < 60_000) { response.set("Cache-Control", "public, max-age=60"); response.status(200).json(cached.body); return; }
   const academyId = coursesAcademyId.value();
   if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(academyId)) { response.set("Cache-Control", "no-store"); response.status(500).json({ error: "unavailable" }); return; }
   try {
@@ -54,8 +59,9 @@ export const coachesPublic = onRequest({ cors: browserOrigins, invoker: "public"
       return { name: named[index]!.name, belt: belts.get(user.uid)!, ...(bio ? { bio } : {}), ...(photoUrl ? { photoUrl } : {}) };
     }));
     const coaches = sortPublicCoaches(rows).map((coach) => ({ ...coach, beltLabel: coachBeltLabels[coach.belt] }));
+    cached = { at: Date.now(), body: { coaches } };
     response.set("Cache-Control", "public, max-age=60");
-    response.status(200).json({ coaches });
+    response.status(200).json(cached.body);
   } catch (error) {
     logError("coachesPublic failed", error);
     response.set("Cache-Control", "no-store");

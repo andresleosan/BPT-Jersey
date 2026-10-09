@@ -58,3 +58,25 @@ export async function reserveEnrolmentProof(
     },
   };
 }
+
+/**
+ * Daily cap per account for the other payment screenshots (shop, PAYG, intro). Each call writes a
+ * new R2 object, so without it one account could fill the private bucket at no cost.
+ */
+export async function consumeProofUploadQuota(
+  db: Firestore,
+  actor: Pick<UserActorContext, "academyId" | "userId">,
+  kind: "shop" | "payg" | "intro",
+): Promise<void> {
+  const owner = createHash("sha256").update(actor.userId).digest("hex");
+  const ref = db.doc(`academies/${actor.academyId}/proofUploadLimits/${kind}-${owner}`);
+  await db.runTransaction(async (tx) => {
+    const quota = (await tx.get(ref)).data();
+    const now = Date.now();
+    const fresh = typeof quota?.until !== "number" || quota.until <= now;
+    const count = fresh ? 0 : Number(quota?.count);
+    if (!Number.isSafeInteger(count) || count < 0 || count >= 20)
+      throw new HttpsError("resource-exhausted", "Screenshot limit reached. Try again tomorrow.");
+    tx.set(ref, { count: count + 1, until: fresh ? now + 86_400_000 : Number(quota?.until) });
+  });
+}

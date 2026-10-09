@@ -4,6 +4,7 @@ import { z } from "zod";
 import { memberNotificationSchema } from "@bpt-jersey/domain/memberships/intro-conversion";
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { createFirestoreMemberAccessService } from "../members/member-access-service.js";
+import { consumeProofUploadQuota } from "../members/enrolment-proof-reservation.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 
 const markReadSchema = z.strictObject({ notificationId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u) });
@@ -80,6 +81,7 @@ export const uploadIntroMembershipProof = onCall({ ...browserAdminCallableOption
   // Storage is only written for an account that can apply for at least one member.
   const profiles = await createFirestoreMemberAccessService().listProfiles(actor.academyId, actor.userId).catch(() => []);
   if (profiles.length === 0) throw new HttpsError("failed-precondition", "Membership application is unavailable");
+  await consumeProofUploadQuota(getFirestore(), actor, "intro");
   return uploadIntroProof({ academyId: actor.academyId, userId: actor.userId, ...input.data }, createPrivateStorageR2Client());
 });
 

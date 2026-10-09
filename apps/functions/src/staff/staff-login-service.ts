@@ -30,8 +30,14 @@ export async function verifyStaffPassword(password: string, salt: string, expect
 }
 
 export function createStaffLoginService(firestore: Firestore, auth: Auth) {
+  const limitRef = (key: string) =>
+    firestore.doc(`staffLoginLimits/${createHash("sha256").update(key).digest("hex")}`);
+  async function limitReached(key: string, maximum: number) {
+    const prior = (await limitRef(key).get()).data();
+    return typeof prior?.until === "number" && prior.until > Date.now() && Number(prior.count) >= maximum;
+  }
   async function consumeLimit(key: string, maximum: number) {
-    const ref = firestore.doc(`staffLoginLimits/${createHash("sha256").update(key).digest("hex")}`);
+    const ref = limitRef(key);
     await firestore.runTransaction(async (tx) => {
       const snapshot = await tx.get(ref);
       const now = Date.now();
@@ -57,7 +63,9 @@ export function createStaffLoginService(firestore: Firestore, auth: Auth) {
     )
       throw new HttpsError("invalid-argument", "Staff ID and password are required.");
     await consumeLimit(`ip:${ip}`, 50);
-    await consumeLimit(`id:${staffNumber}`, 10);
+    // Only wrong passwords spend the per-ID budget: a check here, the charge on failure below.
+    if (await limitReached(`id:${staffNumber}`, 10))
+      throw new HttpsError("resource-exhausted", "Too many attempts. Try again in 15 minutes.");
     const ref = firestore.doc(`${credentialCollection}/${staffNumber}`);
     const record = (await ref.get()).data();
     // Missing IDs perform the same password derivation and return the same public error.
@@ -67,7 +75,10 @@ export function createStaffLoginService(firestore: Firestore, auth: Auth) {
       typeof record?.passwordHash === "string" ? record.passwordHash : "0".repeat(128),
     );
     const denied = () => new HttpsError("unauthenticated", "Staff ID or password is incorrect.");
-    if (!matches || !record || record.active !== true) throw denied();
+    if (!matches || !record || record.active !== true) {
+      await consumeLimit(`id:${staffNumber}`, 10);
+      throw denied();
+    }
     if (
       ![record.academyId, record.staffId, record.userId].every(
         (value) => typeof value === "string" && /^[A-Za-z0-9._:-]+$/u.test(value),

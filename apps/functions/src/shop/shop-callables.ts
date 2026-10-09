@@ -18,6 +18,7 @@ import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { enrolmentStorageSecrets } from "../members/enrolment-payment-proof.js";
+import { consumeProofUploadQuota } from "../members/enrolment-proof-reservation.js";
 import { validateIntroProof } from "../memberships/intro-payment-proof.js";
 import { createPrivateStorageR2Client } from "../storage/r2-client.js";
 import {
@@ -392,9 +393,10 @@ const shopProofCallableOptions = { ...shopCallableOptions, secrets: enrolmentSto
 export const placeShopOrder = onCall(shopProofCallableOptions, (request) =>
   placeShopOrderHandler(request, callableServices()),
 );
-export const uploadShopOrderProof = onCall(shopProofCallableOptions, (request) =>
-  uploadShopOrderProofHandler(request, callableServices()),
-);
+export const uploadShopOrderProof = onCall(shopProofCallableOptions, async (request) => {
+  await consumeProofUploadQuota(getFirestore(), requireUserActor(request), "shop");
+  return uploadShopOrderProofHandler(request, callableServices());
+});
 export const getShopOrderProofUrl = onCall(shopProofCallableOptions, (request) =>
   getShopOrderProofUrlHandler(request, callableServices()),
 );

@@ -15,6 +15,7 @@ import { requireUserActor } from "../auth/user-authorization.js";
 import { createFinanceStore, type FinanceStore } from "../finance/finance-service.js";
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { enrolmentStorageSecrets } from "../members/enrolment-payment-proof.js";
+import { consumeProofUploadQuota } from "../members/enrolment-proof-reservation.js";
 import { validateIntroProof } from "../memberships/intro-payment-proof.js";
 import { createPrivateStorageR2Client, type R2Client } from "../storage/r2-client.js";
 import { createFirestoreCanonicalClientStudentScopeResolver } from "./canonical-client-student-scope.js";
@@ -192,6 +193,7 @@ export const uploadPaygClassProof = onCall({ ...scheduleCallableOptions, secrets
   const allowed = await resolveMemberStudentScope({ academyId: actor.academyId, actorUserId: actor.userId, actorRole: actor.role as "guardian" | "adultStudent" | "teenStudent", requestedStudentId: input.data.studentId });
   if (!allowed) throw new HttpsError("permission-denied", "Access denied for this student");
   const validated = validateIntroProof(input.data.contentType, input.data.base64);
+  await consumeProofUploadQuota(getFirestore(), actor, "payg");
   await createPrivateStorageR2Client().putObject(paygProofKey(actor.academyId, actor.userId, buildBookingId(input.data.sessionId, input.data.studentId), validated.proofId), validated.bytes, input.data.contentType);
   return { proofId: validated.proofId };
 });
