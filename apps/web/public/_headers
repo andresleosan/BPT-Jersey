@@ -1,5 +1,10 @@
 # Cloudflare Pages header rules. The staff, admin and coach surfaces are reached by URL only and
 # must not be indexed; access itself is enforced by Firebase claims, callables and Rules.
+/*
+  Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; object-src 'none'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
 /staff/*
   X-Robots-Tag: noindex, nofollow
 /admin
