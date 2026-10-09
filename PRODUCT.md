@@ -132,8 +132,8 @@ Google sign-in. Publication of this correction is separate.
 
 The member calendar hides sessions outside the member's age group and plan sites. Owners and
 administrators manage additional program access from Members → profile → Classes. Each grant
-adds to normal access and waives age, site and class allowance/weekly limits for that program;
-additional-group bookings do not consume the normal weekly allowance while the grant is active.
+adds to normal access and waives the age rules and plan participant type for that program only;
+the plan's centres and weekly limit still apply.
 Active membership and plan, payment standing, session capacity and booking deadlines still apply.
 Since 2026-09-21 granting any additional group requires an office reason, and an optional end date
 (Jersey calendar day, inclusive) after which the grant authorises nothing; members never see either.
@@ -141,6 +141,21 @@ Full or temporarily blocked sessions within accessible groups remain visible wit
 action. Grant changes are recorded with actor, revision and before/after groups, and are checked
 inside booking transactions, including waitlist offers. Member/guardian reads are scoped to the
 canonical student. Publication requires coordinated Functions and frontend deployment.
+
+## Member training age range (2026-10-10)
+
+Owners and administrators open Members → Access to give any member a training age range ("From X
+to Y", no upper limit allowed). Every class type whose age range overlaps it opens in addition to
+the member's own-age classes, exactly like an extra group: age and plan participant type are
+waived; plan, payment standing, centres, weekly limit, capacity (per-age limits use the real age)
+and booking deadlines still apply. A reason is required; an optional end date (Jersey day,
+inclusive) stops new bookings after it. Members under 16 given access to 16+ classes need an
+explicit office confirmation. Members, guardians and coaches see the range only (never the
+reason or end date). In the same tab the owner alone can move the member to a level of that age's
+belt ladder, keeping or editing the classes already done; with the range, level progress stops
+reporting the age band as unmet. Changes are recorded with actor, revision and before/after range.
+The member directory lists every active exception (Members → Access); the extra-classes editor is
+shared with Members → profile → Classes.
 
 ## Finite courses and seminars (implementation, activation pending)
 
