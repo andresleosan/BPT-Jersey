@@ -13,7 +13,7 @@ const inputSchema = z.strictObject({view: z.enum(["list", "detail", "sessions"])
 function publicView(data: Record<string, unknown>): PublicCourse {
   return {courseId: String(data.courseId), revision: Number(data.revision), kind: data.kind as PublicCourse["kind"], title: String(data.title), description: String(data.description), techniques: Array.isArray(data.techniques) ? data.techniques.map(String) : [], minAge: Number(data.minAge), maxAge: data.maxAge === null ? null : Number(data.maxAge), priceMinor: Number(data.priceMinor), currency: "GBP", sessionCount: Number(data.sessionCount), nextSessionAt: typeof data.nextSessionAt === "string" ? data.nextSessionAt : null, cancellationTerms: String(data.cancellationTerms), timezone: "Europe/Jersey", instructorName: String(data.instructorName), locationName: String(data.locationName), status: data.status as PublicCourse["status"], availability: data.status !== "published" || typeof data.nextSessionAt !== "string" || data.nextSessionAt <= new Date().toISOString() ? "closed" : data.availability === "available" ? "available" : "waitlist"};
 }
-export const coursePublic = onRequest({cors: browserOrigins, invoker: "public", timeoutSeconds: 15, memory: "256MiB"}, async (request, response) => {
+export const coursePublic = onRequest({cors: browserOrigins, invoker: "public", timeoutSeconds: 15}, async (request, response) => {
   response.set("X-Content-Type-Options", "nosniff");
   response.set("Cache-Control", "no-store");
   if (request.method !== "GET") {response.set("Allow", "GET"); response.status(405).json({error: "method_not_allowed"}); return;}

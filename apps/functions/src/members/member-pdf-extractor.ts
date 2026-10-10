@@ -1,13 +1,13 @@
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
-import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-
 import { formatMemberPdfTextItems } from "./member-pdf-text.js";
 
 const pdfjsRoot = dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json"));
 
 export async function extractMemberPdfText(bytes: Uint8Array): Promise<string> {
+  // Loaded on demand: every function imports this bundle, and PDF.js at startup pushed them past 256MiB.
+  const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const loadingTask = getDocument({
     // PDF.js may transfer ownership of typed arrays to its worker. Keep the source intact because
     // the import flow hashes it after parsing to bind the preview to the uploaded object.

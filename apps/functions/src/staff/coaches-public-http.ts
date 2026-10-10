@@ -21,7 +21,7 @@ export function sortPublicCoaches<T extends { name: string; belt: CoachBelt }>(r
 // hit otherwise ran Auth and Firestore reads and signed R2 URLs; maxInstances caps the rest.
 let cached: { at: number; body: unknown } | undefined;
 
-export const coachesPublic = onRequest({ cors: browserOrigins, invoker: "public", timeoutSeconds: 15, memory: "256MiB", maxInstances: 2, secrets: enrolmentStorageSecrets }, async (request, response) => {
+export const coachesPublic = onRequest({ cors: browserOrigins, invoker: "public", timeoutSeconds: 15, maxInstances: 2, secrets: enrolmentStorageSecrets }, async (request, response) => {
   response.set("X-Content-Type-Options", "nosniff");
   if (request.method !== "GET") { response.set("Allow", "GET"); response.status(405).json({ error: "method_not_allowed" }); return; }
   if (cached && Date.now() - cached.at < 60_000) { response.set("Cache-Control", "public, max-age=60"); response.status(200).json(cached.body); return; }

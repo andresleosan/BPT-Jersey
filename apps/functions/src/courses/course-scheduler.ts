@@ -27,7 +27,7 @@ async function refreshCourseLifecycle(db: Firestore, academyId: string, courseId
 }
 
 /** Cursors rotate through bounded queues, including expired worker leases. */
-export const courseScheduler = onSchedule({schedule: "every 1 minutes", timeoutSeconds: 60, memory: "256MiB", maxInstances: 1}, async () => {
+export const courseScheduler = onSchedule({schedule: "every 1 minutes", timeoutSeconds: 60, maxInstances: 1}, async () => {
   const academyId = coursesAcademyId.value(); if (!academyId) return;
   const db = getFirestore(); const deadline = Date.now() + 40_000;
   const cursorRef = db.doc(`academies/${academyId}/courseWorkerState/scheduler`);
@@ -76,7 +76,7 @@ export async function cleanOrphanCourseProofs(db: Firestore, r2: R2Client, acade
   }
   return {deleted, more: page.size === 20 || Date.now() >= deadline - 3_000};
 }
-export const courseProofCleanup = onSchedule({schedule: "every 60 minutes", timeoutSeconds: 60, memory: "256MiB", maxInstances: 1, secrets: enrolmentStorageSecrets}, async () => {
+export const courseProofCleanup = onSchedule({schedule: "every 60 minutes", timeoutSeconds: 60, maxInstances: 1, secrets: enrolmentStorageSecrets}, async () => {
   const academyId = coursesAcademyId.value(); if (!academyId) return;
   const deadline = Date.now() + 40_000; const db = getFirestore();
   await cleanOrphanCourseProofs(db, createPrivateStorageR2Client(), academyId, new Date().toISOString(), deadline - 3_000);
