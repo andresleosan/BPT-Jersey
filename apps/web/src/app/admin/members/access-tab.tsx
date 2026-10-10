@@ -586,7 +586,14 @@ function MemberAccess({
 
         <div className="progress-manage-block access-extra">
           {/* Shares the access revision: remount after each range save so it re-reads it. */}
-          <GroupAccessEditor key={`${studentId}-${savedCount}`} studentId={studentId} />
+          <GroupAccessEditor
+            key={`${studentId}-${savedCount}`}
+            onSaved={() => {
+              onSaved();
+              setAccessToken((token) => token + 1);
+            }}
+            studentId={studentId}
+          />
         </div>
 
         {isOwner ? (

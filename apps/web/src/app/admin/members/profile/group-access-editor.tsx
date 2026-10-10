@@ -36,7 +36,10 @@ function includedByPlan(program: ProgramRecord, plan: ManagedMembershipPlan | un
   return sites.some((site) => programAdmits(program, age, site));
 }
 
-export function GroupAccessEditor({ studentId }: Readonly<{ studentId: string }>) {
+export function GroupAccessEditor({
+  studentId,
+  onSaved,
+}: Readonly<{ studentId: string; onSaved?: () => void }>) {
   const [access, setAccess] = useState<StudentGroupAccess>();
   const [programs, setPrograms] = useState<readonly ProgramRecord[]>([]);
   const [plan, setPlan] = useState<ManagedMembershipPlan>();
@@ -97,6 +100,11 @@ export function GroupAccessEditor({ studentId }: Readonly<{ studentId: string }>
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!access || saving || !changed) return;
+    if (selected.length > 0 && expiresOn && expiresOn < dateKeyInJersey(new Date())) {
+      setNotice("");
+      setError("The end date has already passed.");
+      return;
+    }
     setSaving(true);
     setError("");
     setNotice("");
@@ -112,6 +120,7 @@ export function GroupAccessEditor({ studentId }: Readonly<{ studentId: string }>
       setReason(result.reason ?? "");
       setExpiresOn(result.expiresOn ?? "");
       setNotice("Group access saved. The member's calendar will update on its next refresh.");
+      onSaved?.();
     } catch (caught) {
       const code = typeof caught === "object" && caught !== null && "code" in caught ? caught.code : undefined;
       setError(code === "functions/aborted"

@@ -98,6 +98,9 @@ export const saveStudentGroupAccess = onCallWithFreshAppCheck(officeWriteOptions
   const parsed = saveStudentGroupAccessSchema.safeParse(request.data);
   if (!parsed.success) throw new HttpsError("invalid-argument", "Check the selected groups.");
   const input = parsed.data;
+  if (input.programIds.length > 0 && input.expiresOn && input.expiresOn < dateKeyInJersey(new Date())) {
+    throw new HttpsError("invalid-argument", "The end date has already passed.");
+  }
   const db = getFirestore();
   const base = `academies/${actor.academyId}`;
   const accessRef = db.doc(`${base}/studentGroupAccess/${input.studentId}`);
