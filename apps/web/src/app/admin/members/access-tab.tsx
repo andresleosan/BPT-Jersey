@@ -33,7 +33,6 @@ import {
   saveStudentAgeRange,
   type AccessExceptionRow,
 } from "../../../lib/student-group-access-client";
-import { AdminDataTable } from "../admin-data-table";
 import { GroupAccessEditor } from "./profile/group-access-editor";
 
 type Member = Readonly<{ studentId: string; fullName: string; age?: number | undefined }>;
@@ -74,7 +73,61 @@ function ageValue(text: string): number | undefined {
   return value >= 3 && value <= 99 ? value : undefined;
 }
 
-export function AccessTab({ rows, isOwner }: { rows: readonly MemberOverviewRow[]; isOwner: boolean }) {
+/** One age span from the timetable's class types, used as a filter chip. */
+type Band = Readonly<{ key: string; label: string; minAge: number; maxAge: number | null }>;
+
+type Entry = Readonly<{
+  studentId: string;
+  fullName: string;
+  age: number | null;
+  meta: string;
+  exception?: AccessExceptionRow;
+}>;
+
+const pageSize = 20;
+
+/** Distinct age spans of the active class types, youngest first. */
+function bandsOf(programs: readonly ProgramRecord[]): Band[] {
+  const byKey = new Map<string, Band>();
+  for (const program of programs) {
+    const range = program.active ? program.ageRange : null;
+    if (!range) continue;
+    const key = `${range.minAge}-${range.maxAge ?? ""}`;
+    byKey.set(key, { key, label: ageSpanLabel(range), minAge: range.minAge, maxAge: range.maxAge });
+  }
+  return [...byKey.values()].sort(
+    (a, b) => a.minAge - b.minAge || (a.maxAge ?? 999) - (b.maxAge ?? 999),
+  );
+}
+
+function inBand(age: number | null, band: Band | undefined): boolean {
+  if (!band) return true;
+  return age !== null && age >= band.minAge && (band.maxAge === null || age <= band.maxAge);
+}
+
+function groupOf(row: MemberOverviewRow): string {
+  const band =
+    row.ageBand === "kids"
+      ? "Kids"
+      : row.ageBand === "teens"
+        ? "Teens"
+        : row.ageBand === "adult"
+          ? "Adults"
+          : "";
+  return [band, row.trainingCenter].filter(Boolean).join(" · ");
+}
+
+function rowId(studentId: string): string {
+  return `access-row-${studentId.replace(/[^A-Za-z0-9_-]/gu, "_")}`;
+}
+
+export function AccessTab({
+  rows,
+  isOwner,
+}: {
+  rows: readonly MemberOverviewRow[];
+  isOwner: boolean;
+}) {
   const today = dateKeyInJersey(new Date());
   const [exceptions, setExceptions] = useState<readonly AccessExceptionRow[] | null>(null);
   const [listError, setListError] = useState<string>();
@@ -82,6 +135,8 @@ export function AccessTab({ rows, isOwner }: { rows: readonly MemberOverviewRow[
   const [programs, setPrograms] = useState<readonly ProgramRecord[]>([]);
   const [programsError, setProgramsError] = useState(false);
   const [query, setQuery] = useState("");
+  const [bandKey, setBandKey] = useState("");
+  const [shown, setShown] = useState(pageSize);
   const [member, setMember] = useState<Member | null>(null);
 
   useEffect(() => {
@@ -107,157 +162,259 @@ export function AccessTab({ rows, isOwner }: { rows: readonly MemberOverviewRow[
     };
   }, [listToken]);
 
-  const matches = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (needle.length < 2) return [];
-    return rows
-      .filter((row) => row.rowKind === "member" && row.fullName.toLowerCase().includes(needle))
-      .slice(0, 8);
-  }, [rows, query]);
-
   const programName = (id: string) =>
     programs.find((program) => program.programId === id)?.name ?? "Unavailable group";
+
+  const bands = useMemo(() => bandsOf(programs), [programs]);
+  const band = bands.find((item) => item.key === bandKey);
+
+  const { special, standard } = useMemo(() => {
+    const byId = new Map((exceptions ?? []).map((row) => [row.studentId, row]));
+    const members = rows.filter((row) => row.rowKind === "member");
+    const known = new Set(members.map((row) => row.studentId));
+    const entries: Entry[] = [
+      ...members.map((row) => {
+        const exception = byId.get(row.studentId);
+        return {
+          studentId: row.studentId,
+          fullName: row.fullName,
+          age: row.age ?? null,
+          meta: groupOf(row),
+          ...(exception ? { exception } : {}),
+        };
+      }),
+      // A grant can outlive the member's overview row (e.g. a hidden record): still list it.
+      ...(exceptions ?? [])
+        .filter((row) => !known.has(row.studentId))
+        .map((row) => ({
+          studentId: row.studentId,
+          fullName: row.fullName || "Unnamed member",
+          age: row.dateOfBirth ? ageOnDate(row.dateOfBirth, today) : null,
+          meta: "",
+          exception: row,
+        })),
+    ];
+    const needle = query.trim().toLowerCase();
+    const visible = entries
+      .filter((entry) => entry.fullName.toLowerCase().includes(needle) && inBand(entry.age, band))
+      .sort((a, b) => a.fullName.localeCompare(b.fullName, "en-GB"));
+    return {
+      special: visible.filter((entry) => entry.exception),
+      standard: visible.filter((entry) => !entry.exception),
+    };
+  }, [rows, exceptions, query, band, today]);
+
+  const loading = exceptions === null;
+  const filtered = query.trim() !== "" || band !== undefined;
+
+  function open(entry: Entry) {
+    setMember({
+      studentId: entry.studentId,
+      fullName: entry.fullName,
+      ...(entry.age !== null ? { age: entry.age } : {}),
+    });
+  }
+
+  function backToList() {
+    const id = member ? rowId(member.studentId) : "";
+    setMember(null);
+    // Narrow layouts hide the lists while editing: return to the row that was opened.
+    requestAnimationFrame(() => {
+      const row = id ? document.getElementById(id) : null;
+      row?.scrollIntoView({ block: "center" });
+      row?.focus({ preventScroll: true });
+    });
+  }
+
+  function endsNote(exception: AccessExceptionRow): { text: string; soon: boolean } {
+    const ends = [exception.ageRange?.expiresOn, exception.expiresOn].filter(Boolean).sort()[0];
+    if (!ends) return { text: "No end date", soon: false };
+    const days = Math.round(
+      (Date.parse(`${ends}T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`)) / 86_400_000,
+    );
+    if (days < 0) return { text: `Ended ${dayLabel(ends)}`, soon: true };
+    if (days <= 7)
+      return {
+        text: days === 0 ? "Ends today" : `Ends in ${days} day${days === 1 ? "" : "s"}`,
+        soon: true,
+      };
+    return { text: `Ends ${dayLabel(ends)}`, soon: false };
+  }
+
+  function renderRow(entry: Entry) {
+    const exception = entry.exception;
+    const ends = exception ? endsNote(exception) : null;
+    const grants = exception
+      ? [
+          exception.ageRange ? `Ages ${ageSpanLabel(exception.ageRange)}` : "",
+          exception.programIds.map(programName).join(", "),
+        ].filter(Boolean)
+      : [];
+    return (
+      <li key={entry.studentId}>
+        <button
+          aria-current={member?.studentId === entry.studentId ? "true" : undefined}
+          className="access-row"
+          id={rowId(entry.studentId)}
+          onClick={() => open(entry)}
+          type="button"
+        >
+          <span className="access-row-main">
+            <strong>{entry.fullName}</strong>
+            <span>
+              {[entry.age === null ? "Age unknown" : `${entry.age} years`, entry.meta]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+            {grants.length ? <span className="access-row-grant">{grants.join(" · ")}</span> : null}
+            {ends ? (
+              <span className={ends.soon ? "access-row-ends is-soon" : "access-row-ends"}>
+                {ends.text}
+              </span>
+            ) : null}
+          </span>
+          <span aria-hidden="true" className="access-row-action">
+            {exception ? "Edit" : "Give access"}
+          </span>
+        </button>
+      </li>
+    );
+  }
 
   return (
     <section className="admin-panel-card access-tab" aria-labelledby="access-tab-title">
       <header className="access-head">
         <p className="admin-eyebrow">Members / Access</p>
-        <h3 id="access-tab-title">Access exceptions</h3>
+        <h3 id="access-tab-title">Special access</h3>
         <p className="access-lead">
-          Let a member book classes for an older age range, or extra class types. Their plan,
-          centres and weekly limit still apply.
+          Let a member book classes for another age range, or extra class types. Their plan, centres
+          and weekly limit still apply.
         </p>
       </header>
 
-      {listError ? (
-        <p className="progress-manage-error" role="alert">
-          {listError}
-        </p>
-      ) : null}
-
-      {programsError ? (
-        <p className="progress-manage-error" role="alert">
-          Class types are unavailable. Reload to see which types open.
-        </p>
-      ) : null}
-
-      {exceptions === null ? (
-        <>
-          <p className="visually-hidden" role="status">
-            Loading access exceptions
-          </p>
-          <div aria-hidden="true" className="access-skeleton" />
-        </>
-      ) : exceptions.length === 0 ? (
-        listError ? null : (
-          <div className="access-empty" role="status">
-            <p className="admin-eyebrow">Access</p>
-            <p className="access-empty-title">No exceptions yet</p>
-            <p>Search a member below to add one.</p>
-          </div>
-        )
-      ) : (
-        <AdminDataTable
-          caption="Members with access exceptions"
-          columns={[
-            {
-              key: "member",
-              label: "Member",
-              render: (row) => (
-                <span className="access-member-cell">
-                  <strong>{row.fullName || "Unnamed member"}</strong>
-                  <span>
-                    {row.dateOfBirth ? `${ageOnDate(row.dateOfBirth, today)} years` : "Age unknown"}
-                  </span>
-                </span>
-              ),
-            },
-            {
-              key: "range",
-              label: "Age range",
-              render: (row) => (row.ageRange ? ageSpanLabel(row.ageRange) : "—"),
-            },
-            {
-              key: "extra",
-              label: "Extra classes",
-              render: (row) =>
-                row.programIds.length ? row.programIds.map(programName).join(", ") : "—",
-            },
-            {
-              key: "ends",
-              label: "Ends",
-              render: (row) => {
-                const ends = [row.ageRange?.expiresOn, row.expiresOn].filter(Boolean).sort()[0];
-                return ends ? dayLabel(ends) : "—";
-              },
-            },
-            {
-              key: "action",
-              label: "Action",
-              render: (row) => (
-                <button
-                  aria-label={`Edit access for ${row.fullName}`}
-                  className="membership-table-button"
-                  onClick={() =>
-                    setMember({
-                      studentId: row.studentId,
-                      fullName: row.fullName,
-                      ...(row.dateOfBirth ? { age: ageOnDate(row.dateOfBirth, today) } : {}),
-                    })
-                  }
-                  type="button"
-                >
-                  Edit
-                </button>
-              ),
-            },
-          ]}
-          rowKey={(row) => row.studentId}
-          rows={exceptions}
-        />
-      )}
-
-      <div className="admin-filter-bar">
-        <label className="admin-filter-control members-search">
-          Member
-          <input
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Type at least 2 letters of a name"
-            type="search"
-            value={query}
-          />
-        </label>
-      </div>
-      {matches.length > 0 ? (
-        <ul className="progress-manage-matches" aria-label="Matching members">
-          {matches.map((row) => (
-            <li key={row.studentId}>
-              <button
-                className="membership-table-button"
-                onClick={() => {
-                  setMember({ studentId: row.studentId, fullName: row.fullName, age: row.age });
-                  setQuery("");
+      <div className={member ? "access-layout has-member" : "access-layout"}>
+        <div className="access-browse">
+          <div className="access-tools">
+            <label className="admin-filter-control access-search">
+              Search members
+              <input
+                autoComplete="off"
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setShown(pageSize);
                 }}
-                type="button"
-              >
-                {row.fullName}
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+                placeholder="Name"
+                type="search"
+                value={query}
+              />
+            </label>
+            {bands.length ? (
+              <div aria-label="Filter by age" className="access-bands" role="group">
+                {[{ key: "", label: "All ages" }, ...bands].map((item) => (
+                  <button
+                    aria-pressed={bandKey === item.key}
+                    className="access-band"
+                    key={item.key || "all"}
+                    onClick={() => {
+                      setBandKey(item.key);
+                      setShown(pageSize);
+                    }}
+                    type="button"
+                  >
+                    {item.key ? `Ages ${item.label}` : item.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
 
-      {member ? (
-        <MemberAccess
-          isOwner={isOwner}
-          key={member.studentId}
-          member={member}
-          onSaved={() => setListToken((token) => token + 1)}
-          programs={programs}
-          programsError={programsError}
-          today={today}
-        />
-      ) : null}
+          {listError ? (
+            <p className="progress-manage-error" role="alert">
+              {listError}
+            </p>
+          ) : null}
+          {programsError ? (
+            <p className="progress-manage-error" role="alert">
+              Class types are unavailable. Reload to see the age filters and which types open.
+            </p>
+          ) : null}
+
+          {loading ? (
+            <>
+              <p className="visually-hidden" role="status">
+                Loading members with special access
+              </p>
+              <div aria-hidden="true" className="access-skeleton" />
+            </>
+          ) : (
+            <>
+              <section aria-labelledby="access-special-title" className="access-list">
+                <h4 id="access-special-title">
+                  With special access <span className="access-count">{special.length}</span>
+                </h4>
+                {special.length ? (
+                  <ul>{special.map(renderRow)}</ul>
+                ) : (
+                  <p className="access-list-empty">
+                    {filtered
+                      ? "No member with special access matches this search."
+                      : "No member has special access yet. Choose someone below to give it."}
+                  </p>
+                )}
+              </section>
+
+              <section aria-labelledby="access-standard-title" className="access-list">
+                <h4 id="access-standard-title">
+                  Standard access <span className="access-count">{standard.length}</span>
+                </h4>
+                {standard.length ? (
+                  <>
+                    <ul>{standard.slice(0, shown).map(renderRow)}</ul>
+                    {standard.length > shown ? (
+                      <button
+                        className="membership-table-button access-more"
+                        onClick={() => setShown((count) => count + pageSize)}
+                        type="button"
+                      >
+                        {standard.length - shown > pageSize
+                          ? `Show ${pageSize} more · ${standard.length - shown} left`
+                          : `Show ${standard.length - shown} more`}
+                      </button>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="access-list-empty">No other member matches this search.</p>
+                )}
+              </section>
+            </>
+          )}
+        </div>
+
+        <div className="access-editor">
+          {member ? (
+            <>
+              <button className="access-back" onClick={backToList} type="button">
+                ← Back to list
+              </button>
+              <MemberAccess
+                isOwner={isOwner}
+                key={member.studentId}
+                member={member}
+                onSaved={() => setListToken((token) => token + 1)}
+                programs={programs}
+                programsError={programsError}
+                today={today}
+              />
+            </>
+          ) : (
+            <div className="access-empty">
+              <p className="admin-eyebrow">Access</p>
+              <p className="access-empty-title">Choose a member</p>
+              <p>Pick someone from the lists to edit their age range, extra classes or level.</p>
+            </div>
+          )}
+        </div>
+      </div>
     </section>
   );
 }
@@ -414,7 +571,7 @@ function MemberAccess({
   }
 
   return (
-    <section className="admin-panel-card access-member" aria-labelledby="access-member-title">
+    <section className="access-member" aria-labelledby="access-member-title">
       <h3 id="access-member-title" ref={heading} tabIndex={-1}>
         {fullName}
         {realAge !== null ? ` · ${realAge} years` : ""}
@@ -564,7 +721,7 @@ function MemberAccess({
 
           <div className="access-actions">
             <button
-              className="button"
+              className="button membership-primary-button"
               disabled={!access || busy || (adultWarning && !confirmAdult)}
               onClick={saveRange}
               type="button"
@@ -759,7 +916,12 @@ function LevelBlock({
               ? "This level has no class requirement to adjust."
               : `From 0 to ${limits.classes}.${levelChanged ? " The level starts today." : ""}`}
           </p>
-          <button className="button" disabled={busy || !changed} onClick={save} type="button">
+          <button
+            className="button membership-primary-button"
+            disabled={busy || !changed}
+            onClick={save}
+            type="button"
+          >
             {busy ? "Saving…" : "Save level"}
           </button>
         </>

@@ -5856,14 +5856,6 @@ a.admin-birthday-badge:focus-visible,
   line-height: 1;
   text-transform: uppercase;
 }
-.access-member-cell {
-  display: grid;
-  gap: 0.15rem;
-}
-.access-member-cell span {
-  color: var(--muted);
-  font-size: 0.9rem;
-}
 .access-member {
   display: grid;
   gap: 1rem;
@@ -5877,11 +5869,6 @@ a.admin-birthday-badge:focus-visible,
   display: grid;
   gap: 1rem;
   grid-template-columns: minmax(0, 1fr);
-}
-@media (min-width: 48rem) {
-  .access-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 .access-range-pair {
   display: grid;
@@ -5955,4 +5942,257 @@ a.admin-birthday-badge:focus-visible,
 }
 .access-level-note {
   align-self: start;
+}
+/* Members → Access layout (2026-10-10): search + age bands, two lists, editor beside or instead. */
+.access-tab {
+  container-type: inline-size;
+}
+.access-layout {
+  align-items: start;
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+.access-browse {
+  display: grid;
+  gap: 1.25rem;
+}
+.access-tools {
+  display: grid;
+  gap: 0.85rem;
+}
+.access-search input {
+  font-size: 1rem;
+  min-height: 3rem;
+  min-width: 0;
+  width: 100%;
+}
+.access-bands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.access-band {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--mat-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.85rem;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+  white-space: nowrap;
+}
+.access-band:hover {
+  border-color: var(--bpt-purple);
+}
+.access-band[aria-pressed="true"] {
+  background: var(--bpt-purple);
+  border-color: var(--bpt-purple);
+  color: var(--gi-white);
+}
+.access-band:focus-visible,
+.access-row:focus-visible,
+.access-back:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 2px;
+}
+.access-list {
+  display: grid;
+  gap: 0.5rem;
+}
+.access-list h4 {
+  align-items: baseline;
+  display: flex;
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  gap: 0.6rem;
+  letter-spacing: 0.035em;
+  line-height: 1;
+  margin: 0;
+  text-transform: uppercase;
+}
+.access-count {
+  color: var(--muted);
+  font-family: var(--font-body), Arial, sans-serif;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: normal;
+}
+.access-list ul {
+  border-top: 1px solid var(--line);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.access-list li {
+  border-bottom: 1px solid var(--line);
+}
+.access-row {
+  align-items: center;
+  background: var(--gi-white);
+  border: 1px solid transparent;
+  border-radius: 0;
+  color: var(--mat-ink);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 3.5rem;
+  padding: 0.7rem 0.75rem;
+  text-align: left;
+  transition: background 160ms ease;
+  width: 100%;
+}
+.access-row:hover {
+  background: #f7f6f3;
+}
+.access-row[aria-current="true"] {
+  background: #f0efff;
+  border-color: #d9d6ff;
+}
+.access-row-main {
+  display: grid;
+  gap: 0.15rem;
+}
+.access-row-main strong {
+  overflow-wrap: anywhere;
+}
+.access-row-main span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.access-row-main .access-row-grant {
+  color: var(--bpt-purple-dark);
+  font-weight: 600;
+}
+.access-row-main .access-row-ends.is-soon {
+  color: #765400;
+  font-weight: 700;
+}
+.access-row-action {
+  border: 1px solid var(--bpt-purple);
+  color: var(--bpt-purple-dark);
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.45rem 0.7rem;
+  white-space: nowrap;
+}
+.access-row:hover .access-row-action,
+.access-row[aria-current="true"] .access-row-action {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+}
+.access-list-empty {
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  margin: 0;
+  padding: 0.85rem 0.75rem;
+}
+.access-more {
+  justify-self: start;
+}
+.access-editor {
+  display: grid;
+  gap: 1rem;
+}
+.access-back {
+  background: transparent;
+  border: 1px solid var(--mat-ink);
+  border-radius: 0;
+  color: var(--mat-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  justify-self: start;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.9rem;
+}
+/* Narrow: one view at a time — the lists, or the member being edited. */
+.access-layout:not(.has-member) .access-editor,
+.access-layout.has-member .access-browse {
+  display: none;
+}
+.access-member .access-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+@container (min-width: 44rem) {
+  .access-member .access-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+/* Wide: lists and editor side by side; the editor stays in view while the lists scroll. */
+@container (min-width: 50rem) {
+  .access-layout {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  }
+  .access-layout:not(.has-member) .access-editor,
+  .access-layout.has-member .access-browse {
+    display: grid;
+  }
+  .access-editor {
+    background: var(--gi-white);
+    border: 1px solid var(--card-edge);
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+    padding: 1.25rem;
+    position: sticky;
+    top: 1rem;
+  }
+  .access-back {
+    display: none;
+  }
+  .access-member .access-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@container (max-width: 47.99rem) {
+  /* Age bands slide sideways on phones instead of stacking several rows. */
+  .access-bands {
+    flex-wrap: nowrap;
+    margin-inline: -0.25rem;
+    overflow-x: auto;
+    padding: 0.25rem;
+    scrollbar-width: none;
+  }
+  .access-row {
+    padding-inline: 0.5rem;
+  }
+}
+/* The profile's extra-classes editor, sized to sit beside the other Access blocks. */
+.access-extra .member-group-access {
+  margin: 0;
+  max-width: none;
+}
+.access-extra .member-group-access h2 {
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+}
+.access-member .membership-primary-button {
+  font-size: 0.9rem;
+}
+.access-member .membership-primary-button:disabled {
+  background: var(--line);
+  cursor: not-allowed;
+  transform: none;
+}
+.access-member .membership-table-button {
+  min-height: 2.75rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .access-band,
+  .access-row {
+    transition: none;
+  }
 }
