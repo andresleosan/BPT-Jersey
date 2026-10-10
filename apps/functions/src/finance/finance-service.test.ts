@@ -685,6 +685,24 @@ describe("payment instructions (T010/T035 re-scope)", () => {
     });
   });
 
+  it("keeps every version, so a swapped and restored account still leaves a trace (H-09)", async () => {
+    const { service, records } = store(seedSources());
+    await service.savePaymentInstructions({ academyId, actorId: "owner-1", instructions });
+    await service.savePaymentInstructions({
+      academyId,
+      actorId: "admin-1",
+      instructions: { ...instructions, accountNumber: "99999999" },
+    });
+    await service.savePaymentInstructions({ academyId, actorId: "admin-1", instructions });
+    const history = [...records.entries()]
+      .filter(([key]) => key.startsWith(`academies/${academyId}/paymentInstructionsHistory/`))
+      .map(([, value]) => value as { before: { accountNumber?: string } | null; after: { accountNumber: string }; changedBy: string });
+    expect(history).toHaveLength(3);
+    expect(history.map((entry) => entry.after.accountNumber)).toContain("99999999");
+    expect(history.map((entry) => entry.before?.accountNumber)).toContain("99999999");
+    expect(history.filter((entry) => entry.before === null)).toHaveLength(1);
+  });
+
   it("answers null before office has configured anything, and for a malformed document", async () => {
     const { service, records } = store(seedSources());
     await expect(

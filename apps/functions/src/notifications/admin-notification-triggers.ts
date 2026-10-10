@@ -129,6 +129,12 @@ const messages: Record<string, { kind: AdminNotification["kind"]; title: string;
     href: "/admin/memberships",
   },
   "payment.recorded": { kind: "payment", title: "Payment recorded", href: "/admin/finance" },
+  // H-09: a change to the bank details members transfer to must reach the owner.
+  "academy.payment_instructions.saved": {
+    kind: "payment",
+    title: "Bank transfer details changed",
+    href: "/admin/finance",
+  },
   "invoice.created": { kind: "payment", title: "Invoice created", href: "/admin/finance" },
   "invoice.voided": { kind: "payment", title: "Invoice voided", href: "/admin/finance" },
   "invoice.status.changed": {

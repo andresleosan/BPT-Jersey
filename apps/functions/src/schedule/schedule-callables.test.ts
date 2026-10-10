@@ -1975,6 +1975,30 @@ describe("classes-services callables", () => {
     ).rejects.toMatchObject({ code: "permission-denied" });
   });
 
+  it("refuses a manager token issued before a demotion or a session revocation (H-03)", async () => {
+    const store = createInMemoryScheduleStore();
+    const demoted = fakeRequest({ weekStart: "2026-09-21", reason: "Closed" }, "headCoach", "hc-1");
+    syntheticAuthUsers.set("hc-1", {
+      uid: "hc-1",
+      disabled: false,
+      customClaims: { academyId: "demo-academy", role: "coach" },
+      tokensValidAfterTime: "2020-01-01T00:00:00.000Z",
+    });
+    await expect(createDeleteWeekHandler({ store })(demoted)).rejects.toMatchObject({
+      code: "permission-denied",
+    });
+    const revoked = fakeRequest({ sessionId: "s-1", reason: "Closed" }, "administrator", "admin-9");
+    syntheticAuthUsers.set("admin-9", {
+      uid: "admin-9",
+      disabled: false,
+      customClaims: { academyId: "demo-academy", role: "administrator" },
+      tokensValidAfterTime: "2030-01-01T00:00:00.000Z",
+    });
+    await expect(createCancelSessionHandler({ store })(revoked)).rejects.toMatchObject({
+      code: "unauthenticated",
+    });
+  });
+
   it("answers failed-precondition when the source week holds a session without capacity", async () => {
     const store = createInMemoryScheduleStore();
     vi.spyOn(store, "copyWeek").mockRejectedValue(

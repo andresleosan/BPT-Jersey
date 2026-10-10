@@ -10,6 +10,7 @@ import {
   type NotificationPurpose,
 } from "@bpt-jersey/domain/delivery/notification-policy";
 import { requireUserActor } from "../auth/user-authorization.js";
+import { requireActiveOfficeActor } from "../auth/office-actor.js";
 import {
   createFirestoreNotificationPreferenceStore,
   NotificationPreferenceStoreError,
@@ -75,12 +76,13 @@ function parseSavePayload(value: unknown): SavePreferencePayload {
   };
 }
 
-function requirePreferenceRole(request: CallableRequest<unknown>) {
+async function requirePreferenceRole(request: CallableRequest<unknown>) {
   const actor = requireUserActor(request);
   if (!preferenceRoles.has(actor.role)) {
     throw new HttpsError("permission-denied", "Notification preference access is not permitted");
   }
-  return actor;
+  // Live office authority: a token issued before a demotion or revocation is not enough (H-03).
+  return requireActiveOfficeActor(request);
 }
 
 function mapStoreError(error: unknown, action: string): never {
@@ -98,7 +100,7 @@ export function createListNotificationPreferencesHandler({
   store: NotificationPreferenceStore;
 }) {
   return async (request: CallableRequest<unknown>) => {
-    const actor = requirePreferenceRole(request);
+    const actor = await requirePreferenceRole(request);
     const audienceId = parseAudiencePayload(request.data);
     try {
       return { preferences: await store.listPreferences(actor.academyId, audienceId) };
@@ -116,7 +118,7 @@ export function createSaveNotificationPreferenceHandler({
   now?: () => string;
 }) {
   return async (request: CallableRequest<unknown>) => {
-    const actor = requirePreferenceRole(request);
+    const actor = await requirePreferenceRole(request);
     const payload = parseSavePayload(request.data);
     try {
       return {

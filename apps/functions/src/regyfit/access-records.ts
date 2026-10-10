@@ -3,6 +3,7 @@ import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/
 import { z } from "zod";
 
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
+import { requireActiveOfficeActor } from "../auth/office-actor.js";
 
 import {
   assertAcademyScope,
@@ -111,6 +112,7 @@ export async function listRegyfitAccessWithServices(
 ): Promise<readonly RegyfitAccessProjection[]> {
   parseRequestData(request);
   const actor = requireAdminActor(request);
+  await requireActiveOfficeActor(request); // live office authority, not just the token (H-03)
   const collectionPath = `academies/${actor.academyId}/regyfitAccessRecords`;
   const snapshot = await services.firestore.collection(collectionPath).get();
   const records = snapshot.docs.map((document) => {

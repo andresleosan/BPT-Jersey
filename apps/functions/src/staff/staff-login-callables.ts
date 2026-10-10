@@ -52,6 +52,12 @@ export const completeInitialStaffAccess = onCall(options, async (request) => {
   delete remaining.passwordChangeRequired;
   // Password first: if it fails the flag stays and the person simply retries.
   if (method === "password") await getAuth().updateUser(user.uid, { password: newPassword as string });
+  // Google: the administrator-chosen password must stop working too, and any session opened with it (H-04).
+  else {
+    if (user.providerData.some((item) => item.providerId === "password"))
+      await getAuth().updateUser(user.uid, { providersToUnlink: ["password"] });
+    await getAuth().revokeRefreshTokens(user.uid);
+  }
   await getAuth().setCustomUserClaims(user.uid, remaining);
   return { completed: true };
 });

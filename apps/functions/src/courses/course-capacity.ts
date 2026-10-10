@@ -63,6 +63,13 @@ export async function advanceCourseCapacity(db: Firestore, academyId: string, co
         if (code !== "permission-denied" && code !== "not-found" && code !== "auth/user-not-found") throw error;
         eligible = false; reason = "Participant access requires office review.";
       }
+      // The 4-unpaid-places cap also applies to a place offered from the waitlist (H-06).
+      if (eligible) {
+        const mine = await tx.get(courseCollection(db, academyId, "courseEnrolments").where("applicantUid", "==", enrolment.applicantUid).where("courseId", "==", courseId));
+        if (mine.docs.filter(d => d.data().seatCommitted === true && ["held", "offered", "correction"].includes(String(d.data().status))).length >= 4) {
+          eligible = false; reason = "You already hold 4 unpaid places on this course.";
+        }
+      }
       tx.update(head.ref, {status: eligible ? "offered" : "rejected", seatCommitted: eligible, expiresAt: eligible ? new Date(Date.parse(now) + 86_400_000).toISOString() : null, decisionReason: eligible ? null : reason, revision: enrolment.revision + 1, updatedAt: now});
       // Even rejection touches the shared lock before anyone can evaluate the next queue entry.
       writeCourseSeats(db, tx, course, eligible ? 1 : 0, now);

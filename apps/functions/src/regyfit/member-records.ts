@@ -11,6 +11,7 @@ import {
 } from "@bpt-jersey/domain/members/regyfit-records";
 
 import { requireAdminActor } from "../auth/admin-authorization.js";
+import { requireActiveOfficeActor } from "../auth/office-actor.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 
 type FirestoreDocumentSnapshot = Readonly<{
@@ -73,6 +74,7 @@ export async function listRegyfitMemberRecordsHandler(
 ): Promise<RegyfitMemberDirectoryPage> {
   parseEmptyRequestData(request);
   const actor = requireAdminActor(request);
+  await requireActiveOfficeActor(request); // live office authority, not just the token (H-03)
   const snapshot = await services.firestore.collection(collectionPath(actor.academyId)).get();
   const records = snapshot.docs.map((document) => parseStoredRecord(document.data()));
   const rows = records.map(toRegyfitMemberDirectoryRow).sort((left, right) => {
@@ -98,6 +100,7 @@ export async function getRegyfitMemberRecordHandler(
 ): Promise<RegyfitMemberRecord> {
   const recordId = parseRecordRequestData(request);
   const actor = requireAdminActor(request);
+  await requireActiveOfficeActor(request); // live office authority, not just the token (H-03)
   const document = await services.firestore
     .doc(`${collectionPath(actor.academyId)}/${recordId}`)
     .get();

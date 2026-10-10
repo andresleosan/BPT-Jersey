@@ -4,6 +4,7 @@ const auth = vi.hoisted(() => ({
   getUser: vi.fn(),
   updateUser: vi.fn(async () => undefined),
   setCustomUserClaims: vi.fn(async () => undefined),
+  revokeRefreshTokens: vi.fn(async () => undefined),
 }));
 vi.mock("firebase-admin/auth", () => ({ getAuth: () => auth }));
 vi.mock("firebase-admin/firestore", () => ({ getFirestore: () => ({}) }));
@@ -66,6 +67,32 @@ describe("completeInitialStaffAccess", () => {
     expect(auth.setCustomUserClaims).toHaveBeenCalledWith("coach-1", {
       academyId: "academy-1",
       role: "coach",
+    });
+  });
+
+  it("with Google, unlinks the initial password and revokes sessions before clearing the flag (H-04)", async () => {
+    auth.getUser.mockResolvedValue({
+      uid: "coach-1",
+      providerData: [{ providerId: "password" }, { providerId: "google.com" }],
+      customClaims: { academyId: "academy-1", role: "owner", passwordChangeRequired: true },
+    });
+    const googleRequest = {
+      app: {},
+      data: { method: "google" },
+      auth: {
+        uid: "coach-1",
+        token: { auth_time: Date.now() / 1000, firebase: { sign_in_provider: "google.com" } },
+      },
+    } as never;
+    await expect(completeInitialStaffAccess.run(googleRequest)).resolves.toEqual({ completed: true });
+    expect(auth.updateUser).toHaveBeenCalledWith("coach-1", { providersToUnlink: ["password"] });
+    expect(auth.revokeRefreshTokens).toHaveBeenCalledWith("coach-1");
+    const order = (fn: { mock: { invocationCallOrder: number[] } }) => fn.mock.invocationCallOrder[0];
+    expect(order(auth.updateUser)).toBeLessThan(order(auth.setCustomUserClaims));
+    expect(order(auth.revokeRefreshTokens)).toBeLessThan(order(auth.setCustomUserClaims));
+    expect(auth.setCustomUserClaims).toHaveBeenCalledWith("coach-1", {
+      academyId: "academy-1",
+      role: "owner",
     });
   });
 });

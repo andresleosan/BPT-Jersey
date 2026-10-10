@@ -14,6 +14,7 @@ import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { requireUserActor } from "../auth/user-authorization.js";
+import { requireActiveOfficeActor } from "../auth/office-actor.js";
 import { createPrivateStorageR2Client } from "../storage/r2-client.js";
 import {
   createConsentStore,
@@ -65,11 +66,12 @@ function invalid(): never {
 function noPayload(value: unknown): void {
   if (value !== null) invalid();
 }
-function admin(request: CallableRequest<unknown>) {
+// Live office authority: a token issued before a demotion or revocation is not enough (H-03).
+async function admin(request: CallableRequest<unknown>) {
   const actor = requireUserActor(request);
   if (actor.role !== "owner" && actor.role !== "administrator")
     throw new HttpsError("permission-denied", "Waiver administration is not permitted");
-  return actor;
+  return requireActiveOfficeActor(request);
 }
 async function client(request: CallableRequest<unknown>) {
   const actor = requireUserActor(request);
@@ -83,6 +85,7 @@ async function evidenceActor(request: CallableRequest<unknown>) {
   if (!["owner", "administrator", "guardian", "adultStudent", "teenStudent"].includes(actor.role))
     throw new HttpsError("permission-denied", "Waiver evidence access is not permitted");
   if (["guardian", "adultStudent", "teenStudent"].includes(actor.role)) await requireMemberAccountActor(request);
+  else await requireActiveOfficeActor(request);
   return actor as typeof actor & { role: "owner" | "administrator" | "guardian" | "adultStudent" | "teenStudent" };
 }
 function mapError(error: unknown, operation: "read" | "write"): never {
@@ -111,7 +114,7 @@ export async function publishWaiverVersionHandler(
   services: ConsentCallableServices,
 ) {
   assertRegistrationEnabled(services);
-  const actor = admin(request);
+  const actor = await admin(request);
   const parsed = parseWaiverPublicationInput(request.data);
   if (!parsed.ok) return invalid();
   try {
@@ -132,7 +135,7 @@ export async function getCurrentWaiverAdminHandler(
   services: ConsentCallableServices,
 ) {
   assertRegistrationEnabled(services);
-  const actor = admin(request);
+  const actor = await admin(request);
   noPayload(request.data);
   try {
     return await services.store.getCurrentWaiverAdmin({ academyId: actor.academyId });
@@ -145,7 +148,7 @@ export async function withdrawCurrentWaiverHandler(
   services: ConsentCallableServices,
 ) {
   assertRegistrationEnabled(services);
-  const actor = admin(request);
+  const actor = await admin(request);
   const parsed = parseWaiverVersionIdInput(request.data);
   if (!parsed.ok) return invalid();
   try {

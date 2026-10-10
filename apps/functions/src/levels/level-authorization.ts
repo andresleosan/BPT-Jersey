@@ -152,9 +152,13 @@ async function activeActor(
   } catch {
     return unavailable();
   }
+  // Every role, not only members: revoking a staff member's sessions must stop their old token (H-05).
   if (
     authUser.uid !== actor.userId ||
     authUser.disabled ||
+    !Number.isFinite(authenticationTime) ||
+    (authUser.tokensValidAfterTime !== undefined &&
+      authenticationTime < Date.parse(authUser.tokensValidAfterTime)) ||
     !exactAuthorityClaims(authUser.customClaims, actor.academyId, actor.role)
   ) {
     return denied();

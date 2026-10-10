@@ -1,5 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 
+// These handler tests exercise payloads and scope; live Auth authority is covered in office-actor tests.
+vi.mock("../auth/office-actor.js", async (importOriginal) => {
+  const original = await importOriginal<typeof import("../auth/office-actor.js")>();
+  const { requireUserActor } = await import("../auth/user-authorization.js");
+  return {
+    ...original,
+    requireActiveOfficeActor: async (request: never) => requireUserActor(request),
+    requireActiveUserActor: async (request: never) => requireUserActor(request),
+  };
+});
+
 import {
   acceptWaiverHandler,
   getCurrentWaiverAdminHandler,

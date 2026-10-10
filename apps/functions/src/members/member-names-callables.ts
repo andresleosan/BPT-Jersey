@@ -8,6 +8,7 @@ import {
 
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { requireAdminActor } from "../auth/admin-authorization.js";
+import { requireActiveOfficeActor } from "../auth/office-actor.js";
 
 export type MemberNamesStore = Readonly<{
   listActiveStudents: (
@@ -21,6 +22,7 @@ export async function listMemberNamesHandler(
   services: { store: MemberNamesStore },
 ): Promise<{ members: readonly MemberNameRow[] }> {
   const actor = requireAdminActor(request);
+  await requireActiveOfficeActor(request); // live office authority, not just the token (H-03)
   if (request.data !== null)
     throw new HttpsError("invalid-argument", "Member names payload must be null");
   const documents = await services.store.listActiveStudents(actor.academyId, memberNamesLimit + 1);

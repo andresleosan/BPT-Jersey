@@ -17,6 +17,7 @@ import {
   type AdminActor,
 } from "../auth/admin-authorization.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
+import { requireActiveOfficeActor } from "../auth/office-actor.js";
 import { appendAuditEventInTransaction } from "./audit-writer.js";
 import { createClassHistoryStore } from "./class-history-firestore.js";
 import { buildClassHistoryPdf } from "./class-history-pdf.js";
@@ -211,6 +212,7 @@ export async function handleListClassHistory(
   request: CallableRequest<unknown>,
 ): Promise<ClassHistoryPage> {
   const actor = requireAdminActor(request);
+  await requireActiveOfficeActor(request); // live office authority, not just the token (H-03)
   const input = parseListInput(request.data);
   assertAcademyScope(actor, input.academyId);
   return await auditedRead(services, actor, input);
@@ -221,6 +223,7 @@ export async function handleExportClassHistoryPdf(
   request: CallableRequest<unknown>,
 ): Promise<ClassHistoryExport> {
   const actor = requireAdminActor(request);
+  await requireActiveOfficeActor(request); // live office authority, not just the token (H-03)
   const input = parseListInput(request.data);
   assertAcademyScope(actor, input.academyId);
   const page = await auditedRead(services, actor, input);

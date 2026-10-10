@@ -6,6 +6,7 @@ import { parseUpcomingBirthdayQuery } from "@bpt-jersey/domain/birthdays";
 import { onCallWithFreshAppCheck } from "../auth/app-check.js";
 import { browserOrigins } from "../auth/callable-options.js";
 import { requireUserActor } from "../auth/user-authorization.js";
+import { requireActiveUserActor } from "../auth/office-actor.js";
 import {
   UpcomingBirthdayError,
   createUpcomingBirthdayService,
@@ -32,6 +33,7 @@ export function createListUpcomingBirthdaysHandler(options: { service: UpcomingB
     if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
       throw new HttpsError("permission-denied", "Staff access required to read birthdays");
     }
+    await requireActiveUserActor(request); // live claims, not just the token (H-03)
     const parsed = parseUpcomingBirthdayQuery(request.data);
     if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
     // turningAge plus daysAway is the full date of birth, which only the office may see; a short

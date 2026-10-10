@@ -2,13 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   auth: { currentUser: { uid: "coach-miro", providerData: [] as { providerId: string }[] } },
   call: vi.fn(), token: vi.fn(), link: vi.fn(), refresh: vi.fn(), params: vi.fn(),
+  credential: vi.fn(), signInWithCredential: vi.fn(),
 }));
 vi.mock("./firebase-client", () => ({ getFirebaseAuth: () => mocks.auth, getFirebaseFunctions: () => ({}) }));
 vi.mock("firebase/functions", () => ({ httpsCallable: () => mocks.call }));
 vi.mock("firebase/auth", () => ({
-  GoogleAuthProvider: class { setCustomParameters = mocks.params; },
+  GoogleAuthProvider: class { setCustomParameters = mocks.params; static credentialFromResult = mocks.credential; },
   browserPopupRedirectResolver: "popup-resolver",
-  linkWithPopup: mocks.link, signInWithCustomToken: mocks.token,
+  linkWithPopup: mocks.link, signInWithCustomToken: mocks.token, signInWithCredential: mocks.signInWithCredential,
 }));
 import { currentStaffAccess, linkStaffGoogle, signInWithStaffId, staffAccessError } from "./staff-login-client";
 
@@ -20,12 +21,19 @@ describe("coach sign-in client", () => {
     expect(mocks.call).toHaveBeenCalledWith({ staffNumber: "100001", password: "test-password" });
     expect(mocks.token).toHaveBeenCalledWith(mocks.auth, "synthetic-custom-token");
   });
-  it("links Google to the current user and refreshes that user's token", async () => {
-    mocks.link.mockResolvedValue({ user: { getIdToken: mocks.refresh } });
+  it("links Google, then signs back in with that Google credential after the server revokes the session (H-04)", async () => {
+    const linked = { user: { getIdToken: vi.fn() } };
+    mocks.link.mockResolvedValue(linked);
+    mocks.credential.mockReturnValue("google-credential");
+    mocks.signInWithCredential.mockResolvedValue({ user: { getIdToken: mocks.refresh } });
     await linkStaffGoogle();
     expect(mocks.link).toHaveBeenCalledWith(mocks.auth.currentUser, expect.anything(), "popup-resolver");
     expect(mocks.params).toHaveBeenCalledWith({ prompt: "select_account" });
+    expect(mocks.call).toHaveBeenCalledWith({ method: "google" });
+    expect(mocks.credential).toHaveBeenCalledWith(linked);
+    expect(mocks.signInWithCredential).toHaveBeenCalledWith(mocks.auth, "google-credential");
     expect(mocks.refresh).toHaveBeenCalledWith(true);
+    expect(linked.user.getIdToken).not.toHaveBeenCalled();
   });
   it("recognizes an existing Google link", () => {
     mocks.auth.currentUser.providerData = [{ providerId: "google.com" }];

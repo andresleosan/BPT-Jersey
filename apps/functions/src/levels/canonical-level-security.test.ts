@@ -59,13 +59,13 @@ function clientUser(userId: string) {
 
 function request(data: unknown, role: string, uid: string, app = true) {
   return {
-    auth: { uid, token: { academyId: "academy-1", role } },
+    auth: { uid, token: { academyId: "academy-1", role, auth_time: Math.floor(Date.now() / 1000) } },
     app: app ? { appId: "test-app" } : undefined,
     data,
   } as never;
 }
 
-function authorizationFixture() {
+function authorizationFixture(tokensValidAfterTime?: string) {
   const documents = new Map<string, Record<string, unknown>>([
     ["academies/academy-1/users/adult-user-1", clientUser("adult-user-1")],
     ["academies/academy-1/users/guardian-1", clientUser("guardian-1")],
@@ -156,6 +156,7 @@ function authorizationFixture() {
       uid,
       disabled: false,
       customClaims: claimsByUser.get(uid) ?? {},
+      ...(tokensValidAfterTime === undefined ? {} : { tokensValidAfterTime }),
     }),
     getDocument: async (path) => ({
       id: path.split("/").at(-1) ?? "",
@@ -217,6 +218,17 @@ describe("canonical Levels security boundary", () => {
       role: "coach",
       staffId: "staff-1",
     });
+  });
+
+  it("refuses a staff token issued before its sessions were revoked (H-05)", async () => {
+    const revokedLater = new Date(Date.now() + 60_000).toUTCString();
+    await expect(
+      authorizationFixture(revokedLater).requireActor(request({}, "coach", "coach-user-1")),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    const revokedEarlier = new Date(Date.now() - 3_600_000).toUTCString();
+    await expect(
+      authorizationFixture(revokedEarlier).requireActor(request({}, "coach", "coach-user-1")),
+    ).resolves.toMatchObject({ role: "coach" });
   });
 
   it("permits a guardian only through a current active same-family relationship", async () => {

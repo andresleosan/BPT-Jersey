@@ -1436,10 +1436,25 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
     if (!validated.ok) throw new FinanceStoreError("invalid", "Invalid payment instructions");
     return dependencies.firestore.runTransaction(async (transaction) => {
       const ref = dependencies.firestore.doc(paymentInstructionsPath(academy));
+      // Keep every version (H-09): an overwrite alone left no trace of which account members saw.
+      const previous = await transaction.get(ref);
+      const auditId = generateAuditId();
+      transaction.set(
+        dependencies.firestore.doc(
+          `academies/${academy}/paymentInstructionsHistory/${pathSegment(auditId, "audit")}`,
+        ),
+        {
+          academyId: academy,
+          before: previous.exists ? (previous.data() ?? null) : null,
+          after: record,
+          changedBy: actorId,
+          changedAt: record.updatedAt,
+        } as unknown as FinanceDocumentData,
+      );
       transaction.set(ref, record as unknown as FinanceDocumentData);
       dependencies.appendAudit(
         transaction,
-        dependencies.firestore.doc(auditPath(academy, generateAuditId())),
+        dependencies.firestore.doc(auditPath(academy, auditId)),
         {
           academyId: academy,
           actorId,

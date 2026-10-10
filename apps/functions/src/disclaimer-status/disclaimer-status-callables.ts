@@ -27,6 +27,7 @@ import { parseEffectiveStudentProfileAt } from "@bpt-jersey/domain/profiles";
 import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
+import { requireActiveOfficeActor } from "../auth/office-actor.js";
 import { office as requireDisclaimerOffice } from "../consents/disclaimer-callables.js";
 import { hasAcceptedEnrolmentWaiver } from "../consents/enrolment-waiver-acceptance.js";
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
@@ -134,6 +135,7 @@ export const getMyDisclaimerStatus = onCall(browserAdminCallableOptions, async (
 export const listDisclaimerAcceptances = onCall(browserAdminCallableOptions, async (request) => {
   // Owner and administrator only; coach and staff are refused (R15).
   const actor = requireDisclaimerOffice(request);
+  await requireActiveOfficeActor(request); // live office authority, not just the token (H-03)
   const input = acceptancesRequestSchema.safeParse(request.data);
   if (!input.success) throw new HttpsError("invalid-argument", "Invalid acceptances request");
   const db = getFirestore();

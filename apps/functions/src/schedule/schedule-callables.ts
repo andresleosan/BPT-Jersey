@@ -84,7 +84,7 @@ import {
   privateLessonStarts,
   schedulePrivateLessonsInputSchema,
 } from "@bpt-jersey/domain/private-lessons";
-import { requireActiveOfficeActor } from "../auth/office-actor.js";
+import { requireActiveOfficeActor, requireActiveUserActor } from "../auth/office-actor.js";
 import {
   bookPrivateLesson as bookPrivateLessonTransaction,
   cancelPrivateLessonBooking as cancelPrivateLessonBookingTransaction,
@@ -274,12 +274,13 @@ function mapScheduleMutationError(
   throw new HttpsError("internal", `Unable to update the ${resource.toLowerCase()}`);
 }
 
-function requireManager(request: CallableRequest<unknown>, purpose: string) {
+async function requireManager(request: CallableRequest<unknown>, purpose: string) {
   const actor = requireUserActor(request);
   if (!managerRoles.includes(actor.role as (typeof managerRoles)[number])) {
     throw new HttpsError("permission-denied", `Manager access required to ${purpose}`);
   }
-  return actor;
+  // A token issued before a demotion or a session revocation is not enough (H-03).
+  return requireActiveUserActor(request);
 }
 
 async function academyTimezone(store: ScheduleStore, academyId: string): Promise<string> {
@@ -350,10 +351,7 @@ export function createSaveProgramHandler(options: { store: ScheduleStore }) {
   const { store } = options;
 
   return async (request: CallableRequest<unknown>) => {
-    const actor = requireUserActor(request);
-    if (!managerRoles.includes(actor.role as (typeof managerRoles)[number])) {
-      throw new HttpsError("permission-denied", "Manager access required to manage programs");
-    }
+    const actor = await requireManager(request, "manage programs");
 
     const data = request.data;
     const isV2Shape =
@@ -379,7 +377,7 @@ export function createSaveProgramHandler(options: { store: ScheduleStore }) {
 
 export function createSaveLocationHandler(options: { store: ScheduleStore }) {
   return async (request: CallableRequest<unknown>) => {
-    const actor = requireManager(request, "manage locations");
+    const actor = await requireManager(request, "manage locations");
     const parsed = parseCreateLocationInput(request.data);
     if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
     return {
@@ -390,7 +388,7 @@ export function createSaveLocationHandler(options: { store: ScheduleStore }) {
 
 export function createUpdateLocationHandler(options: { store: ScheduleStore }) {
   return async (request: CallableRequest<unknown>) => {
-    const actor = requireManager(request, "manage locations");
+    const actor = await requireManager(request, "manage locations");
     const parsed = parseUpdateLocationInput(request.data);
     if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
     try {
@@ -405,7 +403,7 @@ export function createUpdateLocationHandler(options: { store: ScheduleStore }) {
 
 export function createUpdateProgramHandler(options: { store: ScheduleStore }) {
   return async (request: CallableRequest<unknown>) => {
-    const actor = requireManager(request, "manage class types");
+    const actor = await requireManager(request, "manage class types");
     const parsed = parseUpdateProgramInput(request.data);
     if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
     try {
@@ -440,7 +438,7 @@ export function createDeleteProgramHandler(options: { store: ScheduleStore }) {
 
 export function createPreviewWeekHandler(options: { store: ScheduleStore }) {
   return async (request: CallableRequest<unknown>) => {
-    const actor = requireManager(request, "preview a week");
+    const actor = await requireManager(request, "preview a week");
     const data = request.data;
     const weekStart =
       typeof data === "object" && data !== null
@@ -462,7 +460,7 @@ export function createPreviewWeekHandler(options: { store: ScheduleStore }) {
 
 export function createCopyWeekHandler(options: { store: ScheduleStore }) {
   return async (request: CallableRequest<unknown>) => {
-    const actor = requireManager(request, "copy a week");
+    const actor = await requireManager(request, "copy a week");
     const parsed = parseCopyWeekInput(request.data);
     if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
     // Copying bookings books members, which ADR-018 leaves to the office; record who did it.
@@ -489,7 +487,7 @@ export function createCopyWeekHandler(options: { store: ScheduleStore }) {
 
 export function createDeleteWeekHandler(options: { store: ScheduleStore }) {
   return async (request: CallableRequest<unknown>) => {
-    const actor = requireManager(request, "delete a week");
+    const actor = await requireManager(request, "delete a week");
     const parsed = parseDeleteWeekInput(request.data);
     if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
     try {
@@ -575,10 +573,7 @@ export function createSaveClassHandler(options: { store: ScheduleStore }) {
   const { store } = options;
 
   return async (request: CallableRequest<unknown>) => {
-    const actor = requireUserActor(request);
-    if (!managerRoles.includes(actor.role as (typeof managerRoles)[number])) {
-      throw new HttpsError("permission-denied", "Manager access required to configure classes");
-    }
+    const actor = await requireManager(request, "configure classes");
 
     const parsed = parseCreateClassInput(request.data);
     if (!parsed.ok) {
@@ -596,10 +591,7 @@ export function createUpdateClassHandler(options: { store: ScheduleStore }) {
   const { store } = options;
 
   return async (request: CallableRequest<unknown>) => {
-    const actor = requireUserActor(request);
-    if (!managerRoles.includes(actor.role as (typeof managerRoles)[number])) {
-      throw new HttpsError("permission-denied", "Manager access required to configure classes");
-    }
+    const actor = await requireManager(request, "configure classes");
 
     const parsed = parseUpdateClassInput(request.data);
     if (!parsed.ok) {
@@ -615,10 +607,7 @@ export function createGenerateSessionsHandler(options: { store: ScheduleStore })
   const { store } = options;
 
   return async (request: CallableRequest<unknown>) => {
-    const actor = requireUserActor(request);
-    if (!managerRoles.includes(actor.role as (typeof managerRoles)[number])) {
-      throw new HttpsError("permission-denied", "Manager access required to generate sessions");
-    }
+    const actor = await requireManager(request, "generate sessions");
 
     const data = request.data as {
       classId?: unknown;
@@ -661,10 +650,7 @@ export function createSaveSessionHandler(options: { store: ScheduleStore }) {
   const { store } = options;
 
   return async (request: CallableRequest<unknown>) => {
-    const actor = requireUserActor(request);
-    if (!managerRoles.includes(actor.role as (typeof managerRoles)[number])) {
-      throw new HttpsError("permission-denied", "Manager access required to schedule sessions");
-    }
+    const actor = await requireManager(request, "schedule sessions");
 
     const parsed = parseCreateSessionInput(request.data);
     if (!parsed.ok) {
@@ -702,7 +688,7 @@ export function createCancelSessionHandler(options: { store: ScheduleStore }) {
 
   return async (request: CallableRequest<unknown>) => {
     // ADR-010: a coach only reads Classes; cancelling is for managers, as the UI already shows.
-    const actor = requireManager(request, "cancel sessions");
+    const actor = await requireManager(request, "cancel sessions");
 
     const data = request.data as { sessionId?: unknown; reason?: unknown };
     if (!data || typeof data.sessionId !== "string" || !data.sessionId.trim()) {
@@ -733,10 +719,7 @@ export function createCancelSessionHandler(options: { store: ScheduleStore }) {
 export function createUpdateSessionHandler(options: { store: ScheduleStore }) {
   const { store } = options;
   return async (request: CallableRequest<unknown>) => {
-    const actor = requireUserActor(request);
-    if (!managerRoles.includes(actor.role as (typeof managerRoles)[number])) {
-      throw new HttpsError("permission-denied", "Manager access required to edit sessions");
-    }
+    const actor = await requireManager(request, "edit sessions");
     const parsed = parseUpdateSessionInput(request.data);
     if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
     if (
@@ -776,10 +759,7 @@ export function createRemoveClassHandler(options: { store: ScheduleStore; now?: 
   const { store } = options;
   const now = options.now ?? (() => new Date().toISOString());
   return async (request: CallableRequest<unknown>) => {
-    const actor = requireUserActor(request);
-    if (!managerRoles.includes(actor.role as (typeof managerRoles)[number])) {
-      throw new HttpsError("permission-denied", "Manager access required to remove classes");
-    }
+    const actor = await requireManager(request, "remove classes");
     const parsed = parseRemoveClassInput(request.data);
     if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
     try {

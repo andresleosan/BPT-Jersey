@@ -1,5 +1,5 @@
 "use client";
-import { GoogleAuthProvider, browserPopupRedirectResolver, linkWithPopup, signInWithCustomToken, signInWithEmailAndPassword } from "firebase/auth";
+import { GoogleAuthProvider, browserPopupRedirectResolver, linkWithPopup, signInWithCredential, signInWithCustomToken, signInWithEmailAndPassword } from "firebase/auth";
 import { httpsCallable } from "./callable";
 import { getFirebaseAuth, getFirebaseFunctions } from "./firebase-client";
 
@@ -23,7 +23,12 @@ export async function linkStaffGoogle() {
   // Linking preserves the authenticated UID and its coach profile.
   const result = await linkWithPopup(user, provider, browserPopupRedirectResolver);
   await httpsCallable(getFirebaseFunctions(), "completeInitialStaffAccess")({ method: "google" });
-  await result.user.getIdToken(true);
+  // The server unlinked the initial password and revoked this session: sign back in with the
+  // Google credential just obtained, so no second popup is needed.
+  const credential = GoogleAuthProvider.credentialFromResult(result);
+  if (!credential) throw Object.assign(new Error("Sign in again."), { code: "auth/requires-recent-login" });
+  const signedIn = await signInWithCredential(getFirebaseAuth(), credential);
+  await signedIn.user.getIdToken(true);
 }
 export async function changeStaffPassword(staffNumber: string, password: string, newPassword: string) {
   await httpsCallable(getFirebaseFunctions(), "changeStaffIdPassword", { limitedUseAppCheckTokens: true })({ staffNumber, password, newPassword });
