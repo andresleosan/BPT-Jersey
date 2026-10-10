@@ -93,9 +93,9 @@ export async function sweepClassIpRetention(
 
 /**
  * The Firestore adapter reaches across every academy with a collection-group query on
- * `auditEvents`, ordered and filtered by `occurredAt` alone (a single-field index, already
- * enabled for collection-group queries the same way `memberDirectoryImportSessions` cleanup
- * relies on it - see `canonical-member-import-firestore.ts`). It does not also filter on
+ * `auditEvents`, ordered and filtered by `occurredAt` alone. Its single-field collection-group
+ * index is declared in `firestore.indexes.json` (fieldOverrides); without it every run fails with
+ * FAILED_PRECONDITION, as it did nightly until 2026-10. It does not also filter on
  * `actorIp`: Firestore cannot combine two inequality filters on different fields without a new
  * composite index, and the sweep's own actorIp check already makes the extra reads harmless.
  */
