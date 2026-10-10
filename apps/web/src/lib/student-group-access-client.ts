@@ -11,6 +11,9 @@ import {
 } from "@bpt-jersey/domain/schedule/member-calendar";
 import { getFirebaseFunctions } from "./firebase-client";
 
+// The server consumes these App Check tokens once (SEC-02).
+const limitedUse = Object.freeze({ limitedUseAppCheckTokens: true });
+
 export async function getStudentGroupAccess(studentId: string) {
   const response = await httpsCallable(getFirebaseFunctions(), "getStudentGroupAccess")(
     studentGroupAccessQuerySchema.parse({ studentId }),
@@ -21,7 +24,7 @@ export async function getStudentGroupAccess(studentId: string) {
 }
 
 export async function saveStudentGroupAccess(input: SaveStudentGroupAccess) {
-  const response = await httpsCallable(getFirebaseFunctions(), "saveStudentGroupAccess")(
+  const response = await httpsCallable(getFirebaseFunctions(), "saveStudentGroupAccess", limitedUse)(
     saveStudentGroupAccessSchema.parse(input),
   );
   const access = studentGroupAccessSchema.parse(response.data);
@@ -30,7 +33,7 @@ export async function saveStudentGroupAccess(input: SaveStudentGroupAccess) {
 }
 
 export async function saveStudentAgeRange(input: SaveStudentAgeRange) {
-  const response = await httpsCallable(getFirebaseFunctions(), "saveStudentAgeRange")(
+  const response = await httpsCallable(getFirebaseFunctions(), "saveStudentAgeRange", limitedUse)(
     saveStudentAgeRangeSchema.parse(input),
   );
   const access = studentGroupAccessSchema.parse(response.data);

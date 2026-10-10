@@ -14,6 +14,7 @@ import {
   studentGroupAccessQuerySchema,
   studentGroupAccessSchema,
 } from "@bpt-jersey/domain/schedule/member-calendar";
+import { onCallWithFreshAppCheck } from "../auth/app-check.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { requireActiveOfficeActor } from "../auth/office-actor.js";
 import { requireUserActor } from "../auth/user-authorization.js";
@@ -88,7 +89,11 @@ export const getStudentGroupAccess = onCall(browserAdminCallableOptions, async (
   });
 });
 
-export const saveStudentGroupAccess = onCall(browserAdminCallableOptions, async (request) => {
+// Office writes that change what a member may book take a single-use App Check token (SEC-02),
+// so a captured request cannot be replayed.
+const officeWriteOptions = { ...browserAdminCallableOptions, consumeAppCheckToken: true };
+
+export const saveStudentGroupAccess = onCallWithFreshAppCheck(officeWriteOptions, async (request) => {
   const actor = await requireActiveOfficeActor(request);
   const parsed = saveStudentGroupAccessSchema.safeParse(request.data);
   if (!parsed.success) throw new HttpsError("invalid-argument", "Check the selected groups.");
@@ -147,7 +152,7 @@ export const saveStudentGroupAccess = onCall(browserAdminCallableOptions, async 
   });
 });
 
-export const saveStudentAgeRange = onCall(browserAdminCallableOptions, async (request) => {
+export const saveStudentAgeRange = onCallWithFreshAppCheck(officeWriteOptions, async (request) => {
   const actor = await requireActiveOfficeActor(request);
   const parsed = saveStudentAgeRangeSchema.safeParse(request.data);
   if (!parsed.success) throw new HttpsError("invalid-argument", "Check the ages, reason and end date.");
