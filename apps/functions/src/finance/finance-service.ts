@@ -1437,7 +1437,7 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
     return dependencies.firestore.runTransaction(async (transaction) => {
       const ref = dependencies.firestore.doc(paymentInstructionsPath(academy));
       // Keep every version (H-09): an overwrite alone left no trace of which account members saw.
-      const previous = await transaction.get(ref);
+      const previous = documentSnapshot(await transaction.get(ref));
       const auditId = generateAuditId();
       transaction.set(
         dependencies.firestore.doc(
