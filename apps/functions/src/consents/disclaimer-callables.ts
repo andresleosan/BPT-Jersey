@@ -8,6 +8,7 @@ import {
 } from "@bpt-jersey/domain/consents/disclaimers";
 
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
+import { onCallWithActiveOfficeActor } from "../auth/office-actor.js";
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import {
@@ -200,15 +201,17 @@ function getService(): DisclaimerService {
   return service;
 }
 
-export const publishDisclaimer = onCall(browserAdminCallableOptions, (request) =>
-  createPublishDisclaimerHandler({ service: getService() })(request),
+export const publishDisclaimer = onCallWithActiveOfficeActor(
+  browserAdminCallableOptions,
+  (request) => createPublishDisclaimerHandler({ service: getService() })(request),
 );
 
-export const withdrawDisclaimer = onCall(browserAdminCallableOptions, (request) =>
-  createWithdrawDisclaimerHandler({ service: getService() })(request),
+export const withdrawDisclaimer = onCallWithActiveOfficeActor(
+  browserAdminCallableOptions,
+  (request) => createWithdrawDisclaimerHandler({ service: getService() })(request),
 );
 
-export const listDisclaimers = onCall(browserAdminCallableOptions, (request) =>
+export const listDisclaimers = onCallWithActiveOfficeActor(browserAdminCallableOptions, (request) =>
   createListDisclaimersHandler({ service: getService() })(request),
 );
 

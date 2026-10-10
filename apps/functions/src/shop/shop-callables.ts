@@ -16,6 +16,7 @@ import {
 } from "@bpt-jersey/domain/shop";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
+import { onCallWithActiveOfficeActor } from "../auth/office-actor.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { enrolmentStorageSecrets } from "../members/enrolment-payment-proof.js";
 import { consumeProofUploadQuota } from "../members/enrolment-proof-reservation.js";
@@ -380,13 +381,13 @@ export const listShopCatalog = onCall(shopCallableOptions, (request) =>
 export const listPublicShopCatalog = onCall(shopCallableOptions, (request) =>
   listPublicShopCatalogHandler(request, callableServices()),
 );
-export const listManagedShopProducts = onCall(shopCallableOptions, (request) =>
+export const listManagedShopProducts = onCallWithActiveOfficeActor(shopCallableOptions, (request) =>
   listManagedShopProductsHandler(request, callableServices()),
 );
-export const saveShopProduct = onCall(shopCallableOptions, (request) =>
+export const saveShopProduct = onCallWithActiveOfficeActor(shopCallableOptions, (request) =>
   saveShopProductHandler(request, callableServices()),
 );
-export const setShopProductActive = onCall(shopCallableOptions, (request) =>
+export const setShopProductActive = onCallWithActiveOfficeActor(shopCallableOptions, (request) =>
   setShopProductActiveHandler(request, callableServices()),
 );
 const shopProofCallableOptions = { ...shopCallableOptions, secrets: enrolmentStorageSecrets };
@@ -397,15 +398,16 @@ export const uploadShopOrderProof = onCall(shopProofCallableOptions, async (requ
   await consumeProofUploadQuota(getFirestore(), requireUserActor(request), "shop");
   return uploadShopOrderProofHandler(request, callableServices());
 });
-export const getShopOrderProofUrl = onCall(shopProofCallableOptions, (request) =>
-  getShopOrderProofUrlHandler(request, callableServices()),
+export const getShopOrderProofUrl = onCallWithActiveOfficeActor(
+  shopProofCallableOptions,
+  (request) => getShopOrderProofUrlHandler(request, callableServices()),
 );
 export const listMyShopOrders = onCall(shopCallableOptions, (request) =>
   listMyShopOrdersHandler(request, callableServices()),
 );
-export const listShopOrders = onCall(shopCallableOptions, (request) =>
+export const listShopOrders = onCallWithActiveOfficeActor(shopCallableOptions, (request) =>
   listShopOrdersHandler(request, callableServices()),
 );
-export const updateShopOrder = onCall(shopCallableOptions, (request) =>
+export const updateShopOrder = onCallWithActiveOfficeActor(shopCallableOptions, (request) =>
   updateShopOrderHandler(request, callableServices()),
 );

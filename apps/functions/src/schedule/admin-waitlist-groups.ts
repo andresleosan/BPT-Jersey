@@ -1,7 +1,8 @@
 import { FieldPath, getFirestore, type Firestore } from "firebase-admin/firestore";
-import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
+import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 
 import type { WaitlistEntryRecord } from "@bpt-jersey/domain/schedule/advanced-booking";
+import { onCallWithFreshAppCheck } from "../auth/app-check.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import type { StaffWaitlistItem } from "./advanced-booking-callables.js";
 import { parseStoredWaitlist } from "./advanced-booking-service.js";
@@ -248,14 +249,14 @@ export function createFirestoreWaitlistGroupsReader(firestore: Firestore): Waitl
   };
 }
 
-export const listAdminWaitlistGroups = onCall(scheduleCallableOptions, async (request) =>
+export const listAdminWaitlistGroups = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createListAdminWaitlistGroupsHandler({
     reader: createFirestoreWaitlistGroupsReader(getFirestore()),
   })(request),
 );
 
 /** Pending queues survive the original date. Bounded, explicit pagination replaces a history scan. */
-export const listPendingPastWaitlists = onCall(scheduleCallableOptions, async (request) => {
+export const listPendingPastWaitlists = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) => {
   const actor = requireUserActor(request);
   if (!staffRoles.has(actor.role)) throw new HttpsError("permission-denied", "Staff access required");
   const db = getFirestore(), base = `academies/${actor.academyId}`;

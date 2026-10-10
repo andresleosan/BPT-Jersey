@@ -1,10 +1,11 @@
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
-import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
+import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 
 import type { UserProfile } from "@bpt-jersey/domain/profiles";
 
+import { onCallWithFreshAppCheck } from "../auth/app-check.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import {
   createGuardianProfileStore,
@@ -212,10 +213,12 @@ export const guardianProfileCallableOptions = {
   secrets: [migrationIntegritySecret],
 };
 
-export const getGuardianProfile = onCall(guardianProfileCallableOptions, async (request) =>
-  getGuardianProfileHandler(request, guardianProfileCallableServices()),
+export const getGuardianProfile = onCallWithFreshAppCheck(
+  guardianProfileCallableOptions,
+  async (request) => getGuardianProfileHandler(request, guardianProfileCallableServices()),
 );
 
-export const saveGuardianProfile = onCall(guardianProfileCallableOptions, async (request) =>
-  saveGuardianProfileHandler(request, guardianProfileCallableServices()),
+export const saveGuardianProfile = onCallWithFreshAppCheck(
+  guardianProfileCallableOptions,
+  async (request) => saveGuardianProfileHandler(request, guardianProfileCallableServices()),
 );

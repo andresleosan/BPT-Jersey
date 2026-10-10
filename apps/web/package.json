@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "next build",
+    "postbuild": "node scripts/write-csp-headers.mjs",
     "dev": "next dev --hostname 127.0.0.1",
     "dev:e2e": "next dev --hostname 127.0.0.1 --port 3100",
     "start": "next start --hostname 127.0.0.1",

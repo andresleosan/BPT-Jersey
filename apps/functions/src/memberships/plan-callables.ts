@@ -10,6 +10,7 @@ import {
 } from "@bpt-jersey/domain/memberships";
 
 import { requireUserActor } from "../auth/user-authorization.js";
+import { onCallWithActiveOfficeActor } from "../auth/office-actor.js";
 import { createPlanStore, PlanStoreError, type PlanStore } from "./plan-service.js";
 
 export type PlanCallableServices = Readonly<{
@@ -298,18 +299,18 @@ export const listPlans = onCall(planCallableOptions, async (request) =>
   listPlansHandler(request, planCallableServices()),
 );
 
-export const listManagedPlans = onCall(planCallableOptions, async (request) =>
+export const listManagedPlans = onCallWithActiveOfficeActor(planCallableOptions, async (request) =>
   listManagedPlansHandler(request, planCallableServices()),
 );
 
-export const savePlan = onCall(planCallableOptions, async (request) =>
+export const savePlan = onCallWithActiveOfficeActor(planCallableOptions, async (request) =>
   savePlanHandler(request, planCallableServices()),
 );
 
-export const activatePlan = onCall(planCallableOptions, async (request) =>
+export const activatePlan = onCallWithActiveOfficeActor(planCallableOptions, async (request) =>
   activatePlanHandler(request, planCallableServices()),
 );
 
-export const deactivatePlan = onCall(planCallableOptions, async (request) =>
+export const deactivatePlan = onCallWithActiveOfficeActor(planCallableOptions, async (request) =>
   deactivatePlanHandler(request, planCallableServices()),
 );

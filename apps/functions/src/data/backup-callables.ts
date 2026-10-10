@@ -1,5 +1,6 @@
-import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
+import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 
+import { onCallWithFreshAppCheck } from "../auth/app-check.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { BackupOperationError, createUnavailableTenantBackupService } from "./backup-service.js";
 import type { TenantBackupService } from "./backup-contracts.js";
@@ -96,17 +97,17 @@ function getDefaultService(): TenantBackupService {
   return defaultService;
 }
 
-export const createTenantBackup = onCall(
+export const createTenantBackup = onCallWithFreshAppCheck(
   { enforceAppCheck: true, consumeAppCheckToken: true },
   async (request) => createTenantBackupHandler({ service: getDefaultService() })(request),
 );
 
-export const verifyTenantBackup = onCall(
+export const verifyTenantBackup = onCallWithFreshAppCheck(
   { enforceAppCheck: true, consumeAppCheckToken: true },
   async (request) => verifyTenantBackupHandler({ service: getDefaultService() })(request),
 );
 
-export const prepareTenantRestore = onCall(
+export const prepareTenantRestore = onCallWithFreshAppCheck(
   { enforceAppCheck: true, consumeAppCheckToken: true },
   async (request) => prepareTenantRestoreHandler({ service: getDefaultService() })(request),
 );

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { FieldValue, getFirestore, type DocumentData, type Firestore } from "firebase-admin/firestore";
-import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { buildBookingId, buildBookingIdCandidates, type PaygBookingPayment } from "@bpt-jersey/domain/schedule";
 import { groupIdSchema } from "@bpt-jersey/domain/schedule/groups";
@@ -10,6 +10,7 @@ import { parseInvoiceRecord, type InvoiceRecord } from "@bpt-jersey/domain/finan
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { isCurrentActorSession } from "../auth/active-session.js";
+import { onCallWithFreshAppCheck } from "../auth/app-check.js";
 import { requireActiveOfficeActor } from "../auth/office-actor.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { createFinanceStore, type FinanceStore } from "../finance/finance-service.js";
@@ -116,7 +117,7 @@ export async function ensurePaygClassInvoice(db: Firestore, input: Readonly<{ ac
 }
 
 /** Preparing an invoice never records a payment. The existing office payment form does that. */
-export const preparePaygClassPayment = onCall(scheduleCallableOptions, async (request) => {
+export const preparePaygClassPayment = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) => {
   const actor = await requireActiveOfficeActor(request);
   const input = classPaymentSchema.safeParse(request.data);
   if (!input.success) throw new HttpsError("invalid-argument", "Choose a member and class.");
@@ -153,7 +154,7 @@ export function assertCoachNearClass(
  * payment only settles what is still owed. Staff confirm before or after the class — a member who
  * pays at reception on arrival is the ordinary case — so the session's start time is not a gate.
  */
-export const confirmPaygClassPayment = onCall(scheduleCallableOptions, async (request) => {
+export const confirmPaygClassPayment = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) => {
   const actor = requireUserActor(request);
   if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) throw new HttpsError("permission-denied", "Staff access required to confirm payment.");
   // This writes to the finance ledger: a token issued before a demotion must not be enough.
@@ -186,7 +187,7 @@ export const confirmPaygClassPayment = onCall(scheduleCallableOptions, async (re
 });
 
 /** A member uploads the transfer screenshot before asking for the booking that will carry it. */
-export const uploadPaygClassProof = onCall({ ...scheduleCallableOptions, secrets: enrolmentStorageSecrets }, async (request) => {
+export const uploadPaygClassProof = onCallWithFreshAppCheck({ ...scheduleCallableOptions, secrets: enrolmentStorageSecrets }, async (request) => {
   const actor = await requireMemberAccountActor(request);
   const input = classPaymentSchema.extend({ contentType: z.enum(["image/png", "image/jpeg"]), base64: z.string().min(4).max(Math.ceil((2 * 1024 * 1024) / 3) * 4) }).strict().safeParse(request.data);
   if (!input.success) throw new HttpsError("invalid-argument", "Choose a PNG or JPEG screenshot up to 2 MB.");
@@ -202,7 +203,7 @@ export const uploadPaygClassProof = onCall({ ...scheduleCallableOptions, secrets
  * Office-only: the screenshot does not show this class paid. The booking stays and the class is
  * owed again ("Needs to pay"); the member can pay at the academy. The object stays in R2 as evidence.
  */
-export const rejectPaygClassProof = onCall(scheduleCallableOptions, async (request) => {
+export const rejectPaygClassProof = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) => {
   const actor = await requireActiveOfficeActor(request);
   const input = classPaymentSchema.safeParse(request.data);
   if (!input.success) throw new HttpsError("invalid-argument", "Choose a member and class.");
@@ -233,7 +234,7 @@ export const rejectPaygClassProof = onCall(scheduleCallableOptions, async (reque
 });
 
 /** Office-only, 60-second signed view of the member's transfer screenshot. */
-export const getPaygClassProofUrl = onCall({ ...scheduleCallableOptions, secrets: enrolmentStorageSecrets }, async (request) => {
+export const getPaygClassProofUrl = onCallWithFreshAppCheck({ ...scheduleCallableOptions, secrets: enrolmentStorageSecrets }, async (request) => {
   const actor = await requireActiveOfficeActor(request);
   const input = classPaymentSchema.safeParse(request.data);
   if (!input.success) throw new HttpsError("invalid-argument", "Choose a member and class.");

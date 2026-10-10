@@ -1,5 +1,5 @@
 import { getFirestore } from "firebase-admin/firestore";
-import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
+import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 
 import {
   parseGrantPermissionCommand,
@@ -7,6 +7,7 @@ import {
   type DelegablePermission,
 } from "@bpt-jersey/domain/staff/permission-grants";
 
+import { onCallWithFreshAppCheck } from "../auth/app-check.js";
 import { browserOrigins } from "../auth/callable-options.js";
 import { requireActiveOfficeActor } from "../auth/office-actor.js";
 import { requireUserActor } from "../auth/user-authorization.js";
@@ -155,17 +156,26 @@ function service(): PermissionGrantService {
 
 // Delegated permissions widen what a coach can do, so a token issued before the caller lost the
 // office role must not be enough: check live Auth (claims, disabled, revoked sessions) first.
-export const grantStaffPermission = onCall(permissionGrantCallableOptions, async (request) => {
-  await requireActiveOfficeActor(request);
-  return createGrantStaffPermissionHandler({ service: service() })(request);
-});
+export const grantStaffPermission = onCallWithFreshAppCheck(
+  permissionGrantCallableOptions,
+  async (request) => {
+    await requireActiveOfficeActor(request);
+    return createGrantStaffPermissionHandler({ service: service() })(request);
+  },
+);
 
-export const revokeStaffPermission = onCall(permissionGrantCallableOptions, async (request) => {
-  await requireActiveOfficeActor(request);
-  return createRevokeStaffPermissionHandler({ service: service() })(request);
-});
+export const revokeStaffPermission = onCallWithFreshAppCheck(
+  permissionGrantCallableOptions,
+  async (request) => {
+    await requireActiveOfficeActor(request);
+    return createRevokeStaffPermissionHandler({ service: service() })(request);
+  },
+);
 
-export const listStaffPermissionGrants = onCall(permissionGrantCallableOptions, async (request) => {
-  await requireActiveOfficeActor(request);
-  return createListStaffPermissionGrantsHandler({ service: service() })(request);
-});
+export const listStaffPermissionGrants = onCallWithFreshAppCheck(
+  permissionGrantCallableOptions,
+  async (request) => {
+    await requireActiveOfficeActor(request);
+    return createListStaffPermissionGrantsHandler({ service: service() })(request);
+  },
+);

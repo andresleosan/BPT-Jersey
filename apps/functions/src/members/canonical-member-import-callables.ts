@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { createRequire } from "node:module";
 
 import { getApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
@@ -39,7 +38,7 @@ import {
   createMemberDirectoryIntegrityMac,
 } from "./member-directory-crypto.js";
 import { assertMemberDirectoryOperationEnvironment } from "./member-directory-environment.js";
-import { formatMemberPdfTextItems } from "./member-pdf-text.js";
+import { extractMemberPdfText } from "./member-pdf-extractor.js";
 import {
   MemberPdfImportLimitError,
   parseMemberReport,
@@ -701,46 +700,6 @@ export async function confirmCanonicalMemberImportHandler(
   }
 }
 
-type PdfParseResult = Readonly<{ text: string }>;
-type PdfTextPage = Readonly<{
-  getTextContent: (
-    options: Readonly<{ normalizeWhitespace: boolean; disableCombineTextItems: boolean }>,
-  ) => Promise<{ items: readonly Readonly<{ str: string; transform: readonly number[] }>[] }>;
-}>;
-type PdfParseOptions = Readonly<{ pagerender?: (page: PdfTextPage) => Promise<string> }>;
-
-async function extractPdfText(bytes: Uint8Array): Promise<string> {
-  const loaded = createRequire(import.meta.url)("pdf-parse") as
-    | ((input: Uint8Array, options?: PdfParseOptions) => Promise<PdfParseResult>)
-    | { default?: (input: Uint8Array, options?: PdfParseOptions) => Promise<PdfParseResult> };
-  const parser = typeof loaded === "function" ? loaded : loaded.default;
-  if (parser === undefined) throw new Error("PDF parser unavailable");
-  let pageNumber = 0;
-  const result = await parser(bytes, {
-    pagerender: async (page) => {
-      pageNumber += 1;
-      const content = await page.getTextContent({
-        disableCombineTextItems: true,
-        normalizeWhitespace: false,
-      });
-      return formatMemberPdfTextItems(
-        content.items.flatMap((item) => {
-          const x = item.transform[4];
-          const y = item.transform[5];
-          return typeof x === "number" &&
-            typeof y === "number" &&
-            Number.isFinite(x) &&
-            Number.isFinite(y)
-            ? [{ page: pageNumber, str: item.str, x, y }]
-            : [];
-        }),
-      );
-    },
-  });
-  if (typeof result.text !== "string") throw new Error("PDF text is invalid");
-  return result.text;
-}
-
 export function createCanonicalMemberImportSourceReader(
   input: Readonly<{
     r2: R2Client;
@@ -764,7 +723,7 @@ export function createCanonicalMemberImportSourceReader(
             bytes[3] !== 70
           )
             throw new CanonicalMemberImportSourceError("invalid");
-          const text = await (input.pdfTextExtractor?.(bytes) ?? extractPdfText(bytes));
+          const text = await (input.pdfTextExtractor?.(bytes) ?? extractMemberPdfText(bytes));
           const remaining = 50 - rows.length;
           const report = parseMemberReport(text, { maxRows: remaining });
           for (const row of report.rows) {

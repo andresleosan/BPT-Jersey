@@ -1,6 +1,6 @@
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { getFirestore } from "firebase-admin/firestore";
-import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
+import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 
 import {
   parseIssueNextWaitlistOfferInput,
@@ -9,6 +9,7 @@ import {
   type WaitlistEntryRecord,
 } from "@bpt-jersey/domain/schedule/advanced-booking";
 import { clientIpFromRequest } from "../audit/client-ip.js";
+import { onCallWithFreshAppCheck } from "../auth/app-check.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import {
   createFirestoreWaitlistStore,
@@ -341,24 +342,24 @@ function scopeOptions(): ScopeOptions {
   };
 }
 
-export const joinWaitlist = onCall(scheduleCallableOptions, async (request) =>
+export const joinWaitlist = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createJoinWaitlistHandler(scopeOptions())(request),
 );
-export const cancelWaitlistEntry = onCall(scheduleCallableOptions, async (request) =>
+export const cancelWaitlistEntry = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createCancelWaitlistHandler(scopeOptions())(request),
 );
-export const issueNextWaitlistOffer = onCall(scheduleCallableOptions, async (request) =>
+export const issueNextWaitlistOffer = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createIssueNextWaitlistOfferHandler({ waitlistStore: getStore() })(request),
 );
-export const acceptWaitlistOffer = onCall(scheduleCallableOptions, async (request) =>
+export const acceptWaitlistOffer = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createAcceptWaitlistOfferHandler(scopeOptions())(request),
 );
-export const declineWaitlistOffer = onCall(scheduleCallableOptions, async (request) =>
+export const declineWaitlistOffer = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createDeclineWaitlistOfferHandler(scopeOptions())(request),
 );
-export const listStudentWaitlist = onCall(scheduleCallableOptions, async (request) =>
+export const listStudentWaitlist = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createListStudentWaitlistHandler(scopeOptions())(request),
 );
-export const listSessionWaitlist = onCall(scheduleCallableOptions, async (request) =>
+export const listSessionWaitlist = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createListSessionWaitlistHandler({ waitlistStore: getStore() })(request),
 );

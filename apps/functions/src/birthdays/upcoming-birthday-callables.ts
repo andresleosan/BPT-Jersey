@@ -1,8 +1,9 @@
 import { getFirestore } from "firebase-admin/firestore";
-import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
+import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 
 import { parseUpcomingBirthdayQuery } from "@bpt-jersey/domain/birthdays";
 
+import { onCallWithFreshAppCheck } from "../auth/app-check.js";
 import { browserOrigins } from "../auth/callable-options.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import {
@@ -63,6 +64,7 @@ function getService(): UpcomingBirthdayService {
   return service;
 }
 
-export const listUpcomingBirthdays = onCall(upcomingBirthdayCallableOptions, async (request) =>
-  createListUpcomingBirthdaysHandler({ service: getService() })(request),
+export const listUpcomingBirthdays = onCallWithFreshAppCheck(
+  upcomingBirthdayCallableOptions,
+  async (request) => createListUpcomingBirthdaysHandler({ service: getService() })(request),
 );

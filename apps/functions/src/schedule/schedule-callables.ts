@@ -45,6 +45,7 @@ import {
 
 import { clientIpFromRequest } from "../audit/client-ip.js";
 import { requireUserActor } from "../auth/user-authorization.js";
+import { onCallWithFreshAppCheck } from "../auth/app-check.js";
 import {
   BookingTransactionError,
   confirmBookingInTransaction,
@@ -1721,11 +1722,11 @@ export const listScheduleCatalog = onCall(scheduleReadCallableOptions, async (re
   createListScheduleCatalogHandler({ store: getStore() })(request),
 );
 
-export const saveLocationGeofence = onCall(scheduleCallableOptions, async (request) =>
+export const saveLocationGeofence = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createSaveLocationGeofenceHandler({ store: getStore() })(request),
 );
 
-export const saveProgram = onCall(scheduleCallableOptions, async (request) =>
+export const saveProgram = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createSaveProgramHandler({ store: getStore() })(request),
 );
 
@@ -1767,31 +1768,31 @@ export const getDailyOperationsDashboard = onCall(scheduleReadCallableOptions, a
   createGetDailyOperationsDashboardHandler({ store: getStore() })(request),
 );
 
-export const saveClass = onCall(scheduleCallableOptions, async (request) =>
+export const saveClass = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createSaveClassHandler({ store: getStore() })(request),
 );
 
-export const updateClass = onCall(scheduleCallableOptions, async (request) =>
+export const updateClass = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createUpdateClassHandler({ store: getStore() })(request),
 );
 
-export const generateSessions = onCall(scheduleCallableOptions, async (request) =>
+export const generateSessions = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createGenerateSessionsHandler({ store: getStore() })(request),
 );
 
-export const saveSession = onCall(scheduleCallableOptions, async (request) =>
+export const saveSession = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createSaveSessionHandler({ store: getStore() })(request),
 );
 
-export const cancelSession = onCall(scheduleCallableOptions, async (request) =>
+export const cancelSession = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createCancelSessionHandler({ store: getStore() })(request),
 );
 
-export const updateSession = onCall(scheduleCallableOptions, async (request) =>
+export const updateSession = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createUpdateSessionHandler({ store: getStore() })(request),
 );
 
-export const removeClass = onCall(scheduleCallableOptions, async (request) =>
+export const removeClass = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createRemoveClassHandler({ store: getStore() })(request),
 );
 
@@ -1799,16 +1800,16 @@ export const listSessionBookedCounts = onCall(scheduleReadCallableOptions, async
   createListSessionBookedCountsHandler({ store: getStore() })(request),
 );
 
-export const requestBooking = onCall(
+export const requestBooking = onCallWithFreshAppCheck(
   { ...scheduleCallableOptions, secrets: enrolmentStorageSecrets },
   async (request) => createRequestBookingHandler(getStudentScopeOptions())(request),
 );
 
-export const bulkBookEligibleSessions = onCall(scheduleCallableOptions, async (request) =>
+export const bulkBookEligibleSessions = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createBulkBookEligibleSessionsHandler(getStudentScopeOptions())(request),
 );
 
-export const cancelBooking = onCall(scheduleCallableOptions, async (request) =>
+export const cancelBooking = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createCancelBookingHandler(getStudentScopeOptions())(request),
 );
 
@@ -1823,20 +1824,20 @@ export const listStudentBookings = onCall(scheduleReadCallableOptions, async (re
   createListStudentBookingsHandler(getStudentScopeOptions())(request),
 );
 
-export const evaluateSessionMinimum = onCall(scheduleCallableOptions, async (request) =>
+export const evaluateSessionMinimum = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createEvaluateSessionMinimumHandler({ store: getStore() })(request),
 );
 
-export const checkIn = onCall(scheduleCallableOptions, async (request) => {
+export const checkIn = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) => {
   await guardCourseStaffSession(request);
   return createCheckInHandler({ store: getStore() })(request);
 });
 
-export const selfCheckIn = onCall(scheduleCallableOptions, async (request) =>
+export const selfCheckIn = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createSelfCheckInHandler({ store: getStore() })(request),
 );
 
-export const walkInCheckIn = onCall(scheduleCallableOptions, async (request) =>
+export const walkInCheckIn = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createWalkInCheckInHandler({ store: getStore() })(request),
 );
 
@@ -1844,11 +1845,11 @@ export const searchAttendanceMembers = onCall(scheduleReadCallableOptions, async
   createSearchAttendanceMembersHandler()(request),
 );
 
-export const staffWalkInAttendance = onCall(scheduleCallableOptions, async (request) =>
+export const staffWalkInAttendance = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createStaffWalkInAttendanceHandler({ store: getStore() })(request),
 );
 
-export const reconcileSessionQuorum = onCall(scheduleCallableOptions, async (request) =>
+export const reconcileSessionQuorum = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createReconcileSessionQuorumHandler({ store: getStore() })(request),
 );
 
@@ -1861,12 +1862,12 @@ export const listStudentAttendance = onCall(scheduleReadCallableOptions, async (
   createListStudentAttendanceHandler(getStudentScopeOptions())(request),
 );
 
-export const correctAttendance = onCall(scheduleCallableOptions, async (request) => {
+export const correctAttendance = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) => {
   await guardCourseStaffSession(request);
   return createCorrectAttendanceHandler({ store: getStore() })(request);
 });
 
-export const reconcileSessionNoShows = onCall(scheduleCallableOptions, async (request) => {
+export const reconcileSessionNoShows = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) => {
   await guardCourseStaffSession(request);
   return createReconcileSessionNoShowsHandler({ store: getStore() })(request);
 });
@@ -1875,7 +1876,7 @@ export const listAttendanceHistory = onCall(scheduleReadCallableOptions, async (
   createListAttendanceHistoryHandler(getStudentScopeOptions())(request),
 );
 
-export const recordCheckout = onCall(scheduleCallableOptions, async (request) => {
+export const recordCheckout = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) => {
   await guardCourseStaffSession(request);
   return createRecordCheckoutHandler(getStudentScopeOptions())(request);
 });
@@ -1894,31 +1895,31 @@ export const getSessionOperationalView = onCall(scheduleReadCallableOptions, asy
   return createGetSessionOperationalViewHandler({ store: getStore() })(request);
 });
 
-export const saveLocation = onCall(scheduleCallableOptions, async (request) =>
+export const saveLocation = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createSaveLocationHandler({ store: getStore() })(request),
 );
 
-export const updateLocation = onCall(scheduleCallableOptions, async (request) =>
+export const updateLocation = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createUpdateLocationHandler({ store: getStore() })(request),
 );
 
-export const updateProgram = onCall(scheduleCallableOptions, async (request) =>
+export const updateProgram = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createUpdateProgramHandler({ store: getStore() })(request),
 );
 
-export const previewWeek = onCall(scheduleCallableOptions, async (request) =>
+export const previewWeek = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createPreviewWeekHandler({ store: getStore() })(request),
 );
 
-export const copyWeek = onCall(scheduleCallableOptions, async (request) =>
+export const copyWeek = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createCopyWeekHandler({ store: getStore() })(request),
 );
 
-export const deleteWeek = onCall(scheduleCallableOptions, async (request) =>
+export const deleteWeek = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createDeleteWeekHandler({ store: getStore() })(request),
 );
 
-export const deleteProgram = onCall(scheduleCallableOptions, async (request) =>
+export const deleteProgram = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createDeleteProgramHandler({ store: getStore() })(request),
 );
 
@@ -2005,11 +2006,11 @@ export function createCancelPrivateLessonBookingHandler(
   };
 }
 
-export const bookPrivateLesson = onCall(scheduleCallableOptions, async (request) =>
+export const bookPrivateLesson = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createBookPrivateLessonHandler()(request),
 );
 
-export const cancelPrivateLessonBooking = onCall(scheduleCallableOptions, async (request) =>
+export const cancelPrivateLessonBooking = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createCancelPrivateLessonBookingHandler()(request),
 );
 
@@ -2130,6 +2131,6 @@ export function createSchedulePrivateLessonsHandler() {
   };
 }
 
-export const schedulePrivateLessons = onCall(scheduleCallableOptions, async (request) =>
+export const schedulePrivateLessons = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) =>
   createSchedulePrivateLessonsHandler()(request),
 );

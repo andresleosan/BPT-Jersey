@@ -1,10 +1,11 @@
 import { getCourseRoster } from "../courses/course-roster.js";
 import { requireCourseActor } from "../courses/course-authorization.js";
 import { getFirestore } from "firebase-admin/firestore";
-import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
+import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 
 import { parsePreClassViewQuery } from "@bpt-jersey/domain/schedule/pre-class";
 
+import { onCallWithFreshAppCheck } from "../auth/app-check.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { scheduleCallableOptions } from "./schedule-callable-options.js";
 import {
@@ -64,7 +65,7 @@ function getService(): PreClassService {
   return service;
 }
 
-export const getPreClassView = onCall(scheduleCallableOptions, async (request) => {
+export const getPreClassView = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) => {
   const parsed = parsePreClassViewQuery(request.data);
   if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
   const actor = requireUserActor(request);

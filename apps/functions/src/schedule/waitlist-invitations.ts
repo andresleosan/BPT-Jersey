@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
 import { FieldPath, getFirestore, type Transaction } from "firebase-admin/firestore";
-import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
 import { parseCreateSessionInput, isIntroductionClass, isWithinBookingCutoff, type SessionRecord } from "@bpt-jersey/domain/schedule";
 import { parseWaitlistEntryRecord } from "@bpt-jersey/domain/schedule/advanced-booking";
 import { parseMembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle";
 import type { InvitationPage, WaitlistInvitationView, WaitlistClassResult } from "@bpt-jersey/domain/schedule/waitlist-invitations";
+import { onCallWithFreshAppCheck } from "../auth/app-check.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { createMemberDirectoryReadTransaction } from "../members/member-directory-firestore.js";
@@ -37,7 +38,7 @@ async function hasOriginalBooking(tx: Transaction, academyId: string, studentId:
   return bookings.docs.some((doc) => doc.data().status === "confirmed");
 }
 
-export const getWaitlistClassSource = onCall(scheduleCallableOptions, async (request) => {
+export const getWaitlistClassSource = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) => {
   const actor = requireUserActor(request);
   if (actor.role !== "owner") throw new HttpsError("permission-denied", "Owner access required");
   const sessionId = id(request.data?.sessionId), db = getFirestore(), base = `academies/${actor.academyId}`;
@@ -53,7 +54,7 @@ export const getWaitlistClassSource = onCall(scheduleCallableOptions, async (req
 });
 
 /** One stable session, then resumable bounded fan-out. No booking is created here. */
-export const createWaitlistClass = onCall(scheduleCallableOptions, async (request): Promise<WaitlistClassResult> => {
+export const createWaitlistClass = onCallWithFreshAppCheck(scheduleCallableOptions, async (request): Promise<WaitlistClassResult> => {
   const actor = requireUserActor(request);
   if (actor.role !== "owner") throw new HttpsError("permission-denied", "Only the owner can create a class from Waitlist");
   const sourceSessionId = id(request.data?.sourceSessionId);
@@ -139,7 +140,7 @@ async function invitationView(tx: Transaction, base: string, invitation: Invitat
     createdAt: invitation.createdAt, respondedAt: invitation.respondedAt };
 }
 
-export const listWaitlistClassInvitations = onCall(scheduleCallableOptions, async (request): Promise<InvitationPage> => {
+export const listWaitlistClassInvitations = onCallWithFreshAppCheck(scheduleCallableOptions, async (request): Promise<InvitationPage> => {
   const actor = requireUserActor(request);
   const studentId = id(request.data?.studentId);
   await requireMemberAccountActor(request);
@@ -156,7 +157,7 @@ export const listWaitlistClassInvitations = onCall(scheduleCallableOptions, asyn
   });
 });
 
-export const respondWaitlistClassInvitation = onCall(scheduleCallableOptions, async (request) => {
+export const respondWaitlistClassInvitation = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) => {
   const actor = requireUserActor(request);
   await requireMemberAccountActor(request);
   const studentId = id(request.data?.studentId), invitationId = id(request.data?.invitationId);
@@ -231,7 +232,7 @@ export const respondWaitlistClassInvitation = onCall(scheduleCallableOptions, as
   }
 });
 
-export const listWaitlistClassHistory = onCall(scheduleCallableOptions, async (request) => {
+export const listWaitlistClassHistory = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) => {
   const actor = requireUserActor(request);
   if (actor.role !== "owner") throw new HttpsError("permission-denied", "Owner access required");
   const sourceSessionId = request.data?.sourceSessionId === undefined ? undefined : id(request.data.sourceSessionId);

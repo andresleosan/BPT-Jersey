@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { createRequire } from "node:module";
 import { lstat, readdir, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -13,7 +12,7 @@ import {
   type ParsedMemberRow,
 } from "./member-pdf-import.js";
 import { MAX_MEMBER_REPORT_ROWS, type MemberImportWriteResult } from "./member-service.js";
-import { formatMemberPdfTextItems } from "./member-pdf-text.js";
+import { extractMemberPdfText } from "./member-pdf-extractor.js";
 
 const approvedTarget = "emulator" as const;
 const approvedProjectId = "demo-bpt-jersey" as const;
@@ -159,19 +158,6 @@ export type MemberPdfImportCliResult = Readonly<{
   input: MemberPdfImportCliArguments;
   result: MemberPdfImportExecutionResult;
 }>;
-
-type PdfParseResult = Readonly<{ text: string }>;
-type PdfTextPage = Readonly<{
-  getTextContent: (
-    options: Readonly<{
-      normalizeWhitespace: boolean;
-      disableCombineTextItems: boolean;
-    }>,
-  ) => Promise<{
-    items: readonly Readonly<{ str: string; transform: readonly number[] }>[];
-  }>;
-}>;
-type PdfParseOptions = Readonly<{ pagerender?: (page: PdfTextPage) => Promise<string> }>;
 
 function requireText(value: unknown, name: string, maxLength = maxRunIdLength): string {
   if (typeof value !== "string" || value.trim().length === 0 || value.length > maxLength) {
@@ -382,38 +368,6 @@ export function stableMemberPdfImportOperationId(runId: string, sourceHash: stri
     .digest("hex")}`;
 }
 
-async function extractPdfText(bytes: Uint8Array): Promise<string> {
-  const pdfParse = createRequire(import.meta.url)("pdf-parse") as
-    | ((input: Uint8Array, options?: PdfParseOptions) => Promise<PdfParseResult>)
-    | { default?: (input: Uint8Array, options?: PdfParseOptions) => Promise<PdfParseResult> };
-  const parser = typeof pdfParse === "function" ? pdfParse : pdfParse.default;
-  if (parser === undefined) throw new Error("PDF parser unavailable");
-  let pageNumber = 0;
-  const result = await parser(bytes, {
-    pagerender: async (page) => {
-      pageNumber += 1;
-      const content = await page.getTextContent({
-        disableCombineTextItems: true,
-        normalizeWhitespace: false,
-      });
-      return formatMemberPdfTextItems(
-        content.items.flatMap((item) => {
-          const x = item.transform[4];
-          const y = item.transform[5];
-          return typeof x === "number" &&
-            typeof y === "number" &&
-            Number.isFinite(x) &&
-            Number.isFinite(y)
-            ? [{ page: pageNumber, str: item.str, x, y }]
-            : [];
-        }),
-      );
-    },
-  });
-  if (typeof result.text !== "string") throw new Error("PDF text is invalid");
-  return result.text;
-}
-
 export async function buildMemberPdfImportPlan(
   input: Readonly<{
     sourceRoot: string;
@@ -441,7 +395,7 @@ export async function buildMemberPdfImportPlan(
     validateMemberPdfImportFileSize(fileStats.size);
     const bytes = await readFile(file);
     validateMemberPdfImportFileSize(bytes.byteLength);
-    const text = await (input.extractText?.(file) ?? extractPdfText(bytes));
+    const text = await (input.extractText?.(file) ?? extractMemberPdfText(bytes));
     reports.push(parseMemberPdfImportReport(text));
   }
   validateMemberPdfImportReportSet(reports);

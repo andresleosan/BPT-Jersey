@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { createRequire } from "node:module";
 
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
@@ -48,7 +47,7 @@ import {
   type ParsedMemberRow,
   type ParsedMemberReport,
 } from "./member-pdf-import.js";
-import { formatMemberPdfTextItems } from "./member-pdf-text.js";
+import { extractMemberPdfText } from "./member-pdf-extractor.js";
 
 export { MAX_MEMBER_REPORT_ROWS, MAX_MEMBER_SEARCH_ROWS } from "./member-service.js";
 
@@ -805,7 +804,7 @@ async function parseImportReports(
     if (bytes[0] !== 37 || bytes[1] !== 80 || bytes[2] !== 68 || bytes[3] !== 70) {
       throw new HttpsError("invalid-argument", "Uploaded file is not a PDF");
     }
-    const text = await (services.pdfTextExtractor?.(bytes) ?? extractPdfText(bytes));
+    const text = await (services.pdfTextExtractor?.(bytes) ?? extractMemberPdfText(bytes));
     try {
       const report = parseMemberReport(text, { maxRows: MAX_MEMBER_IMPORT_ROWS });
       totalRows += report.rows.length;
@@ -917,52 +916,6 @@ function defaultServices(): MemberCallableServices {
     previewStore: createFirestoreMemberImportPreviewStore(getFirestore()),
     reportPdf: createMemberReportPdf,
   };
-}
-
-type PdfParseResult = Readonly<{ text: string }>;
-
-type PdfTextPage = Readonly<{
-  getTextContent: (
-    options: Readonly<{ normalizeWhitespace: boolean; disableCombineTextItems: boolean }>,
-  ) => Promise<{
-    items: readonly Readonly<{ str: string; transform: readonly number[] }>[];
-  }>;
-}>;
-
-type PdfParseOptions = Readonly<{
-  pagerender?: (page: PdfTextPage) => Promise<string>;
-}>;
-
-async function extractPdfText(bytes: Uint8Array): Promise<string> {
-  const pdfParse = createRequire(import.meta.url)("pdf-parse") as
-    | ((input: Uint8Array, options?: PdfParseOptions) => Promise<PdfParseResult>)
-    | { default?: (input: Uint8Array, options?: PdfParseOptions) => Promise<PdfParseResult> };
-  const parser = typeof pdfParse === "function" ? pdfParse : pdfParse.default;
-  if (parser === undefined) throw new Error("PDF parser unavailable");
-  let pageNumber = 0;
-  const result = await parser(bytes, {
-    pagerender: async (page) => {
-      pageNumber += 1;
-      const content = await page.getTextContent({
-        disableCombineTextItems: true,
-        normalizeWhitespace: false,
-      });
-      return formatMemberPdfTextItems(
-        content.items.flatMap((item) => {
-          const x = item.transform[4];
-          const y = item.transform[5];
-          return typeof x === "number" &&
-            typeof y === "number" &&
-            Number.isFinite(x) &&
-            Number.isFinite(y)
-            ? [{ page: pageNumber, str: item.str, x, y }]
-            : [];
-        }),
-      );
-    },
-  });
-  if (typeof result.text !== "string") throw new Error("PDF text is invalid");
-  return result.text;
 }
 
 async function authorizedDefault<T>(

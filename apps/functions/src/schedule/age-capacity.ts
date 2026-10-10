@@ -5,7 +5,7 @@ import { isIntroductionClass, type SessionRecord } from "@bpt-jersey/domain/sche
 import { resolveCanonicalStudentIdInTransaction } from "../members/member-identity-resolution.js";
 import type { BookingFirestore, BookingTransaction } from "./booking-transaction-service.js";
 import { getFirestore } from "firebase-admin/firestore";
-import { onCall } from "firebase-functions/v2/https";
+import { onCallWithFreshAppCheck } from "../auth/app-check.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { scheduleCallableOptions } from "./schedule-callable-options.js";
 
@@ -87,7 +87,7 @@ export async function assertAgeCapacityEdit(input: Reader & { current: SessionRe
   }
 }
 
-export const getSessionAgeAvailability = onCall(scheduleCallableOptions, async (request) => {
+export const getSessionAgeAvailability = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) => {
   const actor = requireUserActor(request);
   if (!["owner", "administrator", "headCoach", "coach"].includes(actor.role)) throw new HttpsError("permission-denied", "Staff access required");
   const sessionId = request.data?.sessionId;

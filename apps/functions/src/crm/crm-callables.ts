@@ -1,5 +1,5 @@
 import { getFirestore } from "firebase-admin/firestore";
-import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
+import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 
 import {
   leadStatuses,
@@ -8,6 +8,7 @@ import {
   type LeadTimelineEvent,
 } from "@bpt-jersey/domain/crm";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
+import { onCallWithActiveUserActor } from "../auth/office-actor.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { createFirestoreCrmStore, type CrmStore, type LeadListFilter } from "./crm-service.js";
 
@@ -173,15 +174,19 @@ function getStore(): CrmStore {
   return defaultStore;
 }
 
-export const listCrmLeads = onCall(browserAdminCallableOptions, async (request) =>
-  createListLeadsHandler({ store: getStore() })(request),
+export const listCrmLeads = onCallWithActiveUserActor(
+  browserAdminCallableOptions,
+  async (request) => createListLeadsHandler({ store: getStore() })(request),
 );
-export const updateCrmLead = onCall(browserAdminCallableOptions, async (request) =>
-  createUpdateLeadHandler({ store: getStore() })(request),
+export const updateCrmLead = onCallWithActiveUserActor(
+  browserAdminCallableOptions,
+  async (request) => createUpdateLeadHandler({ store: getStore() })(request),
 );
-export const transitionCrmLead = onCall(browserAdminCallableOptions, async (request) =>
-  createTransitionLeadHandler({ store: getStore() })(request),
+export const transitionCrmLead = onCallWithActiveUserActor(
+  browserAdminCallableOptions,
+  async (request) => createTransitionLeadHandler({ store: getStore() })(request),
 );
-export const listCrmLeadTimeline = onCall(browserAdminCallableOptions, async (request) =>
-  createListLeadTimelineHandler({ store: getStore() })(request),
+export const listCrmLeadTimeline = onCallWithActiveUserActor(
+  browserAdminCallableOptions,
+  async (request) => createListLeadTimelineHandler({ store: getStore() })(request),
 );

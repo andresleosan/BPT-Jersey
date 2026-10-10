@@ -1,7 +1,7 @@
 # Cloudflare Pages header rules. The staff, admin and coach surfaces are reached by URL only and
 # must not be indexed; access itself is enforced by Firebase claims, callables and Rules.
 /*
-  Content-Security-Policy: frame-ancestors 'self'; base-uri 'self'; object-src 'none'
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' 'unsafe-inline' https://apis.google.com https://www.google.com https://www.gstatic.com; script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://*.bptjersey.com https://*.cloudfunctions.net https://*.firebaseapp.com https://*.firebaseio.com https://*.googleapis.com https://*.r2.cloudflarestorage.com https://accounts.google.com https://apis.google.com https://www.google.com https://www.gstatic.com wss://*.firebaseio.com; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://www.google.com; worker-src 'self' blob:; media-src 'self' blob: https:; manifest-src 'self'; upgrade-insecure-requests
   X-Frame-Options: SAMEORIGIN
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin

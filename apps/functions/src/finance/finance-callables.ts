@@ -2,7 +2,7 @@ import { listPayerFamilyIds } from "./payer-scope-service.js";
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
+import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 
 import type { UserActorContext } from "@bpt-jersey/domain";
 import {
@@ -15,6 +15,7 @@ import type { RecentPaymentRow } from "@bpt-jersey/domain/finance";
 import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
+import { onCallWithFreshAppCheck } from "../auth/app-check.js";
 import { createFamilyStore, type FamilyStore } from "../families/family-service.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { isCurrentActorSession } from "../auth/active-session.js";
@@ -540,39 +541,45 @@ export const financeCallableOptions = {
   consumeAppCheckToken: true,
 };
 
-export const issueManualInvoice = onCall(financeCallableOptions, async (request) =>
+export const issueManualInvoice = onCallWithFreshAppCheck(financeCallableOptions, async (request) =>
   issueManualInvoiceHandler(request, financeCallableServices()),
 );
-export const recordManualPayment = onCall(financeCallableOptions, async (request) =>
-  recordManualPaymentHandler(request, financeCallableServices()),
+export const recordManualPayment = onCallWithFreshAppCheck(
+  financeCallableOptions,
+  async (request) => recordManualPaymentHandler(request, financeCallableServices()),
 );
 /** Single-use App Check tokens, as the billing client already sends for every finance call. */
 export const editManualPaymentCallableOptions = {
   ...browserAdminCallableOptions,
   consumeAppCheckToken: true,
 };
-export const editManualPayment = onCall(editManualPaymentCallableOptions, async (request) =>
-  editManualPaymentHandler(request, financeCallableServices()),
+export const editManualPayment = onCallWithFreshAppCheck(
+  editManualPaymentCallableOptions,
+  async (request) => editManualPaymentHandler(request, financeCallableServices()),
 );
-export const voidManualPayment = onCall(editManualPaymentCallableOptions, async (request) =>
-  voidManualPaymentHandler(request, financeCallableServices()),
+export const voidManualPayment = onCallWithFreshAppCheck(
+  editManualPaymentCallableOptions,
+  async (request) => voidManualPaymentHandler(request, financeCallableServices()),
 );
-export const voidManualInvoice = onCall(financeCallableOptions, async (request) =>
+export const voidManualInvoice = onCallWithFreshAppCheck(financeCallableOptions, async (request) =>
   voidManualInvoiceHandler(request, financeCallableServices()),
 );
-export const savePaymentInstructions = onCall(financeCallableOptions, async (request) =>
-  savePaymentInstructionsHandler(request, financeCallableServices()),
+export const savePaymentInstructions = onCallWithFreshAppCheck(
+  financeCallableOptions,
+  async (request) => savePaymentInstructionsHandler(request, financeCallableServices()),
 );
 
-export const listFinancialAccount = onCall(financeCallableOptions, async (request) =>
-  listFinancialAccountHandler(request, financeCallableServices()),
+export const listFinancialAccount = onCallWithFreshAppCheck(
+  financeCallableOptions,
+  async (request) => listFinancialAccountHandler(request, financeCallableServices()),
 );
-export const getInvoice = onCall(financeCallableOptions, async (request) =>
+export const getInvoice = onCallWithFreshAppCheck(financeCallableOptions, async (request) =>
   getInvoiceHandler(request, financeCallableServices()),
 );
-export const listRecentPayments = onCall(financeCallableOptions, async (request) =>
+export const listRecentPayments = onCallWithFreshAppCheck(financeCallableOptions, async (request) =>
   listRecentPaymentsHandler(request, financeCallableServices()),
 );
-export const getFamilyFinancialAccount = onCall(financeCallableOptions, async (request) =>
-  getFamilyFinancialAccountHandler(request, financeCallableServices()),
+export const getFamilyFinancialAccount = onCallWithFreshAppCheck(
+  financeCallableOptions,
+  async (request) => getFamilyFinancialAccountHandler(request, financeCallableServices()),
 );

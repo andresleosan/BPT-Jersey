@@ -19,6 +19,7 @@ import {
 } from "@bpt-jersey/domain/schedule/member-calendar";
 
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
+import { onCallWithFreshAppCheck } from "../auth/app-check.js";
 import { enrolmentStorageSecrets } from "../members/enrolment-payment-proof.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { createMemberDirectoryReadTransaction } from "../members/member-directory-firestore.js";
@@ -259,13 +260,13 @@ export const getMemberCalendarWeek = onCall(
 
 const memberBookingOptions = { ...scheduleCallableOptions, region: memberRegion };
 
-export const requestBookingEu = onCall(
+export const requestBookingEu = onCallWithFreshAppCheck(
   // A pay-as-you-go booking can carry a transfer screenshot, which lives in private storage.
   { ...memberBookingOptions, secrets: enrolmentStorageSecrets },
   async (request) => createRequestBookingHandler(getStudentScopeOptions())(request),
 );
 
-export const cancelBookingEu = onCall(memberBookingOptions, async (request) =>
+export const cancelBookingEu = onCallWithFreshAppCheck(memberBookingOptions, async (request) =>
   createCancelBookingHandler(getStudentScopeOptions())(request),
 );
 
