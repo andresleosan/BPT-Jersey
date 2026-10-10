@@ -765,9 +765,7 @@ export default function CoachDashboardPage() {
                         {birthday.trainingCenter}
                       </div>
                     </div>
-                    <span>
-                      {birthdayWhenLabel(birthday.daysAway)} &middot; turns {birthday.turningAge}
-                    </span>
+                    <span>{birthdayWhenLabel(birthday.daysAway)}</span>
                   </div>
                 ))}
               </div>

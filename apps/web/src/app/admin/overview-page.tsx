@@ -90,7 +90,9 @@ function BirthdayTodayBand({ entries }: { entries: readonly UpcomingBirthday[] }
       <p className="admin-eyebrow">Birthday today</p>
       <h3>
         {today.length === 1 && first
-          ? `${first.displayName} turns ${first.turningAge} today`
+          ? first.turningAge === undefined
+            ? `${first.displayName}'s birthday is today`
+            : `${first.displayName} turns ${first.turningAge} today`
           : `${today.length} birthdays today`}
       </h3>
       <ul className="admin-birthday-today-names">
@@ -132,7 +134,9 @@ function NextBirthdaysCard({ state }: { state: BirthdayState }) {
               <strong>
                 <Link href={recordHref(entry.studentId)}>{entry.displayName}</Link>
               </strong>
-              <span className="admin-birthday-age">turns {entry.turningAge}</span>
+              {entry.turningAge !== undefined && (
+                <span className="admin-birthday-age">turns {entry.turningAge}</span>
+              )}
             </li>
           ))}
         </ol>

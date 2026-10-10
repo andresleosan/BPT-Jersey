@@ -34,12 +34,19 @@ export function createListUpcomingBirthdaysHandler(options: { service: UpcomingB
     }
     const parsed = parseUpcomingBirthdayQuery(request.data);
     if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
+    // turningAge plus daysAway is the full date of birth, which only the office may see; a short
+    // window for coaches also stops one call from listing the whole year.
+    const office = actor.role === "owner" || actor.role === "administrator";
+    const query = office
+      ? parsed.value
+      : { ...parsed.value, windowDays: Math.min(parsed.value.windowDays, 14) };
     try {
+      const birthdays = await options.service.listUpcomingBirthdays({
+        academyId: actor.academyId,
+        query,
+      });
       return {
-        birthdays: await options.service.listUpcomingBirthdays({
-          academyId: actor.academyId,
-          query: parsed.value,
-        }),
+        birthdays: office ? birthdays : birthdays.map(({ turningAge: _omit, ...rest }) => rest),
       };
     } catch (error) {
       if (error instanceof HttpsError) throw error;

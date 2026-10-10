@@ -259,14 +259,9 @@ export * from "./promotion/promotion-callables.js";
 export * from "./competitors/competitors-callables.js";
 export * from "./session-roster/session-roster-callables.js";
 export * from "./account-settings/account-settings-callables.js";
-export {
-  beginMemberRecovery,
-  completeMemberRecovery,
-  listMemberRecoveryRequests,
-  getMemberRecoveryDetail,
-  getMemberRecoveryHistory,
-  reviewMemberRecovery,
-} from "./members/member-recovery-callables.js";
+// Member access recovery left the web app on 2026-09-23 (a88ef48); only the recovered-history
+// view on Progress still reads it, so the begin/complete/review callables are no longer deployed.
+export { getMemberRecoveryHistory } from "./members/member-recovery-callables.js";
 
 export {
   listMemberSubscriptions,

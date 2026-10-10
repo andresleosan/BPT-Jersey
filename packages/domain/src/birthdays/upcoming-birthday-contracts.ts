@@ -7,10 +7,10 @@ import { err, ok, type Result } from "../result";
  * The birth year never leaves the backend. A birthday widget cannot hide the day it celebrates -
  * that is the whole feature - but the year is not needed to greet somebody, so the projection
  * carries the name, how many days away the birthday is, whether the member is an adult or a minor
- * and, by operator decision on 2026-09-06, the age they turn. That last one is an integer, not a
- * date: "turns 9" is what a coach says on the mat, and it still does not let anybody reconstruct
- * the day of birth from a list. Office that needs the real date of birth reads the canonical
- * member record, which is where the full date lives and is audited.
+ * and, by operator decision on 2026-09-06, the age they turn. The age together with daysAway does
+ * give away the full date of birth, so the callable only returns it to the office (owner and
+ * administrator); coaches get the projection without it. Office that needs the real date of birth
+ * reads the canonical member record, which is where the full date lives and is audited.
  */
 export const upcomingBirthdayDefaultWindowDays = 7;
 export const upcomingBirthdayMaxWindowDays = 366;
@@ -38,8 +38,8 @@ export type UpcomingBirthday = Readonly<{
   displayName: string;
   /** 0 is today, 1 is tomorrow, up to the requested window. */
   daysAway: number;
-  /** The age reached on the day, as a whole number of years. */
-  turningAge: number;
+  /** The age reached on the day, as a whole number of years. Office only: absent for coaches. */
+  turningAge?: number;
   participantType: UpcomingBirthdayParticipantType;
   trainingCenter: UpcomingBirthdayTrainingCenter;
 }>;

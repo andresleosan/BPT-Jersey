@@ -243,9 +243,9 @@ function mapAttendanceError(error: unknown): never {
 
 function mapSelfCheckInError(error: unknown): never {
   if (error instanceof SelfCheckInRefusedError) {
+    // No distance in the reply: refusals with it let a caller trilaterate the gym's geofence.
     throw new HttpsError("failed-precondition", "Self check-in is not available right now", {
       reason: error.reason,
-      ...(error.distanceMeters === undefined ? {} : { distanceMeters: error.distanceMeters }),
     });
   }
   if (!(error instanceof HttpsError) && !(error instanceof ScheduleAttendanceError)) {

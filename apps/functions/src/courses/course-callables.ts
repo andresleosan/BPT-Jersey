@@ -34,7 +34,7 @@ function callable<T>(schema: z.ZodType<T>, office: boolean, run: (actor: CourseA
     if (!input.success) throw new HttpsError("invalid-argument", "Check the request details.");
     try {return await run(actor, input.data);} catch (error) {
       if (error instanceof HttpsError) throw error;
-      if (error instanceof SelfCheckInRefusedError) throw new HttpsError("failed-precondition", "Self check-in is not available right now", {reason: error.reason, ...(error.distanceMeters === undefined ? {} : {distanceMeters: error.distanceMeters})});
+      if (error instanceof SelfCheckInRefusedError) throw new HttpsError("failed-precondition", "Self check-in is not available right now", {reason: error.reason});
       if (error instanceof z.ZodError) throw new HttpsError("invalid-argument", "Check the request details.");
       throw new HttpsError("failed-precondition", "The operation could not be completed. Refresh the record or contact the office.");
     }

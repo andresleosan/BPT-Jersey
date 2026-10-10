@@ -298,6 +298,11 @@ export function createListMedicalLeavesHandler(dependencies: HandlerDependencies
     request: CallableRequest<unknown>,
   ): Promise<{ medicalLeaves: readonly MedicalLeaveRecord[] }> => {
     const actor = await dependencies.authorization.requireActor(request);
+    // Medical leave is Restricted health data (ADR-009 #13): coaches need a current assignment,
+    // exactly like getHealthProfile; none exists yet, so they are denied.
+    if (actor.role === "headCoach" || actor.role === "coach") {
+      throw new HttpsError("permission-denied", "Current assignment is required");
+    }
     const requested = targetPayload(request.data, actor);
     const studentId = await targetStudent(dependencies.authorization, actor, requested);
     try {
