@@ -6190,9 +6190,3 @@ a.admin-birthday-badge:focus-visible,
 .access-member .membership-table-button {
   min-height: 2.75rem;
 }
-@media (prefers-reduced-motion: reduce) {
-  .access-band,
-  .access-row {
-    transition: none;
-  }
-}

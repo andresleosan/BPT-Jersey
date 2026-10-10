@@ -106,19 +106,12 @@ function inBand(age: number | null, band: Band | undefined): boolean {
 }
 
 function groupOf(row: MemberOverviewRow): string {
-  const band =
-    row.ageBand === "kids"
-      ? "Kids"
-      : row.ageBand === "teens"
-        ? "Teens"
-        : row.ageBand === "adult"
-          ? "Adults"
-          : "";
+  const band = row.ageBand ? { kids: "Kids", teens: "Teens", adult: "Adults" }[row.ageBand] : "";
   return [band, row.trainingCenter].filter(Boolean).join(" · ");
 }
 
 function rowId(studentId: string): string {
-  return `access-row-${studentId.replace(/[^A-Za-z0-9_-]/gu, "_")}`;
+  return `access-row-${studentId}`;
 }
 
 export function AccessTab({
