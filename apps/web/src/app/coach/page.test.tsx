@@ -680,9 +680,10 @@ describe("CoachDashboardPage", () => {
       });
       expect(await screen.findByText("Today Member")).toBeInTheDocument();
       expect(screen.getByText("Bruno Le Sueur")).toBeInTheDocument();
-      // T112 (2026-09-06): the badge now also says the age reached, never the year.
-      expect(screen.getByText(/^Today · turns 30$/)).toBeInTheDocument();
-      expect(screen.getByText(/^Tomorrow · turns 30$/)).toBeInTheDocument();
+      // H-07 (2026-10-10): the age plus the day gave away the date of birth, so coaches see only when.
+      expect(screen.getByText(/^Today$/)).toBeInTheDocument();
+      expect(screen.getByText(/^Tomorrow$/)).toBeInTheDocument();
+      expect(screen.queryByText(/turns/)).not.toBeInTheDocument();
       expect(screen.getByText("2 this week")).toBeInTheDocument();
     });
 

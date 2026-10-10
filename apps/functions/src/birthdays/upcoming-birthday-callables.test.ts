@@ -85,6 +85,40 @@ describe("upcoming birthday callable (T112)", () => {
     expect(result).toEqual({ birthdays: [entry] });
   });
 
+  it("keeps turningAge and the full window for the office only (H-07)", async () => {
+    const entry = {
+      studentId: "s-1",
+      displayName: "Ana Coelho",
+      daysAway: 2,
+      turningAge: 9,
+      participantType: "minor",
+      trainingCenter: "Town",
+    };
+    for (const role of ["owner", "administrator"]) {
+      const birthdays = service({ listUpcomingBirthdays: vi.fn().mockResolvedValue([entry]) });
+      const result = await createListUpcomingBirthdaysHandler({ service: birthdays })(
+        fakeRequest({ windowDays: 366 }, role),
+      );
+      expect(result).toEqual({ birthdays: [entry] });
+      expect(birthdays.listUpcomingBirthdays).toHaveBeenCalledWith({
+        academyId: "academy-1",
+        query: { windowDays: 366 },
+      });
+    }
+    for (const role of ["headCoach", "coach"]) {
+      const birthdays = service({ listUpcomingBirthdays: vi.fn().mockResolvedValue([entry]) });
+      const result = await createListUpcomingBirthdaysHandler({ service: birthdays })(
+        fakeRequest({ windowDays: 366 }, role),
+      );
+      const { turningAge: _omit, ...withoutAge } = entry;
+      expect(result).toEqual({ birthdays: [withoutAge] });
+      expect(birthdays.listUpcomingBirthdays).toHaveBeenCalledWith({
+        academyId: "academy-1",
+        query: { windowDays: 14 },
+      });
+    }
+  });
+
   it("translates store failures into safe codes", async () => {
     await expect(
       createListUpcomingBirthdaysHandler({

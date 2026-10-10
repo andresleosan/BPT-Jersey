@@ -314,7 +314,7 @@ describe("Level Callables", () => {
   });
 
   describe("Medical Leave Callables (T041)", () => {
-    it("allows staff to record and list medical leave", async () => {
+    it("allows staff to record medical leave and the office to list it", async () => {
       const store = createTestStore();
       const recordHandler = createRecordMedicalLeaveHandler({ store, authorization });
       const listHandler = createListMedicalLeavesHandler({ store, authorization });
@@ -337,9 +337,18 @@ describe("Level Callables", () => {
       expect(recordRes.medicalLeave.reasonCode).toBe("recovery");
 
       const listRes = await listHandler(
-        fakeRequest({ studentId: "student-1" }, "coach", "coach-1", "demo-academy"),
+        fakeRequest({ studentId: "student-1" }, "owner", "user-1", "demo-academy"),
       );
       expect(listRes.medicalLeaves).toHaveLength(1);
+    });
+
+    it("refuses coaches listing medical leave without an assignment (H-08)", async () => {
+      const listHandler = createListMedicalLeavesHandler({ store: createTestStore(), authorization });
+      for (const role of ["coach", "headCoach"]) {
+        await expect(
+          listHandler(fakeRequest({ studentId: "student-1" }, role, "coach-1", "demo-academy")),
+        ).rejects.toMatchObject({ code: "permission-denied" });
+      }
     });
 
     it("rejects non-staff recording medical leave", async () => {
