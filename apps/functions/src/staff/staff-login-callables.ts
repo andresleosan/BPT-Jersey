@@ -1,6 +1,7 @@
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { assertActiveSession } from "../auth/active-session.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { createStaffLoginService } from "./staff-login-service.js";
 import { isWeakStaffPassword } from "./staff-password-policy.js";
@@ -42,7 +43,10 @@ export const completeInitialStaffAccess = onCall(options, async (request) => {
   const user = await getAuth().getUser(request.auth.uid);
   const claims = user.customClaims ?? {};
   if (typeof claims.academyId !== "string" || !["coach","administrator","owner"].includes(String(claims.role))) throw new HttpsError("permission-denied", "Staff access is unavailable.");
+  // After the early return: a retry whose answer was lost carries a token the password change revoked.
   if (claims.passwordChangeRequired !== true) return { completed: true };
+  // A disabled account or a session revoked by the office cannot finish first access.
+  assertActiveSession(request, user);
   if (method === "password" && isWeakStaffPassword(newPassword as string, user.email)) throw new HttpsError("invalid-argument", "Choose a password that does not contain your email and is not a repeated character.");
   const provider = String(request.auth.token.firebase?.sign_in_provider ?? "");
   const authTime = Number(request.auth.token.auth_time) * 1000;

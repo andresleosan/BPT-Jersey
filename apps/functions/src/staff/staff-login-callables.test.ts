@@ -31,6 +31,36 @@ describe("completeInitialStaffAccess", () => {
     });
   });
 
+  it("refuses a revoked session or a disabled account before touching the password or claims", async () => {
+    const base = {
+      uid: "coach-1",
+      providerData: [],
+      customClaims: { academyId: "academy-1", role: "coach", passwordChangeRequired: true },
+    };
+    const revokedAfterSignIn = new Date(Date.now() + 60_000).toUTCString();
+    for (const user of [{ ...base, tokensValidAfterTime: revokedAfterSignIn }, { ...base, disabled: true }]) {
+      auth.getUser.mockResolvedValue(user);
+      await expect(
+        completeInitialStaffAccess.run(request({ method: "password", newPassword: "a-replacement-phrase" })),
+      ).rejects.toMatchObject({ code: "unauthenticated" });
+    }
+    expect(auth.updateUser).not.toHaveBeenCalled();
+    expect(auth.setCustomUserClaims).not.toHaveBeenCalled();
+  });
+
+  it("still answers a retry after the password change revoked the caller's token", async () => {
+    auth.getUser.mockResolvedValue({
+      uid: "coach-1",
+      providerData: [],
+      tokensValidAfterTime: new Date(Date.now() + 60_000).toUTCString(),
+      customClaims: { academyId: "academy-1", role: "coach" },
+    });
+    await expect(
+      completeInitialStaffAccess.run(request({ method: "password", newPassword: "a-replacement-phrase" })),
+    ).resolves.toEqual({ completed: true });
+    expect(auth.updateUser).not.toHaveBeenCalled();
+  });
+
   it("never clears the flag without setting a replacement password on the server", async () => {
     await expect(
       completeInitialStaffAccess.run(request({ method: "password" })),

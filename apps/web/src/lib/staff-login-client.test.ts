@@ -11,7 +11,7 @@ vi.mock("firebase/auth", () => ({
   browserPopupRedirectResolver: "popup-resolver",
   linkWithPopup: mocks.link, signInWithCustomToken: mocks.token, signInWithCredential: mocks.signInWithCredential,
 }));
-import { currentStaffAccess, linkStaffGoogle, signInWithStaffId, staffAccessError } from "./staff-login-client";
+import { completeInitialStaffPassword, currentStaffAccess, linkStaffGoogle, signInWithStaffId, staffAccessError } from "./staff-login-client";
 
 describe("coach sign-in client", () => {
   beforeEach(() => { vi.clearAllMocks(); mocks.auth.currentUser.providerData = []; });
@@ -38,6 +38,17 @@ describe("coach sign-in client", () => {
   it("recognizes an existing Google link", () => {
     mocks.auth.currentUser.providerData = [{ providerId: "google.com" }];
     expect(currentStaffAccess().googleLinked).toBe(true);
+  });
+  it("asks for a fresh sign-in when first access refuses a revoked session, on both paths", async () => {
+    mocks.link.mockResolvedValue({ user: {} });
+    mocks.call.mockRejectedValue({ code: "functions/unauthenticated" });
+    const google = await linkStaffGoogle().catch((error: unknown) => error);
+    Object.assign(mocks.auth.currentUser, { email: "coach@example.test" });
+    const password = await completeInitialStaffPassword("a-replacement-phrase").catch((error: unknown) => error);
+    delete (mocks.auth.currentUser as { email?: string }).email;
+    for (const error of [google, password]) expect(staffAccessError(error)).toBe("Sign out, sign in again, and retry.");
+    // The staff ID password form keeps its own wording.
+    expect(staffAccessError({ code: "functions/unauthenticated" })).toBe("Check your staff ID and current password.");
   });
   it("does not merge profiles when Google belongs to another account", async () => {
     const error = { code: "auth/credential-already-in-use" };

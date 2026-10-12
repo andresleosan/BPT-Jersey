@@ -15,6 +15,17 @@ export function currentStaffAccess() {
   const user = getFirebaseAuth().currentUser;
   return { googleLinked: !!user?.providerData.some((row) => row.providerId === "google.com") };
 }
+/** A disabled account or a revoked session cannot finish first access: ask for a fresh sign-in. */
+async function completeInitialStaffAccess(data: { method: "google" } | { method: "password"; newPassword: string }) {
+  try {
+    await httpsCallable(getFirebaseFunctions(), "completeInitialStaffAccess")(data);
+  } catch (error) {
+    const code = typeof error === "object" && error !== null && "code" in error ? error.code : "";
+    if (code === "functions/unauthenticated")
+      throw Object.assign(new Error("Sign in again."), { code: "auth/requires-recent-login" });
+    throw error;
+  }
+}
 export async function linkStaffGoogle() {
   const user = getFirebaseAuth().currentUser;
   if (!user) throw new Error("Sign in first.");
@@ -22,7 +33,7 @@ export async function linkStaffGoogle() {
   provider.setCustomParameters({ prompt: "select_account" });
   // Linking preserves the authenticated UID and its coach profile.
   const result = await linkWithPopup(user, provider, browserPopupRedirectResolver);
-  await httpsCallable(getFirebaseFunctions(), "completeInitialStaffAccess")({ method: "google" });
+  await completeInitialStaffAccess({ method: "google" });
   // The server unlinked the initial password and revoked this session: sign back in with the
   // Google credential just obtained, so no second popup is needed.
   const credential = GoogleAuthProvider.credentialFromResult(result);
@@ -60,7 +71,7 @@ export async function completeInitialStaffPassword(newPassword: string) {
   const user = getFirebaseAuth().currentUser;
   if (!user?.email || newPassword.length < 12 || newPassword.length > 128) throw new Error("Sign in again and use 12 to 128 characters.");
   // The server replaces the password, which revokes this session; sign straight back in with it.
-  await httpsCallable(getFirebaseFunctions(), "completeInitialStaffAccess")({ method: "password", newPassword });
+  await completeInitialStaffAccess({ method: "password", newPassword });
   const credential = await signInWithEmailAndPassword(getFirebaseAuth(), user.email, newPassword);
   return credential.user.getIdTokenResult(true);
 }
