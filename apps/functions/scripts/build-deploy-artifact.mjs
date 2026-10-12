@@ -7,7 +7,6 @@ const functionsDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(functionsDirectory, "../../..");
 const nodeExecutable = process.execPath;
 const tscExecutable = path.join(repositoryRoot, "node_modules", "typescript", "bin", "tsc");
-const corepackExecutable = process.platform === "win32" ? "corepack.cmd" : "corepack";
 const functionsBuildDirectory = path.resolve(repositoryRoot, "apps/functions/lib");
 const expectedFunctionsRoot = path.resolve(repositoryRoot, "apps/functions") + path.sep;
 
@@ -46,10 +45,10 @@ run(nodeExecutable, [
   "apps/functions",
 ]);
 run(nodeExecutable, ["apps/functions/scripts/clean-deploy-target.mjs"]);
-const { deployArtifactPnpmArguments } = await import("../lib/src/deploy-runtime.js");
-run(corepackExecutable, [...deployArtifactPnpmArguments, ".firebase-functions"], {
-  env: { ...process.env, CI: "true", npm_config_confirmModulesPurge: "false" },
-  shell: process.platform === "win32",
-});
+const { copyDeployPackage } = await import("../lib/src/deploy-runtime.js");
+copyDeployPackage(
+  path.resolve(repositoryRoot, "apps/functions"),
+  path.resolve(repositoryRoot, ".firebase-functions"),
+);
 run(nodeExecutable, ["apps/functions/scripts/prepare-deploy-runtime.mjs"]);
 run(nodeExecutable, ["apps/functions/scripts/write-deploy-lockfile.mjs"]);

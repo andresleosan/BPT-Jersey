@@ -1,5 +1,6 @@
+import { cpSync } from "node:fs";
 import { readFile, readdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 export const domainImportReplacements: Readonly<Record<string, string>> = Object.freeze({
   "@bpt-jersey/domain/members/reconciliation": "../../domain/members/member-reconciliation-contracts.js",
@@ -83,17 +84,26 @@ export const domainImportReplacements: Readonly<Record<string, string>> = Object
   "@bpt-jersey/domain/staff/permission-grants": "../../domain/staff/permission-grant-contracts.js",
 });
 
-// `pnpm deploy --prod` first synchronizes the source workspace in production mode.
-// The generated package manifest is pruned by prepare-deploy-runtime.mjs instead,
-// so the source workspace keeps its development toolchain intact.
-export const deployArtifactPnpmArguments = Object.freeze([
-  "pnpm",
-  "--filter",
-  "@bpt-jersey/functions",
-  "deploy",
-  "--legacy",
-  "--config.confirmModulesPurge=false",
-] as const);
+// The names npm-packlist (run by pnpm deploy) always left out; an editor swap file of .env holds secrets.
+const excludedFromDeployPackage = [
+  /^(node_modules|\.git|\.npmrc|npm-debug\.log|\.DS_Store)$/u,
+  /^(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb)$/u,
+  /^\._/u,
+  /^\..*\.swp$/u,
+  /\.orig$/u,
+];
+
+/**
+ * Copies the Functions package into the deploy artifact, as pnpm deploy did (the package has no
+ * `files` field and no .npmignore) but without installing anything: the dependencies come only from
+ * write-deploy-lockfile.mjs, pinned to pnpm-lock.yaml (P-02).
+ */
+export function copyDeployPackage(source: string, target: string): void {
+  cpSync(source, target, {
+    recursive: true,
+    filter: (path) => !excludedFromDeployPackage.some((pattern) => pattern.test(basename(path))),
+  });
+}
 
 async function runtimeFiles(directory: string): Promise<readonly string[]> {
   const entries = await readdir(directory, { withFileTypes: true });

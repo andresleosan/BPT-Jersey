@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { getApps } from "firebase-admin/app";
 
 import {
-  deployArtifactPnpmArguments,
+  copyDeployPackage,
   domainImportReplacements,
   rewriteDeployRuntimeImports,
 } from "./deploy-runtime.js";
@@ -21,9 +21,29 @@ afterEach(async () => {
 });
 
 describe("deploy runtime import preparation", () => {
-  it("deploys into the artifact without switching the source workspace to production mode", () => {
-    expect(deployArtifactPnpmArguments).toContain("deploy");
-    expect(deployArtifactPnpmArguments).not.toContain("--prod");
+  it("copies the Functions package into the artifact without node_modules or stray files (P-02)", async () => {
+    const root = await mkdtemp(join(tmpdir(), "bpt-deploy-copy-"));
+    temporaryDirectories.push(root);
+    const source = join(root, "functions");
+    await mkdir(join(source, "lib", "src"), { recursive: true });
+    await mkdir(join(source, "node_modules", "unpinned"), { recursive: true });
+    await writeFile(join(source, "package.json"), "{}");
+    await writeFile(join(source, "lib", "src", "index.js"), "export {};");
+    await writeFile(join(source, ".env"), "KEY=value", { mode: 0o600 });
+    await writeFile(join(source, "node_modules", "unpinned", "index.js"), "throw new Error();");
+    await writeFile(join(source, ".env.swp"), "KEY=value");
+    await writeFile(join(source, "lib", "src", "index.js.orig"), "export {};");
+    await writeFile(join(source, "npm-debug.log"), "log");
+    const target = join(root, "artifact");
+
+    copyDeployPackage(source, target);
+
+    expect((await readdir(target)).sort()).toEqual([".env", "lib", "package.json"]);
+    expect(await readdir(join(target, "lib", "src"))).toEqual(["index.js"]);
+    expect((await stat(join(target, ".env"))).mode & 0o777).toBe(0o600);
+    await expect(readFile(join(target, "lib", "src", "index.js"), "utf8")).resolves.toBe(
+      "export {};",
+    );
   });
 
   /**
