@@ -52,6 +52,7 @@ import {
   updateLocation,
   updateProgram,
   updateSession,
+  uploadPaygClassProof,
 } from "./schedule-client";
 
 describe("Schedule Client", () => {
@@ -633,5 +634,16 @@ describe("App Check token per callable", () => {
     for (const name of ["requestBookingEu", "cancelBookingEu", "copyWeek"]) {
       expect(optionsFor(name)).toEqual({ limitedUseAppCheckTokens: true });
     }
+  });
+
+  it("asks for a limited-use token on every PAYG proof upload, so a second upload is not a replay", async () => {
+    const proofId = "a".repeat(64);
+    const file = new File([new Uint8Array([137, 80, 78, 71])], "proof.png", { type: "image/png" });
+    mockCallable.mockResolvedValue({ data: { proofId } });
+    await expect(uploadPaygClassProof("s-1", "sam", file)).resolves.toBe(proofId);
+    await expect(uploadPaygClassProof("s-2", "sam", file)).resolves.toBe(proofId);
+    const uploads = mockHttpsCallable.mock.calls.filter((args) => args[1] === "uploadPaygClassProof");
+    expect(uploads).toHaveLength(2);
+    for (const call of uploads) expect(call[2]).toEqual({ limitedUseAppCheckTokens: true });
   });
 });

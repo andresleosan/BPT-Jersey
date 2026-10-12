@@ -420,7 +420,8 @@ export async function uploadPaygClassProof(
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   try {
-    const callable = firebaseHttpsCallable<unknown, unknown>(
+    // The server refuses a replayed App Check token, so each upload needs its own limited-use one.
+    const callable = httpsCallable<unknown, unknown>(
       getFirebaseFunctions(memberFunctionsRegion),
       "uploadPaygClassProof",
     );
