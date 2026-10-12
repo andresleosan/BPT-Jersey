@@ -19,7 +19,11 @@
     "public": "hosting-redirect",
     "ignore": ["**/.*"],
     "redirects": [
-      { "regex": "^/(.*)$", "destination": "https://www.bptjersey.com/:1", "type": 302 }
+      {
+        "regex": "^/([^_].*|_[^_].*|_)?$",
+        "destination": "https://www.bptjersey.com/:1",
+        "type": 302
+      }
     ],
     "headers": [
       {
