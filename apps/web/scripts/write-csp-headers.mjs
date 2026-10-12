@@ -4,7 +4,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const outDirectory = join(dirname(fileURLToPath(import.meta.url)), "..", "out");
-const inlineScriptDirective = "script-src 'self' 'unsafe-inline'";
+// Cloudflare Pages silently drops any _headers line longer than this, CSP included.
+const maxHeaderLineLength = 2_000;
+const charsetTag = '<meta charSet="utf-8"/>';
 
 async function htmlFiles(directory) {
   const files = [];
@@ -16,32 +18,44 @@ async function htmlFiles(directory) {
   return files;
 }
 
-const hashes = new Set();
+const headers = await readFile(join(outDirectory, "_headers"), "utf8");
+for (const line of headers.split("\n")) {
+  if (line.length > maxHeaderLineLength) {
+    throw new Error(`A _headers line has ${line.length} characters; Pages drops it.`);
+  }
+}
+// The header allows 'unsafe-inline'; each page's meta policy narrows inline scripts to its hashes.
+// ponytail: the meta's script-src also governs workers (no blob:); add worker-src if one appears.
+const scriptHosts = /script-src 'self' 'unsafe-inline'((?: https:\/\/[^\s;]+)*);/u.exec(
+  headers,
+)?.[1];
+if (scriptHosts === undefined || headers.split("script-src ").length !== 2) {
+  throw new Error("The CSP template must contain one inline-script allowance.");
+}
+
+const pages = await htmlFiles(outDirectory);
+if (pages.length === 0) throw new Error("The static export contains no pages to protect.");
 const inlineScriptPattern = /<script\b(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/giu;
-for (const path of await htmlFiles(outDirectory)) {
+for (const path of pages) {
   const html = await readFile(path, "utf8");
+  const charsetAt = html.indexOf(charsetTag);
+  const firstScriptAt = html.indexOf("<script");
+  if (
+    html.split(charsetTag).length !== 2 ||
+    (firstScriptAt !== -1 && firstScriptAt < charsetAt) ||
+    html.includes('http-equiv="Content-Security-Policy"')
+  ) {
+    throw new Error(`${path} needs one charset meta ahead of every script and no CSP meta yet.`);
+  }
+  const hashes = new Set();
   for (const match of html.matchAll(inlineScriptPattern)) {
     const source = match[1];
     if (source === undefined) continue;
     hashes.add(`'sha256-${createHash("sha256").update(source, "utf8").digest("base64")}'`);
   }
+  const sources = [...[...hashes].sort(), ...scriptHosts.split(" ").filter(Boolean)];
+  const policy = ["script-src 'self'", ...sources].join(" ");
+  const at = charsetAt + charsetTag.length;
+  const meta = `<meta http-equiv="Content-Security-Policy" content="${policy}"/>`;
+  await writeFile(path, html.slice(0, at) + meta + html.slice(at), "utf8");
 }
-if (hashes.size === 0)
-  throw new Error("The static export contains no inline scripts to authorize.");
-
-const headersPath = join(outDirectory, "_headers");
-const headers = await readFile(headersPath, "utf8");
-if (headers.split(inlineScriptDirective).length !== 2) {
-  throw new Error("The CSP template must contain one inline-script allowance.");
-}
-const rendered = headers.replace(
-  inlineScriptDirective,
-  `script-src 'self' ${[...hashes].sort().join(" ")}`,
-);
-const csp = rendered
-  .split("\n")
-  .find((line) => line.trimStart().startsWith("Content-Security-Policy:"));
-if (csp === undefined || Buffer.byteLength(csp, "utf8") > 12_000) {
-  throw new Error("The generated CSP header is missing or too large.");
-}
-await writeFile(headersPath, rendered, "utf8");
