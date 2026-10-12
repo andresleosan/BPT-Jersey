@@ -23,6 +23,8 @@ vi.mock("../../lib/staff-login-client", () => ({
 const navigation = vi.hoisted(() => ({ navigateTo: vi.fn() }));
 
 vi.mock("../../lib/auth-client", () => authOperations);
+const appCheck = vi.hoisted(() => ({ prepareFirebaseAppCheck: vi.fn() }));
+vi.mock("../../lib/firebase-client", () => appCheck);
 
 vi.mock("../../lib/login-flow", async () => {
   const actual =
@@ -42,6 +44,12 @@ async function signInWithEmailAs(email: string): Promise<void> {
 }
 
 describe("LoginForm", () => {
+  it("starts App Check when the form appears, so a Google popup never waits for it", () => {
+    appCheck.prepareFirebaseAppCheck.mockClear();
+    render(<LoginForm audience="member" />);
+    expect(appCheck.prepareFirebaseAppCheck).toHaveBeenCalledOnce();
+    expect(authOperations.signInWithGoogle).not.toHaveBeenCalled();
+  });
   it("signs coaches in with a numeric ID using the shared staff form", async () => {
     staffLogin.signInWithStaffId.mockResolvedValue({ user: signedInUser });
     authOperations.refreshAuthToken.mockResolvedValue({

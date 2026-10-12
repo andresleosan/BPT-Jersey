@@ -180,6 +180,33 @@ describe("firebase-client", () => {
     ).toBeLessThan(firebaseFunctionsSdk.getFunctions.mock.invocationCallOrder[0]!);
   });
 
+  it("starts App Check before Auth, so a cold sign-in or password reset carries a token", async () => {
+    process.env.NEXT_PUBLIC_FIREBASE_ENV = "staging";
+    process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY = "enterprise-site-key";
+    vi.resetModules();
+    const { getFirebaseAuth: freshAuth } = await import("./firebase-client");
+
+    freshAuth();
+
+    expect(firebaseAppCheckSdk.initializeAppCheck).toHaveBeenCalledOnce();
+    expect(firebaseAppCheckSdk.initializeAppCheck).toHaveBeenCalledWith(firebaseApp, {
+      provider: { siteKey: "enterprise-site-key" },
+      isTokenAutoRefreshEnabled: true,
+    });
+  });
+
+  it("lets the email action page refuse Auth without App Check while Auth itself keeps working", async () => {
+    process.env.NEXT_PUBLIC_FIREBASE_ENV = "staging";
+    vi.resetModules();
+    const { getFirebaseAuth: freshAuth, requireFirebaseAppCheck } = await import(
+      "./firebase-client"
+    );
+
+    expect(() => requireFirebaseAppCheck()).toThrow(/App Check site key/i);
+    expect(() => freshAuth()).not.toThrow();
+    expect(firebaseAppCheckSdk.initializeAppCheck).not.toHaveBeenCalled();
+  });
+
   it("fails closed before creating Functions when App Check has no site key", async () => {
     process.env.NEXT_PUBLIC_FIREBASE_ENV = "staging";
     vi.resetModules();

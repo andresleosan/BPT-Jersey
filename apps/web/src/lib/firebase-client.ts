@@ -162,6 +162,9 @@ export function getFirebaseClient(): FirebaseApp {
 }
 
 export function getFirebaseAuth(): Auth {
+  // Auth attaches an App Check token only once App Check runs on this app, so a cold /login
+  // sign-in, sign-up or password reset would otherwise reach Identity Toolkit without one.
+  prepareFirebaseAppCheck();
   if (!firebaseAuth) {
     const app = getFirebaseClient();
 
@@ -222,6 +225,11 @@ export function prepareFirebaseAppCheck(): void {
   } catch {
     // getFirebaseFunctions repeats the same check where a call needs it.
   }
+}
+
+/** App Check for a page that must not call Auth without it: throws instead of skipping. */
+export function requireFirebaseAppCheck(): void {
+  initializeFirebaseAppCheck(shouldUseFirebaseEmulators());
 }
 
 export function getFirebaseFunctions(region: string = memberFunctionsRegion): Functions {

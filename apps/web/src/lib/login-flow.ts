@@ -170,7 +170,7 @@ export function toAuthMessage(error: unknown): string {
       return "An account already uses this email. Sign in or reset your password.";
     case "auth/weak-password":
     case "auth/password-does-not-meet-requirements":
-      return "Choose a stronger password with at least 6 characters, uppercase and lowercase letters, a number and a symbol.";
+      return "Choose a password of 12 to 128 characters.";
     case "auth/invalid-credential":
     case "auth/invalid-email":
     case "auth/user-not-found":

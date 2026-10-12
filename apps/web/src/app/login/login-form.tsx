@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore, type FormEvent } from "react";
+import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 import type { UserCredential } from "firebase/auth";
 
 import {
@@ -11,6 +11,7 @@ import {
   signInWithGoogle,
   signOutFromAuth,
 } from "../../lib/auth-client";
+import { prepareFirebaseAppCheck } from "../../lib/firebase-client";
 import {
   memberDestination,
   memberLoginPath,
@@ -60,6 +61,11 @@ export function LoginForm({ audience }: LoginFormProps) {
   const [notice, setNotice] = useState("");
   const [existingStaffDestination, setExistingStaffDestination] = useState<StaffDestination>();
   const [busy, setBusy] = useState(false);
+  // Google sign-in waits for an App Check token before it opens its popup: starting App Check at
+  // the click could push the popup past the user gesture, so it starts with the page.
+  useEffect(() => {
+    prepareFirebaseAppCheck();
+  }, []);
   const locationSearch = useLocationSearch();
   const queryReturnTo = new URLSearchParams(locationSearch).get("returnTo");
   // Q4: the hand-over at 18 signs the member out and sends them here.
@@ -100,8 +106,9 @@ export function LoginForm({ audience }: LoginFormProps) {
     }
     if (!password.trim()) {
       nextErrors.password = "Password is required.";
-    } else if (isCreating && password.length < 6) {
-      nextErrors.password = "Use at least 6 characters for your password.";
+    } else if (isCreating && (password.length < 12 || password.length > 128)) {
+      // The project password policy (Identity Platform) refuses anything shorter than 12.
+      nextErrors.password = "Use 12 to 128 characters for your password.";
     }
 
     return nextErrors;
@@ -323,7 +330,7 @@ export function LoginForm({ audience }: LoginFormProps) {
           />
           {isCreating && !fieldErrors.password ? (
             <p className="login-field-help" id="login-password-help">
-              Use at least 6 characters.
+              Use 12 to 128 characters.
             </p>
           ) : null}
           {fieldErrors.password ? (

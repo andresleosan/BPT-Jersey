@@ -39,7 +39,7 @@ describe("robots", () => {
   const rules = robots().rules as { allow?: string; disallow?: string[] };
 
   it("keeps every signed-in surface out of the index", () => {
-    expect(rules.disallow).toEqual(["/account", "/admin", "/coach", "/login", "/staff"]);
+    expect(rules.disallow).toEqual(["/account", "/admin", "/auth", "/coach", "/login", "/staff"]);
   });
 
   it("still allows the marketing surface", () => {

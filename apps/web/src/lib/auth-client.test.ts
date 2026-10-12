@@ -2,6 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const firebaseAuth = vi.hoisted(() => ({
   auth: { name: "auth" },
+  applyActionCode: vi.fn(),
+  checkActionCode: vi.fn(),
+  confirmPasswordReset: vi.fn(),
+  requireFirebaseAppCheck: vi.fn(),
   createUserWithEmailAndPassword: vi.fn(),
   onIdTokenChanged: vi.fn(),
   prepareFirebaseAppCheck: vi.fn(),
@@ -13,6 +17,9 @@ const firebaseAuth = vi.hoisted(() => ({
 }));
 
 vi.mock("firebase/auth", () => ({
+  applyActionCode: firebaseAuth.applyActionCode,
+  checkActionCode: firebaseAuth.checkActionCode,
+  confirmPasswordReset: firebaseAuth.confirmPasswordReset,
   createUserWithEmailAndPassword: firebaseAuth.createUserWithEmailAndPassword,
   onIdTokenChanged: firebaseAuth.onIdTokenChanged,
   sendPasswordResetEmail: firebaseAuth.sendPasswordResetEmail,
@@ -22,13 +29,19 @@ vi.mock("firebase/auth", () => ({
 vi.mock("./firebase-client", () => ({
   getFirebaseAuth: () => firebaseAuth.auth,
   prepareFirebaseAppCheck: firebaseAuth.prepareFirebaseAppCheck,
+  requireFirebaseAppCheck: firebaseAuth.requireFirebaseAppCheck,
   signInWithGoogle: firebaseAuth.signInWithGoogle,
   signOutFromFirebase: firebaseAuth.signOutFromFirebase,
   refreshAuthToken: firebaseAuth.refreshAuthToken,
 }));
 
 import {
+  actionErrorMessage,
+  applyEmailAction,
+  checkAccountLink,
+  confirmNewPassword,
   createClientWithEmail,
+  prepareAccountAction,
   refreshAuthToken,
   sendPasswordReset,
   signInWithEmail,
@@ -40,6 +53,47 @@ import {
 describe("auth-client", () => {
   afterEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("lets the email action page stop when App Check cannot start", () => {
+    firebaseAuth.requireFirebaseAppCheck.mockImplementationOnce(() => {
+      throw new Error("A Firebase App Check site key is required.");
+    });
+    expect(() => prepareAccountAction()).toThrow(/App Check site key/);
+    expect(() => prepareAccountAction()).not.toThrow();
+    expect(firebaseAuth.requireFirebaseAppCheck).toHaveBeenCalledTimes(2);
+  });
+
+  it("checks, confirms and applies email action codes on the app's own Auth instance", async () => {
+    firebaseAuth.checkActionCode.mockResolvedValueOnce({
+      operation: "RECOVER_EMAIL",
+      data: { email: "old@example.test", previousEmail: "new@example.test" },
+    });
+    await expect(checkAccountLink("code-654321")).resolves.toEqual({
+      operation: "RECOVER_EMAIL",
+      email: "old@example.test",
+    });
+    await confirmNewPassword("code-123456", "a-long-new-password");
+    await applyEmailAction("code-654321");
+    expect(firebaseAuth.confirmPasswordReset).toHaveBeenCalledWith(
+      firebaseAuth.auth,
+      "code-123456",
+      "a-long-new-password",
+    );
+    expect(firebaseAuth.checkActionCode).toHaveBeenCalledWith(firebaseAuth.auth, "code-654321");
+    expect(firebaseAuth.applyActionCode).toHaveBeenCalledWith(firebaseAuth.auth, "code-654321");
+  });
+
+  it("explains email action failures without raw Firebase text or account enumeration", () => {
+    expect(actionErrorMessage({ code: "auth/expired-action-code" })).toMatch(/expired/);
+    expect(actionErrorMessage({ code: "auth/user-not-found" })).toBe(
+      actionErrorMessage({ code: "auth/invalid-action-code" }),
+    );
+    expect(actionErrorMessage({ code: "auth/password-does-not-meet-requirements" })).toBe(
+      "Choose a new password of 12 to 128 characters.",
+    );
+    const raw = new Error("Firebase: Error (auth/internal-error) at identitytoolkit");
+    expect(actionErrorMessage(raw)).not.toMatch(/Firebase|identitytoolkit/);
   });
 
   it("trims the email before delegating email sign-in", async () => {
