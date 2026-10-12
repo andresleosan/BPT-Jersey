@@ -1,9 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 
 const syntheticAuthUsers = vi.hoisted(() => new Map<string, Record<string, unknown>>());
+const syntheticDocuments = vi.hoisted(() => new Map<string, Record<string, unknown>>());
 vi.mock("firebase-admin/auth", () => ({
   getAuth: () => ({
     getUser: async (uid: string) => syntheticAuthUsers.get(uid),
+    getUsers: async (ids: readonly { uid: string }[]) => ({
+      users: ids.flatMap(({ uid }) =>
+        syntheticAuthUsers.has(uid) ? [{ uid, ...syntheticAuthUsers.get(uid) }] : [],
+      ),
+    }),
   }),
 }));
 vi.mock("firebase-admin/firestore", () => ({
@@ -11,6 +17,13 @@ vi.mock("firebase-admin/firestore", () => ({
     collection: () => ({ limit: () => ({}) }),
     runTransaction: async (operation: (transaction: unknown) => unknown) =>
       operation({ get: async () => ({ docs: [] }) }),
+    doc: (path: string) => ({ path, id: path.split("/").at(-1) }),
+    getAll: async (...refs: readonly { path: string; id: string }[]) =>
+      refs.map((ref) => ({
+        id: ref.id,
+        get: (field: string) => syntheticDocuments.get(ref.path)?.[field],
+        data: () => syntheticDocuments.get(ref.path),
+      })),
   }),
 }));
 
@@ -23,6 +36,7 @@ import {
   replaceStaffAssignmentsHandler,
   replaceStaffAvailabilityHandler,
   setStaffActiveHandler,
+  staffCallableServices,
   updateStaffProfileHandler,
   type StaffCallableServices,
 } from "./staff-callables.js";
@@ -423,6 +437,7 @@ describe("staff callables", () => {
         status: "active",
         self: false,
         schemaVersion: "1",
+        name: null,
       },
     ]);
     expect(current.store.listStaffProfiles).toHaveBeenCalledWith("academy-1", "owner-1");
@@ -436,6 +451,57 @@ describe("staff callables", () => {
         code: "invalid-argument",
       },
     );
+  });
+
+  it("names each coach for the owner and the headCoach, and keeps the list if names fail", async () => {
+    const named = {
+      ...services(),
+      staffNames: vi.fn(async () => new Map([["staff-1", "Ana Coach"]])),
+    };
+    for (const role of ["owner", "headCoach"]) {
+      await expect(listStaffProfilesHandler(request({}, role), named)).resolves.toEqual([
+        expect.objectContaining({ staffKey: "staff-1", name: "Ana Coach" }),
+      ]);
+    }
+    expect(named.staffNames).toHaveBeenCalledWith("academy-1", ["staff-1"]);
+
+    const unnamed = { ...services(), staffNames: vi.fn(async () => new Map<string, string>()) };
+    await expect(listStaffProfilesHandler(request({}), unnamed)).resolves.toEqual([
+      expect.objectContaining({ staffKey: "staff-1", name: null }),
+    ]);
+    const failing = {
+      ...services(),
+      staffNames: vi.fn(async () => Promise.reject(new Error("auth down"))),
+    };
+    await expect(listStaffProfilesHandler(request({}), failing)).resolves.toEqual([
+      expect.objectContaining({ staffKey: "staff-1", name: null }),
+    ]);
+  });
+
+  it("reads each staff name from Auth, else from the academy profile, and leaves out the rest", async () => {
+    syntheticDocuments.set("academies/a-names/staff/coach-1", { userId: "names-uid-1" });
+    syntheticDocuments.set("academies/a-names/staff/member-coach", { userId: "names-uid-2" });
+    syntheticDocuments.set("academies/a-names/staff/nameless", { userId: "names-uid-3" });
+    syntheticDocuments.set("academies/a-names/users/names-uid-2", { displayName: " Ana Member " });
+    syntheticAuthUsers.set("names-uid-1", { displayName: "Bo Staff" });
+    syntheticAuthUsers.set("names-uid-2", { displayName: "" });
+    syntheticAuthUsers.set("names-uid-3", {});
+    syntheticDocuments.set("academies/a-names/staff/long", { userId: "names-uid-4" });
+    syntheticAuthUsers.set("names-uid-4", { displayName: "x".repeat(300) });
+
+    const names = await staffCallableServices().staffNames!("a-names", [
+      "coach-1",
+      "member-coach",
+      "nameless",
+      "missing",
+      "long",
+    ]);
+
+    expect([...names]).toEqual([
+      ["coach-1", "Bo Staff"],
+      ["member-coach", "Ana Member"],
+      ["long", "x".repeat(200)],
+    ]);
   });
 
   it("denies anonymous and non-admin listing requests", async () => {
@@ -463,6 +529,7 @@ describe("staff callables", () => {
         status: "active",
         self: false,
         schemaVersion: "1",
+        name: null,
       },
     ]);
     expect(current.store.listStaffProfiles).toHaveBeenCalledWith("academy-1", "owner-1");
@@ -485,6 +552,7 @@ describe("staff callables", () => {
         status: "active",
         self: true,
         schemaVersion: "1",
+        name: null,
       },
     ]);
     expect(JSON.stringify(rows)).not.toContain("user-1");

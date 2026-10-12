@@ -116,7 +116,10 @@ export function ClassesFilters({
       />
       <FilterDropdown
         label="Staff"
-        options={staff.map((row) => ({ value: row.staffKey, label: trainerName(row.staffKey) }))}
+        options={staff.map((row) => ({
+          value: row.staffKey,
+          label: trainerName(row.staffKey, staff),
+        }))}
         selected={filters.staff}
         onChange={(values) => patch({ staff: values })}
       />

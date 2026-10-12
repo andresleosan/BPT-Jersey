@@ -398,7 +398,7 @@ function ClassesContent(): ReactElement {
           colour: program?.colour ?? fallbackColour,
           ...(program ? { typeName: program.name } : {}),
           ...(location ? { locationName: location.name } : {}),
-          coachNames: (row.instructorIds ?? [row.instructorId]).map(trainerName),
+          coachNames: (row.instructorIds ?? [row.instructorId]).map((id) => trainerName(id, staff)),
           booked: countsStatus === "ready" ? (booked[row.sessionId] ?? 0) : null,
           capacity: row.capacity,
           status: row.status,
@@ -407,7 +407,7 @@ function ClassesContent(): ReactElement {
           instructorIds: row.instructorIds ?? [row.instructorId],
         };
       }),
-    [sessions, programs, locations, booked, countsStatus],
+    [sessions, programs, locations, booked, countsStatus, staff],
   );
 
   const visible = useMemo(
@@ -735,6 +735,7 @@ function ClassesContent(): ReactElement {
             dateRange={dateRange}
             onDateRange={setDateRange}
             onOpen={(sessionId) => setPanel({ mode: "edit", sessionId })}
+            staff={trainers}
           />
         )}
       </div>

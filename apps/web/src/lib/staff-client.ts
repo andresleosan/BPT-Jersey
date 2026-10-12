@@ -10,6 +10,8 @@ export type StaffProfileProjection = Readonly<{
   /** Whether this profile belongs to the signed-in user; the server never sends the userId. */
   self: boolean;
   schemaVersion: "1";
+  /** Display name for the trainer list (ADR-010, 2026-10-12); only listStaffProfiles sends it. */
+  name?: string | null;
 }>;
 
 export type CreateStaffProfileInput = Readonly<{
@@ -98,7 +100,9 @@ function isDenseArray(value: unknown): value is readonly unknown[] {
 function isStaffProfileProjection(value: unknown): value is StaffProfileProjection {
   return (
     isPlainRecord(value) &&
-    hasExactFields(value, profileFields) &&
+    (hasExactFields(value, profileFields) ||
+      (hasExactFields(value, [...profileFields, "name"]) &&
+        (value.name === null || (typeof value.name === "string" && value.name.length <= 200)))) &&
     isSafeId(value.staffKey) &&
     staffRoles.includes(value.role as StaffProfileProjection["role"]) &&
     typeof value.active === "boolean" &&

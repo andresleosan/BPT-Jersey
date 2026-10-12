@@ -9,6 +9,7 @@ import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { withSharedRoleLock, type SyntheticFirestore } from "../auth/admin-provisioning.js";
 import { readMemberCoachRole } from "./member-coach-access.js";
+import { profileNames } from "./profile-names.js";
 import {
   createStaffStore,
   MAX_STAFF_LIST_RECORDS,
@@ -36,6 +37,8 @@ export type StaffCallableServices = Readonly<{
   store: StaffStore;
   /** Member role to restore for a member account with coach access; null otherwise. */
   memberCoachRole?: (academyId: string, userId: string) => Promise<"adultStudent" | "guardian" | null>;
+  /** Display names by staffKey for the trainer list; a key without a name is left out. */
+  staffNames?: (academyId: string, staffKeys: readonly string[]) => Promise<ReadonlyMap<string, string>>;
   withClaimsLock: <T>(
     academyId: string,
     actorId: string,
@@ -538,18 +541,63 @@ export async function listStaffProfilesHandler(
   request: CallableRequest<unknown>,
   services: StaffCallableServices,
 ) {
-  // ADR-010, enmienda 2026-09-16: headCoach lee la lista (claves, rol y estado, sin PII) para
-  // poder crear clases en Classes & Services 2.0; el resto del directorio de staff sigue siendo
-  // de owner/administrator.
+  // ADR-010, enmiendas 2026-09-16 y 2026-10-12: headCoach lee la lista (claves, rol, estado y el
+  // nombre visible de cada coach, sin email ni telefono) para poder crear clases en Classes &
+  // Services 2.0; el resto del directorio de staff sigue siendo de owner/administrator.
   const user = requireUserActor(request);
   const academyId =
     user.role === "headCoach" ? user.academyId : requireAdminActor(request).academyId;
   payloadRecord(request.data, []);
+  let profiles: readonly StaffProfileProjection[];
   try {
-    return safeStaffProjectionList(await services.store.listStaffProfiles(academyId, user.userId));
+    profiles = safeStaffProjectionList(await services.store.listStaffProfiles(academyId, user.userId));
   } catch (error) {
     return mapStoreError(error);
   }
+  let names: ReadonlyMap<string, string> = new Map();
+  try {
+    names = (await services.staffNames?.(academyId, profiles.map((row) => row.staffKey))) ?? names;
+  } catch {
+    // A name only labels the trainer, so a lookup failure keeps the list (a class needs a trainer).
+  }
+  return Object.freeze(
+    profiles.map((row) => Object.freeze({ ...row, name: names.get(row.staffKey) || null })),
+  );
+}
+
+/**
+ * The name a coach shows under in Classes & Services: their Auth display name, else the academy
+ * profile's (member accounts given coach access usually have no Auth name). Nothing else personal.
+ */
+async function readStaffNames(
+  academyId: string,
+  staffKeys: readonly string[],
+): Promise<ReadonlyMap<string, string>> {
+  const db = getFirestore();
+  if (staffKeys.length === 0) return new Map();
+  const staffDocuments = await db.getAll(
+    ...staffKeys.map((key) => db.doc(`academies/${academyId}/staff/${key}`)),
+  );
+  const userIds = new Map<string, string>();
+  for (const document of staffDocuments) {
+    const userId = document.get("userId");
+    if (typeof userId === "string" && userId) userIds.set(document.id, userId);
+  }
+  // At most MAX_STAFF_LIST_RECORDS (100) keys, which is also getUsers' limit per call.
+  const { users } = await getAuth().getUsers([...new Set(userIds.values())].map((uid) => ({ uid })));
+  const authNames = new Map(users.map((user) => [user.uid, user.displayName?.trim() ?? ""]));
+  const profiles = await profileNames(
+    db,
+    academyId,
+    [...userIds.values()].filter((uid) => !authNames.get(uid)),
+  );
+  const names = new Map<string, string>();
+  for (const [staffKey, userId] of userIds) {
+    const name = authNames.get(userId) || profiles.get(userId);
+    // The web refuses the whole list over 200 characters, so one odd name must not hide every trainer.
+    if (name) names.set(staffKey, name.slice(0, 200));
+  }
+  return names;
 }
 
 export function staffCallableServices(): StaffCallableServices {
@@ -564,6 +612,7 @@ export function staffCallableServices(): StaffCallableServices {
     withClaimsLock: (academyId, actorId, userId, operation) =>
       withSharedRoleLock(firestore, academyId, actorId, userId, operation),
     memberCoachRole: (academyId, userId) => readMemberCoachRole(getFirestore(), academyId, userId),
+    staffNames: readStaffNames,
     auth: {
       getUser: async (userId) => {
         const user = await getAuth().getUser(userId);

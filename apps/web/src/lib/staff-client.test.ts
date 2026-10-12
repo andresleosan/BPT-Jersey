@@ -40,6 +40,24 @@ describe("staff callable web client", () => {
     mocks.httpsCallable.mockReturnValue(mocks.callable);
   });
 
+  it("accepts a trainer name in the list, a list without it, and nothing else", async () => {
+    const named = { ...safeProfile, name: "Ana Coach" };
+    const unnamed = { ...safeProfile, staffKey: "staff-2", name: null };
+    mocks.callable.mockResolvedValue({ data: [named, unnamed] });
+    await expect(listStaffProfiles()).resolves.toEqual([named, unnamed]);
+    mocks.callable.mockResolvedValue({ data: [safeProfile] });
+    await expect(listStaffProfiles()).resolves.toEqual([safeProfile]);
+    const bad = [
+      { ...safeProfile, name: 42 },
+      { ...safeProfile, name: "x".repeat(201) },
+      { ...safeProfile, email: "a@b.c" },
+    ];
+    for (const row of bad) {
+      mocks.callable.mockResolvedValue({ data: [row] });
+      await expect(listStaffProfiles()).rejects.toThrow("Unable to load staff profiles.");
+    }
+  });
+
   it("uses exact callable names and payloads for list and profile mutations", async () => {
     mocks.callable.mockResolvedValue({ data: [safeProfile] });
     await expect(listStaffProfiles()).resolves.toEqual([safeProfile]);

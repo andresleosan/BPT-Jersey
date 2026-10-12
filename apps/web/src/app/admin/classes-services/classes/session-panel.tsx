@@ -528,7 +528,7 @@ export function SessionPanel({
                 catalog={catalog}
                 trainers={trainers.map((row) => ({
                   key: row.staffKey,
-                  name: trainerName(row.staffKey),
+                  name: trainerName(row.staffKey, staff),
                 }))}
                 timezone={timezone}
                 defaults={defaults}
@@ -778,7 +778,7 @@ export function SessionPanel({
                       disabled={readOnly}
                       onChange={() => toggleTrainer(key)}
                     />
-                    {trainerName(key)}
+                    {trainerName(key, staff)}
                   </label>
                 </li>
               ))}

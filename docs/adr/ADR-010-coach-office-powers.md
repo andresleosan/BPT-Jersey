@@ -91,3 +91,14 @@ por nombre en `/admin/members/search`.
 - La interfaz muestra al coach solo la pestana PROFILE (tarjeta IBJJF y Manage, E2). Ocultar pestanas
   no es el control: los tests de `member-profile-callables.test.ts` fijan el conjunto exacto de claves
   por rol.
+
+## Enmienda 2026-10-12
+
+Decision del operador en chat (2026-10-12): `listStaffProfiles` devuelve ademas el **nombre visible**
+de cada coach (`name`), para owner, administrator y headCoach. Es el `displayName` de su cuenta de
+Auth o, si falta, el de `users/{uid}`; nada mas personal (ni email ni telefono). Motivo: la lista de
+entrenadores de Classes & Services sacaba los nombres del plantel publico de la web, y los coaches
+con acceso desde su cuenta de miembro (sin nombre en Auth y fuera de la web) aparecian por su clave
+(UID). El plantel publico conserva su nombre publico; el nombre de la cuenta se usa para los demas.
+Si el nombre no se puede leer, la lista se devuelve igual con `name: null`, porque crear una clase
+exige un entrenador.

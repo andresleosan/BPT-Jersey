@@ -5,7 +5,7 @@ import { useEffect, useState, type ReactElement } from "react";
 
 import type { LocationRecord, ProgramRecord } from "@bpt-jersey/domain/schedule";
 
-import { trainerName } from "./trainer-options";
+import { trainerName, type StaffOption } from "./trainer-options";
 import { addDays } from "./week-actions";
 import { localParts, mondayOf, type GridSession } from "./week-grid";
 
@@ -20,6 +20,8 @@ export type ListViewProps = Readonly<{
   dateRange: DateRange | null;
   onDateRange: (range: DateRange | null) => void;
   onOpen: (sessionId: string) => void;
+  /** Trainer options, for names of coaches who are not on the website roster. */
+  staff?: readonly StaffOption[];
 }>;
 
 type Preset =
@@ -115,6 +117,7 @@ export function ListView({
   dateRange,
   onDateRange,
   onOpen,
+  staff = [],
 }: ListViewProps): ReactElement {
   const [preset, setPreset] = useState<Preset>("custom");
   const [locationId, setLocationId] = useState("");
@@ -145,7 +148,7 @@ export function ListView({
         (term === "" ||
           row.title.toLowerCase().includes(term) ||
           nameOfLocation(row.locationId).toLowerCase().includes(term) ||
-          row.instructorIds.some((id) => trainerName(id).toLowerCase().includes(term))),
+          row.instructorIds.some((id) => trainerName(id, staff).toLowerCase().includes(term))),
     )
     .slice()
     .sort((left, right) => {
@@ -181,7 +184,7 @@ export function ListView({
         [
           row.title,
           nameOfLocation(row.locationId),
-          row.instructorIds.map(trainerName).join(" "),
+          row.instructorIds.map((id) => trainerName(id, staff)).join(" "),
           localParts(row.startAt, timezone).date,
           `${timeOf(row.startAt, timezone)} - ${timeOf(row.endAt, timezone)}`,
           row.booked === null ? "" : String(row.booked),
@@ -273,7 +276,7 @@ export function ListView({
             <option value="">All</option>
             {trainers.map((key) => (
               <option key={key} value={key}>
-                {trainerName(key)}
+                {trainerName(key, staff)}
               </option>
             ))}
           </select>
@@ -339,7 +342,9 @@ export function ListView({
                   <span className="cs-abbr">{program?.abbreviation ?? "—"}</span> {row.title} Class
                 </td>
                 <td data-label="Location">{nameOfLocation(row.locationId)}</td>
-                <td data-label="Trainers">{row.instructorIds.map(trainerName).join(", ")}</td>
+                <td data-label="Trainers">
+                  {row.instructorIds.map((id) => trainerName(id, staff)).join(", ")}
+                </td>
                 <td data-label="Date">{localParts(row.startAt, timezone).date}</td>
                 <td data-label="Time">
                   {timeOf(row.startAt, timezone)} - {timeOf(row.endAt, timezone)}
