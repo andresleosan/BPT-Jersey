@@ -233,9 +233,13 @@ describe("deploy runtime import preparation", () => {
     expect(deployedFunctions["getMemberReport"]).toBeUndefined();
     expect(deployedFunctions["getMemberReportPdf"]).toBeUndefined();
     expect(deployedFunctions["getMemberReportSummary"]).toBeUndefined();
-    expect(deployedFunctions["createMemberPdfImportSession"]).toBeTypeOf("function");
-    expect(deployedFunctions["previewMemberPdfImport"]).toBeTypeOf("function");
-    expect(deployedFunctions["confirmMemberPdfImport"]).toBeTypeOf("function");
+    expect(deployedFunctions["createMemberPdfImportSession"]).toBeUndefined();
+    expect(deployedFunctions["previewMemberPdfImport"]).toBeUndefined();
+    expect(deployedFunctions["confirmMemberPdfImport"]).toBeUndefined();
+    expect(deployedFunctions["reviewMemberPdfImportMatches"]).toBeUndefined();
+    expect(
+      deployedFunctions["cleanupExpiredCanonicalMemberImportSessionsSchedule"],
+    ).toBeUndefined();
     expect(deployedFunctions["getDailyOperationsDashboard"]).toBeTypeOf("function");
     expect(deployedFunctions["getFinancialDashboard"]).toBeTypeOf("function");
     expect(deployedFunctions["getOperationalReport"]).toBeTypeOf("function");

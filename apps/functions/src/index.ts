@@ -30,13 +30,6 @@ export {
   verifyEnrolmentApplicantEmail,
 } from "./members/enrolment-request-callables.js";
 export {
-  cleanupExpiredCanonicalMemberImportSessionsSchedule,
-  confirmMemberPdfImport,
-  createMemberPdfImportSession,
-  previewMemberPdfImport,
-  reviewMemberPdfImportMatches,
-} from "./members/canonical-member-import-callables.js";
-export {
   createCanonicalMember as createMember,
   getMemberDetail,
   initializeCanonicalMemberDirectory,
