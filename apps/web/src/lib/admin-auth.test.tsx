@@ -135,6 +135,61 @@ describe("AdminAuthProvider", () => {
     expect(screen.queryByTestId("admin-content")).not.toBeInTheDocument();
   });
 
+  it("reads the cached token without forcing a refresh when it carries admin claims", async () => {
+    renderSessionProbe();
+
+    firebaseBoundary.emitUser(syntheticUser("owner"));
+
+    await waitFor(() => expect(screen.getByTestId("auth-status")).toHaveTextContent("authorized"));
+    expect(firebaseBoundary.refreshAuthToken).not.toHaveBeenCalled();
+  });
+
+  it("forces one refresh, not one per token event, while the token lacks admin claims", async () => {
+    renderSessionProbe();
+    const user = { ...syntheticUser("coach"), uid: "synthetic-coach-uid" };
+
+    firebaseBoundary.emitUser(user);
+    await waitFor(() => expect(screen.getByTestId("auth-status")).toHaveTextContent("denied"));
+    // A forced refresh issues a new token, so Firebase reports the same user again.
+    await act(async () => firebaseBoundary.emitUser(user));
+
+    expect(screen.getByTestId("auth-status")).toHaveTextContent("denied");
+    expect(firebaseBoundary.refreshAuthToken).toHaveBeenCalledTimes(1);
+  });
+
+  it("refreshes a cached token older than five minutes once, so a demotion shows on reload", async () => {
+    renderSessionProbe();
+    const user = {
+      ...syntheticUser("owner"),
+      uid: "synthetic-demoted-uid",
+      getIdTokenResult: async () => ({
+        claims: { academyId: "academy-synthetic", role: "owner" },
+        issuedAtTime: new Date(Date.now() - 10 * 60_000).toUTCString(),
+      }),
+    };
+    firebaseBoundary.refreshAuthToken.mockResolvedValueOnce({
+      claims: { academyId: "academy-synthetic", role: "coach" },
+      issuedAtTime: new Date().toUTCString(),
+    });
+
+    firebaseBoundary.emitUser(user);
+
+    await waitFor(() => expect(screen.getByTestId("auth-status")).toHaveTextContent("denied"));
+    expect(firebaseBoundary.refreshAuthToken).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries the forced refresh after a network failure", async () => {
+    renderSessionProbe();
+    const user = { ...syntheticUser("coach"), uid: "synthetic-offline-uid" };
+    firebaseBoundary.refreshAuthToken.mockRejectedValueOnce(new Error("network"));
+
+    firebaseBoundary.emitUser(user);
+    await waitFor(() => expect(screen.getByTestId("auth-status")).toHaveTextContent("denied"));
+    await act(async () => firebaseBoundary.emitUser(user));
+
+    expect(firebaseBoundary.refreshAuthToken).toHaveBeenCalledTimes(2);
+  });
+
   it("does not apply a stale token result after Firebase reports sign-out", async () => {
     let resolveTokenResult!: (result: { claims: Record<string, unknown> }) => void;
     const tokenResult = new Promise<{ claims: Record<string, unknown> }>((resolve) => {

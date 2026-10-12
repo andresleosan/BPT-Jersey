@@ -412,6 +412,14 @@ describe("attendance page", () => {
     );
   });
 
+  it("starts the rosters as soon as the day's sessions are known, before every view", async () => {
+    schedule.getSessionOperationalView.mockReturnValue(new Promise(() => undefined));
+    render(<AttendancePage />);
+    await waitFor(() =>
+      expect(schedule.getPreClassView).toHaveBeenCalledWith("session-connected-1"),
+    );
+  });
+
   it("re-reads the rosters every thirty seconds while the page is open", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {

@@ -4,6 +4,7 @@ const firebaseAuth = vi.hoisted(() => ({
   auth: { name: "auth" },
   createUserWithEmailAndPassword: vi.fn(),
   onIdTokenChanged: vi.fn(),
+  prepareFirebaseAppCheck: vi.fn(),
   sendPasswordResetEmail: vi.fn(),
   signInWithEmailAndPassword: vi.fn(),
   signInWithGoogle: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock("firebase/auth", () => ({
 
 vi.mock("./firebase-client", () => ({
   getFirebaseAuth: () => firebaseAuth.auth,
+  prepareFirebaseAppCheck: firebaseAuth.prepareFirebaseAppCheck,
   signInWithGoogle: firebaseAuth.signInWithGoogle,
   signOutFromFirebase: firebaseAuth.signOutFromFirebase,
   refreshAuthToken: firebaseAuth.refreshAuthToken,
@@ -88,6 +90,8 @@ describe("auth-client", () => {
 
     expect(firebaseAuth.onIdTokenChanged).toHaveBeenCalledWith(firebaseAuth.auth, listener);
     expect(firebaseAuth.signOutFromFirebase).toHaveBeenCalledOnce();
+    // App Check starts with the session listener, not at the first function call.
+    expect(firebaseAuth.prepareFirebaseAppCheck).toHaveBeenCalledOnce();
   });
 
   it("delegates claim refreshes to the Firebase boundary", async () => {

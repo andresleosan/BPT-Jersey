@@ -14,6 +14,7 @@ import {
 
 import {
   getFirebaseAuth,
+  prepareFirebaseAppCheck,
   refreshAuthToken as refreshAuthTokenFromFirebase,
   signInWithGoogle as signInWithGoogleFromFirebase,
   signOutFromFirebase,
@@ -88,6 +89,8 @@ export async function refreshClientEmailVerification(expectedUid: string): Promi
 export function subscribeToIdTokenChanges(
   listener: (user: User | null) => void,
 ): Unsubscribe {
+  // Every screen that waits for a session calls App Check functions next.
+  prepareFirebaseAppCheck();
   return onIdTokenChanged(getFirebaseAuth(), listener);
 }
 

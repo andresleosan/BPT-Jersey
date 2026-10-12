@@ -8,7 +8,7 @@ vi.mock("firebase/functions", () => ({
 }));
 vi.mock("../../../../lib/firebase-client", () => ({ getFirebaseFunctions: () => ({}) }));
 vi.mock("../../admin-gate", () => ({ useAdminOrStaffSession: () => ({ role: "owner" }) }));
-vi.mock("./ibjjf-card", () => ({ IbjjfCard: () => null }));
+vi.mock("./ibjjf-card", () => ({ IbjjfCard: () => null, loadIbjjfCard: async () => [] }));
 import { MemberRecord } from "./member-record";
 
 const header = {

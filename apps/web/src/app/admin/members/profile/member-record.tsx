@@ -28,7 +28,7 @@ import {
 import { useAdminOrStaffSession } from "../../admin-gate";
 import { ClassesTab } from "./classes-tab";
 import { DetailsTab } from "./details-tab";
-import { IbjjfCard } from "./ibjjf-card";
+import { IbjjfCard, loadIbjjfCard, type IbjjfCardLoad } from "./ibjjf-card";
 import { ManageView, unsavedRatingsQuestion } from "./manage-view";
 import { HistoryTab } from "./history-tab";
 import { NotesTab } from "./notes-tab";
@@ -165,6 +165,16 @@ function MemberRecordSession({
    * form and the IBJJF assessment both report into it; they cannot both be on screen at once.
    */
   const unsaved = useRef<string | null>(null);
+  // Taken once by the IBJJF card that mounts with the record; any later card reads afresh.
+  const cardLoad = useRef<Readonly<{ studentId: string; load: IbjjfCardLoad }> | undefined>(
+    undefined,
+  );
+  const readyIdRef = useRef<string | undefined>(undefined);
+  const takeCardLoad = useCallback((id: string): IbjjfCardLoad | undefined => {
+    const pending = cardLoad.current;
+    cardLoad.current = undefined;
+    return pending?.studentId === id ? pending.load : undefined;
+  }, []);
   const focusOfficeNote = useRef(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const locationRef = useRef<RecordLocation | null>(null);
@@ -224,6 +234,12 @@ function MemberRecordSession({
         ? current
         : { status: "loading" },
     );
+    // Started beside the profile, not after it: each was a cold start of 3-4 s (2026-10-12). Only
+    // for a record about to load on PROFILE: a save re-reads a ready record with its card mounted.
+    const here = readRecordLocation(window.location.search);
+    if (readyIdRef.current !== studentId && here.tab === "profile" && !here.manage) {
+      cardLoad.current = { studentId, load: loadIbjjfCard(studentId) };
+    }
     getMemberProfile(studentId).then(
       (profile) => {
         if (active) setLoad({ status: "ready", profile });
@@ -248,6 +264,12 @@ function MemberRecordSession({
   const readyStudentId = load.status === "ready" ? load.profile.header.studentId : undefined;
   useEffect(() => {
     if (readyStudentId !== undefined) headingRef.current?.focus();
+  }, [readyStudentId]);
+  // Child effects run first, so a card mounted with this record has already taken its prefetch.
+  // Drop an untaken one (Manage or another tab on screen): a card mounted later reads afresh.
+  useEffect(() => {
+    readyIdRef.current = readyStudentId;
+    if (readyStudentId !== undefined) cardLoad.current = undefined;
   }, [readyStudentId]);
 
   const onUnavailable = useCallback(
@@ -371,6 +393,7 @@ function MemberRecordSession({
       <IbjjfCard
         canOpenLevel={role === "owner" || role === "administrator" || role === "headCoach"}
         manageHref={recordHref(readyStudentId, "profile", true)}
+        takePrefetched={takeCardLoad}
         studentId={readyStudentId}
       />
     );

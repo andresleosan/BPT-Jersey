@@ -43,18 +43,37 @@ function formatPromotedOn(startedAt: string | null): string | null {
   return `Promoted on ${promotionDate.format(at)}`;
 }
 
+export type IbjjfCardLoad = Promise<readonly [StudentLevelCard, LevelCatalogProjection]>;
+
+/**
+ * Both reads only need the student id, so the record starts them beside its own profile read and
+ * their cold starts overlap instead of following it. A load nobody renders must not warn.
+ */
+export function loadIbjjfCard(studentId: string): IbjjfCardLoad {
+  const load = Promise.all([getStudentLevelCard(studentId), getLevelCatalog()] as const);
+  load.catch(() => undefined);
+  return load;
+}
+
 export function IbjjfCard({
   studentId,
   canOpenLevel,
   manageHref,
-}: Readonly<{ studentId: string; canOpenLevel: boolean; manageHref: string }>) {
+  takePrefetched,
+}: Readonly<{
+  studentId: string;
+  canOpenLevel: boolean;
+  manageHref: string;
+  takePrefetched?: (studentId: string) => IbjjfCardLoad | undefined;
+}>) {
   const [state, setState] = useState<CardState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
     setState({ status: "loading" });
-    Promise.all([getStudentLevelCard(studentId), getLevelCatalog()])
+    // "Try again" always reads afresh; only the first render may reuse the record's prefetch.
+    ((attempt === 0 ? takePrefetched?.(studentId) : undefined) ?? loadIbjjfCard(studentId))
       .then(([card, catalog]) => {
         if (active) setState({ status: "ready", card, catalog });
       })
@@ -64,7 +83,7 @@ export function IbjjfCard({
     return () => {
       active = false;
     };
-  }, [studentId, attempt]);
+  }, [studentId, attempt, takePrefetched]);
 
   if (state.status === "loading") {
     return (

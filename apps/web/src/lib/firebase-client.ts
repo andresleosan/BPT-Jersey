@@ -211,6 +211,19 @@ export function getFirebaseFirestore(): Firestore {
 /** Every function runs beside Firestore since 22 September 2026; see functions/src/global-options.ts. */
 export const memberFunctionsRegion = "europe-west9";
 
+/**
+ * Loads reCAPTCHA and App Check while the session restores, instead of at the first call
+ * (measured 2026-10-01: 2.9 s before the first function). A failure here is reported again, and
+ * surfaced, by getFirebaseFunctions on the first call.
+ */
+export function prepareFirebaseAppCheck(): void {
+  try {
+    initializeFirebaseAppCheck(shouldUseFirebaseEmulators());
+  } catch {
+    // getFirebaseFunctions repeats the same check where a call needs it.
+  }
+}
+
 export function getFirebaseFunctions(region: string = memberFunctionsRegion): Functions {
   const useFirebaseEmulators = shouldUseFirebaseEmulators();
   initializeFirebaseAppCheck(useFirebaseEmulators);

@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { Profiler } from "react";
+import { Profiler, useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -43,25 +43,44 @@ vi.mock("../../../../lib/member-class-records-client", () => ({
   MemberClassLoadError: class extends Error {},
 }));
 const gate = vi.hoisted(() => ({ role: "owner" as string }));
+const card = vi.hoisted(() => ({ loadIbjjfCard: vi.fn() }));
 vi.mock("./ibjjf-card", () => ({
-  IbjjfCard: ({
+  loadIbjjfCard: card.loadIbjjfCard,
+  IbjjfCard: function IbjjfCard({
     canOpenLevel,
     manageHref,
     studentId,
+    takePrefetched,
   }: {
     canOpenLevel: boolean;
     manageHref: string;
     studentId: string;
-  }) => (
-    <section
-      aria-label="JIU-JITSU IBJJF"
-      data-can-open-level={String(canOpenLevel)}
-      data-manage-href={manageHref}
-      data-student-id={studentId}
-    />
-  ),
+    takePrefetched?: (studentId: string) => unknown;
+  }) {
+    // Taken once, on mount, as the real card does in its first effect.
+    const [prefetched] = useState(() => takePrefetched?.(studentId) !== undefined);
+    return (
+      <section
+        aria-label="JIU-JITSU IBJJF"
+        data-can-open-level={String(canOpenLevel)}
+        data-manage-href={manageHref}
+        data-prefetched={String(prefetched)}
+        data-student-id={studentId}
+      />
+    );
+  },
 }));
 vi.mock("../../admin-gate", () => ({ useAdminOrStaffSession: () => ({ role: gate.role }) }));
+// Off by default; one test uses it to make a save re-read a record that is already on screen.
+const review = vi.hoisted(() => ({ show: false }));
+vi.mock("../member-review", () => ({
+  MemberReviewActions: ({ onSaved }: { onSaved: () => void }) =>
+    review.show ? (
+      <button onClick={onSaved} type="button">
+        Save review
+      </button>
+    ) : null,
+}));
 // The Manage view owns its own reads and its own suite; the record only routes `&view=manage` to
 // it and hands it the member and the viewer's role.
 vi.mock("./manage-view", () => ({
@@ -143,10 +162,12 @@ function open(search: string) {
 
 beforeEach(() => {
   gate.role = "owner";
+  review.show = false;
   live.getMemberSubscriptions.mockResolvedValue({ studentId: "student-1", memberships: [] });
   live.listManagedPlans.mockResolvedValue([]);
   live.getMemberSubscriptionBilling.mockResolvedValue([]);
   client.getMemberProfile.mockResolvedValue(full);
+  card.loadIbjjfCard.mockReturnValue(Promise.resolve([]));
 });
 
 afterEach(() => {
@@ -281,7 +302,9 @@ describe("member record page", () => {
     client.getMemberProfile.mockReturnValue(new Promise<MemberProfile>((done) => (resolve = done)));
     open("?id=student-1");
     expect(screen.getByRole("status", { name: "Loading member record" })).toBeTruthy();
-    // The card reads a restricted method, so it must not mount before the record is known.
+    // The card's reads start beside the profile's (the server checks access), but the card itself
+    // must not mount before the record is known.
+    expect(card.loadIbjjfCard).toHaveBeenCalledWith("student-1");
     expect(screen.queryByRole("region", { name: "JIU-JITSU IBJJF" })).toBeNull();
     resolve(full);
 
@@ -305,6 +328,50 @@ describe("member record page", () => {
     expect(tabs[0]?.getAttribute("aria-selected")).toBe("true");
     expect(screen.getByRole("region", { name: "JIU-JITSU IBJJF" })).toBeTruthy();
     expect(client.getMemberProfile).toHaveBeenCalledWith("student-1");
+  });
+
+  it("starts the card's reads beside the profile's and hands them to the card it mounts", async () => {
+    open("?id=student-1");
+    const ibjjf = await screen.findByRole("region", { name: "JIU-JITSU IBJJF" });
+    expect(card.loadIbjjfCard).toHaveBeenCalledTimes(1);
+    expect(card.loadIbjjfCard).toHaveBeenCalledWith("student-1");
+    expect(ibjjf.getAttribute("data-prefetched")).toBe("true");
+  });
+
+  it("reads the card afresh when it mounts after the record, e.g. back from Manage", async () => {
+    const user = open("?id=student-1&view=manage");
+    // Manage replaces the PROFILE cards, so the record does not even start the card's reads.
+    expect(await screen.findByRole("region", { name: "Manage IBJJF" })).toBeTruthy();
+    expect(card.loadIbjjfCard).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("tab", { name: "Details" }));
+    await user.click(screen.getByRole("tab", { name: "Profile" }));
+    const ibjjf = await screen.findByRole("region", { name: "JIU-JITSU IBJJF" });
+    expect(ibjjf.getAttribute("data-prefetched")).toBe("false");
+  });
+
+  it("starts no second set of card reads when a save re-reads a record already on screen", async () => {
+    review.show = true;
+    const user = open("?id=student-1");
+    const ibjjf = await screen.findByRole("region", { name: "JIU-JITSU IBJJF" });
+    expect(ibjjf.getAttribute("data-prefetched")).toBe("true");
+    await user.click(screen.getByRole("button", { name: "Save review" }));
+    await waitFor(() => expect(client.getMemberProfile).toHaveBeenCalledTimes(2));
+    expect(card.loadIbjjfCard).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops reads started for PROFILE when the record lands on another tab", async () => {
+    let resolve: (value: MemberProfile) => void = () => {};
+    client.getMemberProfile.mockReturnValue(new Promise<MemberProfile>((done) => (resolve = done)));
+    const user = open("?id=student-1");
+    expect(card.loadIbjjfCard).toHaveBeenCalledTimes(1);
+    // A Back to another tab before the profile answers: the card is not on screen when it lands.
+    window.history.pushState(null, "", recordHref("student-1", "details"));
+    fireEvent.popState(window);
+    resolve(full);
+    expect(await screen.findByRole("form", { name: "Member details" })).toBeTruthy();
+    await user.click(screen.getByRole("tab", { name: "Profile" }));
+    const ibjjf = await screen.findByRole("region", { name: "JIU-JITSU IBJJF" });
+    expect(ibjjf.getAttribute("data-prefetched")).toBe("false");
   });
 
   it("opens the tab named in the URL", async () => {

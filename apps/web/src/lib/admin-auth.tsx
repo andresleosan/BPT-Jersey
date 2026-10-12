@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import type { User } from "firebase/auth";
+import type { IdTokenResult, User } from "firebase/auth";
 
 import { parseAdminClaims, type AdminRole } from "@bpt-jersey/domain";
 
@@ -43,13 +43,35 @@ type AdminSessionState =
 
 const AdminSessionContext = createContext<AdminSessionContextValue | undefined>(undefined);
 
-async function sessionFromUser(user: User): Promise<AdminSessionState> {
+// Forcing a refresh on every token event looped: each forced refresh issues a new token, which
+// fires onIdTokenChanged again (2-10 refreshes before the first call, measured 2026-10-01). The
+// cached token is read instead and refreshed once per account and page when it is older than five
+// minutes or lacks admin claims: a role granted, a demotion or a disabled account still shows at
+// the next reload, and the fresh token the refresh issues ends the round.
+const forcedTokenRefreshes = new Set<string>();
+const maxCachedTokenAgeMs = 5 * 60_000;
+
+function adminClaimsOf(tokenResult: IdTokenResult) {
+  return parseAdminClaims({
+    academyId: tokenResult.claims.academyId,
+    role: tokenResult.claims.role,
+  });
+}
+
+async function sessionFromUser(user: User, forceRefresh = false): Promise<AdminSessionState> {
   try {
-    const tokenResult = await refreshAuthToken(user);
-    const claims = parseAdminClaims({
-      academyId: tokenResult.claims.academyId,
-      role: tokenResult.claims.role,
-    });
+    const token = forceRefresh ? await refreshAuthToken(user) : await user.getIdTokenResult();
+    let claims = adminClaimsOf(token);
+    const old = Date.now() - Date.parse(token.issuedAtTime) > maxCachedTokenAgeMs;
+    if ((old || !claims.ok) && !forceRefresh && !forcedTokenRefreshes.has(user.uid)) {
+      forcedTokenRefreshes.add(user.uid);
+      try {
+        claims = adminClaimsOf(await refreshAuthToken(user));
+      } catch (error) {
+        forcedTokenRefreshes.delete(user.uid); // a network failure may be retried
+        throw error;
+      }
+    }
 
     if (!claims.ok || user.uid.trim().length === 0) {
       return { status: "denied" };
@@ -119,7 +141,7 @@ export function AdminAuthProvider({ children }: Readonly<{ children: React.React
         return;
       }
 
-      setState(await sessionFromUser(state.user));
+      setState(await sessionFromUser(state.user, true));
     },
   };
 
