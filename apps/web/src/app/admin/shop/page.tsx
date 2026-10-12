@@ -33,6 +33,7 @@ import { AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 import { AdminDataTableWrap } from "../admin-data-table";
 import { pickupNames } from "../../shop/shop-orders";
 
+import { SizeStockEditor, type SizeStock } from "./size-stock-editor";
 import "../admin.css";
 
 type WorkspaceState =
@@ -54,7 +55,9 @@ type EditorValues = Readonly<{
   category: ShopProductCategory;
   description: string;
   priceMajor: string;
-  sizes: string;
+  sizes: readonly string[];
+  /** Units per size as typed; blank means the size is not counted. */
+  sizeStock: SizeStock;
   imageUrl: string;
   stockStatus: ShopStockStatus;
   leadTimeWeeks: string;
@@ -67,7 +70,8 @@ const emptyEditor: EditorValues = {
   category: "gi",
   description: "",
   priceMajor: "",
-  sizes: "",
+  sizes: [],
+  sizeStock: {},
   imageUrl: "",
   stockStatus: "in-stock",
   leadTimeWeeks: "",
@@ -176,7 +180,10 @@ function editorFromProduct(product: ShopProductProjection): EditorValues {
     category: product.category,
     description: product.description ?? "",
     priceMajor: (product.priceMinor / 100).toFixed(2),
-    sizes: product.sizes.join(", "),
+    sizes: product.sizes,
+    sizeStock: Object.fromEntries(
+      Object.entries(product.sizeStock ?? {}).map(([size, units]) => [size, String(units)]),
+    ),
     imageUrl: product.imageUrl ?? "",
     stockStatus: product.stockStatus,
     leadTimeWeeks: product.leadTimeWeeks ? String(product.leadTimeWeeks) : "",
@@ -196,11 +203,17 @@ function draftFromEditor(values: EditorValues): ShopProductDraft | string {
   const sortOrder = Number(values.sortOrder);
   if (!Number.isInteger(sortOrder) || sortOrder < 0 || sortOrder > 999)
     return "Sort order must be a whole number between 0 and 999.";
-  const sizes = values.sizes
-    .split(",")
-    .map((size) => size.trim())
-    .filter((size) => size.length > 0);
+  const sizes = [...values.sizes];
   if (new Set(sizes).size !== sizes.length) return "Sizes must not repeat.";
+  const sizeStock: Record<string, number> = {};
+  for (const size of sizes) {
+    const text = values.sizeStock[size]?.trim() ?? "";
+    if (text.length === 0) continue;
+    const units = Number(text);
+    if (!Number.isInteger(units) || units < 0 || units > 9999)
+      return `Units for size ${size} must be a whole number between 0 and 9999.`;
+    sizeStock[size] = units;
+  }
   // A lead time only means something for made-to-order products; other statuses drop it.
   const leadTimeText = values.stockStatus === "made-to-order" ? values.leadTimeWeeks.trim() : "";
   const leadTimeWeeks = leadTimeText.length === 0 ? null : Number(leadTimeText);
@@ -221,6 +234,7 @@ function draftFromEditor(values: EditorValues): ShopProductDraft | string {
     priceMinor,
     currency: "GBP",
     sizes,
+    ...(Object.keys(sizeStock).length > 0 ? { sizeStock } : {}),
     imageUrl: imageUrl.length === 0 ? null : imageUrl,
     stockStatus: values.stockStatus,
     leadTimeWeeks,
@@ -726,7 +740,15 @@ export function ShopAdminPage() {
                             {formatShopPrice(product.priceMinor, product.currency)}
                           </td>
                           <td data-label="Sizes">
-                            {product.sizes.length > 0 ? product.sizes.join(", ") : "-"}
+                            {product.sizes.length > 0
+                              ? product.sizes
+                                  .map((size) =>
+                                    product.sizeStock?.[size] === undefined
+                                      ? size
+                                      : `${size} (${product.sizeStock[size]})`,
+                                  )
+                                  .join(", ")
+                              : "-"}
                           </td>
                           <td data-label="Stock">{stockLabels[product.stockStatus]}</td>
                           <td data-label="Visible in shop">
@@ -847,16 +869,15 @@ export function ShopAdminPage() {
                     value={editor.priceMajor}
                   />
                 </label>
-                <label className="shop-admin-field" htmlFor="shop-product-sizes">
-                  Sizes (comma separated)
-                  <input
-                    disabled={busy !== undefined}
-                    id="shop-product-sizes"
-                    onChange={(event) => updateEditor("sizes", event.target.value)}
-                    placeholder="A1, A2, A3"
-                    value={editor.sizes}
-                  />
-                </label>
+                <SizeStockEditor
+                  disabled={busy !== undefined}
+                  onChange={(sizes, sizeStock) => {
+                    setEditor((current) => ({ ...current, sizes, sizeStock }));
+                    setNotice(undefined);
+                  }}
+                  sizes={editor.sizes}
+                  stock={editor.sizeStock}
+                />
                 <label className="shop-admin-field" htmlFor="shop-product-stock">
                   Stock
                   <select

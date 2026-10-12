@@ -112,6 +112,8 @@ export const shopProductDraftSchema = z.strictObject({
   sortOrder: z.number().int().min(0).max(999),
   // Optional: products saved before lead times existed carry no field at all.
   leadTimeWeeks: z.number().int().min(1).max(shopLeadTimeMaximumWeeks).nullable().optional(),
+  // Units left per size; a size without an entry is not counted. Orders subtract, cancellations give back.
+  sizeStock: z.record(boundedText(16), z.number().int().min(0).max(9_999)).optional(),
 });
 
 export const shopProductRecordSchema = shopProductDraftSchema.extend({
@@ -353,6 +355,7 @@ export function toShopProductProjection(record: ShopProductRecord): ShopProductP
     stockStatus: record.stockStatus,
     sortOrder: record.sortOrder,
     leadTimeWeeks: record.leadTimeWeeks ?? null,
+    ...(record.sizeStock ? { sizeStock: record.sizeStock } : {}),
     active: record.active,
   });
 }
@@ -392,6 +395,14 @@ export function sortShopProducts<T extends Pick<ShopProductDraft, "sortOrder" | 
 
 export function formatShopPrice(priceMinor: number, currency: "GBP" = "GBP"): string {
   return new Intl.NumberFormat("en-GB", { style: "currency", currency }).format(priceMinor / 100);
+}
+
+/** A size is orderable while it is not counted or has units left. */
+export function isShopSizeAvailable(
+  product: Readonly<{ sizeStock?: Readonly<Record<string, number>> | undefined }>,
+  size: string,
+): boolean {
+  return (product.sizeStock?.[size] ?? 1) > 0;
 }
 
 export function isShopProductPurchasable(

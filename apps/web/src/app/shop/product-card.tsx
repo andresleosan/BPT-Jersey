@@ -5,6 +5,7 @@ import { useState, type FormEvent } from "react";
 import {
   formatShopPrice,
   isShopProductPurchasable,
+  isShopSizeAvailable,
   shopMadeToOrderLabel,
   shopOrderMaximumQuantity,
   shopProductCategoryLabels,
@@ -25,9 +26,12 @@ export function ProductCard({
   product: ShopProductProjection;
   onAdd: (line: BasketLine) => void;
 }) {
-  const [size, setSize] = useState(product.sizes[0] ?? "");
+  const available = product.sizes.filter((option) => isShopSizeAvailable(product, option));
+  const [size, setSize] = useState(available[0] ?? "");
   const [quantity, setQuantity] = useState("1");
-  const purchasable = isShopProductPurchasable(product);
+  // Every counted size at 0 reads as sold out.
+  const purchasable =
+    isShopProductPurchasable(product) && (product.sizes.length === 0 || available.length > 0);
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -91,11 +95,17 @@ export function ProductCard({
                 onChange={(event) => setSize(event.target.value)}
                 value={size}
               >
-                {product.sizes.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
+                {product.sizes.map((option) =>
+                  isShopSizeAvailable(product, option) ? (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ) : (
+                    <option disabled key={option} value={option}>
+                      {option} (not available)
+                    </option>
+                  ),
+                )}
               </select>
             </label>
           ) : null}

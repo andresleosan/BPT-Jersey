@@ -421,6 +421,24 @@ export function createShopStore(dependencies: ShopStoreDependencies): ShopStore 
             lineTotalMinor: product.priceMinor * line.quantity,
           };
         });
+        // Counted sizes lose the ordered units in the same transaction that creates the order.
+        const counted = new Map<string, Record<string, number>>();
+        for (const line of lines) {
+          const product = products.get(line.productId)!;
+          const left = line.size === null ? undefined : product.sizeStock?.[line.size];
+          if (left === undefined) continue;
+          const stock = counted.get(product.productId) ?? { ...product.sizeStock };
+          const remaining = (stock[line.size!] ?? 0) - line.quantity;
+          if (remaining < 0)
+            throw new ShopStoreError(
+              "precondition",
+              left === 0
+                ? `${product.name} in size ${line.size} is not available`
+                : `Only ${left} left of ${product.name} in size ${line.size}`,
+            );
+          stock[line.size!] = remaining;
+          counted.set(product.productId, stock);
+        }
         const numbered = unnumbered.map((order, index) => {
           const parsed = parseShopOrderRecord({ ...order, orderNumber: index + 1 });
           if (!parsed.ok) throw new ShopStoreError("invalid", "Order contract rejected");
@@ -460,6 +478,11 @@ export function createShopStore(dependencies: ShopStoreDependencies): ShopStore 
           );
         transaction.set(counterReference, { lastOrderNumber: orderNumber, updatedAt: now });
         transaction.create(orderReference, candidate.value);
+        for (const [productId, sizeStock] of counted)
+          transaction.set(
+            firestore.doc(`${collectionPath(academyId, "shopProducts")}/${productId}`),
+            { ...products.get(productId)!, sizeStock },
+          );
         appendAudit(
           dependencies,
           transaction,
@@ -530,7 +553,29 @@ export function createShopStore(dependencies: ShopStoreDependencies): ShopStore 
           updatedBy: actorId,
         });
         if (!candidate.ok) throw new ShopStoreError("invalid", "Order contract rejected");
+        // A cancelled order gives its units back to the sizes that are still counted.
+        const restocked: ShopProductRecord[] = [];
+        if (nextStatus === "cancelled" && existing.status !== "cancelled") {
+          for (const productId of new Set(existing.lines.map((line) => line.productId))) {
+            const productSnapshot = asDocument(
+              await transaction.get(firestore.doc(`${collectionPath(academyId, "shopProducts")}/${productId}`)),
+            );
+            if (!productSnapshot.exists) continue;
+            const product = storedProduct(productSnapshot, academyId);
+            if (!product.sizeStock) continue;
+            const sizeStock = { ...product.sizeStock };
+            for (const line of existing.lines)
+              if (line.productId === productId && line.size !== null && sizeStock[line.size] !== undefined)
+                sizeStock[line.size] = Math.min(9_999, sizeStock[line.size]! + line.quantity);
+            restocked.push({ ...product, sizeStock });
+          }
+        }
         transaction.set(reference, candidate.value);
+        for (const product of restocked)
+          transaction.set(
+            firestore.doc(`${collectionPath(academyId, "shopProducts")}/${product.productId}`),
+            product,
+          );
         appendAudit(
           dependencies,
           transaction,
