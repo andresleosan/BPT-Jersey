@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+const liveAuthUsers = vi.hoisted(() => new Map<string, Record<string, unknown>>());
+vi.mock("firebase-admin/auth", () => ({
+  getAuth: () => ({ getUser: async (uid: string) => liveAuthUsers.get(uid) }),
+}));
 import { buildOperationalReport, type OperationalReport } from "@bpt-jersey/domain/reports";
 
 import { createGetOperationalReportHandler } from "./operational-report-callables";
@@ -25,8 +30,16 @@ function request(
   uid: string | null = "owner-1",
   academyId = "academy-1",
 ) {
+  if (uid) {
+    liveAuthUsers.set(uid, {
+      uid,
+      disabled: false,
+      customClaims: { academyId, role },
+      tokensValidAfterTime: "2020-01-01T00:00:00.000Z",
+    });
+  }
   return {
-    auth: uid ? { uid, token: { academyId, role } } : undefined,
+    auth: uid ? { uid, token: { academyId, role, auth_time: 1_700_000_000 } } : undefined,
     data,
   } as never;
 }
@@ -70,6 +83,28 @@ describe("operational report callable", () => {
     await expect(handler(request({ ...query, academyId: "academy-2" }))).rejects.toThrow(
       /must contain only from and to/,
     );
+  });
+
+  it("refuses a token issued before a demotion or a session revocation (N-02)", async () => {
+    const handler = createGetOperationalReportHandler({
+      store: { getOperationalReport: async () => report },
+    });
+    const demoted = request(query, "administrator", "admin-9");
+    liveAuthUsers.set("admin-9", {
+      uid: "admin-9",
+      disabled: false,
+      customClaims: { academyId: "academy-1", role: "coach" },
+      tokensValidAfterTime: "2020-01-01T00:00:00.000Z",
+    });
+    await expect(handler(demoted)).rejects.toMatchObject({ code: "permission-denied" });
+    const disabled = request(query, "owner", "owner-9");
+    liveAuthUsers.set("owner-9", {
+      uid: "owner-9",
+      disabled: true,
+      customClaims: { academyId: "academy-1", role: "owner" },
+      tokensValidAfterTime: "2020-01-01T00:00:00.000Z",
+    });
+    await expect(handler(disabled)).rejects.toMatchObject({ code: "unauthenticated" });
   });
 
   it("returns a generic error without exposing source details", async () => {

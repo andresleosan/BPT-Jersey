@@ -1999,6 +1999,29 @@ describe("classes-services callables", () => {
     });
   });
 
+  it("refuses a dashboard token issued before a demotion or a session revocation (N-02)", async () => {
+    const handler = createGetDailyOperationsDashboardHandler({
+      store: createInMemoryScheduleStore(),
+    });
+    const query = { from: "2026-09-01T00:00:00Z", to: "2026-09-01T23:59:59Z" };
+    const demoted = fakeRequest(query, "coach", "coach-9");
+    syntheticAuthUsers.set("coach-9", {
+      uid: "coach-9",
+      disabled: false,
+      customClaims: { academyId: "demo-academy", role: "student" },
+      tokensValidAfterTime: "2020-01-01T00:00:00.000Z",
+    });
+    await expect(handler(demoted)).rejects.toMatchObject({ code: "permission-denied" });
+    const revoked = fakeRequest(query, "coach", "coach-10");
+    syntheticAuthUsers.set("coach-10", {
+      uid: "coach-10",
+      disabled: false,
+      customClaims: { academyId: "demo-academy", role: "coach" },
+      tokensValidAfterTime: "2030-01-01T00:00:00.000Z",
+    });
+    await expect(handler(revoked)).rejects.toMatchObject({ code: "unauthenticated" });
+  });
+
   it("answers failed-precondition when the source week holds a session without capacity", async () => {
     const store = createInMemoryScheduleStore();
     vi.spyOn(store, "copyWeek").mockRejectedValue(

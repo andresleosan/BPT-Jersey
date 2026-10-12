@@ -3,6 +3,7 @@ import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/
 import { parseOperationalReportQuery, type OperationalReport } from "@bpt-jersey/domain/reports";
 
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
+import { requireActiveUserActor } from "../auth/office-actor.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import {
   createFirestoreOperationalReportStore,
@@ -21,6 +22,7 @@ export function createGetOperationalReportHandler(options: { store: OperationalR
         "Owner or administrator access required to view operational reports",
       );
     }
+    await requireActiveUserActor(request); // live claims, not just the token (H-03, N-02)
 
     const parsedQuery = parseOperationalReportQuery(request.data);
     if (!parsedQuery.ok) {

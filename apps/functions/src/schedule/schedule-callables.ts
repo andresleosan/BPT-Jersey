@@ -550,6 +550,7 @@ export function createGetDailyOperationsDashboardHandler(options: { store: Sched
         "Staff access required to view the daily operations dashboard",
       );
     }
+    await requireActiveUserActor(request); // live claims, not just the token (H-03, N-02)
 
     const parsedQuery = parseListSessionsQuery(request.data);
     if (!parsedQuery.ok) {

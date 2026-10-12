@@ -4,6 +4,7 @@ import { initializeApp } from "firebase-admin/app";
 initializeApp();
 
 export { sweepSessionQuorumsSchedule } from "./schedule/quorum-sweep-schedule.js";
+export { keepHotFunctionsWarm } from "./ops/keep-hot-functions-warm.js";
 
 export {
   signInStaffWithId,
