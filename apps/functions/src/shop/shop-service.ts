@@ -207,6 +207,47 @@ function sameCheckout(stored: ShopOrderRecord, request: ShopCheckoutRequest): bo
   );
 }
 
+type StockLine = Readonly<{ productId: string; size: string | null; quantity: number }>;
+
+/** New counts for the counted sizes the lines use; refuses when a size has too few units. */
+function subtractSizeStock(
+  products: ReadonlyMap<string, ShopProductRecord>,
+  lines: readonly StockLine[],
+): Map<string, Record<string, number>> {
+  const counted = new Map<string, Record<string, number>>();
+  for (const line of lines) {
+    const product = products.get(line.productId)!;
+    if (line.size === null || product.sizeStock?.[line.size] === undefined) continue;
+    const stock = counted.get(product.productId) ?? { ...product.sizeStock };
+    const left = stock[line.size]!;
+    if (left < line.quantity)
+      throw new ShopStoreError(
+        "precondition",
+        left === 0
+          ? `${product.name} in size ${line.size} is not available`
+          : `Only ${left} left of ${product.name} in size ${line.size}`,
+      );
+    stock[line.size] = left - line.quantity;
+    counted.set(product.productId, stock);
+  }
+  return counted;
+}
+
+function returnSizeStock(
+  products: ReadonlyMap<string, ShopProductRecord>,
+  lines: readonly StockLine[],
+): Map<string, Record<string, number>> {
+  const counted = new Map<string, Record<string, number>>();
+  for (const line of lines) {
+    const product = products.get(line.productId)!;
+    if (line.size === null || product.sizeStock?.[line.size] === undefined) continue;
+    const stock = counted.get(product.productId) ?? { ...product.sizeStock };
+    stock[line.size] = Math.min(9_999, stock[line.size]! + line.quantity);
+    counted.set(product.productId, stock);
+  }
+  return counted;
+}
+
 export function shopOrderId(requestId: string): string {
   return `order-${requestId}`;
 }
@@ -421,24 +462,9 @@ export function createShopStore(dependencies: ShopStoreDependencies): ShopStore 
             lineTotalMinor: product.priceMinor * line.quantity,
           };
         });
-        // Counted sizes lose the ordered units in the same transaction that creates the order.
-        const counted = new Map<string, Record<string, number>>();
-        for (const line of lines) {
-          const product = products.get(line.productId)!;
-          const left = line.size === null ? undefined : product.sizeStock?.[line.size];
-          if (left === undefined) continue;
-          const stock = counted.get(product.productId) ?? { ...product.sizeStock };
-          const remaining = (stock[line.size!] ?? 0) - line.quantity;
-          if (remaining < 0)
-            throw new ShopStoreError(
-              "precondition",
-              left === 0
-                ? `${product.name} in size ${line.size} is not available`
-                : `Only ${left} left of ${product.name} in size ${line.size}`,
-            );
-          stock[line.size!] = remaining;
-          counted.set(product.productId, stock);
-        }
+        // Only a check: units come off when the office confirms, so unpaid requests from any
+        // Google account cannot empty the stock.
+        subtractSizeStock(products, lines);
         const numbered = unnumbered.map((order, index) => {
           const parsed = parseShopOrderRecord({ ...order, orderNumber: index + 1 });
           if (!parsed.ok) throw new ShopStoreError("invalid", "Order contract rejected");
@@ -478,11 +504,6 @@ export function createShopStore(dependencies: ShopStoreDependencies): ShopStore 
           );
         transaction.set(counterReference, { lastOrderNumber: orderNumber, updatedAt: now });
         transaction.create(orderReference, candidate.value);
-        for (const [productId, sizeStock] of counted)
-          transaction.set(
-            firestore.doc(`${collectionPath(academyId, "shopProducts")}/${productId}`),
-            { ...products.get(productId)!, sizeStock },
-          );
         appendAudit(
           dependencies,
           transaction,
@@ -553,22 +574,24 @@ export function createShopStore(dependencies: ShopStoreDependencies): ShopStore 
           updatedBy: actorId,
         });
         if (!candidate.ok) throw new ShopStoreError("invalid", "Order contract rejected");
-        // A cancelled order gives its units back to the sizes that are still counted.
+        // Confirming takes the units off; cancelling a confirmed or ready order gives them back.
+        const confirming = existing.status === "requested" && nextStatus === "confirmed";
+        const releasing =
+          nextStatus === "cancelled" && (existing.status === "confirmed" || existing.status === "ready");
         const restocked: ShopProductRecord[] = [];
-        if (nextStatus === "cancelled" && existing.status !== "cancelled") {
+        if (confirming || releasing) {
+          const products = new Map<string, ShopProductRecord>();
           for (const productId of new Set(existing.lines.map((line) => line.productId))) {
             const productSnapshot = asDocument(
               await transaction.get(firestore.doc(`${collectionPath(academyId, "shopProducts")}/${productId}`)),
             );
-            if (!productSnapshot.exists) continue;
-            const product = storedProduct(productSnapshot, academyId);
-            if (!product.sizeStock) continue;
-            const sizeStock = { ...product.sizeStock };
-            for (const line of existing.lines)
-              if (line.productId === productId && line.size !== null && sizeStock[line.size] !== undefined)
-                sizeStock[line.size] = Math.min(9_999, sizeStock[line.size]! + line.quantity);
-            restocked.push({ ...product, sizeStock });
+            if (productSnapshot.exists) products.set(productId, storedProduct(productSnapshot, academyId));
           }
+          const lines = existing.lines.filter((line) => products.has(line.productId));
+          for (const [productId, sizeStock] of confirming
+            ? subtractSizeStock(products, lines)
+            : returnSizeStock(products, lines))
+            restocked.push({ ...products.get(productId)!, sizeStock });
         }
         transaction.set(reference, candidate.value);
         for (const product of restocked)

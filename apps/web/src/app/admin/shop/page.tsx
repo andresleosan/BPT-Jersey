@@ -398,8 +398,11 @@ export function ShopAdminPage() {
           : current,
       );
       setNotice({ tone: "success", text: `Order ${shopOrderReference(updated)} updated.` });
-    } catch {
-      setNotice({ tone: "error", text: "Unable to update the order. Please try again." });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Unable to update the order. Please try again.",
+      });
     } finally {
       setBusy(undefined);
     }

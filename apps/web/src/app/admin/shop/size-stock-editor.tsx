@@ -76,7 +76,7 @@ export function SizeStockEditor({
       <legend>Sizes and stock</legend>
       <p className="shop-admin-sizes-help">
         Add the sizes this product comes in. Type the units you have, or leave it blank if you
-        don&apos;t count that size. Each order takes units off and a cancelled order puts them
+        don&apos;t count that size. Units come off when you confirm an order, and cancelling it puts them
         back. A size at 0 shows as not available in the shop.
       </p>
 

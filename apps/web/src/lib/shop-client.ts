@@ -190,7 +190,8 @@ export async function updateShopOrder(input: ShopOrderStatusUpdate): Promise<Sho
     const parsed = parseShopOrderStatusUpdate(input);
     if (!parsed.ok) throw new Error(orderUpdateError);
     return order(await call("updateShopOrder", parsed.value), orderUpdateError);
-  } catch {
-    throw new Error(orderUpdateError);
+  } catch (error) {
+    // e.g. "Only 2 left of … in size A2" when confirming more than the stock holds.
+    throw new Error(callableMessage(error, "failed-precondition") ?? orderUpdateError);
   }
 }

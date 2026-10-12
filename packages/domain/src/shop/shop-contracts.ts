@@ -112,7 +112,7 @@ export const shopProductDraftSchema = z.strictObject({
   sortOrder: z.number().int().min(0).max(999),
   // Optional: products saved before lead times existed carry no field at all.
   leadTimeWeeks: z.number().int().min(1).max(shopLeadTimeMaximumWeeks).nullable().optional(),
-  // Units left per size; a size without an entry is not counted. Orders subtract, cancellations give back.
+  // Units left per size; a size without an entry is not counted. Confirming an order subtracts, cancelling it gives back.
   sizeStock: z.record(boundedText(16), z.number().int().min(0).max(9_999)).optional(),
 });
 
