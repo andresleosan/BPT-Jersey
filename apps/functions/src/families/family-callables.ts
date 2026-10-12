@@ -13,6 +13,7 @@ import {
 
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { requireUserActor } from "../auth/user-authorization.js";
+import { isSessionActive } from "../auth/active-session.js";
 import { matchesProvisionedMemberDirectoryActor } from "../members/member-directory-actor-authorization.js";
 import {
   createFamilyStore,
@@ -30,6 +31,8 @@ type FamilyActorStatusInput = Readonly<{
   uid: string;
   academyId: string;
   role: "owner" | "administrator" | "guardian" | "adultStudent" | "teenStudent";
+  /** `auth_time` of the caller's ID token, compared with the account's session revocation. */
+  authTime: number | undefined;
 }>;
 
 type FamilyAdministrativeActor = Readonly<{
@@ -41,6 +44,7 @@ type FamilyAdministrativeActor = Readonly<{
 type FamilyActivityAuthUser = Readonly<{
   uid: string;
   disabled: boolean;
+  tokensValidAfterTime?: string;
   customClaims?: Readonly<Record<string, unknown>>;
 }>;
 
@@ -160,13 +164,14 @@ function parseStaffGetPayload(value: unknown): string {
 export function createFamilyActorActivityCheck(
   dependencies: FamilyActorActivityDependencies,
 ): FamilyCallableServices["isActorActive"] {
-  return async ({ uid, academyId, role }) => {
+  return async ({ uid, academyId, role, authTime }) => {
     try {
       const authUser = await dependencies.getAuthUser(uid);
       const claims = authUser.customClaims;
       if (
         authUser.uid !== uid ||
         authUser.disabled ||
+        !isSessionActive(authTime, authUser) ||
         !isPlainRecord(claims) ||
         claims.academyId !== academyId ||
         (claims.role !== role && !( ["guardian", "adultStudent", "teenStudent"].includes(role) &&
@@ -212,6 +217,7 @@ async function requireAdministrativeRole(
       uid: actor.userId,
       academyId: actor.academyId,
       role,
+      authTime: request.auth?.token.auth_time,
     });
   } catch {
     throw new HttpsError("failed-precondition", "Administrative account status is unavailable");
@@ -284,6 +290,7 @@ export async function getFamilyHandler(
           uid: actor.userId,
           academyId: actor.academyId,
           role: actor.role,
+          authTime: request.auth?.token.auth_time,
         }))
       ) {
         throw new HttpsError("permission-denied", "Family access is not permitted");

@@ -2390,7 +2390,7 @@ describe("live staff authority on attendance and roster callables (N-03)", () =>
     liveUser("admin-demoted", "adultStudent", "2020-01-01T00:00:00.000Z");
     await expect(handler(demoted)).rejects.toMatchObject({
       code: "permission-denied",
-      message: "Administrator access is required.",
+      message: "Your access has changed. Sign in again.",
     });
   });
 

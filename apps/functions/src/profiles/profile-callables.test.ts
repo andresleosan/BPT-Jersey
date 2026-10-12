@@ -59,7 +59,7 @@ function request(
   data: unknown = payload,
   auth: unknown = {
     uid: "user-1",
-    token: { academyId: "academy-1", role: "adultStudent" },
+    token: { academyId: "academy-1", role: "adultStudent", auth_time: 1_800_000_000 },
   },
   app: unknown = { appId: "verified-app" },
 ) {
@@ -75,6 +75,7 @@ function services(): ProfileCallableServices & {
       getUser: vi.fn(async () => ({
         uid: "user-1",
         disabled: false,
+        emailVerified: true,
         email: "adult@example.test",
         displayName: "Synthetic Adult",
         customClaims: { academyId: "academy-1", role: "adultStudent" },
@@ -225,6 +226,25 @@ describe("profile callables", () => {
       });
       expect(reader.store.getClientProfile).not.toHaveBeenCalled();
     }
+  });
+
+  it("refuses a token signed in before the account's sessions were revoked", async () => {
+    const current = services();
+    vi.mocked(current.auth.getUser).mockResolvedValue({
+      uid: "user-1",
+      disabled: false,
+      emailVerified: true,
+      customClaims: { academyId: "academy-1", role: "adultStudent" },
+      tokensValidAfterTime: new Date(1_800_000_001_000).toUTCString(),
+    });
+    await expect(getClientProfileHandler(request(null), current)).rejects.toMatchObject({
+      code: "unauthenticated",
+    });
+    await expect(saveClientProfileHandler(request(payload), current)).rejects.toMatchObject({
+      code: "unauthenticated",
+    });
+    expect(current.store.getClientProfile).not.toHaveBeenCalled();
+    expect(current.store.saveClientProfile).not.toHaveBeenCalled();
   });
 
   it("returns a minimal own-profile projection and generic store errors", async () => {

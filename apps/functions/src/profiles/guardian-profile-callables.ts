@@ -6,6 +6,7 @@ import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 import type { UserProfile } from "@bpt-jersey/domain/profiles";
 
 import { onCallWithFreshAppCheck } from "../auth/app-check.js";
+import { assertActiveSession } from "../auth/active-session.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import {
   createGuardianProfileStore,
@@ -25,6 +26,7 @@ type GuardianProfileAuthService = Readonly<{
       emailVerified: boolean;
       email?: string | null;
       customClaims?: Readonly<Record<string, unknown>>;
+      tokensValidAfterTime?: string;
     }>
   >;
 }>;
@@ -104,6 +106,7 @@ function requireGuardianActor(request: CallableRequest<unknown>) {
 }
 
 async function requireCurrentGuardianAuth(
+  request: CallableRequest<unknown>,
   actor: ReturnType<typeof requireGuardianActor>,
   services: GuardianProfileCallableServices,
 ): Promise<Readonly<{ uid: string; email: string }>> {
@@ -128,6 +131,7 @@ async function requireCurrentGuardianAuth(
   ) {
     throw new HttpsError("permission-denied", "Guardian profile access is not permitted");
   }
+  assertActiveSession(request, authUser);
   return Object.freeze({ uid: authUser.uid, email: authUser.email });
 }
 
@@ -154,7 +158,7 @@ export async function getGuardianProfileHandler(
 ): Promise<UserProfile | undefined> {
   const actor = requireGuardianActor(request);
   if (request.data !== undefined && request.data !== null) invalidPayload();
-  const authUser = await requireCurrentGuardianAuth(actor, services);
+  const authUser = await requireCurrentGuardianAuth(request, actor, services);
   try {
     return await services.store.getGuardianProfile(authUser.uid, actor.academyId, authUser.email);
   } catch (error) {
@@ -168,7 +172,7 @@ export async function saveGuardianProfileHandler(
 ): Promise<UserProfile> {
   const actor = requireGuardianActor(request);
   const payload = parseEditablePayload(request.data);
-  const authUser = await requireCurrentGuardianAuth(actor, services);
+  const authUser = await requireCurrentGuardianAuth(request, actor, services);
   const input: SaveGuardianProfileInput = {
     academyId: actor.academyId,
     userId: authUser.uid,
@@ -194,6 +198,9 @@ function guardianProfileCallableServices(): GuardianProfileCallableServices {
           emailVerified: user.emailVerified,
           email: user.email ?? null,
           ...(user.customClaims === undefined ? {} : { customClaims: user.customClaims }),
+          ...(user.tokensValidAfterTime === undefined
+            ? {}
+            : { tokensValidAfterTime: user.tokensValidAfterTime }),
         };
       },
     },

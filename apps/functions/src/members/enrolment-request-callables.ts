@@ -490,6 +490,7 @@ export async function verifyEnrolmentApplicantEmailHandler(
         uid: actor.actorId,
         academyId: actor.academyId,
         role: actor.role,
+        authTime: request.auth?.token.auth_time,
       }))
     )
       throw new HttpsError("permission-denied", "Active administrator access is required");

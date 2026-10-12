@@ -12,6 +12,7 @@ import {
   type TrainingTimePreference,
 } from "@bpt-jersey/domain/profiles";
 
+import { assertActiveSession } from "../auth/active-session.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import {
   createProfileStore,
@@ -34,6 +35,7 @@ type ProfileAuthService = Readonly<{
       email?: string | null;
       displayName?: string | null;
       customClaims?: Readonly<Record<string, unknown>>;
+      tokensValidAfterTime?: string;
     }>
   >;
 }>;
@@ -154,6 +156,7 @@ function requireClientActor(request: CallableRequest<unknown>) {
 }
 
 async function requireCurrentClientAuth(
+  request: CallableRequest<unknown>,
   actor: ReturnType<typeof requireClientActor>,
   services: ProfileCallableServices,
 ): Promise<Awaited<ReturnType<ProfileAuthService["getUser"]>>> {
@@ -172,6 +175,7 @@ async function requireCurrentClientAuth(
   ) {
     throw new HttpsError("permission-denied", "Profile access is not permitted");
   }
+  assertActiveSession(request, authUser);
   return authUser;
 }
 
@@ -203,7 +207,7 @@ export async function getClientProfileHandler(
   if (request.data !== undefined && request.data !== null) {
     throw new HttpsError("invalid-argument", "Profile payload is invalid");
   }
-  await requireCurrentClientAuth(actor, services);
+  await requireCurrentClientAuth(request, actor, services);
   try {
     return await services.store.getClientProfile(actor.userId, actor.academyId);
   } catch (error) {
@@ -218,7 +222,7 @@ export async function saveClientProfileHandler(
   const actor = requireClientActor(request);
   const now = services.now?.() ?? new Date().toISOString();
   const payload = parseEditablePayload(request.data, actor.academyId, actor.userId, now);
-  const authUser = await requireCurrentClientAuth(actor, services);
+  const authUser = await requireCurrentClientAuth(request, actor, services);
   if (typeof authUser.email !== "string" || authUser.email.trim().length === 0) {
     throw new HttpsError("failed-precondition", "Account profile is not available");
   }
@@ -250,6 +254,9 @@ function profileCallableServices(): ProfileCallableServices {
           email: user.email ?? null,
           displayName: user.displayName ?? null,
           ...(user.customClaims === undefined ? {} : { customClaims: user.customClaims }),
+          ...(user.tokensValidAfterTime === undefined
+            ? {}
+            : { tokensValidAfterTime: user.tokensValidAfterTime }),
         };
       },
     },

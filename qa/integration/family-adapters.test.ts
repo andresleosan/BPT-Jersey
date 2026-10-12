@@ -144,7 +144,8 @@ const isActorActive = createFamilyActorActivityCheck({
 function request(data: unknown, role: string, uid: string) {
   return {
     data,
-    auth: { uid, token: { academyId, role } },
+    // Signed in now, so after the emulator user was created (the family gate checks revocation).
+    auth: { uid, token: { academyId, role, auth_time: Math.floor(Date.now() / 1000) } },
     app: { appId: "family-integration-test" },
   } as never;
 }

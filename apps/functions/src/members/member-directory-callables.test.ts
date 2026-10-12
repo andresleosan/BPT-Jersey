@@ -37,7 +37,10 @@ function request(
   const academyId = input.academyId ?? "academy-1";
   return {
     data,
-    auth: role === "anonymous" ? undefined : { uid, token: { academyId, role } },
+    auth:
+      role === "anonymous"
+        ? undefined
+        : { uid, token: { academyId, role, auth_time: 1_800_000_000 } },
     ...(input.appCheck === false ? {} : { app: { appId: "web-app-1" } }),
   } as never;
 }
@@ -101,6 +104,7 @@ const actorStatusInput = {
   uid: "owner-1",
   academyId: "academy-1",
   role: "owner" as const,
+  authTime: 1_800_000_000,
 };
 
 function provisionedAdminDocument(
@@ -188,6 +192,28 @@ describe("member directory administrative activity gate", () => {
     });
     await expect(check(actorStatusInput)).resolves.toBe(false);
     expect(onDenied).toHaveBeenCalledExactlyOnceWith("staff-missing");
+  });
+
+  it("refuses a token signed in before the account's sessions were revoked", async () => {
+    const onDenied = vi.fn();
+    const check = createMemberDirectoryActorActivityCheck({
+      onDenied,
+      getAuthUser: async () => ({
+        uid: "owner-1",
+        disabled: false,
+        customClaims: { academyId: "academy-1", role: "owner" },
+        tokensValidAfterTime: new Date(1_800_000_001_000).toUTCString(),
+      }),
+      getDocument: async (path) =>
+        path.endsWith("/adminRoleLocks/owner-1")
+          ? { exists: false, data: () => undefined }
+          : { exists: true, data: () => provisionedAdminDocument() },
+    });
+    await expect(check(actorStatusInput)).resolves.toBe(false);
+    expect(onDenied).toHaveBeenCalledExactlyOnceWith("session-revoked");
+    await expect(check({ ...actorStatusInput, authTime: undefined })).resolves.toBe(false);
+    // Signed in again in the revocation's own second: the new token is current.
+    await expect(check({ ...actorStatusInput, authTime: 1_800_000_001 })).resolves.toBe(true);
   });
 
   it("accepts only the exact active provisioning document and current Auth claims", async () => {
@@ -335,6 +361,7 @@ describe("canonical member directory callables", () => {
       uid: "owner-1",
       academyId: "academy-1",
       role: "owner",
+      authTime: 1_800_000_000,
     });
     expect(current.writer.createAdminAdult).toHaveBeenCalledWith({
       actor: {

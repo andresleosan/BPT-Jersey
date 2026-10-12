@@ -20,7 +20,8 @@ async function validateCurrentActor(
     user.customClaims?.academyId !== actor.academyId ||
     user.customClaims?.role !== actor.role
   ) {
-    throw new HttpsError("permission-denied", "Administrator access is required.");
+    // Every role passes through here (requireActiveUserActor), so the refusal names no role.
+    throw new HttpsError("permission-denied", "Your access has changed. Sign in again.");
   }
   return actor;
 }

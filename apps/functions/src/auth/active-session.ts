@@ -8,19 +8,22 @@ type SessionUser = Readonly<{
   tokensValidAfterTime?: string;
 }>;
 
+/** True while a token whose original sign-in time is `authTime` (seconds) survives live Auth revocation. */
+export function isSessionActive(authTime: unknown, user: Omit<SessionUser, "uid">): boolean {
+  const validAfter = user.tokensValidAfterTime ? Date.parse(user.tokensValidAfterTime) : 0;
+  return (
+    !user.disabled &&
+    typeof authTime === "number" &&
+    Number.isFinite(authTime) &&
+    authTime > 0 &&
+    Number.isFinite(validAfter) &&
+    authTime * 1000 >= validAfter
+  );
+}
+
 /** The callable verified the JWT; compare its original sign-in time with live Auth revocation. */
 export function assertActiveSession(request: CallableRequest, user: SessionUser): void {
-  const authTime = request.auth?.token.auth_time;
-  const validAfter = user.tokensValidAfterTime ? Date.parse(user.tokensValidAfterTime) : 0;
-  if (
-    request.auth?.uid !== user.uid ||
-    user.disabled ||
-    typeof authTime !== "number" ||
-    !Number.isFinite(authTime) ||
-    authTime <= 0 ||
-    !Number.isFinite(validAfter) ||
-    authTime * 1000 < validAfter
-  ) {
+  if (request.auth?.uid !== user.uid || !isSessionActive(request.auth?.token.auth_time, user)) {
     throw new HttpsError("unauthenticated", "Your session has expired. Sign in again.");
   }
 }

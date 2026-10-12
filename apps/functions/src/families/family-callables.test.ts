@@ -1,4 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+
+// The member-account gate reads live Firebase Auth; its own tests cover it.
+vi.mock("../members/member-access-callables.js", () => ({
+  requireMemberAccountActor: vi.fn(async () => undefined),
+}));
 import { Timestamp } from "firebase-admin/firestore";
 
 import type {
@@ -17,6 +22,7 @@ import {
   updateFamilyHandler,
   type FamilyCallableServices,
 } from "./family-callables.js";
+import { requireMemberAccountActor } from "../members/member-access-callables.js";
 
 const family: FamilyRecord = {
   familyId: "family-1",
@@ -117,7 +123,10 @@ function request(
 ) {
   return {
     data,
-    auth: role === undefined ? undefined : { uid, token: { academyId, role } },
+    auth:
+      role === undefined
+        ? undefined
+        : { uid, token: { academyId, role, auth_time: 1_800_000_000 } },
     ...(appCheckVerified ? { app: { appId: "test-app" } } : {}),
   } as never;
 }
@@ -167,11 +176,13 @@ describe("family callables", () => {
       ],
     ]);
     let disabled = false;
+    let tokensValidAfterTime: string | undefined;
     const check = createFamilyActorActivityCheck({
       getAuthUser: async (uid) => ({
         uid,
         disabled,
         customClaims: { academyId: "academy-1", role: "administrator" },
+        ...(tokensValidAfterTime === undefined ? {} : { tokensValidAfterTime }),
       }),
       getDocument: async (path) => ({
         exists: documents.has(path),
@@ -182,9 +193,15 @@ describe("family callables", () => {
       uid: "admin-1",
       academyId: "academy-1",
       role: "administrator",
+      authTime: 1_800_000_000,
     } as const;
 
     await expect(check(actor)).resolves.toBe(true);
+    // A token signed in before the account's sessions were revoked.
+    tokensValidAfterTime = new Date(1_800_000_001_000).toUTCString();
+    await expect(check(actor)).resolves.toBe(false);
+    await expect(check({ ...actor, authTime: 1_800_000_001 })).resolves.toBe(true);
+    tokensValidAfterTime = undefined;
     disabled = true;
     await expect(check(actor)).resolves.toBe(false);
     disabled = false;
@@ -196,6 +213,27 @@ describe("family callables", () => {
       adminRole: "owner",
     });
     await expect(check(actor)).resolves.toBe(false);
+  });
+
+  it("refuses a guardian token signed in before the account's sessions were revoked", async () => {
+    const check = createFamilyActorActivityCheck({
+      getAuthUser: async (uid) => ({
+        uid,
+        disabled: false,
+        customClaims: { academyId: "academy-1", role: "guardian" },
+        tokensValidAfterTime: new Date(1_800_000_001_000).toUTCString(),
+      }),
+      getDocument: async () => ({ exists: false, data: () => undefined }),
+    });
+    const guardian = {
+      uid: "guardian-1",
+      academyId: "academy-1",
+      role: "guardian",
+      authTime: 1_800_000_000,
+    } as const;
+
+    await expect(check(guardian)).resolves.toBe(false);
+    await expect(check({ ...guardian, authTime: 1_800_000_001 })).resolves.toBe(true);
   });
 
   it("allows owner and administrator creation while deriving tenant and actor", async () => {
@@ -217,6 +255,7 @@ describe("family callables", () => {
         uid: "admin-1",
         academyId: "academy-1",
         role,
+        authTime: 1_800_000_000,
       });
     }
   });
@@ -282,10 +321,16 @@ describe("family callables", () => {
 
   it("allows a guardian to read only with null payload and rejects family IDs or writes", async () => {
     const current = services();
-    await expect(getFamilyHandler(request(null, "guardian", "user-1"), current)).resolves.toEqual(
-      guardianProjection,
-    );
+    const guardianRead = request(null, "guardian", "user-1");
+    await expect(getFamilyHandler(guardianRead, current)).resolves.toEqual(guardianProjection);
+    expect(requireMemberAccountActor).toHaveBeenCalledWith(guardianRead);
     expect(current.store.getGuardianFamily).toHaveBeenCalledWith("academy-1", "user-1");
+    expect(current.isActorActive).toHaveBeenCalledWith({
+      uid: "user-1",
+      academyId: "academy-1",
+      role: "guardian",
+      authTime: 1_800_000_000,
+    });
     await expect(
       getFamilyHandler(request({ familyId: "family-1" }, "guardian", "user-1"), current),
     ).rejects.toMatchObject({ code: "invalid-argument" });

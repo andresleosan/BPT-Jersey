@@ -80,7 +80,7 @@ function callableRequest(
   app: unknown = { appId: "verified-app" },
 ) {
   return {
-    auth: { uid: "guardian-1", token: { academyId: "academy-1", role } },
+    auth: { uid: "guardian-1", token: { academyId: "academy-1", role, auth_time: 1_800_000_000 } },
     data,
     ...(app === null ? {} : { app }),
   } as never;
@@ -220,6 +220,22 @@ describe("guardian profile onboarding", () => {
       );
       expect(revoked.store.getGuardianProfile).not.toHaveBeenCalled();
     }
+  });
+
+  it("refuses a token signed in before the account's sessions were revoked", async () => {
+    const services = callableServices();
+    vi.mocked(services.auth.getUser).mockResolvedValue({
+      uid: "guardian-1",
+      disabled: false,
+      emailVerified: true,
+      email: "guardian@example.test",
+      customClaims: { academyId: "academy-1", role: "guardian" },
+      tokensValidAfterTime: new Date(1_800_000_001_000).toUTCString(),
+    });
+    await expect(getGuardianProfileHandler(callableRequest(null), services)).rejects.toMatchObject({
+      code: "unauthenticated",
+    });
+    expect(services.store.getGuardianProfile).not.toHaveBeenCalled();
   });
 
   it("creates once, binds exact retries, and writes one metadata-only audit and receipt", async () => {

@@ -1,5 +1,6 @@
 import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 
+import { isSessionActive } from "../auth/active-session.js";
 import { requireAdminActor } from "../auth/admin-authorization.js";
 import type { CanonicalMemberDirectoryActor } from "./canonical-member-directory-service.js";
 import { matchesProvisionedMemberDirectoryActor } from "./member-directory-actor-authorization.js";
@@ -13,20 +14,24 @@ import { matchesProvisionedMemberDirectoryActor } from "./member-directory-actor
  *    invoked directly - by a test, by another module, by a future callable that forgets the
  *    option - cannot be reached from an unattested client.
  * 2. The claim says owner or administrator, for this academy.
- * 3. The account is still alive right now: the Auth user is not disabled, its custom claims still
- *    say what the token said, the academy still holds a provisioned staff document for it, and no
- *    role lock has been dropped on it. A revoked administrator carries a valid token until it
- *    expires; without this probe that token still writes.
+ * 3. The account is still alive right now: the Auth user is not disabled, the token was issued
+ *    after its last session revocation, its custom claims still say what the token said, the
+ *    academy still holds a provisioned staff document for it, and no role lock has been dropped on
+ *    it. A revoked administrator carries a valid token until it expires; without this probe that
+ *    token still writes.
  */
 export type MemberDirectoryActorStatusInput = Readonly<{
   uid: string;
   academyId: string;
   role: "owner" | "administrator";
+  /** `auth_time` of the caller's ID token, compared with the account's session revocation. */
+  authTime: number | undefined;
 }>;
 
 type MemberDirectoryActivityAuthUser = Readonly<{
   uid: string;
   disabled: boolean;
+  tokensValidAfterTime?: string;
   customClaims?: Readonly<Record<string, unknown>>;
 }>;
 
@@ -39,6 +44,7 @@ export type MemberDirectoryActorActivityDependencies = Readonly<{
   onDenied?: (
     reason:
       | "account-inactive"
+      | "session-revoked"
       | "staff-missing"
       | "role-locked"
       | "provisioning-invalid"
@@ -60,7 +66,7 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 export function createMemberDirectoryActorActivityCheck(
   dependencies: MemberDirectoryActorActivityDependencies,
 ): MemberDirectoryActorActivityCheck {
-  return async ({ uid, academyId, role }) => {
+  return async ({ uid, academyId, role, authTime }) => {
     const denied = (
       reason: Parameters<NonNullable<MemberDirectoryActorActivityDependencies["onDenied"]>>[0],
     ) => {
@@ -74,6 +80,7 @@ export function createMemberDirectoryActorActivityCheck(
         dependencies.getDocument(`academies/${academyId}/adminRoleLocks/${uid}`),
       ]);
       if (authUser.uid !== uid || authUser.disabled) return denied("account-inactive");
+      if (!isSessionActive(authTime, authUser)) return denied("session-revoked");
       if (!adminDocument.exists) return denied("staff-missing");
       if (roleLock.exists) return denied("role-locked");
       if (
@@ -127,6 +134,7 @@ export async function requireCanonicalMemberDirectoryActor(
       uid: actor.uid,
       academyId: actor.academyId,
       role: actor.role,
+      authTime: request.auth?.token.auth_time,
     });
   } catch {
     throw new HttpsError("failed-precondition", "Administrative account status is unavailable");

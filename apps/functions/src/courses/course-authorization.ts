@@ -2,6 +2,7 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import type { CallableRequest } from "firebase-functions/v2/https";
 import { requireUserActor } from "../auth/user-authorization.js";
+import { assertActiveSession } from "../auth/active-session.js";
 import { createMemberDirectoryActorActivityCheck, requireCanonicalMemberDirectoryActor } from "../members/canonical-actor.js";
 import { courseFailure, type CourseActor } from "./course-store.js";
 export type { CourseActor } from "./course-store.js";
@@ -11,6 +12,7 @@ export async function requireCourseActor(request: CallableRequest): Promise<Cour
   const current = await getAuth().getUser(actor.userId);
   if (current.disabled || current.customClaims?.academyId !== actor.academyId || current.customClaims?.role !== actor.role)
     courseFailure("forbidden", "Your account is not active. Sign in again or contact the office.");
+  assertActiveSession(request, current);
   if (["owner", "administrator"].includes(actor.role)) return requireCourseOffice(request);
   if (["coach", "headCoach"].includes(actor.role)) {
     const user = await getFirestore().doc(`academies/${actor.academyId}/users/${actor.userId}`).get();
