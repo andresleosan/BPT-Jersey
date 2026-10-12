@@ -52,3 +52,4 @@ run(corepackExecutable, [...deployArtifactPnpmArguments, ".firebase-functions"],
   shell: process.platform === "win32",
 });
 run(nodeExecutable, ["apps/functions/scripts/prepare-deploy-runtime.mjs"]);
+run(nodeExecutable, ["apps/functions/scripts/write-deploy-lockfile.mjs"]);

@@ -250,3 +250,106 @@ describe("deploy runtime import preparation", () => {
     expect(getApps()).toHaveLength(1);
   }, 60_000);
 });
+
+describe("deploy lockfile pinned to pnpm-lock.yaml (P-02)", () => {
+  // The lockfile step is intentionally a JavaScript deploy script.
+  // @ts-expect-error The script has no generated TypeScript declaration.
+  const loadScript = () => import("../scripts/write-deploy-lockfile.mjs");
+  const pnpmLock = [
+    "lockfileVersion: '9.0'",
+    "",
+    "packages:",
+    "",
+    "  '@fastify/busboy@3.2.2':",
+    "    resolution: {integrity: sha512-busboy==}",
+    "",
+    "  string-width@4.2.3:",
+    "    resolution: {integrity: sha512-width==}",
+    "    engines: {node: '>=8'}",
+    "",
+    "snapshots:",
+    "",
+    "  string-width@9.9.9:",
+    "    resolution: {integrity: sha512-snapshot==}",
+    "",
+  ].join("\n");
+  const lockWith = (entries: Record<string, object>) => ({
+    lockfileVersion: 3,
+    packages: { "": { dependencies: {} }, ...entries },
+  });
+
+  it("pins every entry to the pnpm-lock tarball, aliases included", async () => {
+    const { lockedIntegrities, pinLockToPnpm } = await loadScript();
+    const integrities = lockedIntegrities(pnpmLock);
+    expect([...integrities]).toEqual([
+      ["@fastify/busboy@3.2.2", "sha512-busboy=="],
+      ["string-width@4.2.3", "sha512-width=="],
+    ]);
+    const lock = pinLockToPnpm(
+      lockWith({
+        "node_modules/@fastify/busboy": { version: "3.2.2" },
+        "node_modules/cliui/node_modules/string-width-cjs": {
+          name: "string-width",
+          version: "4.2.3",
+          integrity: "sha512-width==",
+        },
+      }),
+      integrities,
+      (location: string) => (location.endsWith("busboy") ? "3.2.2" : "4.2.3"),
+    );
+    expect(lock.packages["node_modules/@fastify/busboy"]).toEqual({
+      version: "3.2.2",
+      resolved: "https://registry.npmjs.org/@fastify/busboy/-/busboy-3.2.2.tgz",
+      integrity: "sha512-busboy==",
+    });
+    expect(lock.packages["node_modules/cliui/node_modules/string-width-cjs"].resolved).toBe(
+      "https://registry.npmjs.org/string-width/-/string-width-4.2.3.tgz",
+    );
+  });
+
+  it("fails the build on entries pnpm did not install or pnpm-lock.yaml does not pin", async () => {
+    const { lockedIntegrities, pinLockToPnpm } = await loadScript();
+    const integrities = lockedIntegrities(pnpmLock);
+    const pin = (entry: object, installed: string | undefined) =>
+      pinLockToPnpm(
+        lockWith({ "node_modules/@fastify/busboy": entry }),
+        integrities,
+        () => installed,
+      );
+    expect(() => pin({ version: "3.2.3" }, "3.2.3")).toThrow("not in pnpm-lock.yaml");
+    // npm re-resolved a version that pnpm-lock.yaml knows, but pnpm installed another one there.
+    expect(() => pin({ version: "3.2.2" }, "3.2.1")).toThrow("not what pnpm installed");
+    expect(() => pin({ version: "3.2.2" }, undefined)).toThrow("not what pnpm installed");
+    expect(() => pin({ version: "3.2.2", integrity: "sha512-other==" }, "3.2.2")).toThrow(
+      "different sha512",
+    );
+    expect(() => pin({ version: "3.2.2", link: true }, "3.2.2")).toThrow("not in pnpm-lock.yaml");
+    expect(() => lockedIntegrities("lockfileVersion: '9.0'\n")).toThrow("no packages section");
+  });
+
+  it("prunes the installed tree down to what the lock lists", async () => {
+    const { pruneToLock } = await loadScript();
+    const root = await mkdtemp(join(tmpdir(), "bpt-deploy-prune-"));
+    temporaryDirectories.push(root);
+    for (const directory of [
+      "a/node_modules/e",
+      "a/node_modules/f",
+      "b",
+      "@s/c",
+      "@s/d",
+      "@web/x",
+      ".bin",
+    ]) {
+      await mkdir(join(root, "node_modules", directory), { recursive: true });
+    }
+    pruneToLock(root, {
+      "": {},
+      "node_modules/a": {},
+      "node_modules/a/node_modules/e": {},
+      "node_modules/@s/c": {},
+    });
+    expect((await readdir(join(root, "node_modules"))).sort()).toEqual([".bin", "@s", "a"]);
+    expect(await readdir(join(root, "node_modules", "@s"))).toEqual(["c"]);
+    expect(await readdir(join(root, "node_modules", "a", "node_modules"))).toEqual(["e"]);
+  });
+});
