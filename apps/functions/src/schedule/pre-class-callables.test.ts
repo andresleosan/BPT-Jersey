@@ -1,11 +1,39 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createGetPreClassViewHandler } from "./pre-class-callables";
+const syntheticAuthUsers = vi.hoisted(() => new Map<string, Record<string, unknown>>());
+vi.mock("firebase-admin/auth", () => ({
+  getAuth: () => ({
+    getUser: async (uid: string) => syntheticAuthUsers.get(uid),
+  }),
+}));
+vi.mock("firebase-admin/firestore", () => ({
+  getFirestore: () => ({
+    doc: () => ({ get: async () => ({ data: () => ({ courseId: "course-1" }) }) }),
+  }),
+}));
+vi.mock("../courses/course-authorization.js", () => ({
+  requireCourseActor: async () => ({ uid: "staff-1", academyId: "academy-1", role: "coach" }),
+}));
+vi.mock("../courses/course-roster.js", () => ({
+  getCourseRoster: async () => ({ session: { sessionId: "session-1" }, attendees: [] }),
+}));
+
+import { createGetPreClassViewHandler, getPreClassView } from "./pre-class-callables";
 import { PreClassError, type PreClassService } from "./pre-class-service";
 import { scheduleCallableOptions } from "./schedule-callable-options";
 
 function fakeRequest(data: unknown, role = "coach", uid = "staff-1") {
-  return { auth: { uid, token: { academyId: "academy-1", role } }, data } as never;
+  syntheticAuthUsers.set(uid, {
+    uid,
+    disabled: false,
+    customClaims: { academyId: "academy-1", role },
+    tokensValidAfterTime: "2020-01-01T00:00:00.000Z",
+  });
+  return {
+    app: { appId: "synthetic-app" },
+    auth: { uid, token: { academyId: "academy-1", role, auth_time: 1_700_000_000 } },
+    data,
+  } as never;
 }
 
 function service(overrides: Partial<PreClassService> = {}): PreClassService {
@@ -78,6 +106,47 @@ describe("pre-class view callable (T114)", () => {
       fakeRequest({ sessionId: "session-1" }),
     );
     expect(Object.keys(result)).toEqual(["view"]);
+  });
+
+  it("refuses a staff token issued before a demotion or a session revocation (N-03)", async () => {
+    const preClass = service();
+    const demoted = fakeRequest({ sessionId: "session-1" }, "coach", "coach-9");
+    syntheticAuthUsers.set("coach-9", {
+      uid: "coach-9",
+      disabled: false,
+      customClaims: { academyId: "academy-1", role: "adultStudent" },
+      tokensValidAfterTime: "2020-01-01T00:00:00.000Z",
+    });
+    await expect(
+      createGetPreClassViewHandler({ service: preClass })(demoted),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    const revoked = fakeRequest({ sessionId: "session-1" }, "headCoach", "coach-10");
+    syntheticAuthUsers.set("coach-10", {
+      uid: "coach-10",
+      disabled: false,
+      customClaims: { academyId: "academy-1", role: "headCoach" },
+      tokensValidAfterTime: "2030-01-01T00:00:00.000Z",
+    });
+    await expect(
+      createGetPreClassViewHandler({ service: preClass })(revoked),
+    ).rejects.toMatchObject({ code: "unauthenticated" });
+    expect(preClass.getPreClassView).not.toHaveBeenCalled();
+  });
+
+  it("checks the live session on the course roster path too (N-03)", async () => {
+    await expect(getPreClassView.run(fakeRequest({ sessionId: "session-1" }))).resolves.toEqual({
+      view: { session: { sessionId: "session-1" }, attendees: [] },
+    });
+    const revoked = fakeRequest({ sessionId: "session-1" }, "coach", "coach-11");
+    syntheticAuthUsers.set("coach-11", {
+      uid: "coach-11",
+      disabled: false,
+      customClaims: { academyId: "academy-1", role: "coach" },
+      tokensValidAfterTime: "2030-01-01T00:00:00.000Z",
+    });
+    await expect(getPreClassView.run(revoked)).rejects.toMatchObject({
+      code: "unauthenticated",
+    });
   });
 
   it("translates store failures into safe codes", async () => {

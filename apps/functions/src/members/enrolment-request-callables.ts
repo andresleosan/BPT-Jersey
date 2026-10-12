@@ -25,6 +25,7 @@ import {
 } from "@bpt-jersey/domain/members/enrolment-requests";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
+import { requireActiveUserActor } from "../auth/office-actor.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { createFamilyStore } from "../families/family-service.js";
 import { createGuardianProfileStore } from "../profiles/guardian-profile-service.js";
@@ -265,6 +266,7 @@ export async function listEnrolmentRequestsHandler(
   services: EnrolmentRequestCallableServices,
 ): Promise<EnrolmentRequestQueue> {
   const actor = actorWithRole(request, officeRoles, "Office access is required");
+  await requireActiveUserActor(request); // live claims, not just the token (N-03)
   noPayload(request.data);
   try {
     const page = await services.store.listForAcademy(actor.academyId);
@@ -283,6 +285,7 @@ export async function returnEnrolmentRequestHandler(
   services: EnrolmentRequestCallableServices,
 ): Promise<EnrolmentRequestRow> {
   const actor = actorWithRole(request, officeRoles, "Office access is required");
+  await requireActiveUserActor(request); // live claims, not just the token (N-03)
   const parsed = parseEnrolmentRequestReview(request.data);
   if (!parsed.ok) throw new HttpsError("invalid-argument", "Enrolment payload is invalid");
   try {
@@ -308,6 +311,7 @@ export async function denyEnrolmentRequestHandler(
   services: EnrolmentRequestCallableServices,
 ): Promise<Readonly<{ enrolmentRequestId: string }>> {
   const actor = actorWithRole(request, denyRoles, "Owner or administrator access is required");
+  await requireActiveUserActor(request); // live claims, not just the token (N-03)
   const payload = request.data;
   if (
     typeof payload !== "object" ||

@@ -261,8 +261,10 @@ export function createRecordMedicalLeaveHandler(dependencies: HandlerDependencie
     request: CallableRequest<unknown>,
   ): Promise<{ medicalLeave: MedicalLeaveRecord }> => {
     const actor = await dependencies.authorization.requireActor(request);
-    if (!staffRoles.has(actor.role)) {
-      throw new HttpsError("permission-denied", "A current staff role is required");
+    // Medical leave is Restricted health data (ADR-009 #13): only the office writes it, matching
+    // listMedicalLeaves (LV-01).
+    if (actor.role !== "owner" && actor.role !== "administrator") {
+      throw new HttpsError("permission-denied", "An administrator or owner is required");
     }
     if (
       !isPlainRecord(request.data) ||

@@ -402,6 +402,35 @@ describe("Level Contracts", () => {
       expect(streak.activeMedicalLeave).toBe(false);
     });
 
+    it("counts a date-only medical leave as active through its whole last day", () => {
+      const leave = (startDate: string, endDate: string) => ({
+        academyId: "academy-1",
+        leaveId: "leave-1",
+        studentId: "std-1",
+        startDate,
+        endDate,
+        reasonCode: "injury" as const,
+        status: "active" as const,
+        schemaVersion: "1" as const,
+        recordedBy: "owner-1",
+        recordedAt: "2026-08-01T00:00:00Z",
+        createdAt: "2026-08-01T00:00:00Z",
+        createdBy: "owner-1",
+        updatedAt: "2026-08-01T00:00:00Z",
+        updatedBy: "owner-1",
+      });
+      const active = (endDate: string, now: string) =>
+        calculateAttendanceStreak({
+          attendanceDates: [],
+          medicalLeaves: [leave("2026-08-10", endDate)],
+          now,
+        }).activeMedicalLeave;
+
+      expect(active("2026-08-15", "2026-08-15T18:00:00Z")).toBe(true);
+      expect(active("2026-08-15", "2026-08-16T00:00:00Z")).toBe(false);
+      expect(active("2026-08-10", "2026-08-10T12:00:00Z")).toBe(true); // a one-day leave
+    });
+
     it("resets streak on unjustified gap", () => {
       const dates = [
         "2026-06-01T10:00:00Z", // week 1
@@ -420,24 +449,58 @@ describe("Level Contracts", () => {
     });
 
     it("validates and parses medical leave input", () => {
-      const valid = parseRecordMedicalLeaveInput({
-        studentId: "std-1",
-        startDate: "2026-08-01T00:00:00Z",
-        endDate: "2026-08-15T00:00:00Z",
-        reasonCode: "recovery",
-      });
+      const now = new Date("2026-08-01T12:00:00Z");
+      const valid = parseRecordMedicalLeaveInput(
+        {
+          studentId: "std-1",
+          startDate: "2026-08-01",
+          endDate: "2026-08-15",
+          reasonCode: "recovery",
+        },
+        now,
+      );
 
       expect(valid.ok).toBe(true);
       if (!valid.ok) throw new Error("Expected ok result");
       expect(valid.value.reasonCode).toBe("recovery");
+      expect(valid.value.startDate).toBe("2026-08-01");
+      expect(valid.value.endDate).toBe("2026-08-15");
 
-      const invalidDateOrder = parseRecordMedicalLeaveInput({
-        studentId: "std-1",
-        startDate: "2026-08-15T00:00:00Z",
-        endDate: "2026-08-01T00:00:00Z",
-        reasonCode: "recovery",
-      });
+      const invalidDateOrder = parseRecordMedicalLeaveInput(
+        {
+          studentId: "std-1",
+          startDate: "2026-08-15",
+          endDate: "2026-08-01",
+          reasonCode: "recovery",
+        },
+        now,
+      );
       expect(invalidDateOrder.ok).toBe(false);
+    });
+
+    it("accepts only real date-only days within the allowed window (LV-01)", () => {
+      const now = new Date("2026-08-01T12:00:00Z");
+      const parse = (startDate: string, endDate: string) =>
+        parseRecordMedicalLeaveInput(
+          { studentId: "std-1", startDate, endDate, reasonCode: "recovery" },
+          now,
+        );
+
+      expect(parse("2000-01-01", "2028-08-01").ok).toBe(true);
+      expect(parse("2026-08-01", "2026-08-01").ok).toBe(true);
+      for (const [startDate, endDate] of [
+        ["2026-08-01T00:00:00Z", "2026-08-15"],
+        ["2026-08-01", "2026-08-15T00:00:00Z"],
+        ["2026-02-31", "2026-03-15"],
+        ["2026-02-01", "2026-02-30"],
+        ["01/08/2026", "2026-08-15"],
+        ["2026-08-15", "2026-08-14"],
+        ["1999-12-31", "2026-08-15"],
+        ["2026-08-01", "2028-08-02"],
+        [" 2026-08-01", "2026-08-15"],
+      ] as const) {
+        expect(parse(startDate, endDate).ok, `${startDate} -> ${endDate}`).toBe(false);
+      }
     });
   });
 

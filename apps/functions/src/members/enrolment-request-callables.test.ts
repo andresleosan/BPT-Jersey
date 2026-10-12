@@ -1,3 +1,10 @@
+const syntheticAuthUsers = vi.hoisted(() => new Map<string, Record<string, unknown>>());
+vi.mock("firebase-admin/auth", () => ({
+  getAuth: () => ({
+    getUser: async (uid: string) => syntheticAuthUsers.get(uid),
+  }),
+}));
+
 import { createHash } from "node:crypto";
 import { createEmulatorR2Client } from "../storage/r2-client.js";
 import { describe, expect, it, vi } from "vitest";
@@ -7,6 +14,7 @@ import { enrolmentWaiverTermsVersion } from "@bpt-jersey/domain/consents/enrolme
 import type { EnrolmentRequestRecord } from "@bpt-jersey/domain/members/enrolment-requests";
 import {
   approveEnrolmentRequestHandler,
+  denyEnrolmentRequestHandler,
   getEnrolmentRequestDetailHandler,
   listEnrolmentRequestsHandler,
   listMyEnrolmentRequestsHandler,
@@ -92,9 +100,21 @@ function services() {
 }
 
 function request(data: unknown, role?: string, uid = "client-1"): CallableRequest<unknown> {
+  // The office queue re-reads the caller from Auth (N-03); register the matching live account.
+  if (role !== undefined) {
+    syntheticAuthUsers.set(uid, {
+      uid,
+      disabled: false,
+      customClaims: { academyId: "academy-1", role },
+      tokensValidAfterTime: "2020-01-01T00:00:00.000Z",
+    });
+  }
   return {
     data,
-    auth: role === undefined ? undefined : { uid, token: { academyId: "academy-1", role } },
+    auth:
+      role === undefined
+        ? undefined
+        : { uid, token: { academyId: "academy-1", role, auth_time: 1_700_000_000 } },
   } as unknown as CallableRequest<unknown>;
 }
 
@@ -251,6 +271,46 @@ describe("enrolment request callables", () => {
           current,
         ),
       ).resolves.toMatchObject({ enrolmentRequestId: "enrolment-1" });
+    }
+  });
+
+  it("refuses an office token issued before a demotion or a session revocation (N-03)", async () => {
+    const calls = [
+      (r: CallableRequest<unknown>) => listEnrolmentRequestsHandler(r, services()),
+      (r: CallableRequest<unknown>) =>
+        returnEnrolmentRequestHandler(
+          { ...r, data: { enrolmentRequestId: "enrolment-1", note: "Add a phone." } },
+          services(),
+        ),
+      (r: CallableRequest<unknown>) =>
+        denyEnrolmentRequestHandler({ ...r, data: { enrolmentRequestId: "enrolment-1" } }, {
+          ...services(),
+          store: {
+            ...services().store,
+            deny: vi.fn().mockResolvedValue({
+              enrolmentRequestId: "enrolment-1",
+              submittedBy: "client-1",
+            }),
+          },
+        } as unknown as EnrolmentRequestCallableServices),
+    ];
+    for (const call of calls) {
+      const demoted = request(null, "owner", "owner-9");
+      syntheticAuthUsers.set("owner-9", {
+        uid: "owner-9",
+        disabled: false,
+        customClaims: { academyId: "academy-1", role: "guardian" },
+        tokensValidAfterTime: "2020-01-01T00:00:00.000Z",
+      });
+      await expect(call(demoted)).rejects.toMatchObject({ code: "permission-denied" });
+      const revoked = request(null, "owner", "owner-10");
+      syntheticAuthUsers.set("owner-10", {
+        uid: "owner-10",
+        disabled: false,
+        customClaims: { academyId: "academy-1", role: "owner" },
+        tokensValidAfterTime: "2030-01-01T00:00:00.000Z",
+      });
+      await expect(call(revoked)).rejects.toMatchObject({ code: "unauthenticated" });
     }
   });
 

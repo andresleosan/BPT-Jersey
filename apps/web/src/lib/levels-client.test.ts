@@ -238,8 +238,8 @@ describe("Levels Web Client", () => {
         medicalLeave: {
           leaveId: "leave-1",
           studentId: "std-1",
-          startDate: "2026-08-01T00:00:00Z",
-          endDate: "2026-08-15T00:00:00Z",
+          startDate: "2026-08-01",
+          endDate: "2026-08-15",
           reasonCode: "recovery",
         },
       },
@@ -247,8 +247,8 @@ describe("Levels Web Client", () => {
 
     const record = await recordMedicalLeave({
       studentId: "std-1",
-      startDate: "2026-08-01T00:00:00Z",
-      endDate: "2026-08-15T00:00:00Z",
+      startDate: "2026-08-01",
+      endDate: "2026-08-15",
       reasonCode: "recovery",
     });
 

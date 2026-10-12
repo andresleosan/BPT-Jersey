@@ -6,6 +6,7 @@ import { parseWaitlistEntryRecord } from "@bpt-jersey/domain/schedule/advanced-b
 import { parseMembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle";
 import type { InvitationPage, WaitlistInvitationView, WaitlistClassResult } from "@bpt-jersey/domain/schedule/waitlist-invitations";
 import { onCallWithFreshAppCheck } from "../auth/app-check.js";
+import { requireActiveUserActor } from "../auth/office-actor.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { createMemberDirectoryReadTransaction } from "../members/member-directory-firestore.js";
@@ -41,6 +42,7 @@ async function hasOriginalBooking(tx: Transaction, academyId: string, studentId:
 export const getWaitlistClassSource = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) => {
   const actor = requireUserActor(request);
   if (actor.role !== "owner") throw new HttpsError("permission-denied", "Owner access required");
+  await requireActiveUserActor(request); // live claims, not just the token (N-03)
   const sessionId = id(request.data?.sessionId), db = getFirestore(), base = `academies/${actor.academyId}`;
   const [doc, queue] = await Promise.all([
     db.doc(`${base}/sessions/${sessionId}`).get(),
@@ -57,6 +59,7 @@ export const getWaitlistClassSource = onCallWithFreshAppCheck(scheduleCallableOp
 export const createWaitlistClass = onCallWithFreshAppCheck(scheduleCallableOptions, async (request): Promise<WaitlistClassResult> => {
   const actor = requireUserActor(request);
   if (actor.role !== "owner") throw new HttpsError("permission-denied", "Only the owner can create a class from Waitlist");
+  await requireActiveUserActor(request); // live claims, not just the token (N-03)
   const sourceSessionId = id(request.data?.sourceSessionId);
   const operationId = id(request.data?.operationId);
   if (operationId.length > 80) throw new HttpsError("invalid-argument", "Invalid operation reference");
@@ -235,6 +238,7 @@ export const respondWaitlistClassInvitation = onCallWithFreshAppCheck(scheduleCa
 export const listWaitlistClassHistory = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) => {
   const actor = requireUserActor(request);
   if (actor.role !== "owner") throw new HttpsError("permission-denied", "Owner access required");
+  await requireActiveUserActor(request); // live claims, not just the token (N-03)
   const sourceSessionId = request.data?.sourceSessionId === undefined ? undefined : id(request.data.sourceSessionId);
   const db = getFirestore(), base = `academies/${actor.academyId}`;
   let query = db.collection(`${base}/waitlistClassOperations`).orderBy(FieldPath.documentId()).limit(21);

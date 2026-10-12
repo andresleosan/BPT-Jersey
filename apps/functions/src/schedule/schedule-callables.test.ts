@@ -16,6 +16,7 @@ import {
   createCheckInHandler,
   createCopyWeekHandler,
   createCorrectAttendanceHandler,
+  createDeleteProgramHandler,
   createDeleteWeekHandler,
   createEvaluateSessionMinimumHandler,
   createGenerateSessionsHandler,
@@ -43,7 +44,9 @@ import {
   createSaveLocationHandler,
   createSaveProgramHandler,
   createSaveSessionHandler,
+  createSearchAttendanceMembersHandler,
   createSelfCheckInHandler,
+  createStaffWalkInAttendanceHandler,
   createUpdateLocationHandler,
   createUpdateProgramHandler,
   createUpdateSessionHandler,
@@ -2320,5 +2323,86 @@ describe("bulk eligible booking", () => {
       studentId: "student-1",
       membershipId: "membership-1",
     });
+  });
+});
+
+describe("live staff authority on attendance and roster callables (N-03)", () => {
+  const store = createInMemoryScheduleStore();
+  const scoped = { store, resolveClientStudentScope: ownStudentScope };
+  const session = { sessionId: "session-1" };
+  const handlers: ReadonlyArray<
+    readonly [string, (request: never) => Promise<unknown>, Record<string, unknown>]
+  > = [
+    [
+      "checkIn",
+      createCheckInHandler({ store }),
+      { sessionId: "session-1", studentId: "student-1", method: "manual" },
+    ],
+    ["correctAttendance", createCorrectAttendanceHandler({ store }), session],
+    ["reconcileSessionNoShows", createReconcileSessionNoShowsHandler({ store }), session],
+    [
+      "staffWalkInAttendance",
+      createStaffWalkInAttendanceHandler({ store }),
+      { sessionId: "session-1", studentId: "student-1" },
+    ],
+    ["reconcileSessionQuorum", createReconcileSessionQuorumHandler({ store }), session],
+    ["getSessionOperationalView", createGetSessionOperationalViewHandler({ store }), session],
+    ["listSessionBookings", createListSessionBookingsHandler({ store }), session],
+    ["listSessionAttendance", createListSessionAttendanceHandler({ store }), session],
+    ["listSessionCheckouts", createListSessionCheckoutsHandler({ store }), session],
+    ["searchAttendanceMembers", createSearchAttendanceMembersHandler(), { query: "ana" }],
+    ["evaluateSessionMinimum", createEvaluateSessionMinimumHandler({ store }), session],
+    ["listClasses", createListClassesHandler({ store }), {}],
+    [
+      "saveLocationGeofence",
+      createSaveLocationGeofenceHandler({ store }),
+      { locationId: "town", geofence: { latitude: 49.186, longitude: -2.106 } },
+    ],
+    ["deleteProgram", createDeleteProgramHandler({ store }), { programId: "kids-gi" }],
+    [
+      "recordCheckout (staff path)",
+      createRecordCheckoutHandler(scoped),
+      {
+        sessionId: "session-1",
+        studentId: "student-1",
+        method: "staffOverride",
+        notes: "Parent at the desk",
+      },
+    ],
+    [
+      "listStudentBookings (staff read through requireStudentScope)",
+      createListStudentBookingsHandler(scoped),
+      { studentId: "student-1" },
+    ],
+  ];
+
+  function liveUser(uid: string, role: string, tokensValidAfterTime: string) {
+    syntheticAuthUsers.set(uid, {
+      uid,
+      disabled: false,
+      customClaims: { academyId: "demo-academy", role },
+      tokensValidAfterTime,
+    });
+  }
+
+  it.each(handlers)("%s refuses a staff token after a demotion", async (_name, handler, data) => {
+    const demoted = fakeRequest(data, "administrator", "admin-demoted");
+    liveUser("admin-demoted", "adultStudent", "2020-01-01T00:00:00.000Z");
+    await expect(handler(demoted)).rejects.toMatchObject({
+      code: "permission-denied",
+      message: "Administrator access is required.",
+    });
+  });
+
+  it.each(
+    handlers.filter(([name]) =>
+      ["checkIn", "staffWalkInAttendance", "listStudentBookings"].some((prefix) =>
+        name.startsWith(prefix),
+      ),
+    ),
+  )("%s refuses a staff token after a session revocation", async (_name, handler, data) => {
+    const revoked = fakeRequest(data, "administrator", "admin-revoked");
+    liveUser("admin-revoked", "administrator", "2030-01-01T00:00:00.000Z");
+    await expect(handler(revoked)).rejects.toMatchObject({ code: "unauthenticated" });
   });
 });

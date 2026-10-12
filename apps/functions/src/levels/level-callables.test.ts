@@ -314,7 +314,7 @@ describe("Level Callables", () => {
   });
 
   describe("Medical Leave Callables (T041)", () => {
-    it("allows staff to record medical leave and the office to list it", async () => {
+    it("allows the office to record medical leave and to list it", async () => {
       const store = createTestStore();
       const recordHandler = createRecordMedicalLeaveHandler({ store, authorization });
       const listHandler = createListMedicalLeavesHandler({ store, authorization });
@@ -323,18 +323,19 @@ describe("Level Callables", () => {
         fakeRequest(
           {
             studentId: "student-1",
-            startDate: "2026-08-01T00:00:00Z",
-            endDate: "2026-08-15T00:00:00Z",
+            startDate: "2026-08-01",
+            endDate: "2026-08-15",
             reasonCode: "recovery",
           },
-          "coach",
-          "coach-1",
+          "owner",
+          "user-1",
           "demo-academy",
         ),
       );
 
       expect(recordRes.medicalLeave.studentId).toBe("student-1");
       expect(recordRes.medicalLeave.reasonCode).toBe("recovery");
+      expect(recordRes.medicalLeave.startDate).toBe("2026-08-01");
 
       const listRes = await listHandler(
         fakeRequest({ studentId: "student-1" }, "owner", "user-1", "demo-academy"),
@@ -360,8 +361,8 @@ describe("Level Callables", () => {
           fakeRequest(
             {
               studentId: "student-1",
-              startDate: "2026-08-01T00:00:00Z",
-              endDate: "2026-08-15T00:00:00Z",
+              startDate: "2026-08-01",
+              endDate: "2026-08-15",
               reasonCode: "recovery",
             },
             "adultStudent",
@@ -369,7 +370,69 @@ describe("Level Callables", () => {
             "demo-academy",
           ),
         ),
-      ).rejects.toThrow(/current staff role is required/);
+      ).rejects.toThrow(/An administrator or owner is required/);
+    });
+
+    it("refuses coaches and head coaches recording medical leave (LV-01)", async () => {
+      const store = createTestStore();
+      const recordHandler = createRecordMedicalLeaveHandler({ store, authorization });
+      const listHandler = createListMedicalLeavesHandler({ store, authorization });
+      for (const role of ["coach", "headCoach"]) {
+        await expect(
+          recordHandler(
+            fakeRequest(
+              {
+                studentId: "student-1",
+                startDate: "2026-08-01",
+                endDate: "2026-08-15",
+                reasonCode: "recovery",
+              },
+              role,
+              "coach-1",
+              "demo-academy",
+            ),
+          ),
+        ).rejects.toMatchObject({
+          code: "permission-denied",
+          message: "An administrator or owner is required",
+        });
+      }
+      const listRes = await listHandler(
+        fakeRequest({ studentId: "student-1" }, "owner", "user-1", "demo-academy"),
+      );
+      expect(listRes.medicalLeaves).toHaveLength(0);
+    });
+
+    it("refuses medical leave dates that are not real date-only days (LV-01)", async () => {
+      const store = createTestStore();
+      const recordHandler = createRecordMedicalLeaveHandler({ store, authorization });
+      const listHandler = createListMedicalLeavesHandler({ store, authorization });
+      const farEnd = new Date();
+      farEnd.setUTCFullYear(farEnd.getUTCFullYear() + 2);
+      farEnd.setUTCDate(farEnd.getUTCDate() + 2);
+      for (const [startDate, endDate] of [
+        ["2026-08-01T00:00:00Z", "2026-08-15T00:00:00Z"],
+        ["2026-02-31", "2026-03-15"],
+        ["01/08/2026", "2026-08-15"],
+        ["2026-08-15", "2026-08-01"],
+        ["1999-12-31", "2026-08-15"],
+        ["2026-08-01", farEnd.toISOString().slice(0, 10)],
+      ]) {
+        await expect(
+          recordHandler(
+            fakeRequest(
+              { studentId: "student-1", startDate, endDate, reasonCode: "recovery" },
+              "owner",
+              "user-1",
+              "demo-academy",
+            ),
+          ),
+        ).rejects.toMatchObject({ code: "invalid-argument" });
+      }
+      const listRes = await listHandler(
+        fakeRequest({ studentId: "student-1" }, "owner", "user-1", "demo-academy"),
+      );
+      expect(listRes.medicalLeaves).toHaveLength(0);
     });
   });
 

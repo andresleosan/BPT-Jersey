@@ -11,6 +11,7 @@ import {
   switchAccessModeSchema,
   type MemberCoachRole,
 } from "@bpt-jersey/domain/staff/team-access";
+import { assertActiveSession } from "../auth/active-session.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { requireActiveOfficeActor } from "../auth/office-actor.js";
 import { requireUserActor } from "../auth/user-authorization.js";
@@ -93,6 +94,11 @@ export const switchAccessMode = onCall(browserAdminCallableOptions, async (reque
   const storedRole = await readMemberCoachRole(db, actor.academyId, actor.userId);
   if (!storedRole) throw new HttpsError("failed-precondition", "This account has one access mode.");
   const user = await getAuth().getUser(actor.userId);
+  // This rewrites the caller's own role claim: a disabled account, a revoked session or a token
+  // from another academy must not get one (N-03).
+  assertActiveSession(request, user);
+  if (user.customClaims?.academyId !== actor.academyId)
+    throw new HttpsError("permission-denied", "Your access changed. Sign in again.");
   // The live claim wins while in member mode: an adult who adds a child becomes a guardian after
   // the grant, and switching back must restore that, not the role stored at grant time.
   const liveRole = memberCoachRoleSchema.safeParse(user.customClaims?.role);

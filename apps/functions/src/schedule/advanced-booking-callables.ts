@@ -10,6 +10,7 @@ import {
 } from "@bpt-jersey/domain/schedule/advanced-booking";
 import { clientIpFromRequest } from "../audit/client-ip.js";
 import { onCallWithFreshAppCheck } from "../auth/app-check.js";
+import { requireActiveUserActor } from "../auth/office-actor.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import {
   createFirestoreWaitlistStore,
@@ -110,7 +111,10 @@ async function requireWaitlistStudentScope(
   resolver: CanonicalClientStudentScopeResolver = defaultClientStudentScopeResolver,
 ): Promise<void> {
   const actor = requireUserActor(request);
-  if (offerIssuerRoles.has(actor.role)) return;
+  if (offerIssuerRoles.has(actor.role)) {
+    await requireActiveUserActor(request); // live claims, not just the token (N-03)
+    return;
+  }
   await requireMemberAccountActor(request);
   if (
     (actor.role === "guardian" || actor.role === "adultStudent" || actor.role === "teenStudent") &&
@@ -217,6 +221,7 @@ export function createIssueNextWaitlistOfferHandler({
     if (!offerIssuerRoles.has(actor.role)) {
       throw new HttpsError("permission-denied", "Waitlist offer issuance is not permitted");
     }
+    await requireActiveUserActor(request); // live claims, not just the token (N-03)
     const parsed = parseIssueNextWaitlistOfferInput(request.data);
     if (!parsed.ok) {
       throw new HttpsError("invalid-argument", "Waitlist offer request is invalid");
@@ -312,6 +317,7 @@ export function createListSessionWaitlistHandler({
     if (!staffRoles.has(actor.role)) {
       throw new HttpsError("permission-denied", "Staff waitlist access is not permitted");
     }
+    await requireActiveUserActor(request); // live claims, not just the token (N-03)
     if (!exactObject(request.data, ["sessionId"])) {
       throw new HttpsError("invalid-argument", "Session waitlist query is invalid");
     }

@@ -1,10 +1,27 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+const syntheticAuthUsers = vi.hoisted(() => new Map<string, Record<string, unknown>>());
+vi.mock("firebase-admin/auth", () => ({
+  getAuth: () => ({
+    getUser: async (uid: string) => syntheticAuthUsers.get(uid),
+  }),
+}));
+vi.mock("firebase-admin/firestore", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("firebase-admin/firestore")>()),
+  getFirestore: () => ({
+    collection: () => {
+      throw new Error("Firestore must not be read");
+    },
+  }),
+}));
 
 import type { WaitlistEntryRecord } from "@bpt-jersey/domain/schedule/advanced-booking";
 import {
   createFirestoreWaitlistGroupsReader,
   createListAdminWaitlistGroupsHandler,
   groupWaitlistEntries,
+  listAdminWaitlistGroups,
+  listPendingPastWaitlists,
   type WaitlistGroupSession,
   type WaitlistGroupsReader,
 } from "./admin-waitlist-groups";
@@ -175,7 +192,23 @@ function reader(
 }
 
 function request(data: unknown, role: string, academyId = "academy-1") {
-  return { auth: { uid: role + "-1", token: { role, academyId } }, data } as never;
+  const uid = role + "-1";
+  syntheticAuthUsers.set(uid, {
+    uid,
+    disabled: false,
+    emailVerified: true,
+    customClaims: { academyId, role },
+    tokensValidAfterTime: "2020-01-01T00:00:00.000Z",
+  });
+  return {
+    app: { appId: "synthetic-app" },
+    auth: { uid, token: { role, academyId, auth_time: 1_700_000_000 } },
+    data,
+  } as never;
+}
+
+function changeLiveUser(uid: string, changes: Record<string, unknown>) {
+  syntheticAuthUsers.set(uid, { ...syntheticAuthUsers.get(uid), ...changes });
 }
 
 describe("listAdminWaitlistGroups handler", () => {
@@ -225,6 +258,27 @@ describe("listAdminWaitlistGroups handler", () => {
     await expect(
       createListAdminWaitlistGroupsHandler({ reader: value, now: () => now })(request({}, role)),
     ).rejects.toMatchObject({ code: "permission-denied" });
+  });
+
+  it("refuses a staff token issued before a demotion or a session revocation (N-03)", async () => {
+    const { value, ranges } = reader([entry("session-a", "student-1", 1)], [earlierAdult]);
+    const handler = createListAdminWaitlistGroupsHandler({ reader: value, now: () => now });
+    const demoted = request({}, "coach");
+    changeLiveUser("coach-1", { customClaims: { academyId: "academy-1", role: "guardian" } });
+    await expect(handler(demoted)).rejects.toMatchObject({ code: "permission-denied" });
+    const revoked = request({}, "owner");
+    changeLiveUser("owner-1", { tokensValidAfterTime: "2030-01-01T00:00:00.000Z" });
+    await expect(handler(revoked)).rejects.toMatchObject({ code: "unauthenticated" });
+    expect(ranges).toEqual([]);
+  });
+
+  it.each([
+    { name: "listAdminWaitlistGroups", callable: listAdminWaitlistGroups },
+    { name: "listPendingPastWaitlists", callable: listPendingPastWaitlists },
+  ])("$name refuses a demoted staff token before reading (N-03)", async ({ callable }) => {
+    const demoted = request({}, "headCoach");
+    changeLiveUser("headCoach-1", { customClaims: { academyId: "academy-1", role: "guardian" } });
+    await expect(callable.run(demoted)).rejects.toMatchObject({ code: "permission-denied" });
   });
 
   it("rejects an unexpected payload", async () => {

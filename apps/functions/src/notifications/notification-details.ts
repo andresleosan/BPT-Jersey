@@ -59,6 +59,9 @@ export function when(iso: string | null, withTime = true): string | null {
     ...(withTime ? { hour: "2-digit", minute: "2-digit" } : {}),
   }).format(new Date(iso));
 }
+/** The notification's subject, fitted to the 160-character `from` the contract accepts. */
+const subject = (value: string | null, fallback: string): string =>
+  (value ?? "").trim().slice(0, 160).trim() || fallback;
 const plain = (value: string | null) =>
   value ? value.replaceAll(/[_-]+/gu, " ").replace(/^./u, (c) => c.toUpperCase()) : null;
 const methods: Record<string, string> = {
@@ -136,7 +139,7 @@ export function createNotificationDescriber(reader: DetailsReader) {
         studentId: payer.studentId,
         membershipId: text(invoice, "membershipId"),
         details: {
-          from: who,
+          from: subject(who, "Automatic"),
           amount,
           facts: facts([
             ["Paid by", payer.name],
@@ -165,7 +168,7 @@ export function createNotificationDescriber(reader: DetailsReader) {
         studentId: payer.studentId,
         membershipId: text(target, "membershipId"),
         details: {
-          from: who,
+          from: subject(who, "Automatic"),
           amount,
           facts: facts([
             ["Billed to", payer.name],
@@ -193,7 +196,7 @@ export function createNotificationDescriber(reader: DetailsReader) {
         studentId,
         membershipId: id,
         details: {
-          from: who,
+          from: subject(who, "Automatic"),
           amount: null,
           facts: facts([
             ["Member", member],
@@ -231,7 +234,7 @@ export function createNotificationDescriber(reader: DetailsReader) {
         studentId: null,
         membershipId: null,
         details: {
-          from: who,
+          from: subject(who, "Automatic"),
           amount,
           facts: facts([
             ["Applicant", text(applicant, "fullName")],
@@ -259,7 +262,7 @@ export function createNotificationDescriber(reader: DetailsReader) {
         studentId: id,
         membershipId: null,
         details: {
-          from: who,
+          from: subject(who, "Automatic"),
           amount: null,
           facts: facts([
             ["Member", text(target, "fullName")],
@@ -281,7 +284,7 @@ export function createNotificationDescriber(reader: DetailsReader) {
         studentId: null,
         membershipId: null,
         details: {
-          from: classTitle,
+          from: subject(classTitle, "Class"),
           amount: null,
           facts: facts([
             ["Class", classTitle],
@@ -314,7 +317,7 @@ export function createNotificationDescriber(reader: DetailsReader) {
       studentId: text(application, "studentId"),
       membershipId: null,
       details: {
-        from: who,
+        from: subject(who, "Member"),
         amount,
         facts: facts([
           ["Paid by", payer],

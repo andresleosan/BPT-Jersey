@@ -147,7 +147,10 @@ export async function requireStudentScope(
 ): Promise<void> {
   const actor = requireUserActor(request);
   if (staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
-    if (!mutation) return;
+    if (!mutation) {
+      await requireActiveUserActor(request); // live claims, not just the token (N-03)
+      return;
+    }
     // ADR-018/ADR-010: bookings come from the office (or a headCoach registering in Classes &
     // Services) and from the member; a coach only reads. A token from before a demotion is not enough.
     if (actor.role === "coach")
@@ -337,6 +340,7 @@ export function createSaveLocationGeofenceHandler(options: { store: ScheduleStor
         "Administrator access required to manage site coordinates",
       );
     }
+    await requireActiveUserActor(request); // live claims, not just the token (N-03)
     const parsed = parseSaveLocationGeofenceInput(request.data);
     if (!parsed.ok) {
       throw new HttpsError("invalid-argument", parsed.error);
@@ -420,6 +424,7 @@ export function createDeleteProgramHandler(options: { store: ScheduleStore }) {
     if (!adminRoles.includes(actor.role as (typeof adminRoles)[number])) {
       throw new HttpsError("permission-denied", "Office access required to delete class types");
     }
+    await requireActiveUserActor(request); // live claims, not just the token (N-03)
     const parsed = parseDeleteProgramInput(request.data);
     if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
     try {
@@ -514,6 +519,7 @@ export function createListClassesHandler(options: { store: ScheduleStore }) {
     if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
       throw new HttpsError("permission-denied", "Staff access required");
     }
+    await requireActiveUserActor(request); // live claims, not just the token (N-03)
 
     const classes = await store.listClasses(actor.academyId);
     return {
@@ -984,6 +990,7 @@ export function createListSessionBookingsHandler(options: { store: ScheduleStore
     if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
       throw new HttpsError("permission-denied", "Staff access required to view session roster");
     }
+    await requireActiveUserActor(request); // live claims, not just the token (N-03)
 
     const data = request.data as { sessionId?: unknown };
     if (!data || typeof data.sessionId !== "string" || !data.sessionId.trim()) {
@@ -1023,6 +1030,7 @@ export function createEvaluateSessionMinimumHandler(options: { store: ScheduleSt
     if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
       throw new HttpsError("permission-denied", "Staff access required");
     }
+    await requireActiveUserActor(request); // live claims, not just the token (N-03)
 
     const data = request.data as { sessionId?: unknown };
     if (!data || typeof data.sessionId !== "string" || !data.sessionId.trim()) {
@@ -1050,6 +1058,7 @@ export function createCheckInHandler(options: { store: ScheduleStore }) {
     if (!isStaff) {
       throw new HttpsError("permission-denied", "Staff access is required for check-in");
     }
+    await requireActiveUserActor(request); // live claims, not just the token (N-03)
     if (parsed.value.method !== "manual") {
       throw new HttpsError(
         "failed-precondition",
@@ -1244,6 +1253,7 @@ export function createSearchAttendanceMembersHandler() {
     if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
       throw new HttpsError("permission-denied", "Staff access is required");
     }
+    await requireActiveUserActor(request); // live claims, not just the token (N-03)
     const query = (request.data as { query?: unknown } | null)?.query;
     if (typeof query !== "string" || query.trim().length < 2 || query.length > 80) {
       throw new HttpsError("invalid-argument", "Type at least two letters");
@@ -1276,6 +1286,7 @@ export function createStaffWalkInAttendanceHandler(options: { store: ScheduleSto
     if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
       throw new HttpsError("permission-denied", "Staff access is required for check-in");
     }
+    await requireActiveUserActor(request); // live claims, not just the token (N-03)
     const data = (request.data ?? {}) as { sessionId?: unknown; studentId?: unknown };
     const sessionId = typeof data.sessionId === "string" ? data.sessionId.trim() : "";
     const studentId = typeof data.studentId === "string" ? data.studentId.trim() : "";
@@ -1383,6 +1394,7 @@ export function createReconcileSessionQuorumHandler(options: { store: ScheduleSt
     if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
       throw new HttpsError("permission-denied", "Staff access required to reconcile quorum");
     }
+    await requireActiveUserActor(request); // live claims, not just the token (N-03)
     const data = request.data as { sessionId?: unknown } | null;
     if (
       data === null ||
@@ -1416,6 +1428,7 @@ export function createListSessionAttendanceHandler(options: { store: ScheduleSto
     if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
       throw new HttpsError("permission-denied", "Staff access required to view session attendance");
     }
+    await requireActiveUserActor(request); // live claims, not just the token (N-03)
 
     const data = request.data as { sessionId?: unknown };
     if (!data || typeof data.sessionId !== "string" || !data.sessionId.trim()) {
@@ -1473,6 +1486,7 @@ export function createCorrectAttendanceHandler(options: { store: ScheduleStore }
     if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
       throw new HttpsError("permission-denied", "Staff access required to correct attendance");
     }
+    await requireActiveUserActor(request); // live claims, not just the token (N-03)
 
     const parsed = parseCorrectAttendanceInput(request.data);
     if (!parsed.ok) {
@@ -1508,6 +1522,7 @@ export function createReconcileSessionNoShowsHandler(options: { store: ScheduleS
         "Staff access required to reconcile session no-shows",
       );
     }
+    await requireActiveUserActor(request); // live claims, not just the token (N-03)
 
     const data = request.data as { sessionId?: unknown };
     if (!data || typeof data.sessionId !== "string" || !data.sessionId.trim()) {
@@ -1585,6 +1600,7 @@ export function createRecordCheckoutHandler(options: StudentScopeOptions) {
       );
     }
     if (!isStaff) await requireStudentScope(request, parsed.value.studentId, options);
+    else await requireActiveUserActor(request); // live claims, not just the token (N-03)
 
     let checkout: Awaited<ReturnType<ScheduleStore["recordCheckout"]>>;
     try {
@@ -1614,6 +1630,7 @@ export function createListSessionCheckoutsHandler(options: { store: ScheduleStor
     if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
       throw new HttpsError("permission-denied", "Staff access required to list session checkouts");
     }
+    await requireActiveUserActor(request); // live claims, not just the token (N-03)
 
     const data = request.data as { sessionId?: unknown };
     if (!data || typeof data.sessionId !== "string" || !data.sessionId.trim()) {
@@ -1665,6 +1682,7 @@ export function createGetSessionOperationalViewHandler(options: { store: Schedul
         "Staff access required to view live operational roster",
       );
     }
+    await requireActiveUserActor(request); // live claims, not just the token (N-03)
 
     const data = request.data as { sessionId?: unknown };
     if (!data || typeof data.sessionId !== "string" || !data.sessionId.trim()) {

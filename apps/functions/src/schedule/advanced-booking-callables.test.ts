@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
+const syntheticAuthUsers = vi.hoisted(() => new Map<string, Record<string, unknown>>());
+vi.mock("firebase-admin/auth", () => ({
+  getAuth: () => ({
+    getUser: async (uid: string) => syntheticAuthUsers.get(uid),
+  }),
+}));
+
 import type { WaitlistEntryRecord } from "@bpt-jersey/domain/schedule/advanced-booking";
 import {
   createAcceptWaitlistOfferHandler,
@@ -64,7 +71,22 @@ const declinedEntry: WaitlistEntryRecord = Object.freeze({
 });
 
 function request(data: unknown, role: string, uid = role + "-1", academyId = "academy-1") {
-  return { auth: { uid, token: { role, academyId } }, data } as never;
+  syntheticAuthUsers.set(uid, {
+    uid,
+    disabled: false,
+    emailVerified: true,
+    customClaims: { academyId, role },
+    tokensValidAfterTime: "2020-01-01T00:00:00.000Z",
+  });
+  return {
+    app: { appId: "synthetic-app" },
+    auth: { uid, token: { role, academyId, auth_time: 1_700_000_000 } },
+    data,
+  } as never;
+}
+
+function changeLiveUser(uid: string, changes: Record<string, unknown>) {
+  syntheticAuthUsers.set(uid, { ...syntheticAuthUsers.get(uid), ...changes });
 }
 
 function store(overrides: Partial<WaitlistStore> = {}): WaitlistStore {
@@ -313,6 +335,62 @@ describe("advanced booking waitlist callables", () => {
       code: "unauthenticated",
     });
   });
+
+  it("refuses an offer issuer token issued before a demotion or a session revocation (N-03)", async () => {
+    const waitlistStore = store();
+    const handler = createIssueNextWaitlistOfferHandler({ waitlistStore });
+    const demoted = request({ sessionId: "session-1" }, "owner");
+    changeLiveUser("owner-1", { customClaims: { academyId: "academy-1", role: "coach" } });
+    await expect(handler(demoted)).rejects.toMatchObject({ code: "permission-denied" });
+    const revoked = request({ sessionId: "session-1" }, "administrator");
+    changeLiveUser("administrator-1", { tokensValidAfterTime: "2030-01-01T00:00:00.000Z" });
+    await expect(handler(revoked)).rejects.toMatchObject({ code: "unauthenticated" });
+    expect(waitlistStore.issueNextWaitlistOffer).not.toHaveBeenCalled();
+  });
+
+  it("refuses a staff session queue token issued before a demotion (N-03)", async () => {
+    const waitlistStore = store();
+    const demoted = request({ sessionId: "session-1" }, "coach");
+    changeLiveUser("coach-1", { customClaims: { academyId: "academy-1", role: "guardian" } });
+    await expect(
+      createListSessionWaitlistHandler({ waitlistStore })(demoted),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    expect(waitlistStore.listSessionWaitlist).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      name: "joinWaitlist",
+      handler: createJoinWaitlistHandler,
+      data: { sessionId: "session-1", studentId: "student-1", membershipId: "membership-1" },
+      method: "joinWaitlist" as const,
+    },
+    {
+      name: "cancelWaitlistEntry",
+      handler: createCancelWaitlistHandler,
+      data: { sessionId: "session-1", studentId: "student-1" },
+      method: "cancelWaitlist" as const,
+    },
+    {
+      name: "listStudentWaitlist",
+      handler: createListStudentWaitlistHandler,
+      data: { studentId: "student-1" },
+      method: "listStudentWaitlist" as const,
+    },
+  ])(
+    "refuses an office token issued before a demotion on $name (N-03)",
+    async ({ handler, data, method }) => {
+      const waitlistStore = store();
+      const demoted = request(data, "administrator");
+      changeLiveUser("administrator-1", {
+        customClaims: { academyId: "academy-1", role: "coach" },
+      });
+      await expect(handler({ waitlistStore })(demoted)).rejects.toMatchObject({
+        code: "permission-denied",
+      });
+      expect(waitlistStore[method]).not.toHaveBeenCalled();
+    },
+  );
 
   it("maps store failures to safe callable errors", async () => {
     const waitlistStore = store({

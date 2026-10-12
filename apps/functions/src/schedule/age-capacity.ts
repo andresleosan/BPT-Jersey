@@ -6,6 +6,7 @@ import { resolveCanonicalStudentIdInTransaction } from "../members/member-identi
 import type { BookingFirestore, BookingTransaction } from "./booking-transaction-service.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { onCallWithFreshAppCheck } from "../auth/app-check.js";
+import { requireActiveUserActor } from "../auth/office-actor.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { scheduleCallableOptions } from "./schedule-callable-options.js";
 
@@ -90,6 +91,7 @@ export async function assertAgeCapacityEdit(input: Reader & { current: SessionRe
 export const getSessionAgeAvailability = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) => {
   const actor = requireUserActor(request);
   if (!["owner", "administrator", "headCoach", "coach"].includes(actor.role)) throw new HttpsError("permission-denied", "Staff access required");
+  await requireActiveUserActor(request); // live claims, not just the token (N-03)
   const sessionId = request.data?.sessionId;
   if (typeof sessionId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(sessionId)) throw new HttpsError("invalid-argument", "Select a class");
   const db = getFirestore();

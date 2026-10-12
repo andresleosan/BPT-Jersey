@@ -1192,8 +1192,20 @@ export type RecordMedicalLeaveInput = Readonly<{
   reasonCode: MedicalLeaveReasonCode;
 }>;
 
+/** Calendar day as UTC midnight ms, or NaN unless the value is a real YYYY-MM-DD date. */
+function dateOnlyMs(value: unknown): number {
+  if (typeof value !== "string" || !dateOnlyPattern.test(value)) return NaN;
+  const ms = Date.parse(`${value}T00:00:00.000Z`);
+  // Date.parse rolls 2026-02-31 over to March; a round trip catches it.
+  return !Number.isNaN(ms) && new Date(ms).toISOString().slice(0, 10) === value ? ms : NaN;
+}
+
+const medicalLeaveEarliestMs = Date.parse("2000-01-01T00:00:00.000Z");
+const dayMs = 86_400_000;
+
 export function parseRecordMedicalLeaveInput(
   raw: unknown,
+  now: Date = new Date(),
 ): Result<RecordMedicalLeaveInput, readonly ValidationIssue[]> {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     return err(Object.freeze([issue(["input"], "expected_object")]));
@@ -1211,14 +1223,17 @@ export function parseRecordMedicalLeaveInput(
     issues.push(issue(["input", "studentId"], "invalid_student_id"));
   }
 
-  const startMs = typeof startDate === "string" ? new Date(startDate).getTime() : NaN;
-  const endMs = typeof endDate === "string" ? new Date(endDate).getTime() : NaN;
+  // Date-only calendar days (LV-01): no time part, no rollover, no far past or far future.
+  const startMs = dateOnlyMs(startDate);
+  const endMs = dateOnlyMs(endDate);
+  const latest = new Date(now.getTime());
+  latest.setUTCFullYear(latest.getUTCFullYear() + 2);
 
-  if (typeof startDate !== "string" || Number.isNaN(startMs)) {
+  if (Number.isNaN(startMs) || startMs < medicalLeaveEarliestMs) {
     issues.push(issue(["input", "startDate"], "invalid_start_date_iso"));
   }
 
-  if (typeof endDate !== "string" || Number.isNaN(endMs)) {
+  if (Number.isNaN(endMs) || endMs > latest.getTime()) {
     issues.push(issue(["input", "endDate"], "invalid_end_date_iso"));
   }
 
@@ -1266,7 +1281,8 @@ export function calculateAttendanceStreak(options: {
   const nowMs = new Date(now).getTime();
   const activeMedicalLeave = medicalLeaves.some((l) => {
     const s = new Date(l.startDate).getTime();
-    const e = new Date(l.endDate).getTime();
+    // A date-only end (every leave since LV-01) covers that whole day; a legacy ISO end is exact.
+    const e = new Date(l.endDate).getTime() + (dateOnlyPattern.test(l.endDate) ? dayMs - 1 : 0);
     return !Number.isNaN(s) && !Number.isNaN(e) && s <= nowMs && nowMs <= e;
   });
 

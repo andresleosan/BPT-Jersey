@@ -1,12 +1,26 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+const syntheticAuthUsers = vi.hoisted(() => new Map<string, Record<string, unknown>>());
+vi.mock("firebase-admin/auth", () => ({
+  getAuth: () => ({
+    getUser: async (uid: string) => syntheticAuthUsers.get(uid),
+  }),
+}));
 
 import { buildRetentionAlerts } from "@bpt-jersey/domain/retention";
 import { createListRetentionAlertsHandler } from "./retention-alert-callables";
 import { createInMemoryRetentionAlertStore } from "./retention-alert-service";
 
 function request(data: unknown, role: string, academyId = "academy-a") {
+  // The inbox re-reads the caller from Auth (N-03); register the matching live account.
+  syntheticAuthUsers.set(role + "-1", {
+    uid: role + "-1",
+    disabled: false,
+    customClaims: { academyId, role },
+    tokensValidAfterTime: "2020-01-01T00:00:00.000Z",
+  });
   return {
-    auth: { uid: role + "-1", token: { academyId, role } },
+    auth: { uid: role + "-1", token: { academyId, role, auth_time: 1_700_000_000 } },
     data,
   } as never;
 }
@@ -57,6 +71,28 @@ describe("retention alert callable", () => {
       });
     },
   );
+
+  it("refuses a token issued before a demotion or a session revocation (N-03)", async () => {
+    const handler = createListRetentionAlertsHandler({
+      store: createInMemoryRetentionAlertStore(),
+    });
+    const demoted = request(null, "owner");
+    syntheticAuthUsers.set("owner-1", {
+      uid: "owner-1",
+      disabled: false,
+      customClaims: { academyId: "academy-a", role: "coach" },
+      tokensValidAfterTime: "2020-01-01T00:00:00.000Z",
+    });
+    await expect(handler(demoted)).rejects.toMatchObject({ code: "permission-denied" });
+    const revoked = request(null, "administrator");
+    syntheticAuthUsers.set("administrator-1", {
+      uid: "administrator-1",
+      disabled: false,
+      customClaims: { academyId: "academy-a", role: "administrator" },
+      tokensValidAfterTime: "2030-01-01T00:00:00.000Z",
+    });
+    await expect(handler(revoked)).rejects.toMatchObject({ code: "unauthenticated" });
+  });
 
   it("rejects filters and unauthenticated requests", async () => {
     const handler = createListRetentionAlertsHandler({

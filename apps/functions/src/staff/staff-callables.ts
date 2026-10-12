@@ -3,7 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
 import { requireAdminActor } from "../auth/admin-authorization.js";
-import { requireActiveOfficeActor } from "../auth/office-actor.js";
+import { requireActiveOfficeActor, requireActiveUserActor } from "../auth/office-actor.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
@@ -30,14 +30,6 @@ type StaffAuthService = Readonly<{
 }>;
 
 type ClaimsLockControl = Readonly<{ retain: () => void }>;
-
-// A lower or missing staff claim after a change is a demotion: its old sessions must end.
-const staffClaimRank = new Map<unknown, number>([
-  ["coach", 1],
-  ["headCoach", 2],
-]);
-const lowersStaffRole = (from: unknown, to: unknown) =>
-  (staffClaimRank.get(from) ?? 0) > (staffClaimRank.get(to) ?? 0);
 
 export type StaffCallableServices = Readonly<{
   auth: StaffAuthService;
@@ -362,7 +354,10 @@ async function applyClaims(
     if (error instanceof HttpsError) throw error;
     throw new HttpsError("failed-precondition", "Staff claims synchronization failed");
   }
-  if (lowersStaffRole(current.role, next.role)) await services.auth.revokeRefreshTokens?.(userId);
+  // Any role change ends the old sessions, not only a demotion: the live checks (H-03, N-02, N-03)
+  // refuse a token whose role differs from the account's, so a new coach signs in again at once
+  // instead of being refused for up to an hour.
+  if (current.role !== next.role) await services.auth.revokeRefreshTokens?.(userId);
 }
 
 async function withClaimsMutation<T>(
@@ -603,6 +598,7 @@ export const replaceStaffAssignments = onCall(browserAdminCallableOptions, async
   await requireActiveOfficeActor(request);
   return replaceStaffAssignmentsHandler(request, staffCallableServices());
 });
-export const listStaffProfiles = onCall(browserAdminCallableOptions, async (request) =>
-  listStaffProfilesHandler(request, staffCallableServices()),
-);
+export const listStaffProfiles = onCall(browserAdminCallableOptions, async (request) => {
+  await requireActiveUserActor(request); // live claims, not just the token (N-03)
+  return listStaffProfilesHandler(request, staffCallableServices());
+});

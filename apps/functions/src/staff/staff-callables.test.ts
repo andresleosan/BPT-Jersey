@@ -1,9 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
 
+const syntheticAuthUsers = vi.hoisted(() => new Map<string, Record<string, unknown>>());
+vi.mock("firebase-admin/auth", () => ({
+  getAuth: () => ({
+    getUser: async (uid: string) => syntheticAuthUsers.get(uid),
+  }),
+}));
+vi.mock("firebase-admin/firestore", () => ({
+  getFirestore: () => ({
+    collection: () => ({ limit: () => ({}) }),
+    runTransaction: async (operation: (transaction: unknown) => unknown) =>
+      operation({ get: async () => ({ docs: [] }) }),
+  }),
+}));
+
 import type { StaffProfile } from "@bpt-jersey/domain/staff";
 
 import {
   createStaffProfileHandler,
+  listStaffProfiles,
   listStaffProfilesHandler,
   replaceStaffAssignmentsHandler,
   replaceStaffAvailabilityHandler,
@@ -167,6 +182,23 @@ describe("staff callables", () => {
       academyId: "academy-1",
       role: "coach",
     });
+  });
+
+  it("ends the old sessions when the staff role changes, promotions included (N-03)", async () => {
+    const current = services();
+    const revokeRefreshTokens = vi.fn(async () => undefined);
+    const withRevoke = { ...current, auth: { ...current.auth, revokeRefreshTokens } };
+
+    // adultStudent -> coach: the old token would be refused by every live check for up to 1 h.
+    await createStaffProfileHandler(
+      request({ userId: "user-1", role: "coach", requestId: "request-1" }),
+      withRevoke,
+    );
+    expect(revokeRefreshTokens).toHaveBeenCalledWith("user-1");
+
+    revokeRefreshTokens.mockClear();
+    await updateStaffProfileHandler(request({ staffKey: "staff-1", role: "coach" }), withRevoke);
+    expect(revokeRefreshTokens).not.toHaveBeenCalled();
   });
 
   it("rejects anonymous, non-admin, cross-tenant, and extra-field requests", async () => {
@@ -537,5 +569,37 @@ describe("staff callables", () => {
     ).rejects.toMatchObject({ code: "invalid-argument" });
     expect(current.store.replaceStaffAvailability).not.toHaveBeenCalled();
     expect(current.store.replaceStaffAssignments).not.toHaveBeenCalled();
+  });
+  it("refuses a staff-list token issued before a demotion or a session revocation (N-03)", async () => {
+    const liveRequest = (
+      uid: string,
+      role: string,
+      liveRole: string,
+      tokensValidAfterTime: string,
+    ) => {
+      syntheticAuthUsers.set(uid, {
+        uid,
+        disabled: false,
+        customClaims: { academyId: "academy-1", role: liveRole },
+        tokensValidAfterTime,
+      });
+      return {
+        auth: { uid, token: { academyId: "academy-1", role, auth_time: 1_700_000_000 } },
+        data: {},
+      } as never;
+    };
+    await expect(
+      listStaffProfiles.run(liveRequest("owner-1", "owner", "owner", "2020-01-01T00:00:00.000Z")),
+    ).resolves.toEqual([]);
+    await expect(
+      listStaffProfiles.run(
+        liveRequest("head-1", "headCoach", "coach", "2020-01-01T00:00:00.000Z"),
+      ),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(
+      listStaffProfiles.run(
+        liveRequest("admin-9", "administrator", "administrator", "2030-01-01T00:00:00.000Z"),
+      ),
+    ).rejects.toMatchObject({ code: "unauthenticated" });
   });
 });

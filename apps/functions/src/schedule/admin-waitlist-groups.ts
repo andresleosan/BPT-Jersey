@@ -3,6 +3,7 @@ import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 
 import type { WaitlistEntryRecord } from "@bpt-jersey/domain/schedule/advanced-booking";
 import { onCallWithFreshAppCheck } from "../auth/app-check.js";
+import { requireActiveUserActor } from "../auth/office-actor.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import type { StaffWaitlistItem } from "./advanced-booking-callables.js";
 import { parseStoredWaitlist } from "./advanced-booking-service.js";
@@ -170,6 +171,7 @@ export function createListAdminWaitlistGroupsHandler({
     if (!staffRoles.has(actor.role)) {
       throw new HttpsError("permission-denied", "Staff waitlist access is not permitted");
     }
+    await requireActiveUserActor(request); // live claims, not just the token (N-03)
     if (!isEmptyPayload(request.data)) {
       throw new HttpsError("invalid-argument", "Waitlist groups query is invalid");
     }
@@ -259,6 +261,7 @@ export const listAdminWaitlistGroups = onCallWithFreshAppCheck(scheduleCallableO
 export const listPendingPastWaitlists = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) => {
   const actor = requireUserActor(request);
   if (!staffRoles.has(actor.role)) throw new HttpsError("permission-denied", "Staff access required");
+  await requireActiveUserActor(request); // live claims, not just the token (N-03)
   const db = getFirestore(), base = `academies/${actor.academyId}`;
   let query = db.collection(`${base}/waitlistEntries`).where("status", "in", liveStatuses).orderBy(FieldPath.documentId()).limit(51);
   if (request.data?.cursor !== undefined) {

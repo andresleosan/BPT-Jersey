@@ -6,6 +6,7 @@ import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 import { parsePreClassViewQuery } from "@bpt-jersey/domain/schedule/pre-class";
 
 import { onCallWithFreshAppCheck } from "../auth/app-check.js";
+import { requireActiveUserActor } from "../auth/office-actor.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { scheduleCallableOptions } from "./schedule-callable-options.js";
 import {
@@ -27,6 +28,7 @@ export function createGetPreClassViewHandler(options: { service: PreClassService
     if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
       throw new HttpsError("permission-denied", "Staff access required to prepare a class");
     }
+    await requireActiveUserActor(request); // live claims, not just the token (N-03)
     const parsed = parsePreClassViewQuery(request.data);
     if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
     try {
@@ -70,6 +72,9 @@ export const getPreClassView = onCallWithFreshAppCheck(scheduleCallableOptions, 
   if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
   const actor = requireUserActor(request);
   const session = await getFirestore().doc(`academies/${actor.academyId}/sessions/${parsed.value.sessionId}`).get();
-  if (session.data()?.courseId) return {view: await getCourseRoster(getFirestore(), await requireCourseActor(request), parsed.value.sessionId)};
+  if (session.data()?.courseId) {
+    await requireActiveUserActor(request); // live claims and revocation, not just the token (N-03)
+    return {view: await getCourseRoster(getFirestore(), await requireCourseActor(request), parsed.value.sessionId)};
+  }
   return createGetPreClassViewHandler({service: getService()})(request);
 });

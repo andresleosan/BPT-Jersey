@@ -6,6 +6,7 @@ import type {
   RetentionAlertEvidence,
   RetentionAlertKind,
 } from "@bpt-jersey/domain/retention";
+import { requireActiveUserActor } from "../auth/office-actor.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import {
   createFirestoreRetentionAlertStore,
@@ -47,6 +48,7 @@ export function createListRetentionAlertsHandler({ store }: { store: RetentionAl
     if (!retentionInboxRoles.has(actor.role)) {
       throw new HttpsError("permission-denied", "Retention inbox access is not permitted");
     }
+    await requireActiveUserActor(request); // live claims, not just the token (N-03)
     if (request.data !== null) {
       throw new HttpsError("invalid-argument", "Retention inbox filters are not supported");
     }
