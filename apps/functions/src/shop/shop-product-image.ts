@@ -12,7 +12,8 @@ import { isMissingObjectError } from "./shop-proof.js";
 
 /** Catalog photos are public, so the private bucket serves them through shopProductImage. */
 const imageName = /^[0-9a-f-]{36}\.webp$/u;
-const productImageKey = (academyId: string, name: string) => `academies/${academyId}/shop-products/${name}`;
+// The R2 client only stores webp images under academies/{id}/{folder}/{id}/{uuid}.webp.
+const productImageKey = (academyId: string, name: string) => `academies/${academyId}/shop-products/catalog/${name}`;
 
 const uploadSchema = z.strictObject({
   contentType: z.enum(["image/jpeg", "image/png", "image/webp"]),

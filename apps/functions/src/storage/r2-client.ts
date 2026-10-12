@@ -72,8 +72,8 @@ function assertObjectKey(objectKey: string): void {
 }
 
 const MAX_PRIVATE_IMAGE_BYTES = 2 * 1024 * 1024;
-/** Exactly the keys the avatar and coach photo uploads build: academies/{academyId}/{avatars|coach-photos}/{id}/{uuid}.webp. */
-const AVATAR_KEY_PATTERN = /^academies\/[^/]+\/(?:avatars|coach-photos)\/[^/]+\/[0-9a-f-]{36}\.webp$/u;
+/** Exactly the keys the avatar, coach photo and shop product uploads build: academies/{academyId}/{avatars|coach-photos|shop-products}/{id}/{uuid}.webp. */
+const AVATAR_KEY_PATTERN = /^academies\/[^/]+\/(?:avatars|coach-photos|shop-products)\/[^/]+\/[0-9a-f-]{36}\.webp$/u;
 
 /** Payment proofs: jpeg/png read for 60 s. Profile avatars: webp read for 900 s. Nothing else. */
 function isPrivateImageRequest(input: Readonly<{ objectKey: string; expiresInSeconds: number; contentType: string }>): boolean {
