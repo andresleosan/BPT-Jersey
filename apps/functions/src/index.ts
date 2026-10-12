@@ -246,6 +246,7 @@ export {
   updateShopOrder,
   uploadShopOrderProof,
 } from "./shop/shop-callables.js";
+export { shopProductImage, uploadShopProductImage } from "./shop/shop-product-image.js";
 
 // Member engagement features, one file per team (phase 0, T041V2).
 export * from "./streak/streak-callables.js";

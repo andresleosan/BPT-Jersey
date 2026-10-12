@@ -140,6 +140,21 @@ export async function uploadShopOrderProof(requestId: string, file: File): Promi
   }
 }
 
+/** The server re-encodes the picture and answers with the public URL saved as the product image. */
+export async function uploadShopProductImage(file: File): Promise<string> {
+  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size < 1 || file.size > 2 * 1024 * 1024)
+    throw new Error("Choose a JPEG, PNG or WebP picture up to 2 MB.");
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    const data = await call("uploadShopProductImage", { contentType: file.type, base64: btoa(binary) });
+    return z.object({ imageUrl: z.url() }).parse(data).imageUrl;
+  } catch (error) {
+    throw new Error(callableMessage(error, "invalid-argument") ?? "The picture could not be uploaded.");
+  }
+}
+
 export async function getShopOrderProofUrl(orderId: string): Promise<string> {
   try {
     const data = await call("getShopOrderProofUrl", { orderId });

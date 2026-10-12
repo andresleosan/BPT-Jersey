@@ -27,6 +27,7 @@ import {
   saveShopProduct,
   setShopProductActive,
   updateShopOrder,
+  uploadShopProductImage,
 } from "../../../lib/shop-client";
 import { AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 import { AdminDataTableWrap } from "../admin-data-table";
@@ -277,6 +278,19 @@ export function ShopAdminPage() {
       mounted = false;
     };
   }, []);
+
+  async function uploadImage(file: File): Promise<void> {
+    setBusy("image");
+    setNotice(undefined);
+    try {
+      updateEditor("imageUrl", await uploadShopProductImage(file));
+      setNotice({ tone: "success", text: "Picture uploaded. Save the product to keep it." });
+    } catch (error) {
+      setNotice({ tone: "error", text: error instanceof Error ? error.message : "The picture could not be uploaded." });
+    } finally {
+      setBusy(undefined);
+    }
+  }
 
   function updateEditor<K extends keyof EditorValues>(field: K, value: EditorValues[K]): void {
     setEditor((current) => ({ ...current, [field]: value }));
@@ -774,7 +788,7 @@ export function ShopAdminPage() {
                   <p className="shop-admin-secondary">
                     {editor.imageUrl.trim()
                       ? "This is the image clients will see for the product."
-                      : "No image yet. Use one of /shop/gis.jpg, /shop/rashguards.jpg, /shop/shorts.jpg, /shop/backpacks.jpg, /shop/casual.jpg or an https URL."}
+                      : "No image yet. Upload a picture below, or use /shop/gis.jpg, /shop/rashguards.jpg, /shop/shorts.jpg, /shop/backpacks.jpg, /shop/casual.jpg or an https URL."}
                   </p>
                 </div>
               </div>
@@ -898,6 +912,20 @@ export function ShopAdminPage() {
                     onChange={(event) => updateEditor("imageUrl", event.target.value)}
                     placeholder="/shop/gis.jpg"
                     value={editor.imageUrl}
+                  />
+                </label>
+                <label className="shop-admin-field" htmlFor="shop-product-image-file">
+                  Or upload a picture (JPEG, PNG or WebP, up to 2 MB)
+                  <input
+                    accept="image/jpeg,image/png,image/webp"
+                    disabled={busy !== undefined}
+                    id="shop-product-image-file"
+                    onChange={(event) => {
+                      const input = event.currentTarget;
+                      const file = input.files?.[0];
+                      if (file) void uploadImage(file).finally(() => (input.value = ""));
+                    }}
+                    type="file"
                   />
                 </label>
                 <label

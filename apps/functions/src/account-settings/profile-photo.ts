@@ -19,6 +19,7 @@ export async function sanitiseAvatar(
   bytes: Buffer,
   mime: "image/jpeg" | "image/png" | "image/webp",
   size: Readonly<{ width: number; height: number }> = { width: 512, height: 512 },
+  fit: "cover" | "inside" = "cover",
 ): Promise<Buffer> {
   if (bytes.length === 0 || bytes.length > maxBytes || !signatures[mime]?.(bytes))
     throw new PhotoRejected();
@@ -31,7 +32,7 @@ export async function sanitiseAvatar(
     const meta = await image.metadata();
     if ((meta.pages ?? 1) !== 1 || !meta.width || !meta.height) throw new PhotoRejected();
     // sharp drops EXIF/ICC/XMP unless withMetadata() is called.
-    return await image.rotate().resize(size.width, size.height, { fit: "cover" }).webp({ quality: 82 }).toBuffer();
+    return await image.rotate().resize(size.width, size.height, { fit, withoutEnlargement: fit === "inside" }).webp({ quality: 82 }).toBuffer();
   } catch {
     throw new PhotoRejected();
   }
