@@ -88,10 +88,11 @@ export type LocationRecord = Readonly<{
 }>;
 
 /**
- * The check-in eligibility radius. Not configurable per site. Raised 50 → 150 m (2026-10-08) so GPS
+ * The check-in eligibility radius. Not configurable per site. Raised 50 → 150 m (2026-10-08), then
+ * 150 → 300 m (2026-10-13) after West members scanning at Strive were refused, so GPS
  * drift indoors never refuses a member on the mat; members are told 100 m (selfCheckInAdvertisedRadiusMeters).
  */
-export const checkInProximityRadiusMeters = 150;
+export const checkInProximityRadiusMeters = 300;
 
 /** What members are told, deliberately tighter than the real radius so they check in close by. */
 export const selfCheckInAdvertisedRadiusMeters = 100;
