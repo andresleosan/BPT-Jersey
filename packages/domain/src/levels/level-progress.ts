@@ -250,6 +250,83 @@ export function ladderIndexes(
   return indexes;
 }
 
+const beltColours = [
+  "white",
+  "grey-white",
+  "grey",
+  "grey-black",
+  "yellow-white",
+  "yellow",
+  "yellow-black",
+  "orange-white",
+  "orange",
+  "orange-black",
+  "green-white",
+  "green",
+  "green-black",
+];
+const colourOf = (belt: LevelDefinitionRecord) =>
+  beltColours.indexOf(
+    belt.name
+      .toLowerCase()
+      .split("belt")[0]!
+      .trim()
+      .replace(/\s+and\s+/gu, "-"),
+  );
+
+/** E4: the equivalent rank on the ladder for referenceAge; null when no upward move applies. */
+export function ladderEquivalent(
+  definitions: readonly LevelDefinitionRecord[],
+  currentKey: string,
+  referenceAge: number,
+): LevelDefinitionRecord | null {
+  const ladders = ladderIndexes(definitions);
+  const byKey = new Map(definitions.map((definition) => [definition.definitionKey, definition]));
+  const current = byKey.get(currentKey);
+  const from = ladders.get(currentKey);
+  if (current === undefined || from === undefined) return null;
+  // Each ladder's opening window is the age window of its first definition in sequence.
+  const sorted = [...definitions].sort((left, right) => left.sequence - right.sequence);
+  const opening = sorted.filter(
+    (definition, i) =>
+      i === 0 ||
+      ladders.get(definition.definitionKey) !== ladders.get(sorted[i - 1]!.definitionKey),
+  );
+  const target = opening
+    .filter(
+      (definition) =>
+        (definition.criteria.minAge ?? Number.NEGATIVE_INFINITY) <= referenceAge &&
+        referenceAge <= (definition.criteria.maxAge ?? Number.POSITIVE_INFINITY),
+    )
+    .at(-1);
+  const to = target && ladders.get(target.definitionKey);
+  if (to === undefined || to <= from) return null;
+
+  const belt = current.kind === "stripe" ? byKey.get(current.parentDefinitionKey ?? "") : current;
+  // IBJJF: at 16 everyone starts adult White.
+  const wanted = (target!.criteria.minAge ?? 0) >= 16 ? 0 : belt ? colourOf(belt) : -1;
+  const belts = sorted.filter(
+    (definition) => definition.kind === "belt" && ladders.get(definition.definitionKey) === to,
+  );
+  const landed =
+    belts
+      .filter((b) => colourOf(b) >= 0 && colourOf(b) <= wanted)
+      .sort((l, r) => colourOf(l) - colourOf(r))
+      .at(-1) ?? belts[0];
+  if (landed === undefined) return null;
+  const stripes = current.kind === "stripe" ? (current.stripeNumber ?? 0) : 0;
+  return (
+    sorted
+      .filter(
+        (definition) =>
+          definition.kind === "stripe" &&
+          definition.parentDefinitionKey === landed.definitionKey &&
+          (definition.stripeNumber ?? 0) <= stripes,
+      )
+      .at(-1) ?? landed
+  );
+}
+
 /** Grill G7: every reason an assignment is below criteria, in the words the dialog shows. */
 export function listPromotionGaps(
   input: Readonly<{

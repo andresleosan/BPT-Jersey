@@ -120,3 +120,64 @@ export function trainingRangesById(
     docs.map((d) => [d.id, storedTrainingRange(d.data(), academyId, d.id, todayKey)]),
   );
 }
+
+export type ReferenceProgram = Readonly<{
+  programId: string;
+  ageRange?: ProgramAgeRange | null;
+  discipline?: string;
+}>;
+type ReferenceInput = Readonly<{
+  realAge: number | null;
+  access: Pick<StudentGroupAccess, "programIds" | "expiresOn" | "ageRange"> | null;
+  programs: readonly ReferenceProgram[];
+  todayKey: string;
+}>;
+
+/** E1/E2: the age the app uses for everything except payment. Never below the real age. */
+export function referenceAge({
+  realAge,
+  access,
+  programs,
+  todayKey,
+}: ReferenceInput): number | null {
+  if (realAge === null || access === null) return realAge;
+  const extra = new Set(effectiveGroupProgramIds(access, todayKey));
+  const range = effectiveAgeRange(access, todayKey);
+  // Open Mat spans 4–15: counting it would lift every child to 15.
+  const tops = programs.flatMap((p) =>
+    p.ageRange && p.discipline !== "open-mat" && extra.has(p.programId)
+      ? [p.ageRange.maxAge ?? p.ageRange.minAge]
+      : [],
+  );
+  return Math.max(realAge, ...tops, ...(range ? [range.maxAge ?? range.minAge] : []));
+}
+
+/** Range handed to evaluateAgeBand: {minAge: realAge ?? reference, maxAge: reference}; null when no grant lifts the age. */
+export function referenceTrainingRange(input: ReferenceInput): ProgramAgeRange | null {
+  const reference = referenceAge(input);
+  return reference === null || reference === input.realAge
+    ? null
+    : { minAge: input.realAge ?? reference, maxAge: reference };
+}
+
+/** Like storedTrainingRange but from the raw stored doc + programs (both mechanisms, E3). */
+export function storedReferenceAge(
+  data: unknown,
+  academyId: string,
+  studentId: string,
+  realAge: number | null,
+  programs: readonly ReferenceProgram[],
+  todayKey: string,
+): number | null {
+  if (typeof data !== "object" || data === null) return realAge;
+  const doc = data as Readonly<Record<string, unknown>>;
+  if (doc.academyId !== academyId || doc.studentId !== studentId) return realAge;
+  const access = studentGroupAccessSchema
+    .pick({ programIds: true, expiresOn: true, ageRange: true })
+    .safeParse({
+      programIds: doc.programIds ?? [],
+      expiresOn: doc.expiresOn ?? null,
+      ageRange: doc.ageRange ?? null,
+    }).data;
+  return referenceAge({ realAge, access: access ?? null, programs, todayKey });
+}
