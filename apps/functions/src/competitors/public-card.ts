@@ -2,7 +2,7 @@ import type { Firestore, QueryDocumentSnapshot } from "firebase-admin/firestore"
 import { error as logError } from "firebase-functions/logger";
 import {
   beltScore,
-  leaderboardCohort,
+  leaderboardCohortForAge,
   leaderboardEligible,
   leaderboardRowSchema,
   publicDisplayNames,
@@ -12,13 +12,16 @@ import {
   type LeaderboardRow,
   type MemberPublicCard,
 } from "@bpt-jersey/domain/members/engagement";
+import { memberAgeOn } from "@bpt-jersey/domain/members/access";
 import { memberIdentityAliasSchema } from "@bpt-jersey/domain/members/reconciliation";
+import { dateKeyInJersey, storedReferenceAge } from "@bpt-jersey/domain/schedule/member-calendar";
 
 import { fromData as publicSettingsFrom } from "../account-settings/account-settings-service.js";
 import { signPhotoUrl } from "../account-settings/profile-photo.js";
 import {
   countedAttendance,
   createLevelCatalogStore,
+  referencePrograms,
   type GenericDocumentSnapshot,
 } from "../levels/level-service.js";
 import { openMatSessionIds, readProgressAdjustments } from "../levels/progress-adjustments.js";
@@ -44,9 +47,44 @@ const noProgress: Progress = {
 type Candidate = { studentId: string; fullName: string; cohort: LeaderboardCohort };
 
 /**
- * One row per active student on a live plan with a valid date of birth, grouped by the cohort they
- * pay in. Global reads: students, live memberships, identity aliases, public settings, the season's
- * attendance and the published catalogue, each once; per student only the level progress summary.
+ * E1/E2: each member's table at their reference age (special access and extra groups lift it),
+ * from one read of the programs and one batched read of the access documents.
+ */
+export async function referenceCohorts(
+  db: Firestore,
+  academyId: string,
+  members: readonly Readonly<{ studentId: string; dateOfBirth: unknown }>[],
+  nowIso: string,
+): Promise<Map<string, LeaderboardCohort>> {
+  if (members.length === 0) return new Map();
+  const todayKey = dateKeyInJersey(new Date(nowIso));
+  const [programs, access] = await Promise.all([
+    referencePrograms(db as never, academyId),
+    db.getAll(
+      ...members.map((m) => db.doc(`academies/${academyId}/studentGroupAccess/${m.studentId}`)),
+    ),
+  ]);
+  return new Map(
+    members.map((member, index) => {
+      const dateOfBirth = typeof member.dateOfBirth === "string" ? member.dateOfBirth : undefined;
+      const age = storedReferenceAge(
+        access[index]!.data(),
+        academyId,
+        member.studentId,
+        memberAgeOn(dateOfBirth, todayKey),
+        programs,
+        todayKey,
+      );
+      return [member.studentId, leaderboardCohortForAge(age)];
+    }),
+  );
+}
+
+/**
+ * One row per active student on a live plan with a valid date of birth, grouped by the cohort of
+ * their reference age (E1). Global reads: students, live memberships, identity aliases, public
+ * settings, the season's attendance and the published catalogue, each once; per student only the
+ * level progress summary.
  * A student whose progress cannot be read keeps a row without belt data.
  */
 export async function buildLeaderboardRows(
@@ -109,7 +147,7 @@ export async function buildLeaderboardRows(
     }
   }
 
-  const candidates: Candidate[] = [];
+  const eligible: { studentId: string; fullName: string; dateOfBirth: string }[] = [];
   for (const document of students.docs) {
     const data = document.data();
     const fullName = typeof data.fullName === "string" ? data.fullName.trim() : "";
@@ -122,12 +160,14 @@ export async function buildLeaderboardRows(
       !leaderboardEligible(dateOfBirth, nowIso)
     )
       continue;
-    candidates.push({
-      studentId: document.id,
-      fullName,
-      cohort: leaderboardCohort(dateOfBirth, nowIso),
-    });
+    eligible.push({ studentId: document.id, fullName, dateOfBirth: dateOfBirth as string });
   }
+  const cohortOf = await referenceCohorts(db, academyId, eligible, nowIso);
+  const candidates: Candidate[] = eligible.map(({ studentId, fullName }) => ({
+    studentId,
+    fullName,
+    cohort: cohortOf.get(studentId)!,
+  }));
 
   const attendanceByIdentity = new Map<string, QueryDocumentSnapshot[]>();
   for (const document of attendance.docs) {

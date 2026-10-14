@@ -10,7 +10,6 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { z } from "zod";
 import {
   competitorsResponseSchema,
-  leaderboardCohort,
   leaderboardEligible,
   leaderboardSnapshotSchema,
   rankNeighbours,
@@ -27,7 +26,7 @@ import { createMemberDirectoryReadTransaction } from "../members/member-director
 import { resolveCanonicalStudentIdInTransaction } from "../members/member-identity-resolution.js";
 import { createFirestoreMemberAccessService } from "../members/member-access-service.js";
 import { createPrivateStorageR2Client, type R2Client } from "../storage/r2-client.js";
-import { buildLeaderboardRows, toPublicCard } from "./public-card.js";
+import { buildLeaderboardRows, referenceCohorts, toPublicCard } from "./public-card.js";
 
 const memberStudentRequestSchema = z.strictObject({ studentId: z.string().min(1).max(128) });
 
@@ -179,8 +178,10 @@ export const getCompetitors = onCall(
           belt: null,
         });
       }
-      // The server picks the table from the student's own date of birth; nobody chooses a cohort.
-      const cohort = leaderboardCohort(dateOfBirth as string, now);
+      // The server picks the table from the student's own reference age; nobody chooses a cohort.
+      const cohort = (
+        await referenceCohorts(db, actor.academyId, [{ studentId: canonicalId, dateOfBirth }], now)
+      ).get(canonicalId)!;
       const snapshot = await db.doc(`academies/${actor.academyId}/leaderboards/${cohort}`).get();
       const parsed = leaderboardSnapshotSchema.safeParse(snapshot.data());
       if (!snapshot.exists || !parsed.success || parsed.data.cohort !== cohort) {

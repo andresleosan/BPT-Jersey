@@ -9,7 +9,6 @@ import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { z } from "zod";
 import {
-  leaderboardCohort,
   leaderboardEligible,
   leaderboardSnapshotSchema,
   publicDisplayNames,
@@ -22,7 +21,7 @@ import { buildBookingIdCandidates, parseSessionCurriculum } from "@bpt-jersey/do
 import { fromData as publicSettingsFrom } from "../account-settings/account-settings-service.js";
 import { signPhotoUrl } from "../account-settings/profile-photo.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
-import { toPublicCard } from "../competitors/public-card.js";
+import { referenceCohorts, toPublicCard } from "../competitors/public-card.js";
 import { checkConfirmedBooking } from "../schedule/attendance-transaction-service.js";
 import { enrolmentStorageSecrets } from "../members/enrolment-payment-proof.js";
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
@@ -180,7 +179,8 @@ export const getSessionDetail = onCall(
 
       // The requester's own cohort decides who they may see; without a date of birth they see nobody else.
       const eligible = leaderboardEligible(self.dateOfBirth as string | null | undefined, now);
-      const cohort = eligible ? leaderboardCohort(self.dateOfBirth as string, now) : null;
+      const cohorts = await referenceCohorts(db, academyId, people, now);
+      const cohort = eligible ? cohorts.get(self.studentId)! : null;
       const visible = people
         .slice(1)
         .filter(
@@ -189,7 +189,7 @@ export const getSessionDetail = onCall(
             person.fullName !== "" &&
             person.settings.showToMembers &&
             leaderboardEligible(person.dateOfBirth as string | null | undefined, now) &&
-            leaderboardCohort(person.dateOfBirth as string, now) === cohort,
+            cohorts.get(person.studentId) === cohort,
         );
       const hiddenCount = people.length - 1 - visible.length + unresolved;
 

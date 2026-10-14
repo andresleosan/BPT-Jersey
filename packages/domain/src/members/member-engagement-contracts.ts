@@ -9,7 +9,7 @@
 
 import { z } from "zod";
 
-import { participantBandAt } from "../memberships/participant-band";
+import { bandForAge, participantBandAt } from "../memberships/participant-band";
 import { memberAgeOn } from "./member-access-contracts";
 import { emergencyContactSchema } from "./member-directory-contracts";
 
@@ -165,6 +165,11 @@ export type LeaderboardCohort = "kids" | "teens" | "adults";
 /** D6: the table is the band the member pays in. Callers drop students without a date first. */
 export function leaderboardCohort(dateOfBirth: string | null, nowIso: string): LeaderboardCohort {
   const band = participantBandAt({ dateOfBirth, onIso: nowIso });
+  return band === "adult" ? "adults" : band;
+}
+/** E1/E2: the table for a member's reference age (special access lifts it; payment does not). */
+export function leaderboardCohortForAge(age: number | null): LeaderboardCohort {
+  const band = bandForAge(age);
   return band === "adult" ? "adults" : band;
 }
 /**
