@@ -192,6 +192,9 @@ export async function buildLeaderboardRows(
 
   // Each session document is read at most once per build, however many students attended it.
   const sessionCache = new Map<string, Promise<GenericDocumentSnapshot>>();
+  const programs = referencePrograms(db as never, academyId);
+  // ponytail: an unread programs promise must not reject unhandled when there is no catalogue.
+  programs.catch(() => undefined);
   const progressOf = async (studentId: string): Promise<Progress> => {
     if (catalog === null) return noProgress;
     try {
@@ -200,6 +203,7 @@ export async function buildLeaderboardRows(
         studentId,
         catalog,
         sessionCache,
+        programs,
       );
       if (summary.state !== "initialized") return noProgress;
       const current = summary.currentDefinition;

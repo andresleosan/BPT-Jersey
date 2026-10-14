@@ -12,7 +12,8 @@ import { requireMemberAccountActor } from "../members/member-access-callables.js
 import { createMemberDirectoryReadTransaction } from "../members/member-directory-firestore.js";
 import { canonicalMemberIdentityIds, resolveCanonicalStudentIdInTransaction } from "../members/member-identity-resolution.js";
 import { getStudentScopeOptions, requireStudentScope } from "./schedule-callables.js";
-import { confirmBookingInTransaction, validateBookingOfferInTransaction, BookingTransactionError, type ConfirmBookingInTransactionInput, type BookingFirestore, type BookingTransaction } from "./booking-transaction-service.js";
+import {
+  membershipCoversSession, confirmBookingInTransaction, validateBookingOfferInTransaction, BookingTransactionError, type ConfirmBookingInTransactionInput, type BookingFirestore, type BookingTransaction } from "./booking-transaction-service.js";
 import { clientIpFromRequest } from "../audit/client-ip.js";
 import { scheduleCallableOptions } from "./schedule-callable-options.js";
 
@@ -199,7 +200,7 @@ export const respondWaitlistClassInvitation = onCallWithFreshAppCheck(scheduleCa
           const parsed = parseMembershipRecord(doc.data());
           if (!parsed.ok || parsed.value.academyId !== actor.academyId) return [];
           const item = parsed.value;
-          return ["active", "trial"].includes(item.status) && Date.parse(item.startsAt) <= Date.parse(session.startAt) && (item.endsAt === null || Date.parse(item.endsAt) > Date.parse(session.startAt)) ? [item.membershipId] : [];
+          return ["active", "trial"].includes(item.status) && membershipCoversSession(item.startsAt, item.endsAt, session.startAt) ? [item.membershipId] : [];
         }).sort((left, right) => Number(right === invitation.membershipId) - Number(left === invitation.membershipId));
         const baseInput = { firestore: db as unknown as BookingFirestore, transaction: tx as unknown as BookingTransaction,
           academyId: actor.academyId, actorId: actor.userId, actorIp: clientIpFromRequest(request), actorRole: actor.role,

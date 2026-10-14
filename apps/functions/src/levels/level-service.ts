@@ -183,6 +183,8 @@ export type LevelCatalogLifecycleStore = Readonly<{
     studentId: string,
     catalog?: LevelCatalogProjection,
     sessionCache?: Map<string, Promise<GenericDocumentSnapshot>>,
+    /** A batch job's single programs read, so each summary doesn't read them again. */
+    programs?: Promise<readonly ReferenceProgram[]>,
   ) => Promise<StudentProgressSummary>;
   recordMedicalLeave: (params: {
     academyId: string;
@@ -2145,6 +2147,7 @@ export function createLevelCatalogStore({
       studentId: string,
       preloadedCatalog?: LevelCatalogProjection,
       sessionCache?: Map<string, Promise<GenericDocumentSnapshot>>,
+      preloadedPrograms?: Promise<readonly ReferenceProgram[]>,
     ): Promise<StudentProgressSummary> {
       assertValidAcademyId(academyId);
       // T113: the canonical student carries the date of birth the age band of the target rank is
@@ -2183,7 +2186,7 @@ export function createLevelCatalogStore({
           MAX_LEVEL_RECORDS,
         ),
         firestore.doc(`academies/${academyId}/studentGroupAccess/${studentId}`).get(),
-        referencePrograms(firestore, academyId),
+        preloadedPrograms ?? referencePrograms(firestore, academyId),
       ]);
       if (
         catalog.system.systemId !== headData.systemId ||

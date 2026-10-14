@@ -198,5 +198,9 @@ export function storedReferenceTrainingRange(
 ): ProgramAgeRange | null {
   if (realAge === null) return storedTrainingRange(data, academyId, studentId, todayKey);
   const access = storedAccess(data, academyId, studentId);
-  return referenceTrainingRange({ realAge, access, programs, todayKey });
+  // A range that doesn't lift the age (an 11-year-old kept on 8–10) still meets its own bands.
+  return (
+    referenceTrainingRange({ realAge, access, programs, todayKey }) ??
+    storedTrainingRange(data, academyId, studentId, todayKey)
+  );
 }

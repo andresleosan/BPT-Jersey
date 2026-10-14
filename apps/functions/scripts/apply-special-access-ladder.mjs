@@ -55,7 +55,7 @@ try {
     const real = realAgeOf(profile.ok ? profile.value.dateOfBirth : undefined, now);
     const ref = storedReferenceAge(access.data(), academyId, studentId, real, programs, today);
     const from = String(head.get("currentDefinitionKey"));
-    const target = ref === null ? null : ladderEquivalent(catalog.definitions, from, ref);
+    const target = ref === null ? null : ladderEquivalent(catalog.definitions, from, ref, real);
     console.log(`${id}  age ${real ?? "-"}  ref ${ref ?? "-"}  ${nameOf(from)} -> ${target ? target.name : "no move"}`);
     if (!target) continue;
     moves += 1;

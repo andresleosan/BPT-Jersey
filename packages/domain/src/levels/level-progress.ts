@@ -279,7 +279,10 @@ export function ladderEquivalent(
   definitions: readonly LevelDefinitionRecord[],
   currentKey: string,
   referenceAge: number,
+  /** Only special access moves a level: none when the real age already reaches that ladder. */
+  realAge: number | null,
 ): LevelDefinitionRecord | null {
+  if (realAge === null || referenceAge <= realAge) return null;
   const ladders = ladderIndexes(definitions);
   const byKey = new Map(definitions.map((definition) => [definition.definitionKey, definition]));
   const current = byKey.get(currentKey);
@@ -292,16 +295,18 @@ export function ladderEquivalent(
       i === 0 ||
       ladders.get(definition.definitionKey) !== ladders.get(sorted[i - 1]!.definitionKey),
   );
-  const target = opening
-    .filter(
+  const ladderFor = (age: number) =>
+    opening.find(
       (definition) =>
-        (definition.criteria.minAge ?? Number.NEGATIVE_INFINITY) <= referenceAge &&
-        referenceAge <= (definition.criteria.maxAge ?? Number.POSITIVE_INFINITY),
-    )
-    // Shared edges (7, 10) belong to the younger ladder: a 9–10 class is the 7–10 ladder, not Teens.
-    .at(0);
+        (definition.criteria.minAge ?? Number.NEGATIVE_INFINITY) <= age &&
+        age <= (definition.criteria.maxAge ?? Number.POSITIVE_INFINITY),
+    ); // Shared edges (7, 10) belong to the younger ladder: a 9–10 class is the 7–10 ladder, not Teens.
+  const target = ladderFor(referenceAge);
+  const own = ladderFor(realAge);
   const to = target && ladders.get(target.definitionKey);
   if (to === undefined || to <= from) return null;
+  // A member behind their own age waits for the office, not for this rule (D9 keeps 16–17 on teen belts).
+  if (own !== undefined && to <= ladders.get(own.definitionKey)!) return null;
 
   const belt = current.kind === "stripe" ? byKey.get(current.parentDefinitionKey ?? "") : current;
   // IBJJF: at 16 everyone starts adult White.

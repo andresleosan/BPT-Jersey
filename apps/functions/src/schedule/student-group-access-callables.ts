@@ -116,10 +116,9 @@ async function moveLevelToReference(
       referencePrograms(db as never, actor.academyId),
       createLevelCatalogStore({ firestore: db as never }).listPublished(actor.academyId),
     ]);
-    const ref = referenceAge({
-      realAge: realAgeOf(access.dateOfBirth, now), access, programs, todayKey: dateKeyInJersey(new Date(now)),
-    });
-    const target = ref === null ? null : ladderEquivalent(catalog.definitions, String(head.get("currentDefinitionKey")), ref);
+    const realAge = realAgeOf(access.dateOfBirth, now);
+    const ref = referenceAge({ realAge, access, programs, todayKey: dateKeyInJersey(new Date(now)) });
+    const target = ref === null ? null : ladderEquivalent(catalog.definitions, String(head.get("currentDefinitionKey")), ref, realAge);
     if (!target) return null;
     const token = request.auth?.token;
     await writeOwnerSetLevel(db, {
