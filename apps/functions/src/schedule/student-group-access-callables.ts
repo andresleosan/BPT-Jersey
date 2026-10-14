@@ -126,6 +126,7 @@ async function moveLevelToReference(
       office: { ...actor, name: String(token?.name ?? token?.email ?? actor.userId).slice(0, 200) },
       studentId: access.studentId, target, systemId: catalog.system.systemId,
       note: `Special access: measured as age ${ref}`, now,
+      fromDefinitionKey: String(head.get("currentDefinitionKey")),
     });
     return { definitionKey: target.definitionKey, name: target.name };
   } catch (error) {

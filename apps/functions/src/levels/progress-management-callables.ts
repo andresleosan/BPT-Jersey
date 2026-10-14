@@ -263,6 +263,8 @@ export async function writeOwnerSetLevel(
     note: string | null;
     now: string;
     level?: Readonly<{ startedOn: string; classes: number; days: number }>;
+    /** The level the move was computed from; a head that changed since refuses the move. */
+    fromDefinitionKey?: string;
   }>,
 ): Promise<string> {
   const { office, studentId, target, now, level } = input;
@@ -282,6 +284,9 @@ export async function writeOwnerSetLevel(
         "failed-precondition",
         "Open this member's level first from their record, then set it here.",
       );
+    }
+    if (input.fromDefinitionKey !== undefined && headData.currentDefinitionKey !== input.fromDefinitionKey) {
+      throw new HttpsError("aborted", "The level changed meanwhile; nothing was moved.");
     }
     // Without a start date the restore snapshot is invalid and the change could never be undone.
     if (typeof headData.currentLevelStartedAt !== "string") {
