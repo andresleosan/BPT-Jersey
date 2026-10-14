@@ -741,7 +741,7 @@ function ClassesContent(): ReactElement {
       </div>
       {catalog !== null && panel !== null && (panel.mode === "create" || edited !== undefined) ? (
         <SessionPanel
-          canManageAgeLimits={ageWaitlistEnabled && session.role === "owner"}
+          canManageAgeLimits={ageWaitlistEnabled && (session.role === "owner" || session.role === "administrator")}
           mode={panel.mode}
           session={edited}
           catalog={catalog}

@@ -678,7 +678,7 @@ export function MemberSubscriptionEditor({
           setData({
             context,
             plans: plans.filter(
-              (plan) => plan.active && (role === "owner" || plan.planId !== "transit-free"),
+              (plan) => plan.active && (role === "owner" || role === "administrator" || plan.planId !== "transit-free"),
             ),
             billing,
           });

@@ -815,8 +815,8 @@ function ownerProgressAtAssignment(
   const classes = input.newLevelClasses;
   const days = input.newLevelDays;
   if (classes === undefined && days === undefined) return null;
-  if (role !== "owner") {
-    throw new LevelStoreError("tenant", "Only the owner can set new-level progress");
+  if (role !== "owner" && role !== "administrator") {
+    throw new LevelStoreError("tenant", "Only the office can set new-level progress");
   }
   const error = manualProgressError(manualProgressLimits(definitions, definitionKey), { classes, days });
   if (error !== null) throw new LevelStoreError("invalid", error);
@@ -2996,9 +2996,9 @@ export function createLevelCatalogStore({
         ]);
         const headData = head.data();
         const promotionData = promotion.data();
-        // Progress management D1: an owner's level change is undone by an owner only.
-        if (promotionData?.kind === "owner-set" && decidedByRole !== "owner") {
-          throw new LevelStoreError("tenant", "Only an owner can undo an owner's level change.");
+        // Progress management D1, widened 2026-10-15: the office (owner or administrator) undoes it.
+        if (promotionData?.kind === "owner-set" && decidedByRole !== "owner" && decidedByRole !== "administrator") {
+          throw new LevelStoreError("tenant", "Only the office can undo an office level change.");
         }
         const restore = voidRestoreOf({
           headData: head.exists ? headData : undefined,

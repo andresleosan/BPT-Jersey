@@ -36,16 +36,16 @@ export const listGraduationBoard = onCall(levelCallableOptions, async (request) 
     createGraduationFirestore(getFirestore(), actor.academyId),
     catalog,
     now,
-    actor.role === "owner",
+    true,
   );
   return graduationBoardSchema.parse(board);
 });
 
-/** Spec D8: only the owner decides. Re-assessed here, so a stale board cannot promote twice. */
+/** Spec D8, widened 2026-10-15: the office (owner or administrator) decides. Re-assessed here, so a stale board cannot promote twice. */
 export const decideGraduation = onCall(levelCallableOptions, async (request) => {
   const actor = await createFirebaseLevelAuthorization().requireActor(request);
-  if (actor.role !== "owner")
-    throw new HttpsError("permission-denied", "Only the owner decides graduations.");
+  if (actor.role !== "owner" && actor.role !== "administrator")
+    throw new HttpsError("permission-denied", "Only the office decides graduations.");
   const parsed = decideGraduationInputSchema.safeParse(request.data);
   if (!parsed.success) throw new HttpsError("invalid-argument", "Invalid graduation decision.");
   const input = parsed.data;

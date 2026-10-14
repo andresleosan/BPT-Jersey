@@ -46,8 +46,8 @@ function upcomingLabel(title: unknown, startAt: string): string {
 
 /** Carries the storage secrets so the website photo goes with the coach. */
 export const deleteCoachAccount = onCall({ ...browserAdminCallableOptions, secrets: enrolmentStorageSecrets }, async (request) => {
+  // Office roles (owner, administrator); only coach accounts can be deleted, never an owner.
   const actor = await requireActiveOfficeActor(request);
-  if (actor.role !== "owner") throw new HttpsError("permission-denied", "Only an owner can delete a coach.");
   const input = deleteCoachAccountSchema.safeParse(request.data);
   if (!input.success) throw new HttpsError("invalid-argument", "Choose a coach to delete.");
   const { userId } = input.data;

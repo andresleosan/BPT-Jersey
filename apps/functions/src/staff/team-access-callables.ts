@@ -61,6 +61,9 @@ function services(request: CallableRequest): TeamAccessServices {
         if (user.disabled || user.customClaims?.academyId !== actor.academyId || !["owner", "administrator"].includes(String(user.customClaims?.role))) {
           throw new HttpsError("failed-precondition", "Only an active owner or administrator can be changed to coach here.");
         }
+        if (user.customClaims?.role === "owner" && actor.role !== "owner") {
+          throw new HttpsError("permission-denied", "Only an owner can change an owner's role.");
+        }
         const { batch, now } = await activateCoachProfile(firestore, actor.academyId, actor.uid, uid);
         batch.set(firestore.doc(`academies/${actor.academyId}/users/${uid}`), { adminRole: null, updatedAt: now, updatedBy: actor.uid }, { merge: true });
         batch.create(firestore.collection(`academies/${actor.academyId}/auditEvents`).doc(), coachAudit(actor.academyId, actor.uid, uid, "admin.role.changed_to_coach", "administrative role management", now));

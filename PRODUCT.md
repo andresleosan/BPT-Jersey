@@ -187,8 +187,9 @@ Production activation requires coordinated Functions, recurring jobs and fronten
 Transit Free is an internal, complimentary plan for people close to the owner. It is never
 advertised: the public landing price list, enrolment and member plan requests must not show or
 offer it (`administrativePlanIds` in `packages/domain/src/memberships/plan-contracts.ts`). Only
-the owner can assign it, from Members → profile; administrators and coaches cannot. Members see
-it only on their own account once the owner has assigned it to them; no other member sees it.
+the office (owner or administrator, since 2026-10-15) can assign it, from Members → profile;
+coaches cannot. Members see it only on their own account once the office has assigned it to them;
+no other member sees it.
 
 ## Optional age capacities and next-class invitations (active 2026-10-05)
 
@@ -210,3 +211,13 @@ Creation is idempotent, invitation batches are resumable, and owner history rema
 after the original queue is empty. Capacity changes, invitations and responses retain actor/time.
 Production uses `NEXT_PUBLIC_AGE_WAITLIST_ENABLED=true` after coordinated backend/index
 publication. See `docs/runbooks/age-capacity-waitlist.md` for deployment evidence and recovery.
+
+## Owner and administrator have the same powers (2026-10-15)
+
+Luis's rule: an administrator can do everything an owner can, including progress management,
+graduation decisions, Transit Free, waitlist classes, age capacities, deleting members and coaches,
+and granting or removing administrator and coach access. The single exception is owner accounts:
+only an owner creates an owner, changes or removes an owner's role, deletes an owner's login or
+edits an owner's website profile, so no one can lock the owner out of the academy. Reading
+restricted IP addresses and initializing the canonical member directory stay owner-only for now.
+This supersedes the owner-only notes above.

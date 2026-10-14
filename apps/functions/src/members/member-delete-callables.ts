@@ -43,7 +43,7 @@ export async function deleteMemberAccountHandler(
   data: unknown,
   clientIp: string | null,
 ) {
-  if (actor.role !== "owner") throw new HttpsError("permission-denied", "Only the owner can delete a member account.");
+  if (actor.role !== "owner" && actor.role !== "administrator") throw new HttpsError("permission-denied", "Only the office can delete a member account.");
   const parsed = deleteMemberAccountInputSchema.safeParse(data);
   if (!parsed.success) throw new HttpsError("invalid-argument", "Check the member and try again.");
   const { studentId, requestId } = parsed.data;
@@ -69,6 +69,12 @@ export async function deleteMemberAccountHandler(
   // Checked before any booking is cancelled: a member who is also a coach keeps everything.
   if (deleteLogin && loginId && (await firestore.doc(coachMemberAccessPath(actor.academyId, loginId)).get()).exists)
     throw new HttpsError("failed-precondition", "This member is also a coach. Remove coach access first in Staff.");
+  // 2026-10-15: an administrator has the owner's powers except over owner accounts.
+  if (deleteLogin && loginId && actor.role !== "owner") {
+    const login = await getAuth().getUser(loginId).catch(() => null);
+    if (login?.customClaims?.role === "owner")
+      throw new HttpsError("permission-denied", "Only an owner can delete an owner's login.");
+  }
 
   const byStudent = (name: string) => firestore.collection(`${root}/${name}`).where("studentId", "==", studentId).get();
   const bookings = await byStudent("bookings");

@@ -968,7 +968,7 @@ export function ManageView({
       return (
         <OpenLevelForm
           catalog={loaded.catalog}
-          ownerCanSetProgress={role === "owner"}
+          ownerCanSetProgress={role === "owner" || role === "administrator"}
           onDone={reload}
           studentId={studentId}
           today={today}
@@ -988,7 +988,7 @@ export function ManageView({
     return (
       <AssignLevelForm
         manualDecision={role === "owner" || role === "administrator"}
-        ownerCanSetProgress={role === "owner"}
+        ownerCanSetProgress={role === "owner" || role === "administrator"}
         age={age}
         current={currentDefinition}
         data={loaded}
@@ -1046,7 +1046,7 @@ export function ManageView({
       {data === null ? null : (
         <>
           <div className="ibjjf-manage-actions">
-            {role === "owner" && data.card.state === "initialized" ? (
+            {(role === "owner" || role === "administrator") && data.card.state === "initialized" ? (
               <CurrentProgressForm
                 studentId={studentId} catalog={data.catalog} card={data.card}
                 mayDiscardRatings={mayDiscardRatings} onDone={reload}
@@ -1054,7 +1054,7 @@ export function ManageView({
             ) : null}
             {decisions(data)}
           </div>
-          {role === "owner" ? <ProgressAdjustmentHistory key={`progress-${attempt}`} studentId={studentId} /> : null}
+          {role === "owner" || role === "administrator" ? <ProgressAdjustmentHistory key={`progress-${attempt}`} studentId={studentId} /> : null}
           <HistoryTable
             canDecide={canDecide}
             catalog={data.catalog}

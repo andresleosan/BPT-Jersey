@@ -136,7 +136,7 @@ export function AdminShell({
       ...group,
       items: group.items.filter(
         (item) =>
-          (!item.ownerOnly || session.role === "owner") &&
+          (!item.ownerOnly || session.role === "owner" || session.role === "administrator") &&
           (!item.officeOnly || session.role === "owner" || session.role === "administrator") &&
           (!item.staffOnly || allowedRoutes !== undefined) &&
           (allowedRoutes === undefined || allowedRoutes.includes(item.href)) &&

@@ -47,14 +47,8 @@ async function requireOffice(request: CallableRequest<unknown>) {
   return { userId: actor.userId, academyId: actor.academyId, name, role: actor.role };
 }
 
-/** D1: owner only. */
-async function requireOwner(request: CallableRequest<unknown>) {
-  const office = await requireOffice(request);
-  if (office.role !== "owner") {
-    throw new HttpsError("permission-denied", "Only an owner can manage progress.");
-  }
-  return office;
-}
+/** D1, widened 2026-10-15: owner and administrator have the same powers (requireOffice admits both). */
+const requireOwner = requireOffice;
 
 function parse<T>(schema: z.ZodType<T>, data: unknown, message: string): T {
   const result = schema.safeParse(data);

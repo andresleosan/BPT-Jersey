@@ -94,12 +94,12 @@ export function CoachWebsiteControls({ person, owner, onChanged }: { person: Tea
           </button>
         </div>
       )}
-      {isCoach && owner && !confirming && (
+      {isCoach && !confirming && (
         <button className="staff-secondary-button" type="button" disabled={busy} onClick={() => setConfirming(true)}>
           Delete coach
         </button>
       )}
-      {isCoach && owner && confirming && (
+      {isCoach && confirming && (
         <div className="coach-delete-confirm" role="group" aria-label={`Delete ${name}`}>
           <p id={`delete-coach-${person.userId}`}>{person.alsoMember
             ? <>This removes {name}&apos;s coach access and takes them off the website. Their member account stays. Type the coach&apos;s name to confirm.</>

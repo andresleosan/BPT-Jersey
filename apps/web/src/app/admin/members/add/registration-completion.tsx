@@ -94,7 +94,7 @@ export function RegistrationCompletion({
             </p>
           ) : (
             <OpenLevelForm
-              ownerCanSetProgress={role === "owner"}
+              ownerCanSetProgress={role === "owner" || role === "administrator"}
               studentId={studentId}
               catalog={level.catalog}
               today={jerseyDateOf(new Date().toISOString())}

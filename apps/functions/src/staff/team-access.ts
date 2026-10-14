@@ -70,8 +70,9 @@ async function currentActor(
 ): Promise<AdminActor> {
   verifiedApplication(request);
   const actor = requireAdminActor(request);
-  if (ownerOnly && actor.role !== "owner")
-    throw new HttpsError("permission-denied", "Only an owner can manage administrative access.");
+  // 2026-10-15: administrators manage access like an owner; owner accounts stay owner-only (admin-provisioning).
+  if (ownerOnly && actor.role !== "owner" && actor.role !== "administrator")
+    throw new HttpsError("permission-denied", "Only the office can manage administrative access.");
   const current = await services.auth.getUser(actor.uid);
   assertActiveSession(request, current);
   if (

@@ -136,7 +136,9 @@ function readView(search: string): MemberView {
 }
 
 export function MembersWorkspace() {
-  const isOwner = useAdminGateSession().role === "owner";
+  const role = useAdminGateSession().role;
+  // 2026-10-15: owner and administrator have the same powers.
+  const isOwner = role === "owner" || role === "administrator";
   const [state, setState] = useState<WorkspaceState>({ status: "loading" });
   const [reloadToken, setReloadToken] = useState(0);
   const [view, setView] = useState<MemberView>("all");

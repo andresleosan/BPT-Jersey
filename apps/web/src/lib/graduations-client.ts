@@ -16,7 +16,7 @@ const generic = "Graduations are unavailable right now. Try again in a moment.";
 export function graduationErrorMessage(error: unknown): string {
   const code = (error as { code?: string } | null)?.code ?? "";
   if (code.endsWith("failed-precondition")) return pendingGone;
-  if (code.endsWith("permission-denied")) return "Only the owner can decide graduations.";
+  if (code.endsWith("permission-denied")) return "Only the office can decide graduations.";
   return generic;
 }
 

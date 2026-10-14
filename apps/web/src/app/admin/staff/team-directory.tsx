@@ -44,7 +44,8 @@ export function TeamDirectoryContent({
   const [selected, setSelected] = useState<TeamDirectoryPerson>();
   const [role, setRole] = useState<TeamRole>("coach");
   const [review, setReview] = useState<Review>();
-  const owner = session.role === "owner";
+  // 2026-10-15: an administrator manages the team like an owner, except owner accounts.
+  const owner = session.role === "owner" || session.role === "administrator";
   const roleSelect = useRef<HTMLSelectElement>(null);
   const confirmButton = useRef<HTMLButtonElement>(null);
   const mounted = useRef(true);
@@ -211,6 +212,8 @@ export function TeamDirectoryContent({
                         "Your account"
                       ) : person.alsoMember ? (
                         "Member account"
+                      ) : person.role === "owner" && session.role !== "owner" ? (
+                        "Owner account"
                       ) : (
                         <button
                           className="staff-row-action"
@@ -264,7 +267,7 @@ export function TeamDirectoryContent({
             >
               <option value="coach">Coach</option>
               <option value="administrator">Administrator</option>
-              <option value="owner">Owner</option>
+              {session.role === "owner" && <option value="owner">Owner</option>}
             </select>
           </label>
           <div className="staff-team-actions">
@@ -317,7 +320,7 @@ export function TeamDirectoryContent({
               ? "Coaches have sporting access. They cannot manage finances or administrative roles."
               : review.role === "owner"
                 ? "Owners can manage the academy and grant administrative access to other people."
-                : "Administrators can manage members, finances, the team, classes and sporting decisions. They cannot grant owner or administrator access."}
+                : "Administrators can manage members, finances, the team, classes and sporting decisions. They cannot grant or change owner access."}
           </p>
           {review.role === "coach" && review.person.role !== "coach" && (
             <p>They lose office access at their next sign-in and get an active coach profile. Choose their belt in Manage.</p>

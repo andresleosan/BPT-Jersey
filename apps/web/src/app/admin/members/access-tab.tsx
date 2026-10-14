@@ -755,7 +755,7 @@ function MemberAccess({
           <LevelBlock refresh={levelToken} range={range} studentId={studentId} today={today} />
         ) : (
           <p className="progress-manage-note access-level-note">
-            Only the owner can change the level.
+            Only the office can change the level.
           </p>
         )}
       </div>

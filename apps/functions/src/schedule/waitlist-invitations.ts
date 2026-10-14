@@ -42,7 +42,7 @@ async function hasOriginalBooking(tx: Transaction, academyId: string, studentId:
 
 export const getWaitlistClassSource = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) => {
   const actor = requireUserActor(request);
-  if (actor.role !== "owner") throw new HttpsError("permission-denied", "Owner access required");
+  if (actor.role !== "owner" && actor.role !== "administrator") throw new HttpsError("permission-denied", "Office access required");
   await requireActiveUserActor(request); // live claims, not just the token (N-03)
   const sessionId = id(request.data?.sessionId), db = getFirestore(), base = `academies/${actor.academyId}`;
   const [doc, queue] = await Promise.all([
@@ -59,7 +59,7 @@ export const getWaitlistClassSource = onCallWithFreshAppCheck(scheduleCallableOp
 /** One stable session, then resumable bounded fan-out. No booking is created here. */
 export const createWaitlistClass = onCallWithFreshAppCheck(scheduleCallableOptions, async (request): Promise<WaitlistClassResult> => {
   const actor = requireUserActor(request);
-  if (actor.role !== "owner") throw new HttpsError("permission-denied", "Only the owner can create a class from Waitlist");
+  if (actor.role !== "owner" && actor.role !== "administrator") throw new HttpsError("permission-denied", "Only the office can create a class from Waitlist");
   await requireActiveUserActor(request); // live claims, not just the token (N-03)
   const sourceSessionId = id(request.data?.sourceSessionId);
   const operationId = id(request.data?.operationId);
@@ -238,7 +238,7 @@ export const respondWaitlistClassInvitation = onCallWithFreshAppCheck(scheduleCa
 
 export const listWaitlistClassHistory = onCallWithFreshAppCheck(scheduleCallableOptions, async (request) => {
   const actor = requireUserActor(request);
-  if (actor.role !== "owner") throw new HttpsError("permission-denied", "Owner access required");
+  if (actor.role !== "owner" && actor.role !== "administrator") throw new HttpsError("permission-denied", "Office access required");
   await requireActiveUserActor(request); // live claims, not just the token (N-03)
   const sourceSessionId = request.data?.sourceSessionId === undefined ? undefined : id(request.data.sourceSessionId);
   const db = getFirestore(), base = `academies/${actor.academyId}`;

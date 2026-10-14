@@ -27,6 +27,6 @@ export function AgeCapacityFields({ rows, onChange, disabled, maximum, canManage
       {canManage && <button type="button" className="cs-button" disabled={disabled} aria-label={`Remove age limit ${index + 1}`} onClick={() => onChange(rows.filter((_, i) => i !== index))}>Remove limit</button>}
     </div>)}
     {canManage && <button type="button" className="cs-button" disabled={disabled || rows.length >= 121} onClick={() => onChange([...rows, { age: "", capacity: "" }])}>Add age limit</button>}
-    {!canManage && <p className="cs-session-help">Only the owner can change age limits.</p>}
+    {!canManage && <p className="cs-session-help">Only the office can change age limits.</p>}
   </section>;
 }

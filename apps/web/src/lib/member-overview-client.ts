@@ -37,7 +37,7 @@ export async function deleteMemberAccount(input: z.input<typeof deleteMemberAcco
   }
   const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
   const message = typeof error === "object" && error && "message" in error ? String(error.message) : "";
-  if (code.endsWith("permission-denied")) throw new Error("Only the owner can delete a member account.");
+  if (code.endsWith("permission-denied")) throw new Error("Only the office can delete a member account.");
   if (code.endsWith("not-found")) throw new Error("This member no longer exists.");
   if (code.endsWith("failed-precondition") && message) throw new Error(message);
   throw new Error("Could not delete the account. Please try again.");

@@ -295,5 +295,5 @@ export function AdminWaitlistsPage({ canIssue = true, canCreate = false }: { can
 export default function AdminWaitlistsRoute() {
   const canIssue = useWaitlistIssuePermission();
   const session = useAdminOrStaffSession();
-  return <AdminWaitlistsPage canIssue={canIssue} canCreate={ageWaitlistEnabled && session.role === "owner"} />;
+  return <AdminWaitlistsPage canIssue={canIssue} canCreate={ageWaitlistEnabled && (session.role === "owner" || session.role === "administrator")} />;
 }

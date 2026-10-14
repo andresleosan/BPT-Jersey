@@ -164,9 +164,10 @@ function currentAction(request: CallableRequest): "grant" | "revoke" {
   return value.action;
 }
 
+/** 2026-10-15: administrators have the owner's powers, except over owner accounts (checked per target). */
 function requireOwner(actor: AdminActor): void {
-  if (actor.role !== "owner") {
-    throw new HttpsError("permission-denied", "Only an owner can manage administrative roles");
+  if (actor.role !== "owner" && actor.role !== "administrator") {
+    throw new HttpsError("permission-denied", "Only the office can manage administrative roles");
   }
 }
 
@@ -671,9 +672,9 @@ export async function provisionAdminRoleWithServices(
   if (
     issuer.disabled ||
     issuer.customClaims.academyId !== actor.academyId ||
-    issuer.customClaims.role !== "owner"
+    issuer.customClaims.role !== actor.role
   ) {
-    throw new HttpsError("permission-denied", "Current owner access is required.");
+    throw new HttpsError("permission-denied", "Current office access is required.");
   }
   // Invitations carry recorded authority, not the inviter's browser session. The
   // server-only transition still requires their current owner authority above.
@@ -688,6 +689,8 @@ export async function provisionAdminRoleWithServices(
   let authMutationStarted = false;
   try {
     const user = await services.auth.getUser(target.uid);
+    if (actor.role !== "owner" && (target.role === "owner" || user.customClaims?.role === "owner"))
+      throw new HttpsError("permission-denied", "Only an owner can manage an owner's access.");
     // Existing team accounts are identified by UID and academy, including Staff ID accounts.
     // Email invitations and general provisioning retain their Google identity requirement.
     if (transition === "team") {
