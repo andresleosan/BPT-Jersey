@@ -135,6 +135,11 @@ export function AttendancePage() {
   const [dialog, setDialog] = useState<AttendanceDialogState>();
   const [dialogError, setDialogError] = useState("");
   const [operationError, setOperationError] = useState("");
+  // The error sits above the sessions: bring it into view, or it reads as the first session's.
+  const operationErrorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (operationError) operationErrorRef.current?.scrollIntoView({ block: "center" });
+  }, [operationError]);
   const [notice, setNotice] = useState("");
   const [proof, setProof] = useState<Readonly<{ name: string; url: string }>>();
   const actorRole = useAdminOrStaffSession().role;
@@ -692,7 +697,11 @@ export function AttendancePage() {
       </div>
 
       {operationError ? (
-        <p className="attendance-operation-message attendance-operation-error" role="alert">
+        <p
+          className="attendance-operation-message attendance-operation-error"
+          ref={operationErrorRef}
+          role="alert"
+        >
           {operationError}
           {weeklyOverride?.message === operationError ? (
             <>
