@@ -3,8 +3,9 @@ import { coachMemberAccessPath, isCoachAccountType } from "@bpt-jersey/domain/st
 import { readCanonicalMemberHistoryDocuments } from "../members/member-identity-firestore.js";
 import {
   dateKeyInJersey,
-  storedTrainingRange,
-  trainingRangesById,
+  storedReferenceAge,
+  storedReferenceTrainingRange,
+  type ReferenceProgram,
 } from "@bpt-jersey/domain/schedule/member-calendar";
 import type { ProgramAgeRange } from "@bpt-jersey/domain/schedule/classes-services";
 import { createHash, randomUUID } from "node:crypto";
@@ -692,6 +693,20 @@ function storedStudent(
   return parsed.value;
 }
 
+/** E1/E2: the academy programs a reference age is read against; read once per call. */
+export async function referencePrograms(
+  firestore: GenericFirestore,
+  academyId: string,
+): Promise<readonly ReferenceProgram[]> {
+  const snapshot = await firestore.collection(`academies/${academyId}/programs`).get();
+  return snapshot.docs.map((document) => document.data() as unknown as ReferenceProgram);
+}
+
+/** Real age in completed years, or null without a date of birth (counts as adult). */
+export function realAgeOf(dateOfBirth: unknown, now: string): number | null {
+  return typeof dateOfBirth === "string" ? ageInCompletedYears(dateOfBirth, now) : null;
+}
+
 function assertActiveStudent(profile: StudentProfile): void {
   if (!profile.active || profile.status !== "active") {
     throw new LevelStoreError("conflict", "Student is not active");
@@ -1293,7 +1308,8 @@ function promotionAssignmentOf(
     daysOffset: number;
     attendedAt: readonly string[];
     evaluations: readonly EvaluationRecord[];
-    dateOfBirth: string | null;
+    /** E1/E2: the reference age on the promotion day, compared with the target band. */
+    ageYears: number | null;
   }>,
 ): PromotionAssignment {
   const promotedAt = `${params.input.promotedOn}T00:00:00.000Z`;
@@ -1315,8 +1331,7 @@ function promotionAssignmentOf(
     classesDone: classes.total,
     daysDone,
     skillScores: currentScores(params.evaluations),
-    ageYears:
-      params.dateOfBirth === null ? null : ageInCompletedYears(params.dateOfBirth, promotedAt),
+    ageYears: params.ageYears,
   });
   const note = assignmentNoteOf(params.input.note);
   if (gaps.length > 0 && note === null && params.decidedByRole === "headCoach") {
@@ -2155,7 +2170,7 @@ export function createLevelCatalogStore({
         throw new LevelStoreError("tenant", "Progress head is invalid");
       }
       // Bound reads to this athlete's linked identities and referenced sessions.
-      const [catalog, evaluations, attendanceSnapshot, accessSnapshot] = await Promise.all([
+      const [catalog, evaluations, attendanceSnapshot, accessSnapshot, programs] = await Promise.all([
         preloadedCatalog ?? this.listPublished(academyId),
         this.listStudentEvaluations(academyId, studentId),
         readCanonicalMemberHistoryDocuments(
@@ -2166,6 +2181,7 @@ export function createLevelCatalogStore({
           MAX_LEVEL_RECORDS,
         ),
         firestore.doc(`academies/${academyId}/studentGroupAccess/${studentId}`).get(),
+        referencePrograms(firestore, academyId),
       ]);
       if (
         catalog.system.systemId !== headData.systemId ||
@@ -2250,10 +2266,12 @@ export function createLevelCatalogStore({
           importedBaseline: storedImportedBaseline(headData.importedBaseline),
         }),
         dateOfBirth: student.dateOfBirth ?? null,
-        trainingRange: storedTrainingRange(
+        trainingRange: storedReferenceTrainingRange(
           accessSnapshot.data(),
           academyId,
           studentId,
+          realAgeOf(student.dateOfBirth, new Date().toISOString()),
+          programs,
           dateKeyInJersey(new Date()),
         ),
       });
@@ -2353,6 +2371,7 @@ export function createLevelCatalogStore({
         attendanceSnapshot,
         leaveSnapshot,
         accessSnapshot,
+        programs,
       ] = await Promise.all([
         this.listPublished(academyId),
         firestore.collection(`academies/${academyId}/students`).get(),
@@ -2361,12 +2380,11 @@ export function createLevelCatalogStore({
         firestore.collection(`academies/${academyId}/attendance`).get(),
         firestore.collection(`academies/${academyId}/medicalLeaves`).get(),
         firestore.collection(`academies/${academyId}/studentGroupAccess`).get(),
+        referencePrograms(firestore, academyId),
       ]);
-      const trainingRanges = trainingRangesById(
-        accessSnapshot.docs,
-        academyId,
-        dateKeyInJersey(new Date()),
-      );
+      const accessById = new Map(accessSnapshot.docs.map((document) => [document.id, document.data()]));
+      const now = new Date().toISOString();
+      const todayKey = dateKeyInJersey(new Date(now));
       const heads = new Map(
         withinLimit(headSnapshot, "Progress heads").docs.map((document) => {
           const value = document.data();
@@ -2401,7 +2419,14 @@ export function createLevelCatalogStore({
             importedBaseline: storedImportedBaseline(head.importedBaseline),
             daysOffset: storedDaysOffset(head.daysOffset),
             dateOfBirth: profile.dateOfBirth,
-            trainingRange: trainingRanges.get(profile.studentId) ?? null,
+            trainingRange: storedReferenceTrainingRange(
+              accessById.get(profile.studentId),
+              academyId,
+              profile.studentId,
+              realAgeOf(profile.dateOfBirth, now),
+              programs,
+              todayKey,
+            ),
           },
         ];
       });
@@ -2636,6 +2661,7 @@ export function createLevelCatalogStore({
       const ownerProgress = ownerProgressAtAssignment(
         input, openedByRole, currentLevelStartedAt, now, progressCatalog?.definitions ?? [], input.definitionKey,
       );
+      const programs = await referencePrograms(firestore, academyId);
       const headRef = firestore.doc(
         `academies/${academyId}/studentLevelProgress/${input.studentId}`,
       );
@@ -2728,7 +2754,14 @@ export function createLevelCatalogStore({
             definitionData,
             (student as { dateOfBirth?: unknown }).dateOfBirth,
             now,
-            storedTrainingRange(access.data(), academyId, input.studentId, jerseyDateOf(now)),
+            storedReferenceTrainingRange(
+              access.data(),
+              academyId,
+              input.studentId,
+              realAgeOf((student as { dateOfBirth?: unknown }).dateOfBirth, now),
+              programs,
+              jerseyDateOf(now),
+            ),
           ),
         };
       });
@@ -2758,7 +2791,7 @@ export function createLevelCatalogStore({
       // The catalogue, the assessments and the attendance are read before the transaction, exactly
       // as getStudentProgressSummary reads them; the head, the student and the promotion id are
       // re-read inside it, where the write decisions are made.
-      const [catalog, evaluations, attendanceSnapshot] = await Promise.all([
+      const [catalog, evaluations, attendanceSnapshot, accessSnapshot, programs] = await Promise.all([
         this.listPublished(academyId),
         this.listStudentEvaluations(academyId, input.studentId),
         readCanonicalMemberHistoryDocuments(
@@ -2768,6 +2801,8 @@ export function createLevelCatalogStore({
           "attendance",
           MAX_LEVEL_RECORDS,
         ),
+        firestore.doc(`academies/${academyId}/studentGroupAccess/${input.studentId}`).get(),
+        referencePrograms(firestore, academyId),
       ]);
       const attendedAt = (
         await countedClassInstants(
@@ -2835,7 +2870,14 @@ export function createLevelCatalogStore({
           daysOffset: storedDaysOffset(headData.daysOffset),
           attendedAt,
           evaluations,
-          dateOfBirth: student.dateOfBirth ?? null,
+          ageYears: storedReferenceAge(
+            accessSnapshot.data(),
+            academyId,
+            input.studentId,
+            realAgeOf(student.dateOfBirth, `${input.promotedOn}T00:00:00.000Z`),
+            programs,
+            input.promotedOn,
+          ),
         });
         const record: GraduationRecord = Object.freeze({
           graduationId: promotionId,
@@ -3997,7 +4039,7 @@ export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
         daysOffset: storedDaysOffset(head.daysOffset),
         attendedAt: [],
         evaluations: studentEvaluations,
-        dateOfBirth: null,
+        ageYears: null,
       });
       graduations.set(
         graduationKey,

@@ -160,6 +160,20 @@ export function referenceTrainingRange(input: ReferenceInput): ProgramAgeRange |
     : { minAge: input.realAge ?? reference, maxAge: reference };
 }
 
+function storedAccess(data: unknown, academyId: string, studentId: string): ReferenceInput["access"] {
+  if (typeof data !== "object" || data === null) return null;
+  const doc = data as Readonly<Record<string, unknown>>;
+  if (doc.academyId !== academyId || doc.studentId !== studentId) return null;
+  const access = studentGroupAccessSchema
+    .pick({ programIds: true, expiresOn: true, ageRange: true })
+    .safeParse({
+      programIds: doc.programIds ?? [],
+      expiresOn: doc.expiresOn ?? null,
+      ageRange: doc.ageRange ?? null,
+    }).data;
+  return access ?? null;
+}
+
 /** Like storedTrainingRange but from the raw stored doc + programs (both mechanisms, E3). */
 export function storedReferenceAge(
   data: unknown,
@@ -169,15 +183,20 @@ export function storedReferenceAge(
   programs: readonly ReferenceProgram[],
   todayKey: string,
 ): number | null {
-  if (typeof data !== "object" || data === null) return realAge;
-  const doc = data as Readonly<Record<string, unknown>>;
-  if (doc.academyId !== academyId || doc.studentId !== studentId) return realAge;
-  const access = studentGroupAccessSchema
-    .pick({ programIds: true, expiresOn: true, ageRange: true })
-    .safeParse({
-      programIds: doc.programIds ?? [],
-      expiresOn: doc.expiresOn ?? null,
-      ageRange: doc.ageRange ?? null,
-    }).data;
-  return referenceAge({ realAge, access: access ?? null, programs, todayKey });
+  const access = storedAccess(data, academyId, studentId);
+  return referenceAge({ realAge, access, programs, todayKey });
+}
+
+/** referenceTrainingRange from the raw stored doc. Without a date of birth the office range still meets the band, as before. */
+export function storedReferenceTrainingRange(
+  data: unknown,
+  academyId: string,
+  studentId: string,
+  realAge: number | null,
+  programs: readonly ReferenceProgram[],
+  todayKey: string,
+): ProgramAgeRange | null {
+  if (realAge === null) return storedTrainingRange(data, academyId, studentId, todayKey);
+  const access = storedAccess(data, academyId, studentId);
+  return referenceTrainingRange({ realAge, access, programs, todayKey });
 }

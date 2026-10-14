@@ -5,9 +5,14 @@ import {
   type ProgressReportStudent,
 } from "@bpt-jersey/domain/levels";
 import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
-import { dateKeyInJersey, trainingRangesById } from "@bpt-jersey/domain/schedule/member-calendar";
+import {
+  dateKeyInJersey,
+  storedReferenceTrainingRange,
+} from "@bpt-jersey/domain/schedule/member-calendar";
 import type { Firestore } from "firebase-admin/firestore";
 import {
+  realAgeOf,
+  referencePrograms,
   storedDaysOffset,
   storedImportedBaseline,
   type LevelCatalogStore,
@@ -52,6 +57,7 @@ export function createFirestoreProgressReportStore(params: {
         assessmentsSnapshot,
         attendanceSnapshot,
         accessSnapshot,
+        programs,
       ] = await Promise.all([
         params.levelStore.listPublished(academyId),
         params.firestore.collection(`academies/${academyId}/students`).get(),
@@ -60,12 +66,11 @@ export function createFirestoreProgressReportStore(params: {
         params.firestore.collection(`academies/${academyId}/attendance`).get(),
         // ponytail: GenericFirestore has no getAll; one query reads only the members with a grant.
         params.firestore.collection(`academies/${academyId}/studentGroupAccess`).get(),
+        referencePrograms(params.firestore, academyId),
       ]);
-      const trainingRanges = trainingRangesById(
-        accessSnapshot.docs,
-        academyId,
-        dateKeyInJersey(new Date()),
-      );
+      const accessById = new Map(accessSnapshot.docs.map((document) => [document.id, document.data()]));
+      const now = new Date().toISOString();
+      const todayKey = dateKeyInJersey(new Date(now));
       for (const snapshot of [
         studentsSnapshot,
         headsSnapshot,
@@ -124,7 +129,14 @@ export function createFirestoreProgressReportStore(params: {
             daysOffset: storedDaysOffset(head?.daysOffset),
             // T113: the age band of the target rank is applied against it; it is never reported.
             dateOfBirth: student.dateOfBirth,
-            trainingRange: trainingRanges.get(student.studentId) ?? null,
+            trainingRange: storedReferenceTrainingRange(
+              accessById.get(student.studentId),
+              academyId,
+              student.studentId,
+              realAgeOf(student.dateOfBirth, now),
+              programs,
+              todayKey,
+            ),
           };
         });
 
