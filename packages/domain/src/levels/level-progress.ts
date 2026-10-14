@@ -315,17 +315,12 @@ export function ladderEquivalent(
       .sort((l, r) => colourOf(l) - colourOf(r))
       .at(-1) ?? belts[0];
   if (landed === undefined) return null;
-  const stripes = current.kind === "stripe" ? (current.stripeNumber ?? 0) : 0;
-  return (
-    sorted
-      .filter(
-        (definition) =>
-          definition.kind === "stripe" &&
-          definition.parentDefinitionKey === landed.definitionKey &&
-          (definition.stripeNumber ?? 0) <= stripes,
-      )
-      .at(-1) ?? landed
-  );
+  // The published catalogue leaves stripeNumber null: a stripe's number is its place under its belt.
+  const stripesOf = (beltKey: string) =>
+    sorted.filter((d) => d.kind === "stripe" && d.parentDefinitionKey === beltKey);
+  const stripes =
+    current.kind === "stripe" ? stripesOf(current.parentDefinitionKey ?? "").indexOf(current) + 1 : 0;
+  return stripesOf(landed.definitionKey).slice(0, stripes).at(-1) ?? landed;
 }
 
 /** Grill G7: every reason an assignment is below criteria, in the words the dialog shows. */
