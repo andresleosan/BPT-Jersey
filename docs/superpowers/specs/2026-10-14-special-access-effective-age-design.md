@@ -75,7 +75,7 @@ export function referenceAge(input: {
 `packages/domain/src/levels/level-progress.ts`, función nueva `ladderEquivalent(definitions,
 currentKey, referenceAge)`, construida sobre `ladderIndexes`:
 
-1. **Escalera destino:** la más alta cuya ventana de edad de apertura contiene `referenceAge`.
+1. **Escalera destino:** la más baja cuya ventana de edad de apertura contiene `referenceAge`; en las edades frontera (7, 10), una clase 9-10YO pertenece a la escalera de 7–10, no a Teens.
    El catálogo real tiene cuatro: 4–7, 7–10, Teens 10–15 y adultos 16+.
 2. **Solo hacia arriba:** si la escalera destino no es más alta que la actual, no se hace nada.
 3. **Color:** se lee del nombre del cinturón quitando la parte de edad, en orden IBJJF: white,

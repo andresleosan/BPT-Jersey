@@ -298,7 +298,8 @@ export function ladderEquivalent(
         (definition.criteria.minAge ?? Number.NEGATIVE_INFINITY) <= referenceAge &&
         referenceAge <= (definition.criteria.maxAge ?? Number.POSITIVE_INFINITY),
     )
-    .at(-1);
+    // Shared edges (7, 10) belong to the younger ladder: a 9–10 class is the 7–10 ladder, not Teens.
+    .at(0);
   const to = target && ladders.get(target.definitionKey);
   if (to === undefined || to <= from) return null;
 
