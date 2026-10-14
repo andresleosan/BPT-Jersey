@@ -23,6 +23,7 @@ import {
   recordCheckIn,
   staffWalkInAttendance,
   walkInFailureMessage,
+  walkInFailureWhy,
   recordCheckout,
 } from "../../../lib/schedule-client";
 import { confirmPaygClassPayment, getPaygClassProofUrl, rejectPaygClassProof } from "../../../lib/groups-client";
@@ -138,6 +139,16 @@ export function AttendancePage() {
   const [proof, setProof] = useState<Readonly<{ name: string; url: string }>>();
   const actorRole = useAdminOrStaffSession().role;
   const office = actorRole === "owner" || actorRole === "administrator";
+  // Shown beside the error it belongs to only: another error replaces the message and hides it.
+  const [weeklyOverride, setWeeklyOverride] = useState<
+    Readonly<{
+      message: string;
+      sessionId: string;
+      sessionStartAt: string;
+      studentId: string;
+      displayName: string;
+    }>
+  >();
   const [busyKey, setBusyKey] = useState<string>();
   // "town" on the server-prerendered markup and until the effect below seeds the saved choice
   // after mount, so the static export never hydration-mismatches against localStorage.
@@ -308,18 +319,33 @@ export function AttendancePage() {
     [loadRoster, refreshAfterSuccess],
   );
   const handleWalkIn = useCallback(
-    async (sessionId: string, studentId: string, displayName: string): Promise<void> => {
+    async (
+      sessionId: string,
+      sessionStartAt: string,
+      studentId: string,
+      displayName: string,
+      overrideWeeklyLimit?: true,
+    ): Promise<void> => {
       setBusyStudentId(studentId);
       setBusyKey(`walk-in:${sessionId}:${studentId}`);
       setOperationError("");
       setNotice("");
       try {
-        await staffWalkInAttendance({ sessionId, studentId });
+        await staffWalkInAttendance({
+          sessionId,
+          studentId,
+          ...(overrideWeeklyLimit ? { overrideWeeklyLimit } : {}),
+        });
         await loadRoster(sessionId);
         setClockMs(Date.now());
         await refreshAfterSuccess(`${displayName} marked present.`);
       } catch (error) {
-        setOperationError(`${displayName}: ${walkInFailureMessage(error)}`);
+        const message = walkInFailureMessage(error, displayName, sessionStartAt);
+        setOperationError(message);
+        // E7: the owner or an administrator may go over the weekly limit; a coach may not.
+        if (office && !overrideWeeklyLimit && walkInFailureWhy(error) === "weekly-limit") {
+          setWeeklyOverride({ message, sessionId, sessionStartAt, studentId, displayName });
+        }
         // A PAYG walk-in is booked before payment: show the row so the payment can be confirmed.
         void loadRoster(sessionId);
       } finally {
@@ -327,7 +353,7 @@ export function AttendancePage() {
         setBusyKey(undefined);
       }
     },
-    [loadRoster, refreshAfterSuccess],
+    [loadRoster, refreshAfterSuccess, office],
   );
   /** One pay-as-you-go step: settle the class payment, then clock in. */
   const handlePayAndClockIn = useCallback(
@@ -668,6 +694,27 @@ export function AttendancePage() {
       {operationError ? (
         <p className="attendance-operation-message attendance-operation-error" role="alert">
           {operationError}
+          {weeklyOverride?.message === operationError ? (
+            <>
+              {" "}
+              <button
+                className="button attendance-secondary"
+                disabled={busy}
+                onClick={() =>
+                  void handleWalkIn(
+                    weeklyOverride.sessionId,
+                    weeklyOverride.sessionStartAt,
+                    weeklyOverride.studentId,
+                    weeklyOverride.displayName,
+                    true,
+                  )
+                }
+                type="button"
+              >
+                Mark present anyway
+              </button>
+            </>
+          ) : null}
         </p>
       ) : null}
       {notice ? (
@@ -703,7 +750,7 @@ export function AttendancePage() {
               void handleClockIn(s.sessionId, studentId, displayName)
             }
             onWalkIn={(studentId, displayName) =>
-              void handleWalkIn(s.sessionId, studentId, displayName)
+              void handleWalkIn(s.sessionId, s.startAt, studentId, displayName)
             }
             payg={paygFor(s.sessionId)}
             roster={rosters[s.sessionId] ?? { status: "loading" }}

@@ -57,8 +57,9 @@ const queryReadLimit = maxQueryRows + 1;
 function fail(
   code: "capacity" | "conflict" | "ineligible" | "invalid" | "tenant",
   message: string,
+  why?: string,
 ): never {
-  throw new BookingTransactionError(code, message);
+  throw new BookingTransactionError(code, message, why);
 }
 
 function identifier(value: string, label: string): string {
@@ -223,7 +224,7 @@ async function assertNoMembershipHistory(
       if (!value || value.academyId !== academyId || value.studentId !== studentId) {
         return fail("tenant", "Membership scope is invalid");
       }
-      return fail("ineligible", "Former and current members require office review");
+      return fail("ineligible", "Former and current members require office review", "trial");
     }
   }
 }
@@ -343,7 +344,7 @@ export async function requestIntroBooking(
     ]);
     const session = storedSession(sessionSnapshot.data(), academyId, sessionId);
     if (sessionSnapshot.data()?.accessMode === "private-lesson") {
-      return fail("ineligible", "Private lessons are arranged by the office.");
+      return fail("ineligible", "Private lessons are arranged by the office.", "private");
     }
     const student = studentSnapshot.data();
     if (
@@ -354,7 +355,7 @@ export async function requestIntroBooking(
       student.active !== true ||
       student.status !== "active"
     ) {
-      return fail("ineligible", "Student is not eligible");
+      return fail("ineligible", "Student is not eligible", "member-inactive");
     }
     const trial = await readTrialAccess(
       { get: (path) => transaction.get(firestore.doc(path)) },
@@ -362,10 +363,12 @@ export async function requestIntroBooking(
       studentId,
     );
     if (!trial || trialStatusAt(trial, command.now) !== "active") {
-      return fail("ineligible", "Your trial is not active");
+      return fail("ineligible", "Your trial is not active", "trial");
     }
     const expectedSite = session.locationId === "town" ? "Town" : "West";
-    if (expectedSite !== trial.site) return fail("ineligible", "Intro venue is not eligible");
+    if (expectedSite !== trial.site) {
+      return fail("ineligible", "Intro venue is not eligible", "trial");
+    }
     const programSnapshot = await transaction.get(
       firestore.doc(
         `${academyPath(academyId, "programs")}/${identifier(session.programId, "programId")}`,
@@ -389,7 +392,7 @@ export async function requestIntroBooking(
     // Introduction Classes are for adult (16+) beginners only; kids, teens and experienced adults
     // use their free classes on regular classes of their age.
     if (isIntroSession && (trialAge < 16 || trial.experience === "experienced")) {
-      return fail("ineligible", "Introduction Classes are for adult beginners");
+      return fail("ineligible", "Introduction Classes are for adult beginners", "intro");
     }
     if (!isIntroSession) {
       const dateKey = trialDateKey;
@@ -398,13 +401,13 @@ export async function requestIntroBooking(
       // one, the second may be a regular class of their age at the trial centre. Experienced adults
       // may use their trial on a regular class too (the allowance below still counts it).
       if (age >= 16 && trial.experience !== "experienced" && trialAttendedCount(trial) < 1) {
-        return fail("ineligible", "Your first free class is an Introduction Class");
+        return fail("ineligible", "Your first free class is an Introduction Class", "trial");
       }
       if (!program) {
         return fail("ineligible", "Intro session is not bookable");
       }
       if (program.discipline === "open-mat") {
-        return fail("ineligible", "Open Mats are not part of the free trial");
+        return fail("ineligible", "Open Mats are not part of the free trial", "trial");
       }
       // Kids, teens and experienced adults may book any class of their age and centre (the type's own rules).
       if (program.ageRange) {
@@ -416,14 +419,14 @@ export async function requestIntroBooking(
             expectedSite,
           )
         )
-          return fail("ineligible", "This class is for another age group");
+          return fail("ineligible", "This class is for another age group", "age-centre");
       } else if (
         (program.ageBand as AgeBand) !==
         (typeof student.dateOfBirth === "string"
           ? participantTypeOn(student.dateOfBirth, dateKey)
           : "adult")
       ) {
-        return fail("ineligible", "This class is for another age group");
+        return fail("ineligible", "This class is for another age group", "age-centre");
       }
     }
     if (!command.walkIn && !isWithinBookingCutoff(session.startAt, command.now, 60)) {
@@ -483,7 +486,7 @@ export async function requestIntroBooking(
       command.now,
     );
     if (trialAttendedCount(trial) + futureCount >= trial.allowance) {
-      return fail("ineligible", "Your free classes are used up");
+      return fail("ineligible", "Your free classes are used up", "trial");
     }
 
     const capacityBookings = await bounded(

@@ -5,7 +5,7 @@ import { requireCourseActor } from "../courses/course-authorization.js";
 import { requireCourseRosterAccess } from "../courses/course-roster.js";
 import { courseRecordIdSchema } from "@bpt-jersey/domain/courses";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
-import { error as logError } from "firebase-functions/logger";
+import { error as logError, warn as logWarn } from "firebase-functions/logger";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import {
   isIntroductionClass,
@@ -49,6 +49,7 @@ import { onCallWithFreshAppCheck } from "../auth/app-check.js";
 import {
   BookingTransactionError,
   confirmBookingInTransaction,
+  membershipCoversSession,
   type BookingFirestore,
 } from "./booking-transaction-service.js";
 import {
@@ -198,6 +199,7 @@ function mapBookingError(error: unknown): never {
     }
     throw new HttpsError("failed-precondition", "Booking is not available", {
       reason: error.code,
+      ...(error.why ? { why: error.why } : {}),
     });
   }
   // Unknown failures reach the member as a generic message; keep the cause in the server log.
@@ -1287,11 +1289,20 @@ export function createStaffWalkInAttendanceHandler(options: { store: ScheduleSto
       throw new HttpsError("permission-denied", "Staff access is required for check-in");
     }
     await requireActiveUserActor(request); // live claims, not just the token (N-03)
-    const data = (request.data ?? {}) as { sessionId?: unknown; studentId?: unknown };
+    const data = (request.data ?? {}) as {
+      sessionId?: unknown;
+      studentId?: unknown;
+      overrideWeeklyLimit?: unknown;
+    };
     const sessionId = typeof data.sessionId === "string" ? data.sessionId.trim() : "";
     const studentId = typeof data.studentId === "string" ? data.studentId.trim() : "";
     if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(sessionId) || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(studentId)) {
       throw new HttpsError("invalid-argument", "Walk-in attendance request is invalid");
+    }
+    // E7: only the owner or an administrator may mark a member present over the weekly limit.
+    const overrideWeeklyLimit = data.overrideWeeklyLimit === true;
+    if (overrideWeeklyLimit && actor.role !== "owner" && actor.role !== "administrator") {
+      throw new HttpsError("permission-denied", "Only the office can go over the weekly limit");
     }
 
     const firestore = getFirestore();
@@ -1311,18 +1322,21 @@ export function createStaffWalkInAttendanceHandler(options: { store: ScheduleSto
       .get();
 
     if (booked.empty) {
-      const startMs = Date.parse(session.startAt);
       const memberships = await firestore
         .collection(`${academyPath}/memberships`)
         .where("studentId", "==", studentId)
         .get();
+      // Same rule as the booking itself: a plan covers its whole first Jersey day (E8).
       const membership = memberships.docs.find((doc) => {
         const m = doc.data();
         return (
           (m.status === "active" || m.status === "trial") &&
           typeof m.startsAt === "string" &&
-          Date.parse(m.startsAt) <= startMs &&
-          (m.endsAt === null || m.endsAt === undefined || startMs < Date.parse(String(m.endsAt)))
+          membershipCoversSession(
+            m.startsAt,
+            m.endsAt == null ? null : String(m.endsAt),
+            String(session.startAt),
+          )
         );
       });
       const now = new Date().toISOString();
@@ -1350,6 +1364,7 @@ export function createStaffWalkInAttendanceHandler(options: { store: ScheduleSto
               actorRole: actor.role as never,
               now,
               walkIn: true,
+              ...(overrideWeeklyLimit ? { overrideWeeklyLimit: true as const } : {}),
             }),
           );
           // A PAYG walk-in owes this class: issue its charge so staff can confirm payment and clock in.
@@ -1361,6 +1376,16 @@ export function createStaffWalkInAttendanceHandler(options: { store: ScheduleSto
           }
         }
       } catch (error) {
+        if (error instanceof BookingTransactionError) {
+          // Ids only: the office sees the reason; the log says which rule refused whom.
+          logWarn("walk-in-refused", {
+            sessionId,
+            studentId,
+            code: error.code,
+            why: error.why ?? null,
+            message: error.message,
+          });
+        }
         return mapBookingError(error);
       }
     }

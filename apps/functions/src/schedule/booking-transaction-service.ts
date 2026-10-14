@@ -70,6 +70,8 @@ export class BookingTransactionError extends Error {
   public constructor(
     public readonly code: BookingErrorCode,
     message: string,
+    /** Short refusal slug for the office (`plan-dates`, `weekly-limit`…). */
+    public readonly why?: string,
   ) {
     super(message);
     this.name = "BookingTransactionError";
@@ -139,6 +141,8 @@ export type ConfirmBookingInTransactionInput = Readonly<{
    * the site inside the class's check-in window: waives the 60-minute cutoff and nothing else.
    */
   walkIn?: true;
+  /** Owner/administrator walk-in only (`schedule-callables.ts`): waives the weekly limit. */
+  overrideWeeklyLimit?: true;
 }>;
 
 const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
@@ -150,9 +154,16 @@ const maxSessionCapacity = 300;
 // in it; the query now skips cancelled ones. ponytail: fixed cap, page the query if a week nears it.
 const weeklySessionLimit = 1000;
 const queryLimit = maxSessionCapacity;
+const planAccessWhy: Readonly<Record<string, string>> = {
+  PLAN_INACTIVE: "plan-inactive",
+  PARTICIPANT_TYPE_NOT_ELIGIBLE: "plan-age",
+  CLASS_SITE_NOT_ELIGIBLE: "plan-site",
+  OPEN_MAT_SITE_NOT_ELIGIBLE: "plan-open-mat",
+  WEEKLY_LIMIT_REACHED: "weekly-limit",
+};
 
-function invalid(code: BookingErrorCode, message: string): never {
-  throw new BookingTransactionError(code, message);
+function invalid(code: BookingErrorCode, message: string, why?: string): never {
+  throw new BookingTransactionError(code, message, why);
 }
 
 function segment(value: unknown, label: string): string {
@@ -280,10 +291,9 @@ function membership(
   if (
     !identityIds.includes(value.studentId) ||
     (value.status !== "active" && value.status !== "trial") ||
-    Date.parse(value.startsAt) > Date.parse(now) ||
-    (value.endsAt !== null && Date.parse(value.endsAt) <= Date.parse(now))
+    !membershipCoversSession(value.startsAt, value.endsAt, now)
   ) {
-    return invalid("ineligible", "Membership is not eligible for booking");
+    return invalid("ineligible", "Membership is not eligible for booking", "plan-dates");
   }
   return value;
 }
@@ -319,7 +329,7 @@ function student(
     return invalid("tenant", "Student scope is invalid");
   }
   if (parsed.value.active !== true || parsed.value.status !== "active") {
-    return invalid("ineligible", "Student is not eligible for booking");
+    return invalid("ineligible", "Student is not eligible for booking", "member-inactive");
   }
   return parsed.value;
 }
@@ -402,6 +412,19 @@ function localDate(iso: string): string {
     .join("-");
 }
 
+/** E8: a plan covers its whole first Jersey day, not only from its start time; the end is exact. */
+export function membershipCoversSession(
+  startsAt: string,
+  endsAt: string | null | undefined,
+  sessionStartAt: string,
+): boolean {
+  return (
+    Number.isFinite(Date.parse(startsAt)) &&
+    localDate(startsAt) <= localDate(sessionStartAt) &&
+    (endsAt == null || Date.parse(sessionStartAt) < Date.parse(endsAt))
+  );
+}
+
 function audience(
   profile: StudentProfile,
   value: ProgramRecord,
@@ -413,7 +436,7 @@ function audience(
   // D9: a live teens plan keeps a 16–17 year old booking as a teen until renewal.
   const actual = bookingBandAt({ dateOfBirth: profile.dateOfBirth, onIso: sessionStartAt, livePlanTypes });
   if (value.ageBand !== "all" && value.ageBand !== actual) {
-    return invalid("ineligible", "Student age band is not eligible for this session");
+    return invalid("ineligible", "Student age band is not eligible for this session", "plan-age");
   }
   return actual;
 }
@@ -791,10 +814,14 @@ async function executeBookingInTransaction(
     ]);
   const storedSession = session(sessionSnapshot, academyId, sessionId);
   if (sessionSnapshot.data()?.courseId)
-    return invalid("ineligible", "Course sessions are included through a course enrolment");
+    return invalid(
+      "ineligible",
+      "Course sessions are included through a course enrolment",
+      "course",
+    );
   // Private lessons spend a credit, so only the office's private lesson booking may fill them.
   if (sessionSnapshot.data()?.accessMode === "private-lesson")
-    return invalid("ineligible", "Private lessons are arranged by the office.");
+    return invalid("ineligible", "Private lessons are arranged by the office.", "private");
   const storedMembership = membership(
     membershipSnapshot,
     academyId,
@@ -805,7 +832,11 @@ async function executeBookingInTransaction(
   const storedStudent = student(studentSnapshot, academyId, studentId);
   // A bulk-migrated member carries a placeholder centre until the office confirms Town or West.
   if (storedStudent.trainingCenterStatus === "unconfirmed") {
-    return invalid("ineligible", "Confirm the member's training centre first");
+    return invalid(
+      "ineligible",
+      "Confirm the member's training centre first",
+      "centre-unconfirmed",
+    );
   }
   // Membership ownership follows the approved athlete identity; its original payer family
   // survives a guardian replacement and is used only for the financial eligibility read below.
@@ -851,6 +882,7 @@ async function executeBookingInTransaction(
     return invalid(
       "ineligible",
       "Introduction Classes are for new adult members on their Free Trial",
+      "intro",
     );
   // Read the grant inside this transaction: a concurrent revocation forces a retry.
   const groupSnapshot = await input.transaction.get(
@@ -933,9 +965,10 @@ async function executeBookingInTransaction(
   }
   // A group override still refuses a retired catalogue plan, like evaluatePlanAccess does.
   if (input.groupOverride === true && !storedPlan.active) {
-    return invalid("ineligible", "Plan access is not eligible");
+    return invalid("ineligible", "Plan access is not eligible", "plan-inactive");
   }
   // The type's own age range and training centres (Classes / Services → Types).
+  let overridden = false;
   if (input.groupOverride !== true) {
     const sessionSite = storedSession.locationId === "town" ? "Town" : "West";
     if (
@@ -947,7 +980,11 @@ async function executeBookingInTransaction(
         sessionSite,
       )
     ) {
-      return invalid("ineligible", "This class type is not open to this member's age or centre");
+      return invalid(
+        "ineligible",
+        "This class type is not open to this member's age or centre",
+        "age-centre",
+      );
     }
     // Additional groups waive the age rules only: the plan's centres and weekly limit still apply.
     // Transit Free alone waives financial standing; membership status, active programs, booking
@@ -961,10 +998,16 @@ async function executeBookingInTransaction(
       sessionType: storedProgram.discipline === "open-mat" ? "openMat" : "class",
       weeklyClassesUsed: used,
     });
-    if (!access.allowed) {
+    // The office may knowingly go over the weekly limit; the booking records who did.
+    overridden =
+      !access.allowed &&
+      access.code === "WEEKLY_LIMIT_REACHED" &&
+      input.overrideWeeklyLimit === true;
+    if (!access.allowed && !overridden) {
       return invalid(
         access.code === "WEEKLY_LIMIT_REACHED" ? "weekly-limit" : "ineligible",
         "Plan access is not eligible",
+        planAccessWhy[access.code],
       );
     }
   }
@@ -991,6 +1034,7 @@ async function executeBookingInTransaction(
     createdBy: target.existing?.createdBy ?? actorId,
     updatedAt: input.now,
     updatedBy: actorId,
+    ...(overridden ? { weeklyLimitOverriddenBy: actorId } : {}),
   });
   if (!input.groupRegistration) {
     input.transaction.set(input.firestore.doc(path(academyId, "groupBookingOrigins") + "/" + groupKey(sessionId, studentId)), {

@@ -36,6 +36,7 @@ import {
   type PreClassView,
 } from "@bpt-jersey/domain/schedule/pre-class";
 import type { SelfCheckInInput } from "@bpt-jersey/domain/schedule/self-check-in";
+import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 import type {
   CopyWeekInput,
   CreateLocationInput,
@@ -581,6 +582,8 @@ export async function searchAttendanceMembers(
 export async function staffWalkInAttendance(input: {
   sessionId: string;
   studentId: string;
+  /** Owner/administrator only: mark present over the plan's weekly limit. */
+  overrideWeeklyLimit?: true;
 }): Promise<AttendanceRecord> {
   const callable = httpsCallable<typeof input, { attendance: AttendanceRecord }>(
     getFirebaseFunctions(),
@@ -589,16 +592,60 @@ export async function staffWalkInAttendance(input: {
   return (await callable(input)).data.attendance;
 }
 
+/** The refusal slug a walk-in failure carries (`weekly-limit`, `plan-dates`…), if any. */
+export function walkInFailureWhy(error: unknown): string | undefined {
+  const details = (error as { details?: { reason?: unknown; why?: unknown } } | null)?.details;
+  const why = details?.why ?? details?.reason;
+  return typeof why === "string" ? why : undefined;
+}
+
+/** "19 Oct": the Monday after the session's Jersey date, when the plan's week starts again. */
+function nextMonday(sessionStartAt: string): string {
+  const day = new Date(`${dateKeyInJersey(new Date(sessionStartAt))}T12:00:00Z`);
+  day.setUTCDate(day.getUTCDate() + ((8 - day.getUTCDay()) % 7 || 7));
+  return day.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+}
+
 /** A sentence for the office from a walk-in refusal; never the raw Firebase error. */
-export function walkInFailureMessage(error: unknown): string {
+export function walkInFailureMessage(error: unknown, name: string, sessionStartAt: string): string {
   const reason = (error as { details?: { reason?: unknown } } | null)?.details?.reason;
+  switch (walkInFailureWhy(error)) {
+    case "weekly-limit":
+      return `${name} has already used this week's classes on their plan. They can book again from Monday ${nextMonday(sessionStartAt)}.`;
+    case "age-centre":
+      return `This class is outside ${name}'s age or centre, and no special access covers it.`;
+    case "plan-dates":
+      return `${name}'s plan doesn't cover this date.`;
+    case "trial":
+      return `${name} has no plan for this class; their trial doesn't cover it.`;
+    case "member-inactive":
+      return `${name}'s membership record is not active.`;
+    case "centre-unconfirmed":
+      return `Confirm ${name}'s training centre first.`;
+    case "course":
+      return `This class is part of a course; ${name} joins it through a course enrolment.`;
+    case "private":
+      return "Private lessons are arranged by the office.";
+    case "intro":
+      return `Introduction Classes are for new adult beginners on their Free Trial; ${name} isn't one.`;
+    case "plan-inactive":
+      return `${name}'s plan is no longer offered.`;
+    case "plan-age":
+      return `${name}'s plan doesn't cover this class's age group.`;
+    case "plan-site":
+      return `${name}'s plan doesn't cover classes at this centre.`;
+    case "plan-open-mat":
+      return `${name}'s plan doesn't cover Open Mat at this centre.`;
+  }
+  return `${name}: ${legacyWalkInMessage(reason)}`;
+}
+
+function legacyWalkInMessage(reason: unknown): string {
   switch (reason) {
     case "capacity":
       return "This class is full.";
     case "financial":
       return "This member's account has an outstanding balance.";
-    case "weekly-limit":
-      return "This member has used all the classes their plan allows this week.";
     case "ineligible":
       return "This member's plan or age doesn't cover this class.";
     case "payment":
