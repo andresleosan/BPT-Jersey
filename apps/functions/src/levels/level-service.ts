@@ -1308,8 +1308,9 @@ function promotionAssignmentOf(
     daysOffset: number;
     attendedAt: readonly string[];
     evaluations: readonly EvaluationRecord[];
-    /** E1/E2: the reference age on the promotion day, compared with the target band. */
     ageYears: number | null;
+    /** E1/E2: the reference age on the promotion day; the band is met from ageYears up to it. */
+    referenceAgeYears: number | null;
   }>,
 ): PromotionAssignment {
   const promotedAt = `${params.input.promotedOn}T00:00:00.000Z`;
@@ -1332,6 +1333,7 @@ function promotionAssignmentOf(
     daysDone,
     skillScores: currentScores(params.evaluations),
     ageYears: params.ageYears,
+    referenceAgeYears: params.referenceAgeYears,
   });
   const note = assignmentNoteOf(params.input.note);
   if (gaps.length > 0 && note === null && params.decidedByRole === "headCoach") {
@@ -2870,7 +2872,8 @@ export function createLevelCatalogStore({
           daysOffset: storedDaysOffset(headData.daysOffset),
           attendedAt,
           evaluations,
-          ageYears: storedReferenceAge(
+          ageYears: realAgeOf(student.dateOfBirth, `${input.promotedOn}T00:00:00.000Z`),
+          referenceAgeYears: storedReferenceAge(
             accessSnapshot.data(),
             academyId,
             input.studentId,
@@ -4040,6 +4043,7 @@ export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
         attendedAt: [],
         evaluations: studentEvaluations,
         ageYears: null,
+        referenceAgeYears: null,
       });
       graduations.set(
         graduationKey,

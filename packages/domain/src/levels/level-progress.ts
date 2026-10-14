@@ -339,6 +339,8 @@ export function listPromotionGaps(
     daysDone: number;
     skillScores: Readonly<Record<string, number>>;
     ageYears: number | null;
+    /** E2: special access lifts the age; the band is met anywhere from the real age up to this. */
+    referenceAgeYears?: number | null;
   }>,
 ): readonly string[] {
   const from = input.definitions.find(
@@ -388,7 +390,7 @@ export function listPromotionGaps(
   if (
     (minAge !== null || maxAge !== null) &&
     (input.ageYears === null ||
-      (minAge !== null && input.ageYears < minAge) ||
+      (minAge !== null && Math.max(input.ageYears, input.referenceAgeYears ?? 0) < minAge) ||
       (maxAge !== null && input.ageYears > maxAge))
   ) {
     gaps.push("Age band not met");
