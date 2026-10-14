@@ -4,11 +4,14 @@ import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { createMemberAccessService, memberAccessDependenciesInTransaction } from "../members/member-access-service.js";
 import { getFirestore } from "firebase-admin/firestore";
-import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
+import { error as logError } from "firebase-functions/logger";
+import { ladderEquivalent } from "@bpt-jersey/domain/levels";
 import { parseEffectiveStudentProfileAt } from "@bpt-jersey/domain/profiles";
 import {
   effectiveAgeRange,
   effectiveGroupProgramIds,
+  referenceAge,
   saveStudentAgeRangeSchema,
   saveStudentGroupAccessSchema,
   studentGroupAccessQuerySchema,
@@ -19,6 +22,8 @@ import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { requireActiveOfficeActor } from "../auth/office-actor.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { createFirestoreCanonicalClientStudentScopeResolver } from "./canonical-client-student-scope.js";
+import { createLevelCatalogStore, realAgeOf, referencePrograms } from "../levels/level-service.js";
+import { writeOwnerSetLevel } from "../levels/progress-management-callables.js";
 
 const resolveScope = createFirestoreCanonicalClientStudentScopeResolver();
 
@@ -93,6 +98,44 @@ export const getStudentGroupAccess = onCall(browserAdminCallableOptions, async (
 // so a captured request cannot be replayed.
 const officeWriteOptions = { ...browserAdminCallableOptions, consumeAppCheckToken: true };
 
+/**
+ * E4: once access is saved, the level moves to the reference-age ladder (upward only, same start
+ * date and classes). It runs after the save, so a failure here never undoes the access.
+ */
+async function moveLevelToReference(
+  request: CallableRequest<unknown>,
+  actor: Awaited<ReturnType<typeof requireActiveOfficeActor>>,
+  access: ReturnType<typeof readAccess>,
+): Promise<{ definitionKey: string; name: string } | null> {
+  try {
+    const db = getFirestore();
+    const head = await db.doc(`academies/${actor.academyId}/studentLevelProgress/${access.studentId}`).get();
+    if (head.get("academyId") !== actor.academyId || head.get("state") !== "initialized") return null;
+    const now = new Date().toISOString();
+    const [programs, catalog] = await Promise.all([
+      referencePrograms(db as never, actor.academyId),
+      createLevelCatalogStore({ firestore: db as never }).listPublished(actor.academyId),
+    ]);
+    const ref = referenceAge({
+      realAge: realAgeOf(access.dateOfBirth, now), access, programs, todayKey: dateKeyInJersey(new Date(now)),
+    });
+    const target = ref === null ? null : ladderEquivalent(catalog.definitions, String(head.get("currentDefinitionKey")), ref);
+    if (!target) return null;
+    const token = request.auth?.token;
+    await writeOwnerSetLevel(db, {
+      office: { ...actor, name: String(token?.name ?? token?.email ?? actor.userId).slice(0, 200) },
+      studentId: access.studentId, target, systemId: catalog.system.systemId,
+      note: `Special access: measured as age ${ref}`, now,
+    });
+    return { definitionKey: target.definitionKey, name: target.name };
+  } catch (error) {
+    logError("special-access-level-move-failed", {
+      studentId: access.studentId, error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
 export const saveStudentGroupAccess = onCallWithFreshAppCheck(officeWriteOptions, async (request) => {
   const actor = await requireActiveOfficeActor(request);
   const parsed = saveStudentGroupAccessSchema.safeParse(request.data);
@@ -105,7 +148,7 @@ export const saveStudentGroupAccess = onCallWithFreshAppCheck(officeWriteOptions
   const base = `academies/${actor.academyId}`;
   const accessRef = db.doc(`${base}/studentGroupAccess/${input.studentId}`);
   const eventRef = db.collection(`${base}/studentGroupAccessEvents`).doc();
-  return db.runTransaction(async (transaction) => {
+  const saved = await db.runTransaction(async (transaction) => {
     const [studentSnapshot, accessSnapshot] = await transaction.getAll(
       db.doc(`${base}/students/${input.studentId}`), accessRef,
     );
@@ -153,6 +196,7 @@ export const saveStudentGroupAccess = onCallWithFreshAppCheck(officeWriteOptions
     });
     return next;
   });
+  return { ...saved, levelMove: await moveLevelToReference(request, actor, saved) };
 });
 
 export const saveStudentAgeRange = onCallWithFreshAppCheck(officeWriteOptions, async (request) => {
@@ -168,7 +212,7 @@ export const saveStudentAgeRange = onCallWithFreshAppCheck(officeWriteOptions, a
   const base = `academies/${actor.academyId}`;
   const accessRef = db.doc(`${base}/studentGroupAccess/${input.studentId}`);
   const eventRef = db.collection(`${base}/studentGroupAccessEvents`).doc();
-  return db.runTransaction(async (transaction) => {
+  const saved = await db.runTransaction(async (transaction) => {
     const [studentSnapshot, accessSnapshot] = await transaction.getAll(
       db.doc(`${base}/students/${input.studentId}`), accessRef,
     );
@@ -199,6 +243,7 @@ export const saveStudentAgeRange = onCallWithFreshAppCheck(officeWriteOptions, a
     });
     return next;
   });
+  return { ...saved, levelMove: await moveLevelToReference(request, actor, saved) };
 });
 
 export const listStudentAccessExceptions = onCall(browserAdminCallableOptions, async (request) => {

@@ -433,6 +433,8 @@ function MemberAccess({
   const [loadError, setLoadError] = useState<string>();
   const [accessToken, setAccessToken] = useState(0);
   const [savedCount, setSavedCount] = useState(0);
+  // A save may move the level (E4): bump to re-read the level block.
+  const [levelToken, setLevelToken] = useState(0);
   const [minAge, setMinAge] = useState("");
   const [maxAge, setMaxAge] = useState("");
   const [reason, setReason] = useState("");
@@ -525,10 +527,12 @@ function MemberAccess({
       }
       setSavedCount((count) => count + 1);
       setNotice(
-        next
+        (next
           ? "Age range saved. The member's calendar updates on its next refresh."
-          : "Age range removed. The member's calendar updates on its next refresh.",
+          : "Age range removed. The member's calendar updates on its next refresh.") +
+          (result.levelMove ? ` Level moved to ${result.levelMove.name}.` : ""),
       );
+      setLevelToken((token) => token + 1);
       onSaved();
     } catch (failure) {
       if ((failure as { code?: unknown } | null)?.code === "functions/aborted") {
@@ -741,13 +745,14 @@ function MemberAccess({
             onSaved={() => {
               onSaved();
               setAccessToken((token) => token + 1);
+              setLevelToken((token) => token + 1);
             }}
             studentId={studentId}
           />
         </div>
 
         {isOwner ? (
-          <LevelBlock range={range} studentId={studentId} today={today} />
+          <LevelBlock refresh={levelToken} range={range} studentId={studentId} today={today} />
         ) : (
           <p className="progress-manage-note access-level-note">
             Only the owner can change the level.
@@ -759,10 +764,12 @@ function MemberAccess({
 }
 
 function LevelBlock({
+  refresh,
   range,
   studentId,
   today,
 }: {
+  refresh: number;
   range: ProgramAgeRange | null;
   studentId: string;
   today: string;
@@ -794,7 +801,7 @@ function LevelBlock({
     return () => {
       live = false;
     };
-  }, [studentId, token]);
+  }, [studentId, token, refresh]);
 
   const definitions = useMemo(
     () => [...(catalog?.definitions ?? [])].sort((a, b) => a.sequence - b.sequence),

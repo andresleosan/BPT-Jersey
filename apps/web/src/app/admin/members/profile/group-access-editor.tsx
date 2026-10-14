@@ -119,7 +119,8 @@ export function GroupAccessEditor({
       setSelected(result.programIds);
       setReason(result.reason ?? "");
       setExpiresOn(result.expiresOn ?? "");
-      setNotice("Group access saved. The member's calendar will update on its next refresh.");
+      setNotice(`Group access saved. The member's calendar will update on its next refresh.${
+        result.levelMove ? ` Level moved to ${result.levelMove.name}.` : ""}`);
       onSaved?.();
     } catch (caught) {
       const code = typeof caught === "object" && caught !== null && "code" in caught ? caught.code : undefined;

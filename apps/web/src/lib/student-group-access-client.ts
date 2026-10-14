@@ -23,11 +23,16 @@ export async function getStudentGroupAccess(studentId: string) {
   return access;
 }
 
+// E4: a save may also move the level to the reference-age ladder; older servers omit it.
+const savedAccessSchema = studentGroupAccessSchema.extend({
+  levelMove: z.strictObject({ definitionKey: z.string(), name: z.string() }).nullable().default(null),
+});
+
 export async function saveStudentGroupAccess(input: SaveStudentGroupAccess) {
   const response = await httpsCallable(getFirebaseFunctions(), "saveStudentGroupAccess", limitedUse)(
     saveStudentGroupAccessSchema.parse(input),
   );
-  const access = studentGroupAccessSchema.parse(response.data);
+  const access = savedAccessSchema.parse(response.data);
   if (access.studentId !== input.studentId) throw new Error("Group access is unavailable.");
   return access;
 }
@@ -36,7 +41,7 @@ export async function saveStudentAgeRange(input: SaveStudentAgeRange) {
   const response = await httpsCallable(getFirebaseFunctions(), "saveStudentAgeRange", limitedUse)(
     saveStudentAgeRangeSchema.parse(input),
   );
-  const access = studentGroupAccessSchema.parse(response.data);
+  const access = savedAccessSchema.parse(response.data);
   if (access.studentId !== input.studentId) throw new Error("Access is unavailable.");
   return access;
 }

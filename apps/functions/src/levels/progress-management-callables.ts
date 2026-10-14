@@ -248,41 +248,35 @@ export const getProgressManagement = onCall(browserAdminCallableOptions, async (
   return progressManagementSchema.parse(result);
 });
 
-export const setProgressLevel = onCall(browserAdminCallableOptions, async (request) => {
-  const owner = await requireOwner(request);
-  const input = parse(
-    setProgressLevelInputSchema,
-    request.data,
-    "Check the level, the start date and the class count.",
-  );
-  const now = new Date().toISOString();
-  if (input.startedOn > jerseyDateOf(now)) {
-    throw new HttpsError("invalid-argument", "The start date cannot be in the future.");
-  }
-  const db = getFirestore();
-  const base = `academies/${owner.academyId}`;
-  const catalog = await createLevelCatalogStore({ firestore: db as never }).listPublished(
-    owner.academyId,
-  );
-  const target = catalog.definitions.find(
-    (definition) => definition.definitionKey === input.definitionKey,
-  );
-  if (!target) throw new HttpsError("invalid-argument", "Choose a level from the published list.");
-  const headRef = db.doc(`${base}/studentLevelProgress/${input.studentId}`);
-  const promotionId = `owner-set_${input.studentId}_${now}`;
-  const classes = input.classes ?? 0;
-  const countError = manualProgressError(manualProgressLimits(catalog.definitions, input.definitionKey), input);
-  if (countError !== null) throw new HttpsError("invalid-argument", countError);
-  const startedAt = `${input.startedOn}T00:00:00.000Z`;
-  const days = input.days ?? daysAtLevel(startedAt, now);
+/**
+ * The owner-set level change (D8), shared by setProgressLevel and the special-access re-measure.
+ * Without `level` the head keeps its start date, counted classes and days: the member is measured
+ * on another ladder, not promoted. Returns the promotion id (the existing Undo voids it).
+ */
+export async function writeOwnerSetLevel(
+  db: Firestore,
+  input: Readonly<{
+    office: Owner;
+    studentId: string;
+    target: Readonly<{ definitionKey: string; name: string }>;
+    systemId: string;
+    note: string | null;
+    now: string;
+    level?: Readonly<{ startedOn: string; classes: number; days: number }>;
+  }>,
+): Promise<string> {
+  const { office, studentId, target, now, level } = input;
+  const base = `academies/${office.academyId}`;
+  const headRef = db.doc(`${base}/studentLevelProgress/${studentId}`);
+  const promotionId = `owner-set_${studentId}_${now}`;
   await db.runTransaction(async (transaction) => {
     const head = await transaction.get(headRef);
     const headData = head.data();
     if (
       !head.exists ||
-      headData?.academyId !== owner.academyId ||
+      headData?.academyId !== office.academyId ||
       headData.state !== "initialized" ||
-      headData.systemId !== catalog.system.systemId
+      headData.systemId !== input.systemId
     ) {
       throw new HttpsError(
         "failed-precondition",
@@ -296,50 +290,98 @@ export const setProgressLevel = onCall(browserAdminCallableOptions, async (reque
         "This member's level has no start date yet; set it from their record first.",
       );
     }
+    const startedAt = level ? `${level.startedOn}T00:00:00.000Z` : headData.currentLevelStartedAt;
     // Same shape as an assignLevel promotion, so the level history shows it and voidPromotion
     // (the existing Undo) restores the head from `restore` (D8).
     transaction.create(db.doc(`${base}/levelPromotions/${promotionId}`), {
       promotionId,
       kind: "owner-set",
-      academyId: owner.academyId,
-      studentId: input.studentId,
+      academyId: office.academyId,
+      studentId,
       systemId: headData.systemId,
       fromDefinitionKey: headData.currentDefinitionKey,
       toDefinitionKey: target.definitionKey,
-      promotedOn: input.startedOn,
+      promotedOn: startedAt.slice(0, 10),
       status: "approved",
       decisionStatus: "approved",
-      decidedBy: owner.userId,
-      decidedByRole: "owner",
+      decidedBy: office.userId,
+      decidedByRole: office.role,
       decidedAt: now,
-      note: input.reason,
+      note: input.note,
       gaps: [],
       restore: promotionRestoreOf(headData),
       schemaVersion: "1",
       createdAt: now,
-      createdBy: owner.userId,
+      createdBy: office.userId,
       updatedAt: now,
-      updatedBy: owner.userId,
+      updatedBy: office.userId,
     });
     transaction.set(headRef, {
       ...headData,
       currentDefinitionKey: target.definitionKey,
-      currentLevelStartedAt: startedAt,
-      daysOffset: days - daysAtLevel(startedAt, now),
+      ...(level
+        ? {
+            currentLevelStartedAt: startedAt,
+            daysOffset: level.days - daysAtLevel(startedAt, now),
+            importedBaseline: {
+              classes: level.classes,
+              cutoff: tomorrowInJersey(now),
+              countedThrough: now,
+              source: "owner-set",
+            },
+          }
+        : {}),
       lastApprovedPromotionId: promotionId,
-      importedBaseline: { classes, cutoff: tomorrowInJersey(now), countedThrough: now, source: "owner-set" },
       updatedAt: now,
-      updatedBy: owner.userId,
+      updatedBy: office.userId,
     });
     logChange(
       transaction,
       db,
-      owner,
-      input.studentId,
+      office,
+      studentId,
       now,
-      `Level set to ${target.name} from ${input.startedOn}, ${classes} classes, ${days} days`,
-      input.reason,
+      level
+        ? `Level set to ${target.name} from ${level.startedOn}, ${level.classes} classes, ${level.days} days`
+        : `Level set to ${target.name}, start date and classes kept`,
+      input.note,
     );
+  });
+  return promotionId;
+}
+
+export const setProgressLevel = onCall(browserAdminCallableOptions, async (request) => {
+  const owner = await requireOwner(request);
+  const input = parse(
+    setProgressLevelInputSchema,
+    request.data,
+    "Check the level, the start date and the class count.",
+  );
+  const now = new Date().toISOString();
+  if (input.startedOn > jerseyDateOf(now)) {
+    throw new HttpsError("invalid-argument", "The start date cannot be in the future.");
+  }
+  const db = getFirestore();
+  const catalog = await createLevelCatalogStore({ firestore: db as never }).listPublished(
+    owner.academyId,
+  );
+  const target = catalog.definitions.find(
+    (definition) => definition.definitionKey === input.definitionKey,
+  );
+  if (!target) throw new HttpsError("invalid-argument", "Choose a level from the published list.");
+  const classes = input.classes ?? 0;
+  const countError = manualProgressError(manualProgressLimits(catalog.definitions, input.definitionKey), input);
+  if (countError !== null) throw new HttpsError("invalid-argument", countError);
+  const startedAt = `${input.startedOn}T00:00:00.000Z`;
+  const days = input.days ?? daysAtLevel(startedAt, now);
+  const promotionId = await writeOwnerSetLevel(db, {
+    office: owner,
+    studentId: input.studentId,
+    target,
+    systemId: catalog.system.systemId,
+    note: input.reason,
+    now,
+    level: { startedOn: input.startedOn, classes, days },
   });
   return { promotionId };
 });
