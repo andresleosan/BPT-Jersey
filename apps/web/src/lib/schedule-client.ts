@@ -614,6 +614,8 @@ export function walkInFailureMessage(error: unknown, name: string, sessionStartA
       return `${name} has already used this week's classes on their plan. They can book again from Monday ${nextMonday(sessionStartAt)}.`;
     case "age-centre":
       return `This class is outside ${name}'s age or centre, and no special access covers it.`;
+    case "waiver":
+      return `${name} hasn't accepted the academy waiver yet; they accept it when signing in to their account.`;
     case "plan-dates":
       return `${name}'s plan doesn't cover this date.`;
     case "trial":

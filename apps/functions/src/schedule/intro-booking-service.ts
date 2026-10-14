@@ -169,7 +169,7 @@ async function acceptedCurrentWaiver(
       .where("status", "==", "published")
       .limit(2),
   );
-  if (versions.docs.length !== 1) return fail("ineligible", "Current waiver is unavailable");
+  if (versions.docs.length !== 1) return fail("ineligible", "Current waiver is unavailable", "waiver");
   const version = versions.docs[0]!;
   const value = version.data();
   if (
@@ -179,7 +179,7 @@ async function acceptedCurrentWaiver(
     typeof value.effectiveAt !== "string" ||
     Date.parse(value.effectiveAt) > Date.parse(now)
   ) {
-    return fail("ineligible", "Current waiver is invalid");
+    return fail("ineligible", "Current waiver is invalid", "waiver");
   }
   const consents = await Promise.all(
     ids.map((studentId) =>
@@ -202,7 +202,7 @@ async function acceptedCurrentWaiver(
       consent.revokedAt === null
     );
   });
-  if (!accepted) return fail("ineligible", "Current waiver has not been accepted");
+  if (!accepted) return fail("ineligible", "Current waiver has not been accepted", "waiver");
 }
 
 async function assertNoMembershipHistory(
