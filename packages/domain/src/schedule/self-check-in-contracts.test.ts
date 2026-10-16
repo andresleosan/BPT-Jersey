@@ -5,7 +5,6 @@ import {
   isSelfCheckInWindowOpen,
   nextSelfCheckInSession,
   parseSelfCheckInInput,
-  selfCheckInMaxAccuracyMeters,
   selfCheckInWindow,
   selfCheckInWindowLabels,
 } from "./self-check-in-contracts";
@@ -297,7 +296,7 @@ describe("parseSelfCheckInInput", () => {
 
 describe("decideSelfCheckIn", () => {
   const base = { session: s, isOpenMat: false, site: town, nowMs: startMs - 30 * minute };
-  it("refuses in order: window, site, accuracy, distance", () => {
+  it("refuses in order: window, site, distance", () => {
     expect(
       decideSelfCheckIn({
         ...base,
@@ -314,12 +313,6 @@ describe("decideSelfCheckIn", () => {
       ok: false,
       error: { reason: "site_not_ready" },
     });
-    expect(
-      decideSelfCheckIn({
-        ...base,
-        position: at(500, selfCheckInMaxAccuracyMeters + 1),
-      }),
-    ).toEqual({ ok: false, error: { reason: "imprecise" } });
     expect(decideSelfCheckIn({ ...base, position: at(120) })).toEqual({
       ok: false,
       error: { reason: "outside", distanceMeters: 120 },
@@ -333,10 +326,8 @@ describe("decideSelfCheckIn", () => {
     expect(decideSelfCheckIn({ ...base, position: at(51) }).ok).toBe(false);
     expect(decideSelfCheckIn({ ...base, position: at(0, 101) }).ok).toBe(false);
   });
-  it("rejects fractional accuracy above 100 before rounding", () => {
-    expect(
-      decideSelfCheckIn({ ...base, position: at(0, selfCheckInMaxAccuracyMeters + 0.4) }),
-    ).toEqual({ ok: false, error: { reason: "imprecise" } });
+  it("never refuses for accuracy: a wide reading near the pin passes", () => {
+    expect(decideSelfCheckIn({ ...base, position: at(0, 2500) })).toMatchObject({ ok: true });
   });
   it("fails closed for an invalid site coordinate range", () => {
     expect(

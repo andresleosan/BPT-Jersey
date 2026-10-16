@@ -106,8 +106,6 @@ export function nextSelfCheckInSession(input: {
   return record ? { kind: "checkedIn", session, attendance: record } : { kind: "ready", session };
 }
 
-/** Decision 14: readings wider than this are refused; the distance itself must still be ≤ checkInProximityRadiusMeters. */
-export const selfCheckInMaxAccuracyMeters = 100;
 
 export type SelfCheckInPosition = Readonly<{
   latitude: number;
@@ -186,8 +184,8 @@ export function parseSelfCheckInInput(input: unknown): Result<SelfCheckInInput, 
 }
 
 /**
- * Decisions 1, 2, 14: the hard gate, judged on the server with server time. Order: window → site
- * coordinates → accuracy → distance. The returned proximity is what the attendance record stores;
+ * Decisions 1, 2: the hard gate, judged on the server with server time. Order: window → site
+ * coordinates → distance. The returned proximity is what the attendance record stores;
  * the position itself is used here and nowhere else.
  */
 export function decideSelfCheckIn(input: {
@@ -208,9 +206,7 @@ export function decideSelfCheckIn(input: {
   ) {
     return err({ reason: "site_not_ready" });
   }
-  if (input.position.accuracyMeters > selfCheckInMaxAccuracyMeters) {
-    return err({ reason: "imprecise" });
-  }
+  // Operator 2026-10-16: no precision gate; only the distance to the pin counts (≤ 300 m).
   const accuracyMeters = Math.round(input.position.accuracyMeters);
   const distanceMeters = Math.round(
     distanceInMetres(

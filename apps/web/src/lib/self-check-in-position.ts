@@ -31,9 +31,22 @@ function validCoordinates(latitude: number, longitude: number, accuracy: number)
   );
 }
 
-export function readDevicePosition(
+// Precise GPS first; indoors it can time out, so a network (wifi) fix is asked for next. The server
+// only judges the distance (≤ 300 m), never the accuracy, so the rough fix is enough.
+const preciseRead = { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 } as const;
+const roughRead = { enableHighAccuracy: false, timeout: 15_000, maximumAge: 60_000 } as const;
+
+export async function readDevicePosition(
   geolocation: GeolocationLike | undefined =
     typeof navigator === "undefined" ? undefined : (navigator.geolocation as GeolocationLike | undefined),
+): Promise<PositionReading> {
+  const first = await readOnce(geolocation, preciseRead);
+  return first.status === "unavailable" ? readOnce(geolocation, roughRead) : first;
+}
+
+function readOnce(
+  geolocation: GeolocationLike | undefined,
+  options: Readonly<{ enableHighAccuracy: boolean; timeout: number; maximumAge: number }>,
 ): Promise<PositionReading> {
   if (geolocation === undefined) return Promise.resolve({ status: "unavailable" });
 
@@ -56,7 +69,7 @@ export function readDevicePosition(
           });
         },
         (error) => resolve({ status: error?.code === permissionDenied ? "denied" : "unavailable" }),
-        { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 },
+        options,
       );
     } catch {
       resolve({ status: "unavailable" });

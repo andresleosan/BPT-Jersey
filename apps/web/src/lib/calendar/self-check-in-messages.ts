@@ -46,6 +46,6 @@ export function selfCheckInFailureMessage(error: unknown): string {
 
 export function positionFailureMessage(status: "denied" | "unavailable"): string {
   return status === "denied"
-    ? "Location is off. Allow it for this site, or ask a coach to check you in."
-    : "Couldn't read your location. Try again outside, or ask a coach to check you in.";
+    ? "Turn on your location to check in: switch on Location (GPS) on your phone and allow it for bptjersey.com in your browser, then scan again."
+    : "We couldn't find your location. Make sure Location (GPS) is switched on in your phone settings, then scan again.";
 }
