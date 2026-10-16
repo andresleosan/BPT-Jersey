@@ -248,6 +248,11 @@ function mapAttendanceError(error: unknown): never {
 
 function mapSelfCheckInError(error: unknown): never {
   if (error instanceof SelfCheckInRefusedError) {
+    // Server log only, never a coordinate: tells the office why a member at the door was refused.
+    console.warn("self check-in refused", {
+      reason: error.reason,
+      distanceMeters: error.distanceMeters ?? null,
+    });
     // No distance in the reply: refusals with it let a caller trilaterate the gym's geofence.
     throw new HttpsError("failed-precondition", "Self check-in is not available right now", {
       reason: error.reason,

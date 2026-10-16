@@ -12,6 +12,10 @@ const genericOutsideMessage = within + " Get closer and try again.";
 
 /** Decision 12: one sentence per refusal code from selfCheckIn; all other errors use the fallback. */
 export function selfCheckInFailureMessage(error: unknown): string {
+  // Seen at West 2026-10-13: the phone called with no sign-in token, four times in a row.
+  if (field(error, "code") === "functions/unauthenticated") {
+    return "Your sign-in has expired. Sign out, sign in again and scan the code once more.";
+  }
   if (field(error, "code") !== "functions/failed-precondition") return fallback;
 
   const details = field(error, "details");
