@@ -776,7 +776,7 @@ describe("directory-forward cutover", () => {
   });
 });
 
-describe("global legacy-read elimination (T097, prepared, not run)", () => {
+describe("global legacy-read elimination (T097, ADR-009 Enmienda 2026-10-21)", () => {
   const atBound = (overrides: Record<string, unknown> = {}) =>
     state({
       readerVersion: "canonical-v1",
@@ -788,22 +788,19 @@ describe("global legacy-read elimination (T097, prepared, not run)", () => {
       ...overrides,
     });
   const proven = {
-    completedDirectoryForwardCount: 1,
-    verifiedRestoreAttestationCount: 1,
-    legacyMemberReaderCount: 0,
+    legacyMemberDocumentCount: 0,
     nestedLegacyDocumentCount: 0,
-    unexpiredApprovalCount: 1,
+    operatorConfirmationVerified: true,
   } as const;
 
   it("names each unmet proof on its own, and nothing when all are met", () => {
     expect(listUnmetMemberDirectoryGlobalEliminationPreconditions(proven)).toEqual([]);
     const cases = [
-      [{ completedDirectoryForwardCount: 0 }, "completed-directory-forward"],
-      [{ verifiedRestoreAttestationCount: 0 }, "verified-backup-attestation"],
-      [{ legacyMemberReaderCount: 3 }, "zero-legacy-dependencies"],
-      [{ legacyMemberReaderCount: null }, "zero-legacy-dependencies"],
+      [{ legacyMemberDocumentCount: 1 }, "legacy-members-empty"],
+      [{ legacyMemberDocumentCount: null }, "legacy-members-empty"],
+      [{ nestedLegacyDocumentCount: 2 }, "nested-legacy-history-adapted"],
       [{ nestedLegacyDocumentCount: null }, "nested-legacy-history-adapted"],
-      [{ unexpiredApprovalCount: 2 }, "global-legacy-eliminate-approval"],
+      [{ operatorConfirmationVerified: false }, "global-legacy-eliminate-approval"],
     ] as const;
     for (const [change, precondition] of cases) {
       expect(
@@ -841,8 +838,8 @@ describe("global legacy-read elimination (T097, prepared, not run)", () => {
       planMemberDirectoryGlobalLegacyElimination({ currentState, evidence, now, actorId: "op-1" });
 
     expect(() =>
-      plan(atBound(), { ...proven, completedDirectoryForwardCount: 0, legacyMemberReaderCount: 3 }),
-    ).toThrow(/not proven: completed-directory-forward, zero-legacy-dependencies$/u);
+      plan(atBound(), { ...proven, legacyMemberDocumentCount: 1, nestedLegacyDocumentCount: 3 }),
+    ).toThrow(/not proven: legacy-members-empty, nested-legacy-history-adapted$/u);
     expect(() => plan(state({ rollbackEligibleStudentCount: 400 }))).toThrow(
       /canonical open idle tuple/u,
     );

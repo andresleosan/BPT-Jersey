@@ -1,6 +1,7 @@
 # Paquete de decisión: directorio de miembros lleno (400/400)
 
-Fecha: 2026-10-20 (UTC). Estado: **PROPUESTA. Nada de este documento se ha ejecutado.** Las
+Fecha: 2026-10-20 (UTC). Estado: **Decisión A aprobada por el operador el 2026-10-21; enmienda en ADR-009 (Enmienda
+2026-10-21). T097 no ejecutado.** Las
 lecturas de solo lectura dentro del alcance ya autorizado no necesitan una aprobación nueva por
 lectura. Cada despliegue, transición de estado o escritura necesita la autorización explícita del
 operador en el chat, por separado. No se ha consultado producción para escribirlo.

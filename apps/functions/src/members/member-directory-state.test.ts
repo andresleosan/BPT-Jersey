@@ -171,11 +171,9 @@ describe("member directory control-plane guard", () => {
     const eliminated = planMemberDirectoryGlobalLegacyElimination({
       currentState: state,
       evidence: {
-        completedDirectoryForwardCount: 1,
-        verifiedRestoreAttestationCount: 1,
-        legacyMemberReaderCount: 0,
+        legacyMemberDocumentCount: 0,
         nestedLegacyDocumentCount: 0,
-        unexpiredApprovalCount: 1,
+        operatorConfirmationVerified: true,
       },
       now: at,
       actorId: "operator-1",
@@ -270,11 +268,9 @@ describe("recovery eligibility (2026-10-20 capacity prep, part 6)", () => {
   const live = planMemberDirectoryGlobalLegacyElimination({
     currentState: backup,
     evidence: {
-      completedDirectoryForwardCount: 1,
-      verifiedRestoreAttestationCount: 1,
-      legacyMemberReaderCount: 0,
+      legacyMemberDocumentCount: 0,
       nestedLegacyDocumentCount: 0,
-      unexpiredApprovalCount: 1,
+      operatorConfirmationVerified: true,
     },
     now: eliminatedAt,
     actorId: "operator-1",

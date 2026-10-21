@@ -259,6 +259,7 @@ describe("domain contracts", () => {
       "enrolment.request.approval.failed",
       "enrolment.request.detail.read",
       "member.directory.initialized",
+      "member.directory.legacy-reads-eliminated",
       "regyfit.record.field.read",
       "booking.created",
       "booking.cancelled",

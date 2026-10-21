@@ -662,15 +662,13 @@ export function planMemberDirectoryForwardCutover(
 
 /**
  * T097 is the design's way past the rollback-v1 bound: at 400 admitted students every new student is
- * refused until it runs or an approved rollback-v2 replaces the protocol (member-directory-v1.md,
- * "Required proof before global legacy-read elimination"). Raising the literal, resetting the count
- * or dropping the gate would each keep a promise rollback-v1 can no longer honour. Each entry is one
- * documented proof, so a readiness check names what is missing instead of answering no.
+ * refused until it runs. Raising the literal, resetting the count or dropping the gate would each keep
+ * a promise rollback-v1 can no longer honour. The proofs are the ones ADR-009, Enmienda 2026-10-21
+ * fixes: the cutover is the guard chain itself, verified in the transaction, so each entry here is one
+ * measured fact, and a readiness check names what is missing instead of answering no.
  */
 export const memberDirectoryGlobalEliminationPreconditions = Object.freeze([
-  "completed-directory-forward",
-  "verified-backup-attestation",
-  "zero-legacy-dependencies",
+  "legacy-members-empty",
   "nested-legacy-history-adapted",
   "global-legacy-eliminate-approval",
 ] as const);
@@ -680,30 +678,26 @@ export type MemberDirectoryGlobalEliminationPrecondition =
 
 /** Measured facts, not opinions; `null` means "not measured yet", which proves nothing. */
 export type MemberDirectoryGlobalEliminationEvidence = Readonly<{
-  completedDirectoryForwardCount: number;
-  verifiedRestoreAttestationCount: number;
-  legacyMemberReaderCount: number | null;
+  legacyMemberDocumentCount: number | null;
   nestedLegacyDocumentCount: number | null;
-  unexpiredApprovalCount: number;
+  /** The operator's dry-run confirmation, matched exactly against what the transaction read. */
+  operatorConfirmationVerified: boolean;
 }>;
 
 export function listUnmetMemberDirectoryGlobalEliminationPreconditions(
   evidence: MemberDirectoryGlobalEliminationEvidence,
 ): readonly MemberDirectoryGlobalEliminationPrecondition[] {
   const met: Readonly<Record<MemberDirectoryGlobalEliminationPrecondition, boolean>> = {
-    "completed-directory-forward": evidence.completedDirectoryForwardCount >= 1,
-    "verified-backup-attestation": evidence.verifiedRestoreAttestationCount >= 1,
-    "zero-legacy-dependencies": evidence.legacyMemberReaderCount === 0,
+    "legacy-members-empty": evidence.legacyMemberDocumentCount === 0,
     "nested-legacy-history-adapted": evidence.nestedLegacyDocumentCount === 0,
-    // Exactly one: the transaction consumes the approval it names, never "any of several".
-    "global-legacy-eliminate-approval": evidence.unexpiredApprovalCount === 1,
+    "global-legacy-eliminate-approval": evidence.operatorConfirmationVerified === true,
   };
   return Object.freeze(memberDirectoryGlobalEliminationPreconditions.filter((key) => !met[key]));
 }
 
 /**
- * The marker transaction's next state. Pure: it writes nothing and no runner calls it yet, because
- * the evidence model still needs the operator's approved ADR-009 amendment before anything runs.
+ * The marker transaction's next state (ADR-009, Enmienda 2026-10-21). Pure: the T097 executor calls
+ * it inside its transaction with the evidence it measured there.
  * The marker never returns to false; the count and its limit stay as they are, as history.
  */
 export function planMemberDirectoryGlobalLegacyElimination(

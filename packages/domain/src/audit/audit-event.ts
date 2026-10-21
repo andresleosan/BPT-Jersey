@@ -93,6 +93,7 @@ export const auditActions = Object.freeze([
   "enrolment.request.approval.failed",
   "enrolment.request.detail.read",
   "member.directory.initialized",
+  "member.directory.legacy-reads-eliminated",
   "regyfit.record.field.read",
   "booking.created",
   "booking.cancelled",
@@ -348,7 +349,8 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "enrolment.request.denied"
           | "enrolment.request.approved"
           | "enrolment.request.approval.failed"
-          | "member.directory.initialized";
+          | "member.directory.initialized"
+          | "member.directory.legacy-reads-eliminated";
       }>
     | Readonly<{
         // T04: the active belt catalogue moved; the before and after versions are the record.
@@ -550,6 +552,7 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "regyfit.record.field.read": restrictedMemberReadFields,
   "class.history.read": restrictedMemberReadFields,
   "member.directory.initialized": commonFields,
+  "member.directory.legacy-reads-eliminated": commonFields,
   "booking.created": classEventFields,
   "booking.cancelled": classEventFields,
   "dropin.created": classEventFields,
