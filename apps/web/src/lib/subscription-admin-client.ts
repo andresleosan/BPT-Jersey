@@ -19,6 +19,10 @@ import {
   type AdminNotificationAction,
   type SubscriptionEdit,
 } from "@bpt-jersey/domain/memberships/admin";
+import {
+  legacyReadsEliminatedReason,
+  legacyRegistrationClosedMessage,
+} from "@bpt-jersey/domain/members/migration";
 import { getFirebaseFunctions } from "./firebase-client";
 
 import { MemberRecordLoadError } from "./member-profile-client";
@@ -48,6 +52,16 @@ async function invoke<T>(name: string, input: unknown, schema: z.ZodType<T>): Pr
       throw new Error(
         "This member or payment reference already exists. Refresh before trying again.",
       );
+    // Closed for good once Regyfit is no longer read (T097), not a subscription problem.
+    const details: unknown =
+      typeof error === "object" && error !== null ? Reflect.get(error, "details") : undefined;
+    if (
+      code === "functions/failed-precondition" &&
+      typeof details === "object" &&
+      details !== null &&
+      Reflect.get(details, "reason") === legacyReadsEliminatedReason
+    )
+      throw new Error(legacyRegistrationClosedMessage);
     if (code === "functions/failed-precondition")
       throw new Error(
         "Check the member, subscription dates and outstanding balance. Recorded payments cannot be replaced; use Renew for a new period.",
