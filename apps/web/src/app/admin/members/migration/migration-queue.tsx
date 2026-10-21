@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type {
-  DecideMemberMigrationResult,
-  MemberMigrationDecisionInput,
-  MemberMigrationQueueResponse,
-  MemberMigrationRejectionCode,
-  MigrationIdentityField,
+import {
+  memberMigrationClosedMessage,
+  type DecideMemberMigrationResult,
+  type MemberMigrationDecisionInput,
+  type MemberMigrationQueueResponse,
+  type MemberMigrationRejectionCode,
+  type MigrationIdentityField,
 } from "@bpt-jersey/domain/members/migration";
 import {
   decideMemberMigration,
   listMemberMigrationQueue,
+  MemberMigrationClosedError,
   memberMigrationErrorMessage,
 } from "../../../../lib/member-migration-client";
 import { MemberReviewBadge } from "../member-review";
@@ -136,6 +138,8 @@ export function MigrationQueue() {
   const [queue, setQueue] = useState<MemberMigrationQueueResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
+  // Closed for good once legacy reads are eliminated: no queue, no decisions, nothing to retry.
+  const [closed, setClosed] = useState(false);
   const [tab, setTab] = useState<Tab>("strong");
   const [centre, setCentre] = useState<Enrolment["trainingCenter"] | "">("");
   const [preferences, setPreferences] = useState<NonNullable<Enrolment["trainingTimePreferences"]>>([]);
@@ -157,7 +161,12 @@ export function MigrationQueue() {
   const choiceKey = (row: Row, recordId: string, field: MigrationIdentityField) => `${row.legacyMemberId}:${recordId}:${field}`;
   const reviewedCandidate = (row: Row, recordId: string) => row.candidates.find((candidate) => candidate.recordId === recordId);
   const choicesComplete = (row: Row, recordId: string) => reviewedCandidate(row, recordId)?.conflicts.every((field) => fieldChoices[choiceKey(row, recordId, field)]) === true;
-  const disabled = busy || loading || loadFailed;
+  const disabled = busy || loading || loadFailed || closed;
+
+  function failed(error: unknown) {
+    if (error instanceof MemberMigrationClosedError) setClosed(true);
+    else setLoadFailed(true);
+  }
 
   useEffect(() => {
     let active = true;
@@ -168,9 +177,9 @@ export function MigrationQueue() {
           setLoading(false);
         }
       },
-      () => {
+      (error: unknown) => {
         if (active) {
-          setLoadFailed(true);
+          failed(error);
           setLoading(false);
         }
       },
@@ -185,8 +194,8 @@ export function MigrationQueue() {
     setLoadFailed(false);
     try {
       setQueue(await listMemberMigrationQueue());
-    } catch {
-      setLoadFailed(true);
+    } catch (error) {
+      failed(error);
     } finally {
       setLoading(false);
     }
@@ -200,16 +209,26 @@ export function MigrationQueue() {
     setSaveError(undefined);
     setRejections({});
     const results: DecideMemberMigrationResult["results"] = [];
+    let closedNow = false;
     try {
       for (let offset = 0; offset < decisions.length; offset += 50) {
         const response = await decideMemberMigration(decisions.slice(offset, offset + 50));
         results.push(...response.results);
+        // Closed partway: what was decided stands and is reported; nothing after it is sent.
+        if (response.closed) {
+          closedNow = true;
+          setClosed(true);
+          break;
+        }
       }
-    } catch {
-      setSaveError("Could not save all decisions. Review the queue before trying again.");
+    } catch (error) {
+      closedNow = error instanceof MemberMigrationClosedError;
+      if (closedNow) setClosed(true);
+      else setSaveError("Could not save all decisions. Review the queue before trying again.");
     } finally {
       const rejected = results.filter((result) => result.status === "rejected");
-      setSummary(`Applied ${results.length - rejected.length} · Rejected ${rejected.length}`);
+      if (!closedNow || results.length > 0)
+        setSummary(`Applied ${results.length - rejected.length} · Rejected ${rejected.length}`);
       setRejections(
         Object.fromEntries(
           rejected.map((result) => [
@@ -223,7 +242,8 @@ export function MigrationQueue() {
           ]),
         ),
       );
-      await refresh();
+      // A closed queue is not read again: there is nothing left to refresh into.
+      if (!closedNow) await refresh();
       setBusy(false);
       submitting.current = false;
     }
@@ -282,6 +302,14 @@ export function MigrationQueue() {
         description="Review each member against the imported archive before creating their academy record."
       />
       <section className="admin-panel-card member-migration" aria-label="Member migration queue">
+        {closed ? (
+          <p role="status" className="member-record-notice">
+            {memberMigrationClosedMessage} Guardian, date of birth and centre reviews stay on each
+            member&apos;s record.
+          </p>
+        ) : null}
+        {/* Not rendered at all once closed: `.member-record-form` sets a display that `hidden` loses to. */}
+        {closed ? null : (
         <div className="member-record-form">
           <label className="login-field">Identity evidence
             <textarea value={identityEvidence} onChange={(event) => setIdentityEvidence(event.target.value)} minLength={3} maxLength={1000}
@@ -292,6 +320,7 @@ export function MigrationQueue() {
           </label>
           <p className="member-record-hint">Names, shared email addresses and matching dates of birth are suggestions. Confirm identity before linking. Plans and historical payments remain subject to their own review.</p>
         </div>
+        )}
         {summary ? <p role="status">{summary}</p> : null}
         {saveError ? (
           <p role="alert" className="member-record-notice">
@@ -305,8 +334,8 @@ export function MigrationQueue() {
               <strong>{rejection.name}</strong>: {memberMigrationErrorMessage(rejection.code)}
             </p>
           ))}
-        {loading ? <p role="status">Loading the migration queue…</p> : null}
-        {loadFailed ? (
+        {loading && !closed ? <p role="status">Loading the migration queue…</p> : null}
+        {loadFailed && !closed ? (
           <div>
             <p role="alert">{loadError}</p>
             <button
@@ -319,7 +348,7 @@ export function MigrationQueue() {
             </button>
           </div>
         ) : null}
-        {queue && !loadFailed ? (
+        {queue && !loadFailed && !closed ? (
           <>
             <p>
               Decided: {queue.decided} · Remaining: {queue.rows.length}

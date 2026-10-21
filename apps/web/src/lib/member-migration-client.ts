@@ -7,13 +7,36 @@ import {
   memberReviewResultSchema,
   decideMemberMigrationInputSchema,
   decideMemberMigrationResultSchema,
+  legacyReadsEliminatedReason,
+  memberMigrationClosedMessage,
   memberMigrationQueueResponseSchema,
   type MemberMigrationRejectionCode,
 } from "@bpt-jersey/domain/members/migration";
 import { getFirebaseFunctions } from "./firebase-client";
 
+/** The server said legacy reads are eliminated: the queue is closed for good, not unavailable. */
+export class MemberMigrationClosedError extends Error {
+  constructor() {
+    super(memberMigrationClosedMessage);
+  }
+}
+
+function isClosedAnswer(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const details: unknown = Reflect.get(error, "details");
+  return (
+    Reflect.get(error, "code") === "functions/failed-precondition" &&
+    typeof details === "object" &&
+    details !== null &&
+    Reflect.get(details, "reason") === legacyReadsEliminatedReason
+  );
+}
+
 async function call<T>(name: string, input: unknown, schema: z.ZodType<T>): Promise<T> {
-  const result = await httpsCallable<unknown, unknown>(getFirebaseFunctions(), name)(input);
+  const callable = httpsCallable<unknown, unknown>(getFirebaseFunctions(), name);
+  const result = await callable(input).catch((error: unknown) => {
+    throw isClosedAnswer(error) ? new MemberMigrationClosedError() : error;
+  });
   return schema.parse(result.data);
 }
 

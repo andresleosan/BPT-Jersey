@@ -10,6 +10,7 @@ import {
   setMemberDateOfBirth,
   decideMemberMigration,
   listMemberMigrationQueue,
+  MemberMigrationClosedError,
   memberMigrationErrorMessage,
 } from "./member-migration-client";
 
@@ -41,6 +42,34 @@ it("lists with null and validates the response", async () => {
   expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "listMemberMigrationQueue");
   expect(mocks.callable).toHaveBeenCalledWith(null);
   await expect(listMemberMigrationQueue()).rejects.toThrow(ZodError);
+});
+
+it("names a closed queue and leaves every other refusal alone (2026-10-20 capacity prep)", async () => {
+  const answer = (reason: string) =>
+    Object.assign(new Error("server words"), {
+      code: "functions/failed-precondition",
+      details: { reason },
+    });
+  const other = answer("something-else");
+  mocks.callable
+    .mockRejectedValueOnce(answer("legacy-reads-eliminated"))
+    .mockRejectedValueOnce(other)
+    .mockRejectedValueOnce(answer("legacy-reads-eliminated"));
+
+  await expect(listMemberMigrationQueue()).rejects.toBeInstanceOf(MemberMigrationClosedError);
+  await expect(listMemberMigrationQueue()).rejects.toBe(other);
+  await expect(
+    decideMemberMigration([{ kind: "skip", legacyMemberId: "m1", reason: "Duplicate" }]),
+  ).rejects.toBeInstanceOf(MemberMigrationClosedError);
+});
+
+it("reads a batch the queue closed partway through (2026-10-20 capacity prep)", async () => {
+  const partial = { results: [{ legacyMemberId: "m1", status: "applied" }], closed: true };
+  mocks.callable.mockResolvedValueOnce({ data: partial });
+
+  await expect(
+    decideMemberMigration([{ kind: "skip", legacyMemberId: "m1", reason: "Duplicate" }]),
+  ).resolves.toEqual(partial);
 });
 
 it("wraps decisions and validates decision results", async () => {
