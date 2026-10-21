@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import type { MemberDirectoryState } from "@bpt-jersey/domain/members/directory";
+import { planMemberDirectoryGlobalLegacyElimination } from "@bpt-jersey/domain/members/directory-transitions";
 import {
   advanceMemberDirectoryControlPlane,
   assertCanonicalMemberDirectoryWriterReady,
   assertMemberDirectoryControlPlane,
   buildInitialMemberDirectoryControlPlane,
   selectAdminDirectoryReader,
+  type MemberDirectoryTransitionKind,
 } from "./member-directory-state.js";
 
 const integritySecret = "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8";
@@ -153,6 +155,63 @@ describe("member directory control-plane guard", () => {
         actorId: "owner-1",
       }),
     ).toThrow(/revision/i);
+  });
+
+  it("lets only the T097 transition set the global marker, and it keeps the count", () => {
+    const state: MemberDirectoryState = { ...canonicalState(), rollbackEligibleStudentCount: 400 };
+    const initial = buildInitialMemberDirectoryControlPlane({
+      projectId: "demo-bpt-jersey",
+      state,
+      integritySecretMaterial: integritySecret,
+      integritySecretVersion: "integrity-v1",
+      now: "2026-09-03T20:00:00.000Z",
+      actorId: "system-1",
+    });
+    const at = "2026-09-03T20:01:00.000Z";
+    const eliminated = planMemberDirectoryGlobalLegacyElimination({
+      currentState: state,
+      evidence: {
+        completedDirectoryForwardCount: 1,
+        verifiedRestoreAttestationCount: 1,
+        legacyMemberReaderCount: 0,
+        nestedLegacyDocumentCount: 0,
+        unexpiredApprovalCount: 1,
+      },
+      now: at,
+      actorId: "operator-1",
+    });
+    const advance = (nextState: MemberDirectoryState, kind: MemberDirectoryTransitionKind) =>
+      advanceMemberDirectoryControlPlane({
+        projectId: "demo-bpt-jersey",
+        state,
+        guard: initial.guard,
+        event: initial.event,
+        nextState,
+        operationId: "t097-operation-1",
+        transitionKind: kind,
+        integritySecretMaterial: integritySecret,
+        integritySecretVersion: "integrity-v1",
+        now: at,
+        actorId: "operator-1",
+      });
+
+    expect(() => advance(eliminated, "canonical-identity-create")).toThrow(
+      /global legacy-read elimination/u,
+    );
+    expect(() =>
+      advance(
+        { ...state, stateRevision: 1, updatedAt: at, updatedBy: "operator-1" },
+        "global-legacy-eliminate",
+      ),
+    ).toThrow(/global legacy-read elimination/u);
+
+    const advanced = advance(eliminated, "global-legacy-eliminate");
+    expect(advanced.guard).toMatchObject({
+      globalLegacyReadEverEliminated: true,
+      highestRollbackEligibleStudentCount: 400,
+      highestStateRevision: 1,
+    });
+    expect(advanced.event.transitionKind).toBe("global-legacy-eliminate");
   });
 
   it("selects only stable readers and enforces the canonical writer tuple", () => {

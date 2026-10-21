@@ -184,6 +184,22 @@ export function programAdmits(
   return !program.sites?.length || program.sites.includes(site);
 }
 
+export const introductionClassAudienceError =
+  "An Introduction Class type must be open to every adult (16 and over)";
+
+/**
+ * The trial path books an Introduction Class for any adult beginner (16+) without the type's own
+ * age rules, so only a type open to all of them may be marked one; otherwise the marker would
+ * quietly open a children's or narrower class to adults for free.
+ */
+export function admitsEveryAdultBeginner(
+  program: Readonly<{ ageRange?: ProgramAgeRange | null; ageBand?: string }>,
+): boolean {
+  const range = program.ageRange ?? null;
+  if (range !== null && (range.minAge > 16 || range.maxAge !== null)) return false;
+  return program.ageBand !== "kids" && program.ageBand !== "teens";
+}
+
 function parseProgramAgeRange(input: unknown): Result<ProgramAgeRange | null, string> {
   if (input === null) return ok(null);
   const isAge = (value: unknown): value is number =>
@@ -209,9 +225,13 @@ export type CreateProgramInputV2 = Readonly<{
   abbreviation: string;
   ageRange?: ProgramAgeRange | null;
   sites?: readonly ProgramSite[];
+  /** Absent: the type is an Introduction Class when its name says so, fixed from then on. */
+  introductionClass?: boolean;
 }>;
 export type UpdateProgramInput = Readonly<{ programId: string }> &
-  Partial<ProgramV2Fields & Readonly<{ name: string; active: boolean }>>;
+  Partial<
+    ProgramV2Fields & Readonly<{ name: string; active: boolean; introductionClass: boolean }>
+  >;
 
 export type DeleteProgramInput = Readonly<{ programId: string }>;
 
@@ -231,8 +251,14 @@ const colourPattern = /^#[0-9a-fA-F]{6}$/u;
 export const programMessageMaxLength = 200;
 
 export function parseCreateProgramInputV2(input: unknown): Result<CreateProgramInputV2, string> {
-  if (!isRecord(input) || !onlyKeys(input, ["name", "abbreviation", "ageRange", "sites"])) {
-    return err("Program input accepts name, abbreviation, ageRange and sites");
+  if (
+    !isRecord(input) ||
+    !onlyKeys(input, ["name", "abbreviation", "ageRange", "sites", "introductionClass"])
+  ) {
+    return err("Program input accepts name, abbreviation, ageRange, sites and introductionClass");
+  }
+  if (input.introductionClass !== undefined && typeof input.introductionClass !== "boolean") {
+    return err("introductionClass must be a boolean");
   }
   const name = parseName(input.name, 2, 100, "name");
   if (!name.ok) return name;
@@ -248,6 +274,9 @@ export function parseCreateProgramInputV2(input: unknown): Result<CreateProgramI
       abbreviation: abbreviation.value,
       ageRange: ageRange.value,
       sites: sites.value,
+      ...(input.introductionClass === undefined
+        ? {}
+        : { introductionClass: input.introductionClass }),
     }),
   );
 }
@@ -266,6 +295,7 @@ export function parseUpdateProgramInput(input: unknown): Result<UpdateProgramInp
     "message",
     "ageRange",
     "sites",
+    "introductionClass",
   ];
   if (!isRecord(input) || !onlyKeys(input, allowed)) return err("Program update has unknown keys");
   if (
@@ -303,7 +333,7 @@ export function parseUpdateProgramInput(input: unknown): Result<UpdateProgramInp
     }
     result.dropInPolicy = input.dropInPolicy;
   }
-  for (const flag of ["notifyByEmail", "showInList", "active"] as const) {
+  for (const flag of ["notifyByEmail", "showInList", "active", "introductionClass"] as const) {
     if (input[flag] !== undefined) {
       if (typeof input[flag] !== "boolean") return err(`${flag} must be a boolean`);
       result[flag] = input[flag];

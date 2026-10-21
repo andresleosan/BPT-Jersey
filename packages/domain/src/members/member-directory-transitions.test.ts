@@ -12,7 +12,10 @@ import {
   planMemberDirectoryChunkCommit,
   planMemberDirectoryBootstrapCompletion,
   planMemberDirectoryForwardCutover,
+  planMemberDirectoryGlobalLegacyElimination,
   planMemberDirectoryPhaseChange,
+  listUnmetMemberDirectoryGlobalEliminationPreconditions,
+  type MemberDirectoryGlobalEliminationEvidence,
 } from "./member-directory-transitions";
 
 const now = "2026-09-07T12:00:00.000Z";
@@ -770,5 +773,89 @@ describe("directory-forward cutover", () => {
         now,
       }),
     ).toThrow(/requires complete identity-key coverage/u);
+  });
+});
+
+describe("global legacy-read elimination (T097, prepared, not run)", () => {
+  const atBound = (overrides: Record<string, unknown> = {}) =>
+    state({
+      readerVersion: "canonical-v1",
+      directoryWriteMode: "canonical-v1",
+      identityKeyCoverage: "complete",
+      identityKeyBaselineMac: "a".repeat(64),
+      identityKeyBaselineArtifactId: "baseline-1",
+      rollbackEligibleStudentCount: 400,
+      ...overrides,
+    });
+  const proven = {
+    completedDirectoryForwardCount: 1,
+    verifiedRestoreAttestationCount: 1,
+    legacyMemberReaderCount: 0,
+    nestedLegacyDocumentCount: 0,
+    unexpiredApprovalCount: 1,
+  } as const;
+
+  it("names each unmet proof on its own, and nothing when all are met", () => {
+    expect(listUnmetMemberDirectoryGlobalEliminationPreconditions(proven)).toEqual([]);
+    const cases = [
+      [{ completedDirectoryForwardCount: 0 }, "completed-directory-forward"],
+      [{ verifiedRestoreAttestationCount: 0 }, "verified-backup-attestation"],
+      [{ legacyMemberReaderCount: 3 }, "zero-legacy-dependencies"],
+      [{ nestedLegacyDocumentCount: null }, "nested-legacy-history-adapted"],
+      [{ unexpiredApprovalCount: 2 }, "global-legacy-eliminate-approval"],
+    ] as const;
+    for (const [change, precondition] of cases) {
+      expect(
+        listUnmetMemberDirectoryGlobalEliminationPreconditions({ ...proven, ...change }),
+      ).toEqual([precondition]);
+    }
+  });
+
+  it("sets the marker and disables rollback while keeping the count and its limit", () => {
+    const next = planMemberDirectoryGlobalLegacyElimination({
+      currentState: atBound(),
+      evidence: proven,
+      now,
+      actorId: "operator-1",
+    });
+
+    expect(next).toMatchObject({
+      globalLegacyReadEliminated: true,
+      rollbackProtocolVersion: "disabled",
+      rollbackCapacityLimit: 400,
+      rollbackEligibleStudentCount: 400,
+      stateRevision: 8,
+      readerVersion: "canonical-v1",
+      operationPhase: "idle",
+      updatedAt: now,
+      updatedBy: "operator-1",
+    });
+  });
+
+  it("refuses without every proof, outside the canonical open idle tuple, or a second time", () => {
+    const plan = (
+      currentState: MemberDirectoryState,
+      evidence: MemberDirectoryGlobalEliminationEvidence = proven,
+    ) =>
+      planMemberDirectoryGlobalLegacyElimination({ currentState, evidence, now, actorId: "op-1" });
+
+    expect(() =>
+      plan(atBound(), { ...proven, completedDirectoryForwardCount: 0, legacyMemberReaderCount: 3 }),
+    ).toThrow(/not proven: completed-directory-forward, zero-legacy-dependencies$/u);
+    expect(() => plan(state({ rollbackEligibleStudentCount: 400 }))).toThrow(
+      /canonical open idle tuple/u,
+    );
+    expect(() =>
+      plan(
+        atBound({
+          identityKeyCoverage: "incomplete",
+          identityKeyBaselineMac: undefined,
+          identityKeyBaselineArtifactId: undefined,
+        }),
+      ),
+    ).toThrow(/complete identity-key coverage/u);
+    expect(() =>
+      plan(atBound({ globalLegacyReadEliminated: true, rollbackProtocolVersion: "disabled" })),
+    ).toThrow(/already happened/u);
   });
 });

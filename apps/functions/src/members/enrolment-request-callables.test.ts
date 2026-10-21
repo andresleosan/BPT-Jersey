@@ -24,6 +24,7 @@ import {
   type EnrolmentOfficeCallableServices,
   type EnrolmentRequestCallableServices,
 } from "./enrolment-request-callables.js";
+import { EnrolmentApprovalError } from "./enrolment-approval-service.js";
 import { EnrolmentRequestStoreError } from "./enrolment-request-service.js";
 
 const setup = {
@@ -437,6 +438,24 @@ describe("enrolment office callables", () => {
     expect(current.approvals.approve).toHaveBeenCalledWith(
       expect.objectContaining({ enrolmentRequestId: "enrolment-1", requestId: approvalKey }),
     );
+  });
+
+  it("hands office a directory capacity refusal with its slug, on the code the web passes through", async () => {
+    const current = officeServices();
+    vi.mocked(current.approvals.approve).mockRejectedValue(
+      new EnrolmentApprovalError(
+        "precondition",
+        "directory_capacity_exhausted",
+        "New members cannot be added until the member directory upgrade is completed.",
+      ),
+    );
+
+    await expect(
+      approveEnrolmentRequestHandler(officeRequest(approvalPayload), current),
+    ).rejects.toMatchObject({
+      code: "failed-precondition",
+      message: expect.stringMatching(/^directory_capacity_exhausted: New members cannot be added/u),
+    });
   });
 
   it("refuses both office doors without verified App Check in the handler", async () => {

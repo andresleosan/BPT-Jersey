@@ -49,6 +49,7 @@ import {
   assertCanonicalMemberDirectoryWriterReady,
   assertMemberDirectoryControlPlane,
   memberDirectoryRestoreGuardSchema,
+  type MemberDirectoryRefusalReason,
 } from "./member-directory-state.js";
 import { matchesProvisionedMemberDirectoryActor } from "./member-directory-actor-authorization.js";
 
@@ -229,14 +230,17 @@ type MemberDirectoryWriteReceipt = Readonly<z.infer<typeof writeReceiptSchema>>;
 
 export class CanonicalMemberDirectoryError extends Error {
   public readonly code: "unauthorized" | "invalid" | "unavailable" | "conflict" | "replay";
+  public readonly reason: MemberDirectoryRefusalReason | undefined;
 
   public constructor(
     code: "unauthorized" | "invalid" | "unavailable" | "conflict" | "replay",
     message: string,
+    reason?: MemberDirectoryRefusalReason,
   ) {
     super(message);
     this.name = "CanonicalMemberDirectoryError";
     this.code = code;
+    this.reason = reason;
   }
 }
 
@@ -1194,6 +1198,7 @@ export function createCanonicalMemberDirectoryService(
         throw new CanonicalMemberDirectoryError(
           "unavailable",
           "Member directory rollback capacity is exhausted",
+          "directory_capacity_exhausted",
         );
       }
 

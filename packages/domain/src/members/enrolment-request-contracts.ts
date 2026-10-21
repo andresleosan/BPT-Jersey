@@ -363,6 +363,16 @@ export const enrolmentRequestRecordSchema = z
 export type EnrolmentRequestRecord = Readonly<z.infer<typeof enrolmentRequestRecordSchema>>;
 
 /**
+ * An approval the member directory refused because it admits no new student (the rollback-v1
+ * bound, docs/data/migrations/member-directory-v1.md). One text for the server, office and tests.
+ */
+export const directoryCapacityExhaustedFailureCode = "directory_capacity_exhausted";
+export const directoryCapacityExhaustedOfficeMessage =
+  "New members cannot be added until the member directory upgrade is completed. Nothing is " +
+  "wrong with this application: keep it (do not deny it or send it back) and approve it again " +
+  "once the upgrade is done. Anything already saved is reused, not duplicated.";
+
+/**
  * What a reviewer sends to approve. `requestId` is theirs, not the applicant's: it becomes the
  * idempotency key of the canonical write and lands inside the write receipt's MAC, so a value
  * chosen by the applicant's browser has no business being there. `purpose` is declared for the

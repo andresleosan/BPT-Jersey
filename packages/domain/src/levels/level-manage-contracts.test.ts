@@ -309,6 +309,12 @@ describe("level manage contracts", () => {
       totalHours: 3,
     });
     expect(parsed).not.toHaveProperty("totalHours");
+    // The card names skills since they weigh in the percentage (2026-10-20); the rest is dropped.
+    expect(parsed.state === "initialized" && parsed.criteria.skills).toEqual({
+      total: 0,
+      completed: 0,
+      met: true,
+    });
     expect(
       studentLevelCardSchema.safeParse({ state: "uninitialized", studentId: "student-1" }).success,
     ).toBe(true);

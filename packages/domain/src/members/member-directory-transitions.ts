@@ -659,3 +659,87 @@ export function planMemberDirectoryForwardCutover(
 
   return memberDirectoryStateSchema.parse(next);
 }
+
+/**
+ * T097 is the design's way past the rollback-v1 bound: at 400 admitted students every new student is
+ * refused until it runs or an approved rollback-v2 replaces the protocol (member-directory-v1.md,
+ * "Required proof before global legacy-read elimination"). Raising the literal, resetting the count
+ * or dropping the gate would each keep a promise rollback-v1 can no longer honour. Each entry is one
+ * documented proof, so a readiness check names what is missing instead of answering no.
+ */
+export const memberDirectoryGlobalEliminationPreconditions = Object.freeze([
+  "completed-directory-forward",
+  "verified-backup-attestation",
+  "zero-legacy-dependencies",
+  "nested-legacy-history-adapted",
+  "global-legacy-eliminate-approval",
+] as const);
+
+export type MemberDirectoryGlobalEliminationPrecondition =
+  (typeof memberDirectoryGlobalEliminationPreconditions)[number];
+
+/** Measured facts, not opinions; `null` means "not measured yet", which proves nothing. */
+export type MemberDirectoryGlobalEliminationEvidence = Readonly<{
+  completedDirectoryForwardCount: number;
+  verifiedRestoreAttestationCount: number;
+  legacyMemberReaderCount: number;
+  nestedLegacyDocumentCount: number | null;
+  unexpiredApprovalCount: number;
+}>;
+
+export function listUnmetMemberDirectoryGlobalEliminationPreconditions(
+  evidence: MemberDirectoryGlobalEliminationEvidence,
+): readonly MemberDirectoryGlobalEliminationPrecondition[] {
+  const met: Readonly<Record<MemberDirectoryGlobalEliminationPrecondition, boolean>> = {
+    "completed-directory-forward": evidence.completedDirectoryForwardCount >= 1,
+    "verified-backup-attestation": evidence.verifiedRestoreAttestationCount >= 1,
+    "zero-legacy-dependencies": evidence.legacyMemberReaderCount === 0,
+    "nested-legacy-history-adapted": evidence.nestedLegacyDocumentCount === 0,
+    // Exactly one: the transaction consumes the approval it names, never "any of several".
+    "global-legacy-eliminate-approval": evidence.unexpiredApprovalCount === 1,
+  };
+  return Object.freeze(memberDirectoryGlobalEliminationPreconditions.filter((key) => !met[key]));
+}
+
+/**
+ * The marker transaction's next state. Pure: it writes nothing and no runner calls it yet, because
+ * the evidence model still needs the operator's approved ADR-009 amendment before anything runs.
+ * The marker never returns to false; the count and its limit stay as they are, as history.
+ */
+export function planMemberDirectoryGlobalLegacyElimination(
+  input: Readonly<{
+    currentState: MemberDirectoryState;
+    evidence: MemberDirectoryGlobalEliminationEvidence;
+    now: string;
+    actorId: string;
+  }>,
+): MemberDirectoryState {
+  const current = memberDirectoryStateSchema.parse(input.currentState);
+  if (current.globalLegacyReadEliminated) {
+    throw new Error("Global legacy-read elimination has already happened");
+  }
+  // The schema already holds an idle tuple to no operation, lease, deadline or chunk.
+  if (
+    current.readerVersion !== "canonical-v1" ||
+    current.directoryWriteMode !== "canonical-v1" ||
+    current.freezeStatus !== "open" ||
+    current.operationPhase !== "idle"
+  ) {
+    throw new Error("Only the canonical open idle tuple can eliminate legacy reads");
+  }
+  if (current.identityKeyCoverage !== "complete") {
+    throw new Error("Global legacy-read elimination requires complete identity-key coverage");
+  }
+  const unmet = listUnmetMemberDirectoryGlobalEliminationPreconditions(input.evidence);
+  if (unmet.length > 0) {
+    throw new Error(`Global legacy-read elimination is not proven: ${unmet.join(", ")}`);
+  }
+  return memberDirectoryStateSchema.parse({
+    ...current,
+    globalLegacyReadEliminated: true,
+    rollbackProtocolVersion: "disabled",
+    stateRevision: current.stateRevision + 1,
+    updatedAt: input.now,
+    updatedBy: input.actorId,
+  });
+}

@@ -6,6 +6,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { getApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { warn } from "firebase-functions/logger";
 import { defineSecret } from "firebase-functions/params";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
@@ -581,6 +582,8 @@ function officeCallableServices(): EnrolmentOfficeCallableServices {
       generateAuditId: randomUUID,
     }),
     approvals: createEnrolmentApprovalService({
+      // Metadata only (slugs, class names, opaque ids): see EnrolmentApprovalFailureEvent.
+      onApprovalFailed: (event) => warn("enrolment-approval-failed", event),
       registration: createEnrolmentRegistration(firestore),
       store,
       directory: createCanonicalMemberDirectoryService({

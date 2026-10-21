@@ -871,6 +871,76 @@ describe("family Firestore store", () => {
     });
   });
 
+  it("refuses a verified tutor's minor at the bound with its reason, and admits after elimination", async () => {
+    const storeAt = (state: Partial<MemberDirectoryState>) => {
+      const fake = createFakeFirestore({
+        ...controlPlane(state),
+        "academies/academy-1/users/admin-1": adminUser("admin-1"),
+        "academies/academy-1/users/user-1": tutorUser(),
+      });
+      const store = createFamilyStore({
+        firestore: fake.firestore,
+        // Verified, so the directory bound is the only refusal left on the path.
+        auth: {
+          getUser: async (uid) => ({
+            uid,
+            emailVerified: true,
+            customClaims: { academyId: "academy-1", role: "guardian" },
+          }),
+        },
+        canonicalControl: {
+          projectId: PROJECT_ID,
+          identitySecretMaterial: IDENTITY_SECRET,
+          identitySecretVersion: IDENTITY_SECRET_VERSION,
+          integritySecretMaterial: INTEGRITY_SECRET,
+          integritySecretVersion: INTEGRITY_SECRET_VERSION,
+        },
+        generateFamilyId: () => "family-1",
+        generateStudentId: () => "student-1",
+        generateAuditId: () => "audit-1",
+      });
+      return { ...fake, store };
+    };
+    const command = {
+      academyId: "academy-1",
+      actorId: "admin-1",
+      actorRole: "administrator" as const,
+      requestId: "request-at-bound",
+      tutorUserId: "user-1",
+      students: [draft("Synthetic Minor")],
+      now: "2026-08-19T10:00:00.000Z",
+    };
+
+    // The last free place is still taken normally.
+    const last = storeAt({ rollbackEligibleStudentCount: 399 });
+    await expect(last.store.createFamily(command)).resolves.toMatchObject({
+      family: { familyId: "family-1" },
+    });
+    expect(last.records.get("academies/academy-1/memberDirectoryStates/current")).toMatchObject({
+      rollbackEligibleStudentCount: 400,
+    });
+
+    const full = storeAt({ rollbackEligibleStudentCount: 400 });
+    await expect(full.store.createFamily(command)).rejects.toMatchObject({
+      code: "precondition",
+      reason: "directory_capacity_exhausted",
+    });
+    expect(full.records.has("academies/academy-1/families/family-1")).toBe(false);
+
+    // What the prepared T097 transition would leave: creation resumes, the count stays as history.
+    const eliminated = storeAt({
+      globalLegacyReadEliminated: true,
+      rollbackProtocolVersion: "disabled",
+      rollbackEligibleStudentCount: 400,
+    });
+    await expect(eliminated.store.createFamily(command)).resolves.toMatchObject({
+      family: { familyId: "family-1" },
+    });
+    expect(
+      eliminated.records.get("academies/academy-1/memberDirectoryStates/current"),
+    ).toMatchObject({ stateRevision: 1, rollbackEligibleStudentCount: 400 });
+  });
+
   it("requires an active same-tenant tutor for each added minor", async () => {
     const { store, records } = createServices({
       "academies/academy-1/users/user-1": tutorUser(),

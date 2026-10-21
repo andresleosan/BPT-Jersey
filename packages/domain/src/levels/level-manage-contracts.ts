@@ -238,6 +238,8 @@ export const studentLevelCardSchema = z.discriminatedUnion("state", [
         elapsedDays: countSchema,
         met: z.boolean(),
       }),
+      // Skills weigh in the percentage, so the card names them; optional for older payloads.
+      skills: z.object({ total: countSchema, completed: countSchema, met: z.boolean() }).optional(),
     }),
   }),
 ]);

@@ -2,10 +2,13 @@ import { parseAgeCapacities, type AgeCapacity, type AgeAvailability } from "./ag
 import { err, ok, type Result } from "../result";
 import {
   parseSessionBookingRules,
+  parseUpdateProgramInput,
+  programDefaultsV2,
   waitingListModes,
   type LocationKind,
   type ProgramV2Fields,
   type SessionBookingRules,
+  type UpdateProgramInput,
   type WaitingListMode,
 } from "./classes-services-contracts";
 
@@ -43,19 +46,63 @@ export function sessionAccessMode(value: { readonly accessMode?: unknown }): Cla
   throw new Error("Stored session accessMode is invalid");
 }
 
+/** The rule for class types saved before they carried an explicit `introductionClass`. */
+export function isIntroductionClassName(name: unknown): boolean {
+  return typeof name === "string" && name.trim().toLowerCase().startsWith("introduction class");
+}
+
 /**
- * The academy's Introduction Class is a class type (Classes / Services → Types) whose name starts
- * with "Introduction Class". A session stored with the legacy `accessMode: "intro"` also counts.
+ * The academy's Introduction Class is a class type (Classes / Services → Types). A type saved since
+ * 2026-10-20 says so in `introductionClass`, so renaming it never changes who may book its classes;
+ * an older type still answers by its name. A session stored with the legacy `accessMode: "intro"`
+ * also counts.
  */
 export function isIntroductionClass(
   session: { readonly accessMode?: unknown },
-  program: { readonly name?: unknown } | null | undefined,
+  program: { readonly name?: unknown; readonly introductionClass?: unknown } | null | undefined,
 ): boolean {
   if (session.accessMode === "intro") return true;
-  return (
-    typeof program?.name === "string" &&
-    program.name.trim().toLowerCase().startsWith("introduction class")
-  );
+  if (typeof program?.introductionClass === "boolean") return program.introductionClass;
+  return isIntroductionClassName(program?.name);
+}
+
+/** The Types editor's form for one type: its saved values, the v2 defaults where it has none. */
+export type ProgramEditorFields = ProgramV2Fields &
+  Readonly<{ programId: string; name: string; active: boolean; introductionClass: boolean }>;
+
+export function programEditorFields(program: ProgramRecord): ProgramEditorFields {
+  return {
+    programId: program.programId,
+    name: program.name,
+    active: program.active,
+    abbreviation: program.abbreviation ?? programDefaultsV2.abbreviation,
+    colour: program.colour ?? programDefaultsV2.colour,
+    kind: program.kind ?? programDefaultsV2.kind,
+    dropInPolicy: program.dropInPolicy ?? programDefaultsV2.dropInPolicy,
+    notifyByEmail: program.notifyByEmail ?? programDefaultsV2.notifyByEmail,
+    showInList: program.showInList ?? programDefaultsV2.showInList,
+    message: program.message ?? programDefaultsV2.message,
+    ageRange: program.ageRange ?? programDefaultsV2.ageRange,
+    sites: program.sites ?? programDefaultsV2.sites,
+    introductionClass: isIntroductionClass({}, program),
+  };
+}
+
+/**
+ * What saving the Types editor sends: every field it shows. Legacy types have no abbreviation, so
+ * an empty one is left out; the Introduction Class marker goes only when changed, and the server
+ * keeps an untouched one as it was.
+ */
+export function programEditorUpdate(
+  edit: ProgramEditorFields,
+  original: ProgramRecord | undefined,
+): Result<UpdateProgramInput, string> {
+  const { abbreviation, introductionClass, ...fields } = edit;
+  return parseUpdateProgramInput({
+    ...fields,
+    ...(abbreviation.trim() ? { abbreviation } : {}),
+    ...(introductionClass === isIntroductionClass({}, original) ? {} : { introductionClass }),
+  });
 }
 
 export const daysOfWeek = Object.freeze([1, 2, 3, 4, 5, 6, 7] as const);
@@ -188,7 +235,8 @@ export type ProgramRecord = Readonly<{
   schemaVersion: "1";
 }> &
   Partial<ProgramV2Fields> &
-  Readonly<{ deletedAt?: string; deletedBy?: string }>;
+  // Absent on types saved before 2026-10-20: isIntroductionClass then reads the name.
+  Readonly<{ deletedAt?: string; deletedBy?: string; introductionClass?: boolean }>;
 
 export type ClassRecurrenceRule = Readonly<{
   dayOfWeek: DayOfWeek;

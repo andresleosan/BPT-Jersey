@@ -88,6 +88,27 @@ function controlPlaneSeed(): Record<string, MemberDirectoryDocumentData> {
   };
 }
 
+/** The same seed with a different state, re-signed so the control-plane binding still holds. */
+function controlPlaneSeedAt(
+  overrides: Partial<MemberDirectoryState>,
+): Record<string, MemberDirectoryDocumentData> {
+  const state = { ...canonicalState(), ...overrides };
+  const control = buildInitialMemberDirectoryControlPlane({
+    projectId: "demo-bpt-jersey",
+    state,
+    integritySecretMaterial: integritySecret,
+    integritySecretVersion: "integrity-v1",
+    now: state.createdAt,
+    actorId: "system-1",
+  });
+  return {
+    ...controlPlaneSeed(),
+    "academies/academy-1/memberDirectoryStates/current": state,
+    "memberDirectoryRestoreGuards/academy-1": control.guard,
+    "memberDirectoryRestoreGuards/academy-1/events/0": control.event,
+  };
+}
+
 function fakeFirestore(
   initial: Record<string, MemberDirectoryDocumentData> = controlPlaneSeed(),
   failCommitWhen?: (paths: readonly string[]) => boolean,
@@ -475,6 +496,44 @@ describe("canonical administrative member writer", () => {
       writer.createAdminAdult({ actor: actor(), value: input(), now }),
     ).rejects.toMatchObject({ code: "unauthorized" });
     expect(harness.committedWritePaths).toHaveLength(writesAfterFirst);
+  });
+
+  it("refuses a new adult at the rollback bound with a typed reason and writes nothing", async () => {
+    const harness = fakeFirestore(controlPlaneSeedAt({ rollbackEligibleStudentCount: 400 }));
+
+    await expect(
+      service(harness.firestore).createAdminAdult({ actor: actor(), value: input(), now }),
+    ).rejects.toMatchObject({ code: "unavailable", reason: "directory_capacity_exhausted" });
+    expect(harness.committedWritePaths).toEqual([]);
+  });
+
+  it("admits a new adult after global elimination and keeps the count as history", async () => {
+    // The state the prepared T097 transition would leave behind; nothing in production sets it yet.
+    const harness = fakeFirestore(
+      controlPlaneSeedAt({
+        globalLegacyReadEliminated: true,
+        rollbackProtocolVersion: "disabled",
+        rollbackEligibleStudentCount: 400,
+      }),
+    );
+
+    await expect(
+      service(harness.firestore).createAdminAdult({ actor: actor(), value: input(), now }),
+    ).resolves.toEqual({ memberId: "student-new-1", studentId: "student-new-1" });
+    expect(harness.records.get("academies/academy-1/memberDirectoryStates/current")).toEqual(
+      expect.objectContaining({ stateRevision: 1, rollbackEligibleStudentCount: 400 }),
+    );
+  });
+
+  it("leaves other unavailable refusals without the capacity reason", async () => {
+    const seed = controlPlaneSeed();
+    delete seed["memberDirectoryRestoreGuards/academy-1"];
+    const harness = fakeFirestore(seed);
+
+    await expect(
+      service(harness.firestore).createAdminAdult({ actor: actor(), value: input(), now }),
+    ).rejects.toMatchObject({ code: "unavailable", reason: undefined });
+    expect(harness.committedWritePaths).toEqual([]);
   });
 
   it("atomically creates the student, profile, reservations, audit and control revision", async () => {

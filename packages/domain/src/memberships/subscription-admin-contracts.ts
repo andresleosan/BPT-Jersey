@@ -42,6 +42,25 @@ export const memberSubscriptionContextSchema = z.strictObject({
 });
 export type MemberSubscriptionContext = z.infer<typeof memberSubscriptionContextSchema>;
 
+/** Office enrolment of one student into one class: the server says what the booking would use. */
+export const registrationChoiceQuerySchema = z.strictObject({ sessionId: id, studentId: id });
+export type RegistrationChoiceQuery = z.infer<typeof registrationChoiceQuerySchema>;
+export const registrationChoiceSchema = z
+  .strictObject({
+    /** The canonical student the booking is written under. */
+    studentId: id,
+    choice: z
+      .discriminatedUnion("kind", [
+        z.strictObject({ kind: z.literal("membership"), membershipId: id }),
+        z.strictObject({ kind: z.literal("intro") }),
+      ])
+      .nullable(),
+    /** Why nothing can be booked; null whenever there is a choice. */
+    reason: z.enum(["no-plan", "plan-dates", "trial-unavailable"]).nullable(),
+  })
+  .refine((value) => (value.choice === null) !== (value.reason === null));
+export type RegistrationChoice = z.infer<typeof registrationChoiceSchema>;
+
 export const adminNotificationKinds = [
   "subscription-expiring",
   "membership",

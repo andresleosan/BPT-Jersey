@@ -48,6 +48,7 @@ import {
   type UpdateClassInput,
   type UpdateSessionInput,
   normalizeClassRecord,
+  isIntroductionClassName,
   legacySessionId,
   sessionAccessMode,
 } from "@bpt-jersey/domain/schedule";
@@ -58,6 +59,8 @@ import {
   type SelfCheckInInput,
 } from "@bpt-jersey/domain/schedule/self-check-in";
 import {
+  admitsEveryAdultBeginner,
+  introductionClassAudienceError,
   programDefaultsV2,
   shiftIsoInZone,
   slugifyLocationId,
@@ -576,7 +579,7 @@ function buildProgramV2(
   academyId: string,
   input: CreateProgramInputV2,
 ): ProgramRecord {
-  return Object.freeze({
+  const record: ProgramRecord = Object.freeze({
     programId,
     academyId,
     name: input.name,
@@ -589,7 +592,20 @@ function buildProgramV2(
     sites: input.sites ?? [],
     active: true,
     schemaVersion: "1",
+    // The Types editor always says; an older client's create keeps the name rule, fixed from now on.
+    introductionClass: input.introductionClass ?? isIntroductionClassName(input.name),
   });
+  if (input.introductionClass === true) assertIntroductionAudience(record);
+  return record;
+}
+
+/** An explicit Introduction Class must be open to every adult beginner (see the domain rule). */
+function assertIntroductionAudience(program: ProgramRecord): void {
+  if (!admitsEveryAdultBeginner(program)) {
+    throw new HttpsError("failed-precondition", introductionClassAudienceError, {
+      reason: "introduction-class-audience",
+    });
+  }
 }
 
 function programDocumentPath(academyId: string, programId: string): string {
@@ -598,8 +614,13 @@ function programDocumentPath(academyId: string, programId: string): string {
 
 function mergeProgramV2(current: ProgramRecord, input: UpdateProgramInput): ProgramRecord {
   if (current.deletedAt) throw new Error(`Program ${current.programId} does not exist`);
-  return Object.freeze({
+  const merged: ProgramRecord = Object.freeze({
     ...current,
+    // Fixed from the name BEFORE this edit, so renaming a type never changes who may book it.
+    introductionClass:
+      input.introductionClass ??
+      current.introductionClass ??
+      isIntroductionClassName(current.name),
     ...(input.name !== undefined ? { name: input.name } : {}),
     ...(input.active !== undefined ? { active: input.active } : {}),
     ...(input.abbreviation !== undefined ? { abbreviation: input.abbreviation } : {}),
@@ -612,6 +633,18 @@ function mergeProgramV2(current: ProgramRecord, input: UpdateProgramInput): Prog
     ...(input.ageRange !== undefined ? { ageRange: input.ageRange } : {}),
     ...(input.sites !== undefined ? { sites: input.sites } : {}),
   });
+  // Untouched legacy types keep saving; only an explicit marker or a new age range is checked. The
+  // Types editor resends the age range on every save, so compare it rather than its presence.
+  const before = current.ageRange ?? null;
+  const after = merged.ageRange ?? null;
+  const ageRangeChanged = before?.minAge !== after?.minAge || before?.maxAge !== after?.maxAge;
+  if (
+    merged.introductionClass === true &&
+    (input.introductionClass !== undefined || ageRangeChanged)
+  ) {
+    assertIntroductionAudience(merged);
+  }
+  return merged;
 }
 
 /**

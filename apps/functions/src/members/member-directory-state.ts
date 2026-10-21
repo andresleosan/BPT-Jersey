@@ -95,6 +95,19 @@ export type MemberDirectoryGuardEvent = Readonly<z.infer<typeof memberDirectoryG
 export type MemberDirectoryTransitionKind = (typeof memberDirectoryTransitionKinds)[number];
 export type AdminDirectoryReader = "canonical" | "legacy-rollback";
 
+/**
+ * Why a directory writer refused a new student, carried beside the writer's own `code`, which other
+ * refusals share. Spelt as the enrolment approval slug so office reads one name for it everywhere.
+ */
+export type MemberDirectoryRefusalReason = "directory_capacity_exhausted";
+
+export function isDirectoryCapacityExhausted(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error as { reason?: unknown }).reason === "directory_capacity_exhausted"
+  );
+}
+
 type IntegrityBinding = Readonly<{
   integritySecretMaterial: string;
   integritySecretVersion: string;
@@ -264,6 +277,13 @@ export function advanceMemberDirectoryControlPlane(
     nextState.rollbackEligibleStudentCount < current.state.rollbackEligibleStudentCount
   ) {
     throw new Error("Member directory monotonic state cannot decrease");
+  }
+  // T097 alone sets the irreversible marker, and its kind does nothing else, so the marker can never
+  // ride along on an ordinary write. Inert today: no writer sets it.
+  const setsMarker =
+    !current.state.globalLegacyReadEliminated && nextState.globalLegacyReadEliminated;
+  if (setsMarker !== (input.transitionKind === "global-legacy-eliminate")) {
+    throw new Error("Only global legacy-read elimination may set the global marker");
   }
   if (nextState.updatedAt !== input.now || nextState.updatedBy !== input.actorId) {
     throw new Error("Member directory state audit envelope mismatch");

@@ -7,7 +7,11 @@ import {
   type EnrolmentApprovalAuthUser,
   type EnrolmentApprovalDependencies,
 } from "./enrolment-approval-service.js";
-import type { CanonicalMemberDirectoryActor } from "./canonical-member-directory-service.js";
+import {
+  CanonicalMemberDirectoryError,
+  type CanonicalMemberDirectoryActor,
+} from "./canonical-member-directory-service.js";
+import { FamilyStoreError } from "../families/family-service.js";
 
 const setup = {
   students: [
@@ -93,6 +97,9 @@ function harness(
     /** Simulates a claim write that reports success but does not land. */
     claimSticks?: boolean;
     directoryFails?: boolean;
+    directoryError?: Error;
+    familyError?: Error;
+    onApprovalFailed?: EnrolmentApprovalDependencies["onApprovalFailed"];
   }> = {},
 ): Harness {
   const calls: string[] = [];
@@ -103,6 +110,7 @@ function harness(
   const stored = options.record ?? record();
 
   const dependencies: EnrolmentApprovalDependencies = {
+    ...(options.onApprovalFailed ? { onApprovalFailed: options.onApprovalFailed } : {}),
     registration: {
       validate: vi.fn().mockResolvedValue(undefined),
       complete: vi.fn().mockResolvedValue(undefined),
@@ -132,6 +140,7 @@ function harness(
       updateAdminMember: vi.fn(),
       createAdminAdultForAccount: vi.fn(async () => {
         calls.push("createAdminAdultForAccount");
+        if (options.directoryError) throw options.directoryError;
         if (options.directoryFails) throw new Error("directory unavailable");
         return { memberId: "student-1", studentId: "student-1" };
       }),
@@ -146,6 +155,7 @@ function harness(
     families: {
       createFamily: vi.fn(async () => {
         calls.push("createFamily");
+        if (options.familyError) throw options.familyError;
         return {
           family: { familyId: "family-1" },
           students: [{ studentId: "student-minor-1" }],
@@ -432,5 +442,160 @@ describe("enrolment approval", () => {
       }),
     ).rejects.toMatchObject({ code: "unauthorized", failureCode: "actor_not_office" });
     expect(calls).toEqual([]);
+  });
+});
+
+describe("enrolment approval at the member directory bound", () => {
+  const canonicalFull = () =>
+    new CanonicalMemberDirectoryError(
+      "unavailable",
+      "Member directory rollback capacity is exhausted",
+      "directory_capacity_exhausted",
+    );
+  const familyFull = () =>
+    new FamilyStoreError(
+      "precondition",
+      "Member directory rollback capacity is exhausted",
+      "directory_capacity_exhausted",
+    );
+
+  it("parks an adult under its own failure code and tells office how to resume", async () => {
+    const h = harness({ directoryError: canonicalFull() });
+
+    await expect(approve(h.dependencies)).rejects.toMatchObject({
+      code: "precondition",
+      failureCode: "directory_capacity_exhausted",
+      message: expect.stringContaining("approve it again"),
+    });
+    expect(h.calls).toEqual([
+      "beginApproval",
+      "createAdminAdultForAccount",
+      "failApproval:directory_capacity_exhausted",
+    ]);
+    expect(h.claims.role).toBe("shopper");
+  });
+
+  it("names a family refusal that comes after the guardian's own record was saved", async () => {
+    const { dependencies, calls } = harness({
+      record: record({ applicantIsStudent: true, minors: [minor] }),
+      familyError: familyFull(),
+    });
+
+    await expect(approve(dependencies)).rejects.toMatchObject({
+      code: "precondition",
+      failureCode: "directory_capacity_exhausted",
+    });
+    // The adult record, guardian profile and claim stay under the pinned key; a retry replays them.
+    expect(calls).toEqual([
+      "beginApproval",
+      "createAdminAdultForAccount",
+      "saveGuardianProfile",
+      "setCustomUserClaims:guardian",
+      "createFamily",
+      "failApproval:directory_capacity_exhausted",
+    ]);
+  });
+
+  it.each([
+    {
+      flow: "adult",
+      options: {
+        directoryError: new CanonicalMemberDirectoryError(
+          "unavailable",
+          "Member directory restore guard is missing",
+        ),
+      },
+      slug: "member_write_failed",
+    },
+    {
+      flow: "family",
+      options: {
+        record: record({ applicantIsStudent: false, minors: [minor] }),
+        familyError: new FamilyStoreError("precondition", "Tutor Auth identity mismatch"),
+      },
+      slug: "family_write_failed",
+    },
+  ])(
+    "keeps the stage slug for another $flow refusal sharing the writer's code",
+    async ({ options, slug }) => {
+      const { dependencies, calls } = harness(options);
+
+      await expect(approve(dependencies)).rejects.toMatchObject({
+        code: "unavailable",
+        failureCode: slug,
+      });
+      expect(calls).toContain(`failApproval:${slug}`);
+    },
+  );
+
+  it("reports the stopped approval to operators as metadata only", async () => {
+    const onApprovalFailed = vi.fn();
+    const { dependencies } = harness({ directoryError: canonicalFull(), onApprovalFailed });
+
+    await expect(approve(dependencies)).rejects.toBeInstanceOf(EnrolmentApprovalError);
+
+    expect(onApprovalFailed).toHaveBeenCalledOnce();
+    expect(onApprovalFailed).toHaveBeenCalledWith({
+      academyId: "academy-1",
+      enrolmentRequestId: "enrolment-1",
+      stage: "member",
+      failureCode: "directory_capacity_exhausted",
+      cause: "CanonicalMemberDirectoryError",
+      causeCode: "unavailable",
+    });
+    // Neither what the applicant typed nor the writer's own text reaches the log line.
+    expect(JSON.stringify(onApprovalFailed.mock.calls)).not.toMatch(
+      /Alex|example\.com|07700|1994-04-02|capacity is exhausted/iu,
+    );
+  });
+
+  it.each([
+    {
+      name: "Alex Adult 07700900123",
+      code: "unavailable",
+      cause: "unknown",
+      causeCode: "unavailable",
+    },
+    { name: "Error", code: "alex@example.com", cause: "Error" },
+    { name: "TypeError", code: "Alex Adult 1994-04-02", cause: "TypeError" },
+  ])(
+    "logs only listed error names and codes ($name / $code)",
+    async ({ name, code, ...expected }) => {
+      const onApprovalFailed = vi.fn();
+      const odd = Object.assign(new Error("Alex Adult, alex@example.com"), { code });
+      odd.name = name;
+      const { dependencies } = harness({ directoryError: odd, onApprovalFailed });
+
+      await expect(approve(dependencies)).rejects.toMatchObject({
+        failureCode: "member_write_failed",
+      });
+      expect(onApprovalFailed).toHaveBeenCalledWith({
+        academyId: "academy-1",
+        enrolmentRequestId: "enrolment-1",
+        stage: "member",
+        failureCode: "member_write_failed",
+        ...expected,
+      });
+      expect(JSON.stringify(onApprovalFailed.mock.calls)).not.toMatch(
+        /Alex|example\.com|07700|1994-04-02/iu,
+      );
+    },
+  );
+
+  it("resumes under the pinned key once the directory has room again", async () => {
+    const h = harness();
+    const write = vi.mocked(h.dependencies.directory.createAdminAdultForAccount);
+    write.mockRejectedValueOnce(canonicalFull());
+
+    await expect(approve(h.dependencies)).rejects.toMatchObject({
+      failureCode: "directory_capacity_exhausted",
+    });
+    await expect(approve(h.dependencies)).resolves.toMatchObject({ studentIds: ["student-1"] });
+
+    const keys = write.mock.calls.map(([{ value }]) =>
+      typeof value === "object" && value !== null && "requestId" in value ? value.requestId : null,
+    );
+    expect(keys).toEqual([approvalKey, approvalKey]);
+    expect(h.calls).toContain("completeApproval");
   });
 });

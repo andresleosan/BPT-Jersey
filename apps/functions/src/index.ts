@@ -295,6 +295,7 @@ export {
   getTrialAccess,
   requestBookingEu,
 } from "./schedule/member-calendar-week-callables.js";
+export { getRegistrationChoice } from "./schedule/registration-choice-callables.js";
 
 export { createStaffWithPassword } from "./staff/direct-staff-creation.js";
 export { grantMemberCoachAccess, listCoachEligibleMembers, switchAccessMode } from "./staff/member-coach-access.js";

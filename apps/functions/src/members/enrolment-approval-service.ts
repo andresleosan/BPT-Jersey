@@ -1,6 +1,8 @@
-import type {
-  EnrolmentApprovalSetup,
-  EnrolmentRequestRecord,
+import {
+  directoryCapacityExhaustedFailureCode,
+  directoryCapacityExhaustedOfficeMessage,
+  type EnrolmentApprovalSetup,
+  type EnrolmentRequestRecord,
 } from "@bpt-jersey/domain/members/enrolment-requests";
 import type { FamilyStudentDraft } from "@bpt-jersey/domain/families";
 import type { FamilyStore } from "../families/family-service.js";
@@ -10,6 +12,7 @@ import type {
   CanonicalMemberDirectoryService,
 } from "./canonical-member-directory-service.js";
 import type { EnrolmentRequestStore } from "./enrolment-request-service.js";
+import { isDirectoryCapacityExhausted } from "./member-directory-state.js";
 
 /**
  * Approving an enrolment request (T121 slice 2). Everything the applicant typed already exists;
@@ -52,7 +55,20 @@ export type EnrolmentApprovalAuth = Readonly<{
   updateUser: (uid: string, data: { emailVerified: true }) => Promise<void>;
 }>;
 
+/** A stopped approval, as operators may see it: slugs and opaque ids, never error text or PII. */
+export type EnrolmentApprovalFailureEvent = Readonly<{
+  academyId: string;
+  enrolmentRequestId: string;
+  stage: string;
+  failureCode: string;
+  /** The error's class name, such as `FamilyStoreError`. */
+  cause: string;
+  causeCode?: string;
+}>;
+
 export type EnrolmentApprovalDependencies = Readonly<{
+  /** Told about every stopped approval; the writers' messages can carry what the applicant typed. */
+  onApprovalFailed?: (event: EnrolmentApprovalFailureEvent) => void;
   store: EnrolmentRequestStore;
   directory: CanonicalMemberDirectoryService;
   guardianProfiles: GuardianProfileStore;
@@ -111,6 +127,38 @@ export type EnrolmentApprovalService = Readonly<{
 }>;
 
 const clientRolesEligibleForEnrolment = new Set(["shopper", "guardian", "adultStudent"]);
+
+// An error's own name and code are arbitrary text that could carry PII, so the log line takes
+// them only from these lists: the classes this approval calls and their code enums.
+const loggableCauses = new Set([
+  "EnrolmentApprovalError",
+  "CanonicalMemberDirectoryError",
+  "FamilyStoreError",
+  "GuardianProfileStoreError",
+  "EnrolmentRequestStoreError",
+  "TypeError",
+  "Error",
+]);
+const loggableCauseCodes = new Set([
+  "unauthorized",
+  "invalid",
+  "not-found",
+  "precondition",
+  "conflict",
+  "unavailable",
+  "replay",
+  "tenant",
+  "duplicate",
+]);
+
+function failureCause(error: unknown): Pick<EnrolmentApprovalFailureEvent, "cause" | "causeCode"> {
+  const name = error instanceof Error ? error.name : "";
+  const code = error instanceof Error ? (error as { code?: unknown }).code : undefined;
+  return {
+    cause: loggableCauses.has(name) ? name : "unknown",
+    ...(typeof code === "string" && loggableCauseCodes.has(code) ? { causeCode: code } : {}),
+  };
+}
 
 // A guardian who also trains ends as `guardian`: the role that lets them hold a family. Their own
 // student record keeps the `self` link, because the adult writer stores their userId on it.
@@ -513,8 +561,13 @@ export function createEnrolmentApprovalService(
           ...(input.instructorName === undefined ? {} : { instructorName: input.instructorName }),
         });
       } catch (error) {
+        const capacity = isDirectoryCapacityExhausted(error);
         const failureCode =
-          error instanceof EnrolmentApprovalError ? error.failureCode : `${stage}_write_failed`;
+          error instanceof EnrolmentApprovalError
+            ? error.failureCode
+            : capacity
+              ? directoryCapacityExhaustedFailureCode
+              : `${stage}_write_failed`;
         // Best effort: if the request cannot even be marked, the original failure is still the
         // one worth reporting, and the request stays locked rather than open.
         try {
@@ -528,7 +581,27 @@ export function createEnrolmentApprovalService(
         } catch {
           /* the caller is about to hear about the real failure */
         }
+        try {
+          dependencies.onApprovalFailed?.({
+            academyId: input.actor.academyId,
+            enrolmentRequestId: record.enrolmentRequestId,
+            stage,
+            failureCode,
+            ...failureCause(error),
+          });
+        } catch {
+          /* a failed log line must not replace the failure it describes */
+        }
         if (error instanceof EnrolmentApprovalError) throw error;
+        // Both writers refuse before writing and every step replays under the pinned key, so a later
+        // approval resumes; denying or returning the request would strand what was already saved.
+        if (capacity) {
+          throw new EnrolmentApprovalError(
+            "precondition",
+            failureCode,
+            directoryCapacityExhaustedOfficeMessage,
+          );
+        }
         throw new EnrolmentApprovalError(
           "unavailable",
           failureCode,

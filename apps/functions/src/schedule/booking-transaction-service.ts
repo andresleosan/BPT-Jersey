@@ -493,7 +493,7 @@ async function isOpenMatProgram(
   return openMat;
 }
 
-async function bookingIdentityIds(input: {
+export async function bookingIdentityIds(input: {
   firestore: BookingFirestore;
   transaction: BookingTransaction;
   academyId: string;

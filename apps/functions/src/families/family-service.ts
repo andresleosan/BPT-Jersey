@@ -45,6 +45,7 @@ import {
   assertMemberDirectoryControlPlane,
   memberDirectoryRestoreGuardSchema,
   type MemberDirectoryGuardEvent,
+  type MemberDirectoryRefusalReason,
   type MemberDirectoryRestoreGuard,
 } from "../members/member-directory-state.js";
 
@@ -159,14 +160,17 @@ export type FamilyStoreDependencies = Readonly<{
 export class FamilyStoreError extends Error {
   public readonly code:
     "invalid" | "tenant" | "duplicate" | "conflict" | "not-found" | "precondition";
+  public readonly reason: MemberDirectoryRefusalReason | undefined;
 
   public constructor(
     code: "invalid" | "tenant" | "duplicate" | "conflict" | "not-found" | "precondition",
     message: string,
+    reason?: MemberDirectoryRefusalReason,
   ) {
     super(message);
     this.name = "FamilyStoreError";
     this.code = code;
+    this.reason = reason;
   }
 }
 
@@ -447,7 +451,11 @@ function advanceCanonicalControl(
     ? control.state.rollbackEligibleStudentCount
     : control.state.rollbackEligibleStudentCount + input.addedStudentCount;
   if (nextCount > control.state.rollbackCapacityLimit) {
-    throw new FamilyStoreError("precondition", "Member directory rollback capacity is exhausted");
+    throw new FamilyStoreError(
+      "precondition",
+      "Member directory rollback capacity is exhausted",
+      "directory_capacity_exhausted",
+    );
   }
   const nextState: MemberDirectoryState = {
     ...control.state,
