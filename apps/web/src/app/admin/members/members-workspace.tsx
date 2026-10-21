@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { startTransition, useEffect, useMemo, useState } from "react";
 import type { MemberOverview, MemberOverviewRow } from "@bpt-jersey/domain/members/overview";
-import { deleteMemberAccount, getMemberOverview } from "../../../lib/member-overview-client";
+import { getMemberOverview } from "../../../lib/member-overview-client";
 import { useAdminGateSession } from "../admin-gate";
 import { AdminSectionHeader } from "../admin-ui";
 import { AdminDataTable } from "../admin-data-table";
@@ -13,6 +13,7 @@ import { flagLabels, levelLabel } from "./member-overview-labels";
 import { FamiliesView } from "./families-view";
 import { ProgressManagementTab } from "./progress-management";
 import { AccessTab } from "./access-tab";
+import { DeleteAccountDialog } from "./delete-account-dialog";
 import { recordHref } from "./profile/member-record";
 
 import "../admin.css";
@@ -477,38 +478,25 @@ function DeleteAccountButton({
   row: MemberOverviewRow;
   onDeleted: () => void;
 }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
-  async function remove() {
-    const sure = window.confirm(
-      `Delete the account of ${row.fullName}?\n\nThis removes the member, its login, bookings, memberships, attendance and billing history, even if the account is active. A backup is kept for 30 days.`,
-    );
-    if (!sure) return;
-    setBusy(true);
-    setError(undefined);
-    try {
-      await deleteMemberAccount({ studentId: row.studentId, requestId: crypto.randomUUID() });
-      onDeleted();
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Could not delete the account.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const [confirming, setConfirming] = useState(false);
   return (
     <div className="members-cell">
       <button
         className="membership-table-button membership-table-button-danger"
-        disabled={busy}
-        onClick={() => void remove()}
+        onClick={() => setConfirming(true)}
         type="button"
       >
-        {busy ? "Deleting…" : "Delete account"}
+        Delete account
       </button>
-      {error ? (
-        <span className="members-cell-detail" role="alert">
-          {error}
-        </span>
+      {confirming ? (
+        <DeleteAccountDialog
+          row={row}
+          onClose={() => setConfirming(false)}
+          onDeleted={() => {
+            setConfirming(false);
+            onDeleted();
+          }}
+        />
       ) : null}
     </div>
   );

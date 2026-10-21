@@ -60,6 +60,11 @@ export function ModalDialog({
         event.preventDefault();
         onClose();
       }}
+      // Chromium closes it anyway on a repeated Escape the owner refused: while rendered it stays open.
+      onClose={(event) => {
+        const dialog = event.currentTarget;
+        if (!dialog.open && dialog.isConnected) dialog.showModal();
+      }}
     >
       {children}
     </dialog>
