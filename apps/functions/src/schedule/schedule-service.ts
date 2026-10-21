@@ -59,7 +59,7 @@ import {
   type SelfCheckInInput,
 } from "@bpt-jersey/domain/schedule/self-check-in";
 import {
-  admitsEveryAdultBeginner,
+  introductionClassAudienceAllowed,
   introductionClassAudienceError,
   programDefaultsV2,
   shiftIsoInZone,
@@ -599,9 +599,9 @@ function buildProgramV2(
   return record;
 }
 
-/** An explicit Introduction Class must be open to every adult beginner (see the domain rule). */
+/** An explicit Introduction Class serves every adult beginner or children only (domain rule). */
 function assertIntroductionAudience(program: ProgramRecord): void {
-  if (!admitsEveryAdultBeginner(program)) {
+  if (!introductionClassAudienceAllowed(program)) {
     throw new HttpsError("failed-precondition", introductionClassAudienceError, {
       reason: "introduction-class-audience",
     });

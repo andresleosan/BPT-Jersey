@@ -606,3 +606,58 @@ describe("trial calendar access", () => {
     );
   });
 });
+
+describe("children's Introduction Classes in the trial calendar (operator 2026-10-21)", () => {
+  const kidsIntroType: ProgramRecord = {
+    ...teensProgram,
+    programId: "prog-kids-intro",
+    name: "Kids Free Trial",
+    ageBand: "all",
+    ageRange: { minAge: 4, maxAge: 7 },
+    introductionClass: true,
+  };
+  const adultIntroType: ProgramRecord = {
+    ...kidsIntroType,
+    programId: "prog-adult-intro",
+    name: "Trail Class",
+    ageRange: { minAge: 16, maxAge: null },
+  };
+  const kidsIntro: SessionRecord = { ...westClass, programId: "prog-kids-intro" };
+  const adultIntro: SessionRecord = { ...westClass, programId: "prog-adult-intro" };
+  // Six on the session's day.
+  const child: CalendarMemberContext = { ...trialMember, dateOfBirth: "2020-03-01" };
+  const lockedReason = (
+    sessionRecord: SessionRecord,
+    program: ProgramRecord,
+    member: CalendarMemberContext,
+  ) =>
+    deriveSessionStatus({
+      session: sessionRecord,
+      program,
+      member,
+      bookedCount: 0,
+      now: twoHoursBefore,
+    }).lockedReason;
+
+  it("opens a children's Introduction Class to a child beginner of its ages", () => {
+    expect(lockedReason(kidsIntro, kidsIntroType, child)).toBeUndefined();
+    expect(canViewMemberSession(kidsIntro, kidsIntroType, child)).toBe(true);
+  });
+
+  it("keeps it from adults, from children of other ages and from experienced children", () => {
+    const experienced = {
+      ...child,
+      trial: { ...trial, allowance: 1 as const, experience: "experienced" as const },
+    };
+    expect(lockedReason(kidsIntro, kidsIntroType, trialMember)).toBe("age_band");
+    expect(lockedReason(kidsIntro, kidsIntroType, { ...child, dateOfBirth: "2014-01-01" })).toBe(
+      "age_band",
+    );
+    expect(lockedReason(kidsIntro, kidsIntroType, experienced)).toBe("age_band");
+  });
+
+  it("still keeps children off the adult Introduction Class and off legacy intro sessions", () => {
+    expect(lockedReason(adultIntro, adultIntroType, child)).toBe("age_band");
+    expect(lockedReason(westIntro, kidsProgram, child)).toBe("age_band");
+  });
+});

@@ -185,12 +185,12 @@ export function programAdmits(
 }
 
 export const introductionClassAudienceError =
-  "An Introduction Class type must be open to every adult (16 and over)";
+  "An Introduction Class type must be open to every adult (16 and over) or be for children only (under 16)";
 
 /**
- * The trial path books an Introduction Class for any adult beginner (16+) without the type's own
- * age rules, so only a type open to all of them may be marked one; otherwise the marker would
- * quietly open a children's or narrower class to adults for free.
+ * The trial path books an adult Introduction Class for any adult beginner (16+) without the type's
+ * own age rules, so it must be open to all of them; otherwise the marker would quietly open a
+ * narrower class to adults for free. A children's one follows its own ages instead (below).
  */
 export function admitsEveryAdultBeginner(
   program: Readonly<{ ageRange?: ProgramAgeRange | null; ageBand?: string }>,
@@ -198,6 +198,25 @@ export function admitsEveryAdultBeginner(
   const range = program.ageRange ?? null;
   if (range !== null && (range.minAge > 16 || range.maxAge !== null)) return false;
   return program.ageBand !== "kids" && program.ageBand !== "teens";
+}
+
+/**
+ * A children's Introduction Class (operator 2026-10-21): every age it admits is under 16, so its
+ * trial bookings follow its own ages. A legacy type with no range answers by its kids or teens band.
+ */
+export function introductionClassForChildren(
+  program: Readonly<{ ageRange?: ProgramAgeRange | null; ageBand?: string }>,
+): boolean {
+  const range = program.ageRange ?? null;
+  if (range !== null) return range.maxAge !== null && range.maxAge < 16;
+  return program.ageBand === "kids" || program.ageBand === "teens";
+}
+
+/** Who an Introduction Class type may serve: every adult beginner, or children only, never a mix. */
+export function introductionClassAudienceAllowed(
+  program: Readonly<{ ageRange?: ProgramAgeRange | null; ageBand?: string }>,
+): boolean {
+  return admitsEveryAdultBeginner(program) || introductionClassForChildren(program);
 }
 
 function parseProgramAgeRange(input: unknown): Result<ProgramAgeRange | null, string> {

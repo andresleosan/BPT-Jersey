@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { getFirestore } from "firebase-admin/firestore";
-import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import {
   decideGraduationInputSchema,
@@ -12,7 +12,10 @@ import { promotionNoteSchema } from "@bpt-jersey/domain/levels";
 
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { levelCallableOptions } from "../levels/level-callables.js";
-import { createFirebaseLevelAuthorization } from "../levels/level-authorization.js";
+import {
+  createFirebaseLevelAuthorization,
+  type AuthorizedLevelActor,
+} from "../levels/level-authorization.js";
 import { createLevelCatalogStore, LevelStoreError } from "../levels/level-service.js";
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { createFirestoreMemberAccessService } from "../members/member-access-service.js";
@@ -25,25 +28,55 @@ const store = () => createLevelCatalogStore({ firestore: getFirestore() as never
 const noLongerPending = () =>
   new HttpsError("failed-precondition", "This graduation is no longer pending.");
 
-/** Spec D7: the board is for the office (owner, administrator). */
-export const listGraduationBoard = onCall(levelCallableOptions, async (request) => {
-  const actor = await createFirebaseLevelAuthorization().requireActor(request);
-  if (actor.role !== "owner" && actor.role !== "administrator")
-    throw new HttpsError("permission-denied", "The office reviews graduations.");
-  const now = new Date().toISOString();
-  const catalog = await store().listPublished(actor.academyId);
-  const board = await buildBoard(
-    createGraduationFirestore(getFirestore(), actor.academyId),
+/**
+ * Spec D7, amended by the operator 2026-10-21: the office and the mat read the board, so coaches
+ * see who is ready without opening each card; only the office decides (decideGraduation below).
+ */
+export function graduationBoardAccess(role: string): Readonly<{ canDecide: boolean }> | null {
+  if (role === "owner" || role === "administrator") return { canDecide: true };
+  if (role === "headCoach" || role === "coach") return { canDecide: false };
+  return null;
+}
+
+type RequireLevelActor = (request: CallableRequest<unknown>) => Promise<AuthorizedLevelActor>;
+const requireLevelActor: RequireLevelActor = (request) =>
+  createFirebaseLevelAuthorization().requireActor(request);
+
+async function academyBoard(academyId: string, canDecide: boolean): Promise<unknown> {
+  const catalog = await store().listPublished(academyId);
+  return buildBoard(
+    createGraduationFirestore(getFirestore(), academyId),
     catalog,
-    now,
-    true,
+    new Date().toISOString(),
+    canDecide,
   );
-  return graduationBoardSchema.parse(board);
-});
+}
+
+export async function listGraduationBoardHandler(
+  request: CallableRequest<unknown>,
+  requireActor: RequireLevelActor = requireLevelActor,
+  board: (academyId: string, canDecide: boolean) => Promise<unknown> = academyBoard,
+) {
+  const actor = await requireActor(request);
+  const access = graduationBoardAccess(actor.role);
+  if (access === null) throw new HttpsError("permission-denied", "The office reviews graduations.");
+  return graduationBoardSchema.parse(await board(actor.academyId, access.canDecide));
+}
+
+export const listGraduationBoard = onCall(levelCallableOptions, (request) =>
+  listGraduationBoardHandler(request),
+);
+
+export const decideGraduation = onCall(levelCallableOptions, (request) =>
+  decideGraduationHandler(request),
+);
 
 /** Spec D8, widened 2026-10-15: the office (owner or administrator) decides. Re-assessed here, so a stale board cannot promote twice. */
-export const decideGraduation = onCall(levelCallableOptions, async (request) => {
-  const actor = await createFirebaseLevelAuthorization().requireActor(request);
+export async function decideGraduationHandler(
+  request: CallableRequest<unknown>,
+  requireActor: RequireLevelActor = requireLevelActor,
+) {
+  const actor = await requireActor(request);
   if (actor.role !== "owner" && actor.role !== "administrator")
     throw new HttpsError("permission-denied", "Only the office decides graduations.");
   const parsed = decideGraduationInputSchema.safeParse(request.data);
@@ -133,7 +166,7 @@ export const decideGraduation = onCall(levelCallableOptions, async (request) => 
     })
     .catch(() => undefined); // the promotion is the record; a lost notice is not worth failing it
   return { ok: true };
-});
+}
 
 const noticesRequest = z.strictObject({ studentId: z.string().min(1).max(128) });
 

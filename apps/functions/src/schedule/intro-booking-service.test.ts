@@ -591,3 +591,95 @@ describe("intro booking transaction", () => {
     expect(store.documents(`academies/${academyId}/bookings`)).toHaveLength(0);
   });
 });
+
+describe("children's Introduction Classes (operator 2026-10-21)", () => {
+  const kidsIntroType = {
+    programId: "kids-intro",
+    academyId,
+    name: "Kids Free Trial",
+    introductionClass: true,
+    ageBand: "all",
+    ageRange: { minAge: 4, maxAge: 7 },
+    discipline: "gi",
+    level: "fundamentals",
+    active: true,
+    schemaVersion: "1",
+  };
+  const adultIntroType = {
+    ...kidsIntroType,
+    programId: "adult-intro",
+    name: "Trail Class",
+    ageRange: { minAge: 16, maxAge: null },
+  };
+  const kidsGiType = {
+    ...kidsIntroType,
+    programId: "kids-gi",
+    name: "Kids GI",
+    introductionClass: false,
+  };
+  const refused = {
+    code: "ineligible",
+    message: "Introduction Classes are for beginners of this class's ages",
+  };
+
+  /** A trial member of the given birth date and an intro session of the given type. */
+  function introOf(
+    program: Record<string, unknown>,
+    dateOfBirth: string,
+    accessMode?: "intro",
+  ) {
+    const store = seededIntroStore();
+    store.seed(`academies/${academyId}/students/student-1`, {
+      ...store.records.get(`academies/${academyId}/students/student-1`),
+      dateOfBirth,
+    });
+    store.seed(`academies/${academyId}/sessions/session-1`, {
+      ...store.records.get(`academies/${academyId}/sessions/session-1`)!,
+      accessMode,
+      programId: program.programId,
+    });
+    store.seed(`academies/${academyId}/programs/${String(program.programId)}`, program);
+    return store;
+  }
+
+  it("books a child beginner into a children's Introduction Class of their age", async () => {
+    const store = introOf(kidsIntroType, "2020-03-01");
+
+    const booking = await requestIntroBooking(store.db, { ...store.command, actorRole: "owner" });
+    expect(booking).toMatchObject({ status: "confirmed", source: { kind: "intro" } });
+    expect(store.documents(`academies/${academyId}/bookings`)).toHaveLength(1);
+  });
+
+  it.each([
+    ["an adult beginner on the children's type", kidsIntroType, "1990-01-01", undefined],
+    ["a child outside the type's ages", kidsIntroType, "2014-01-01", undefined],
+    ["a child on the adult (16+) Introduction Class", adultIntroType, "2020-03-01", undefined],
+    ["a child on a legacy intro session of a children's regular type", kidsGiType, "2020-03-01", "intro"],
+  ] as const)("refuses %s, writing nothing", async (_label, program, dateOfBirth, accessMode) => {
+    const store = introOf(program, dateOfBirth, accessMode);
+
+    await expect(
+      requestIntroBooking(store.db, { ...store.command, actorRole: "owner" }),
+    ).rejects.toMatchObject(refused);
+    expect(store.documents(`academies/${academyId}/bookings`)).toHaveLength(0);
+  });
+
+  it("refuses an experienced child, as it refuses an experienced adult", async () => {
+    const store = introOf(kidsIntroType, "2020-03-01");
+    seedTrial(store, "student-1", { experience: "experienced", allowance: 1 });
+
+    await expect(
+      requestIntroBooking(store.db, { ...store.command, actorRole: "owner" }),
+    ).rejects.toMatchObject(refused);
+    expect(store.documents(`academies/${academyId}/bookings`)).toHaveLength(0);
+  });
+
+  it("still books an adult beginner into the adult Introduction Class", async () => {
+    const store = introOf(adultIntroType, "1990-01-01");
+
+    await expect(requestIntroBooking(store.db, store.command)).resolves.toMatchObject({
+      status: "confirmed",
+      source: { kind: "intro" },
+    });
+  });
+});

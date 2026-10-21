@@ -4,6 +4,7 @@ import { hasAcceptedEnrolmentWaiver } from "../consents/enrolment-waiver-accepta
 import {
   ageOnDate,
   dateKeyInJersey,
+  introductionClassAdmitsAge,
   participantTypeOn,
 } from "@bpt-jersey/domain/schedule/member-calendar";
 import {
@@ -389,10 +390,13 @@ export async function requestIntroBooking(
     const trialDateKey = dateKeyInJersey(new Date(session.startAt));
     const trialAge =
       typeof student.dateOfBirth === "string" ? ageOnDate(student.dateOfBirth, trialDateKey) : 16;
-    // Introduction Classes are for adult (16+) beginners only; kids, teens and experienced adults
-    // use their free classes on regular classes of their age.
-    if (isIntroSession && (trialAge < 16 || trial.experience === "experienced")) {
-      return fail("ineligible", "Introduction Classes are for adult beginners", "intro");
+    // Introduction Classes are for beginners: adults (16+), or children of a children's type by its
+    // own ages (operator 2026-10-21). Everyone else uses free classes on regular classes of their age.
+    if (
+      isIntroSession &&
+      (trial.experience === "experienced" || !introductionClassAdmitsAge(program, trialAge))
+    ) {
+      return fail("ineligible", "Introduction Classes are for beginners of this class's ages", "intro");
     }
     if (!isIntroSession) {
       const dateKey = trialDateKey;

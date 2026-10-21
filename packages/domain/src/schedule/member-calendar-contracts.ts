@@ -5,7 +5,11 @@
  * Every day, label and deadline is computed in Europe/Jersey. Nothing here touches Firebase.
  */
 import { isIntroductionClass, isWithinBookingCutoff } from "./schedule-contracts";
-import { programAdmits } from "./classes-services-contracts";
+import {
+  introductionClassForChildren,
+  programAdmits,
+  type ProgramAgeRange,
+} from "./classes-services-contracts";
 import type {
   AttendanceRecord,
   BookingRecord,
@@ -306,7 +310,7 @@ function lockedReasonFor(
     return member.courseSessionIds?.includes(session.sessionId) ? undefined : "paid_period";
   if (member.trial && member.membershipId === null)
     return trialLockedReason(session, program, member, member.trial);
-  // Introduction Classes belong to the Free Trial of adult beginners; nobody else sees them.
+  // Introduction Classes belong to the Free Trial of beginners; nobody else sees them.
   if (isIntroductionClass(session, program)) return "age_band";
   if (member.membershipId === null) {
     // No plan: the classes of their age at their own centre, in grey.
@@ -391,11 +395,36 @@ export function participantTypeOn(dateOfBirth: string, dateKey: string): Partici
 }
 
 /**
+ * The ages an Introduction Class takes on a Free Trial: a children's type its own (operator
+ * 2026-10-21), every other one 16 and over, a legacy intro session on any type included. Only
+ * beginners book one; the callers check that.
+ */
+export function introductionClassAdmitsAge(
+  program:
+    | Readonly<{
+        name?: unknown;
+        introductionClass?: unknown;
+        ageRange?: ProgramAgeRange | null;
+        ageBand?: string;
+      }>
+    | null
+    | undefined,
+  age: number,
+): boolean {
+  if (!program || !isIntroductionClass({}, program) || !introductionClassForChildren(program))
+    return age >= 16;
+  const range = program.ageRange ?? null;
+  if (range !== null) return age >= range.minAge && (range.maxAge === null || age <= range.maxAge);
+  return bandForAge(age) === program.ageBand;
+}
+
+/**
  * Free Trial: an adult (16+) beginner's first free class is an Introduction Class; once they have
  * attended one, the second may be another Introduction Class or a regular class of their age at the
- * trial centre. Everyone else books regular classes of their age at the trial centre and never an
- * Introduction Class. At most `allowance` free classes may be held at once; once they are all
- * attended (or the 30 days are over) the classes stay in grey until a plan is bought.
+ * trial centre. Everyone else books regular classes of their age at the trial centre; a child
+ * beginner may also book a children's Introduction Class of their age. At most `allowance` free
+ * classes may be held at once; once they are all attended (or the 30 days are over) the classes stay
+ * in grey until a plan is bought.
  */
 function trialLockedReason(
   session: SessionRecord,
@@ -410,7 +439,8 @@ function trialLockedReason(
       : 16;
   const adultBeginner = age >= 16 && trial.experience !== "experienced";
   const intro = isIntroductionClass(session, program);
-  if (intro && !adultBeginner) return "age_band";
+  if (intro && (trial.experience === "experienced" || !introductionClassAdmitsAge(program, age)))
+    return "age_band";
   if (!intro) {
     // Same as the trial booking: a type with no age range of its own (Introduction Class,
     // seminars) is not a trial class.

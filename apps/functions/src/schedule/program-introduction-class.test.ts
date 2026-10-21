@@ -92,18 +92,18 @@ describe("Introduction Class marker on class types (2026-10-20 item 3)", () => {
     });
   });
 
-  it("refuses an explicit marker on a type some adult beginners may not join", async () => {
+  it("refuses an explicit marker on a type that mixes children and adults or takes only some adults", async () => {
     const store = createInMemoryScheduleStore();
     await expect(
       store.createProgramV2(academyId, {
-        name: "Kids Beginners",
-        abbreviation: "KID_BEG",
-        ageRange: { minAge: 4, maxAge: 7 },
+        name: "Teens and Adults",
+        abbreviation: "TEEN_AD",
+        ageRange: { minAge: 12, maxAge: 17 },
         introductionClass: true,
       }),
     ).rejects.toMatchObject(audienceRefusal);
     expect((await store.listPrograms(academyId)).map((type) => type.name)).not.toContain(
-      "Kids Beginners",
+      "Teens and Adults",
     );
 
     const intro = await store.createProgramV2(academyId, {
@@ -114,7 +114,24 @@ describe("Introduction Class marker on class types (2026-10-20 item 3)", () => {
     await expect(
       store.updateProgramV2(academyId, {
         programId: intro.programId,
-        ageRange: { minAge: 4, maxAge: 7 },
+        ageRange: { minAge: 18, maxAge: null },
+      }),
+    ).rejects.toMatchObject(audienceRefusal);
+  });
+
+  it("accepts a children's-only type as an Introduction Class (operator 2026-10-21)", async () => {
+    const store = createInMemoryScheduleStore();
+    const kids = await store.createProgramV2(academyId, {
+      name: "Kids Free Trial",
+      abbreviation: "KID_TRY",
+      ageRange: { minAge: 4, maxAge: 7 },
+      introductionClass: true,
+    });
+    expect(kids).toMatchObject({ introductionClass: true, ageRange: { minAge: 4, maxAge: 7 } });
+    await expect(
+      store.updateProgramV2(academyId, {
+        programId: kids.programId,
+        ageRange: { minAge: 4, maxAge: 17 },
       }),
     ).rejects.toMatchObject(audienceRefusal);
   });
@@ -138,13 +155,17 @@ describe("Introduction Class marker on class types (2026-10-20 item 3)", () => {
     await expect(save({ colour: "#D9D7FF" })).resolves.toMatchObject({
       program: { colour: "#D9D7FF", ageBand: "kids", ageRange: null, introductionClass: true },
     });
-    await expect(save({ ageRange: { minAge: 4, maxAge: 12 } })).rejects.toMatchObject(
+    await expect(save({ ageRange: { minAge: 4, maxAge: 17 } })).rejects.toMatchObject(
       audienceRefusal,
     );
+    // Children only is an Introduction Class audience too since 2026-10-21.
+    await expect(save({ ageRange: { minAge: 4, maxAge: 12 } })).resolves.toMatchObject({
+      program: { introductionClass: true, ageRange: { minAge: 4, maxAge: 12 } },
+    });
     await expect(
-      save({ introductionClass: false, ageRange: { minAge: 4, maxAge: 12 } }),
+      save({ introductionClass: false, ageRange: { minAge: 4, maxAge: 17 } }),
     ).resolves.toMatchObject({
-      program: { introductionClass: false, ageRange: { minAge: 4, maxAge: 12 } },
+      program: { introductionClass: false, ageRange: { minAge: 4, maxAge: 17 } },
     });
   });
 
@@ -160,7 +181,7 @@ describe("Introduction Class marker on class types (2026-10-20 item 3)", () => {
     await expect(
       createUpdateProgramHandler({ store })(
         request(
-          { programId: saved.program.programId, ageRange: { minAge: 4, maxAge: 7 } },
+          { programId: saved.program.programId, ageRange: { minAge: 4, maxAge: 17 } },
           "owner",
         ),
       ),

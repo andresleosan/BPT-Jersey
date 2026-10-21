@@ -881,7 +881,7 @@ async function executeBookingInTransaction(
   if (isIntroductionClass(sessionSnapshot.data() ?? {}, storedProgram))
     return invalid(
       "ineligible",
-      "Introduction Classes are for new adult members on their Free Trial",
+      "Introduction Classes are for new members on their Free Trial",
       "intro",
     );
   // Read the grant inside this transaction: a concurrent revocation forces a retry.
