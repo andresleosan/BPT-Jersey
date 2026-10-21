@@ -14,6 +14,10 @@ import {
   deriveStudentIdentityKeyId,
 } from "./member-directory-crypto.js";
 import { buildInitialMemberDirectoryControlPlane } from "./member-directory-state.js";
+import {
+  registerImportedMemberForOfficeHandler,
+  type MemberDirectoryCallableServices,
+} from "./member-directory-callables.js";
 
 const identitySecret = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8";
 const integritySecret = "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8";
@@ -1546,6 +1550,584 @@ describe("legacy sources closed by the global marker (2026-10-20 capacity prep, 
       service(harness.firestore).createAdminAdult({ actor: actor(), value: input(), now }),
     ).resolves.toMatchObject({ studentId: "student-new-1" });
     expect(legacyReads(harness.readPaths)).toEqual([]);
+  });
+
+  it("keeps writing v1 receipts for a legacy registration linked to a Regyfit record (2026-10-21 item 4)", async () => {
+    const recordPath = "academies/academy-1/regyfitMemberRecords/161";
+    const harness = fakeFirestore(
+      {
+        ...controlPlaneSeed(),
+        [memberPath]: legacyMember,
+        [recordPath]: {
+          academyId: "academy-1",
+          recordId: "161",
+          fullName: "Synthetic Adult",
+          birthDate: "2000-01-02",
+          gender: "unknown",
+          membershipState: "active",
+          appAccess: { password: { obsolete: "synthetic-marker" } },
+          graduation: {},
+          plan: {},
+          attendance: { records: [] },
+          payments: [],
+          capturedAt: now,
+          source: "regyfit-admin-capture",
+          schemaVersion: "1",
+        },
+      },
+      undefined,
+      { [memberPath]: "1:0", [recordPath]: "1:0" },
+    );
+    const linked = command();
+
+    await service(harness.firestore).registerLegacyMember({
+      ...linked,
+      recordId: "161",
+      review: { ...linked.review, recordVersion: "1:0" },
+    });
+    const receipts = [...harness.records]
+      .filter(([path]) => path.includes("/memberDirectoryWriteReceipts/"))
+      .map(([, receipt]) => receipt);
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0]).toMatchObject({ schemaVersion: "1" });
+    expect(receipts[0]).not.toHaveProperty("importedRequest");
+    expect(receipts[0]).not.toHaveProperty("receiptMac");
+  });
+});
+
+describe("verifiable imported receipts without personal data (2026-10-21 item 4)", () => {
+  const statePath = "academies/academy-1/memberDirectoryStates/current";
+  const recordPath = "academies/academy-1/regyfitMemberRecords/161";
+  const eliminated = {
+    globalLegacyReadEliminated: true,
+    rollbackProtocolVersion: "disabled",
+  } as Partial<MemberDirectoryState>;
+  const closed = { code: "unavailable", reason: "legacy_reads_eliminated" };
+  const requestId = "6f0c3a52-8d1e-4f7a-9b35-2c4d5e6f7a80";
+  const typedDateOfBirth = "1999-05-06";
+
+  function regyfitRecord(birthDate?: string) {
+    return {
+      academyId: "academy-1",
+      recordId: "161",
+      memberNumber: "#00001234",
+      fullName: "Synthetic Adult",
+      mobile: "+441534000001",
+      ...(birthDate === undefined ? {} : { birthDate }),
+      gender: "female",
+      membershipState: "active",
+      appAccess: { password: { obsolete: "synthetic-marker" } },
+      graduation: {},
+      plan: {},
+      attendance: { records: [] },
+      payments: [],
+      capturedAt: now,
+      source: "regyfit-admin-capture",
+      schemaVersion: "1",
+    };
+  }
+
+  /** What the office sends to registerImportedMemberForOffice. */
+  const registration = {
+    recordId: "161",
+    requestId,
+    dateOfBirth: "2000-01-02",
+    trainingCenter: "Town",
+    trainingTimePreferences: ["evening"],
+  };
+
+  /** The body the callable builds today from the record and the office's form. */
+  function composed(record: ReturnType<typeof regyfitRecord>, office = registration) {
+    return {
+      requestId: office.requestId,
+      fullName: record.fullName,
+      dateOfBirth: record.birthDate ?? office.dateOfBirth,
+      trainingCenter: office.trainingCenter,
+      trainingTimePreferences: office.trainingTimePreferences,
+      membershipNumber: record.memberNumber,
+      phoneNumber: record.mobile,
+      gender: record.gender,
+    };
+  }
+
+  /** `birthDate: null` is a record without one, so the office types it. */
+  async function registered(birthDate: string | null = "2000-01-02", seed = controlPlaneSeed()) {
+    const h = fakeFirestore(seed);
+    const record = regyfitRecord(birthDate ?? undefined);
+    h.records.set(recordPath, record);
+    const writer = service(h.firestore);
+    const office =
+      birthDate === null ? { ...registration, dateOfBirth: typedDateOfBirth } : registration;
+    const first = await writer.registerImportedMember({
+      actor: actor(),
+      value: composed(record, office),
+      now,
+      recordId: "161",
+    });
+    const receiptPath = [...h.records.keys()].find((path) =>
+      path.includes("/memberDirectoryWriteReceipts/"),
+    );
+    if (receiptPath === undefined) throw new Error("No receipt was written");
+    return { h, writer, first, office, receiptPath };
+  }
+
+  function cutOver(h: ReturnType<typeof fakeFirestore>) {
+    h.records.set(statePath, { ...canonicalState(), ...eliminated });
+    h.readPaths.length = 0;
+  }
+
+  /** The same receipt as the code before this change wrote it. */
+  function asVersionOne(receipt: MemberDirectoryDocumentData | undefined) {
+    const v1: Record<string, unknown> = { ...receipt, schemaVersion: "1" };
+    delete v1.importedRequest;
+    delete v1.receiptMac;
+    return v1;
+  }
+
+  const legacyReads = (paths: readonly string[]) =>
+    paths.filter((path) => path.includes("/members/") || path.includes("/regyfit"));
+  const receiptReads = (paths: readonly string[]) =>
+    paths.filter((path) => path.includes("/memberDirectoryWriteReceipts/"));
+
+  it("keeps no personal data in the v2 receipt of a new imported registration", async () => {
+    const { h, receiptPath } = await registered();
+    const receipt = h.records.get(receiptPath) ?? {};
+
+    expect(Object.keys(receipt).sort()).toEqual([
+      "academyId",
+      "actorId",
+      "auditEventId",
+      "createdAt",
+      "createdFamilyId",
+      "importedRequest",
+      "receiptId",
+      "receiptMac",
+      "requestMac",
+      "schemaVersion",
+      "stateRevisionAfter",
+      "stateRevisionBefore",
+      "status",
+      "studentId",
+    ]);
+    expect(receipt.schemaVersion).toBe("2");
+    expect(receipt.importedRequest).toEqual({ recordId: "161", dateOfBirthFrom: "record" });
+    expect(receipt.receiptMac).toMatch(/^[a-f0-9]{64}$/u);
+    const readable = JSON.stringify({ ...receipt, receiptId: "", requestMac: "", receiptMac: "" });
+    for (const personal of ["Synthetic Adult", "2000-01-02", "1234", "+441534000001", "female"]) {
+      expect(readable).not.toContain(personal);
+    }
+  });
+
+  it("notes that the office typed the date of birth when the record had none", async () => {
+    const { h, receiptPath } = await registered(null);
+
+    expect(h.records.get(receiptPath)?.importedRequest).toEqual({
+      recordId: "161",
+      dateOfBirthFrom: "request",
+    });
+    expect(JSON.stringify(h.records.get(receiptPath))).not.toContain(typedDateOfBirth);
+  });
+
+  it("answers an exact retry after the marker from the receipt alone, reading no legacy source", async () => {
+    const { h, writer, first } = await registered();
+    cutOver(h);
+    const before = new Map(h.records);
+
+    await expect(writer.replayImportedMember({ actor: actor(), registration })).resolves.toEqual(
+      first,
+    );
+    expect(legacyReads(h.readPaths)).toEqual([]);
+    expect(h.records).toEqual(before);
+  });
+
+  it("binds the typed date of birth only when the office typed it", async () => {
+    const typed = await registered(null);
+    cutOver(typed.h);
+    await expect(
+      typed.writer.replayImportedMember({ actor: actor(), registration: typed.office }),
+    ).resolves.toEqual(typed.first);
+    await expect(
+      typed.writer.replayImportedMember({
+        actor: actor(),
+        registration: { ...typed.office, dateOfBirth: "1999-05-07" },
+      }),
+    ).rejects.toMatchObject({ code: "replay" });
+
+    // The record's date was registered and the typed one ignored; a retry ignores it again.
+    const fromRecord = await registered("2000-01-02");
+    cutOver(fromRecord.h);
+    await expect(
+      fromRecord.writer.replayImportedMember({
+        actor: actor(),
+        registration: { ...registration, dateOfBirth: "2001-01-01" },
+      }),
+    ).resolves.toEqual(fromRecord.first);
+  });
+
+  it.each([
+    ["another centre", { trainingCenter: "West" }],
+    ["another training time", { trainingTimePreferences: ["morning"] }],
+    ["an added training time", { trainingTimePreferences: ["evening", "morning"] }],
+    ["another record", { recordId: "162" }],
+  ])("refuses a retry after the marker with %s, writing nothing", async (_label, change) => {
+    const { h, writer } = await registered();
+    cutOver(h);
+    const before = new Map(h.records);
+
+    await expect(
+      writer.replayImportedMember({ actor: actor(), registration: { ...registration, ...change } }),
+    ).rejects.toMatchObject({ code: "replay" });
+    expect(legacyReads(h.readPaths)).toEqual([]);
+    expect(h.records).toEqual(before);
+  });
+
+  it("keeps a receipt written before this change closed after the marker, without rebuilding it", async () => {
+    const { h, writer, receiptPath } = await registered();
+    h.records.set(receiptPath, asVersionOne(h.records.get(receiptPath)));
+    cutOver(h);
+    const before = new Map(h.records);
+
+    await expect(
+      writer.replayImportedMember({ actor: actor(), registration }),
+    ).rejects.toMatchObject(closed);
+    expect(legacyReads(h.readPaths)).toEqual([]);
+    expect(h.records).toEqual(before);
+  });
+
+  it("refuses a pre-change receipt dressed up as v2 without a MAC made with the integrity secret", async () => {
+    const { h, writer, receiptPath } = await registered();
+    h.records.set(receiptPath, {
+      ...asVersionOne(h.records.get(receiptPath)),
+      schemaVersion: "2",
+      importedRequest: { recordId: "161", dateOfBirthFrom: "record" },
+      receiptMac: "a".repeat(64),
+    });
+    cutOver(h);
+    const before = new Map(h.records);
+
+    await expect(
+      writer.replayImportedMember({ actor: actor(), registration }),
+    ).rejects.toMatchObject({ code: "replay" });
+    expect(h.records).toEqual(before);
+  });
+
+  const tampering: ReadonlyArray<
+    readonly [string, (receipt: Record<string, unknown>) => Record<string, unknown>]
+  > = [
+    ["student", (r) => ({ ...r, studentId: "student-existing-1" })],
+    ["audit event", (r) => ({ ...r, auditEventId: "audit-other-1" })],
+    ["office family", (r) => ({ ...r, createdFamilyId: "office-student-existing-1" })],
+    ["revision before", (r) => ({ ...r, stateRevisionBefore: Number(r.stateRevisionBefore) + 1 })],
+    ["revision after", (r) => ({ ...r, stateRevisionAfter: Number(r.stateRevisionAfter) + 1 })],
+    ["creation time", (r) => ({ ...r, createdAt: "2026-09-03T20:02:00.000Z" })],
+    ["body MAC", (r) => ({ ...r, requestMac: "f".repeat(64) })],
+    ["record", (r) => ({ ...r, importedRequest: { recordId: "162", dateOfBirthFrom: "record" } })],
+    [
+      "date-of-birth source",
+      (r) => ({ ...r, importedRequest: { recordId: "161", dateOfBirthFrom: "request" } }),
+    ],
+    ["receipt MAC", (r) => ({ ...r, receiptMac: "a".repeat(64) })],
+    ["academy", (r) => ({ ...r, academyId: "academy-2" })],
+    ["actor", (r) => ({ ...r, actorId: "admin-2" })],
+    ["receipt ID", (r) => ({ ...r, receiptId: `write-${"b".repeat(64)}` })],
+    ["field list (one added)", (r) => ({ ...r, note: "synthetic" })],
+    [
+      "field list (MAC removed)",
+      (r) => {
+        const copy = { ...r };
+        delete copy.receiptMac;
+        return copy;
+      },
+    ],
+    ["version", (r) => ({ ...r, schemaVersion: "3" })],
+  ];
+  it.each(tampering)(
+    "refuses a v2 receipt whose %s was changed, reading no legacy source and writing nothing",
+    async (_label, tamper) => {
+      const { h, writer, receiptPath } = await registered("2000-01-02", existingMemberSeed());
+      h.records.set(receiptPath, tamper({ ...h.records.get(receiptPath) }));
+      cutOver(h);
+      const before = new Map(h.records);
+
+      // This message is the receipt's own check; a broken result alone would say "…is invalid".
+      await expect(
+        writer.replayImportedMember({ actor: actor(), registration }),
+      ).rejects.toMatchObject({ code: "replay", message: "Divergent member write replay" });
+      expect(legacyReads(h.readPaths)).toEqual([]);
+      expect(h.records).toEqual(before);
+    },
+  );
+
+  it("answers only the office user who registered, and nothing for a key never used", async () => {
+    const seed = {
+      ...controlPlaneSeed(),
+      "academies/academy-1/users/admin-2": provisionedAdminDocument({
+        userId: "admin-2",
+        displayName: "Synthetic Administrator",
+        email: "admin-2@example.test",
+        adminRole: "administrator",
+      }),
+    };
+    const { h, writer } = await registered("2000-01-02", seed);
+    cutOver(h);
+    const before = new Map(h.records);
+
+    await expect(
+      writer.replayImportedMember({
+        actor: { ...actor(), actorId: "admin-2", role: "administrator" },
+        registration,
+      }),
+    ).rejects.toMatchObject(closed);
+    await expect(
+      writer.replayImportedMember({
+        actor: actor(),
+        registration: { ...registration, requestId: "0d5b6c7e-1f2a-4b3c-8d4e-5f6a7b8c9d0e" },
+      }),
+    ).rejects.toMatchObject(closed);
+    expect(h.records).toEqual(before);
+  });
+
+  it.each([
+    ["an inactive actor", { active: false }],
+    ["an actor without App Check", { appCheckVerified: false }],
+    ["a coach", { role: "coach" as const }],
+    ["a head coach", { role: "headCoach" as const }],
+    ["an actor of another academy", { academyId: "academy-2" }],
+  ])("refuses %s before reading any receipt", async (_label, change) => {
+    const { h, writer } = await registered();
+    cutOver(h);
+
+    await expect(
+      writer.replayImportedMember({ actor: { ...actor(), ...change }, registration }),
+    ).rejects.toMatchObject({ code: "unauthorized" });
+    expect(receiptReads(h.readPaths)).toEqual([]);
+  });
+
+  it("refuses an actor revoked or role-locked since registering, before reading the receipt", async () => {
+    for (const [path, document] of [
+      ["academies/academy-1/users/owner-1", provisionedAdminDocument({ active: false })],
+      ["academies/academy-1/adminRoleLocks/owner-1", { operationId: "role-change-1" }],
+    ] as const) {
+      const { h, writer } = await registered();
+      cutOver(h);
+      h.records.set(path, document);
+
+      await expect(
+        writer.replayImportedMember({ actor: actor(), registration }),
+      ).rejects.toMatchObject({ code: "unauthorized" });
+      expect(receiptReads(h.readPaths)).toEqual([]);
+    }
+  });
+
+  it("is no way around the registration before the marker", async () => {
+    const { h, writer } = await registered();
+    h.readPaths.length = 0;
+
+    const refusal = writer.replayImportedMember({ actor: actor(), registration });
+    await expect(refusal).rejects.toMatchObject({ code: "unavailable" });
+    await expect(refusal).rejects.not.toHaveProperty("reason", "legacy_reads_eliminated");
+    expect(receiptReads(h.readPaths)).toEqual([]);
+  });
+
+  it("answers concurrent retries after the marker with the one original result, writing nothing", async () => {
+    const { h, writer, first } = await registered();
+    cutOver(h);
+    const before = new Map(h.records);
+
+    const answers = await Promise.all(
+      [1, 2, 3].map(() => writer.replayImportedMember({ actor: actor(), registration })),
+    );
+    expect(answers).toEqual([first, first, first]);
+    expect(h.records).toEqual(before);
+  });
+
+  it("closes a registration that races the marker, then has nothing to answer its retry with", async () => {
+    let raced = false;
+    const record = regyfitRecord("2000-01-02");
+    const harness = fakeFirestore({ ...controlPlaneSeed(), [recordPath]: record }, () => {
+      if (raced) return false;
+      // T097 commits first: this attempt read the open state, so its commit fails and it reruns.
+      raced = true;
+      harness.records.set(statePath, { ...canonicalState(), ...eliminated });
+      return true;
+    });
+    const retrying: MemberDirectoryFirestore = {
+      ...harness.firestore,
+      runTransaction: async <T>(
+        callback: (transaction: MemberDirectoryTransaction) => Promise<T>,
+      ): Promise<T> => {
+        try {
+          return await harness.firestore.runTransaction(callback);
+        } catch (error) {
+          if ((error as Error).message !== "synthetic commit failure") throw error;
+          return harness.firestore.runTransaction(callback);
+        }
+      },
+    };
+    const writer = service(retrying);
+
+    await expect(
+      writer.registerImportedMember({
+        actor: actor(),
+        value: composed(record),
+        now,
+        recordId: "161",
+      }),
+    ).rejects.toMatchObject(closed);
+    await expect(
+      writer.replayImportedMember({ actor: actor(), registration }),
+    ).rejects.toMatchObject(closed);
+    expect(raced).toBe(true);
+    expect(harness.committedWritePaths).toEqual([]);
+  });
+
+  it("has nothing to answer after the marker for a request the office link answered", async () => {
+    const { h, writer, first } = await registered();
+    const second = { ...registration, requestId: "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d" };
+    await expect(
+      writer.registerImportedMember({
+        actor: actor(),
+        value: composed(regyfitRecord("2000-01-02"), second),
+        now,
+        recordId: "161",
+      }),
+    ).resolves.toEqual(first);
+    cutOver(h);
+
+    await expect(
+      writer.replayImportedMember({ actor: actor(), registration: second }),
+    ).rejects.toMatchObject(closed);
+    await expect(writer.replayImportedMember({ actor: actor(), registration })).resolves.toEqual(
+      first,
+    );
+  });
+
+  it("answers the writer's own post-marker retry from a v2 receipt only", async () => {
+    // The callable read the record just before the marker and its write ran just after.
+    const { h, writer, first, receiptPath } = await registered();
+    const body = {
+      actor: actor(),
+      value: composed(regyfitRecord("2000-01-02")),
+      now,
+      recordId: "161",
+    };
+    cutOver(h);
+    await expect(writer.registerImportedMember(body)).resolves.toEqual(first);
+
+    h.records.set(receiptPath, asVersionOne(h.records.get(receiptPath)));
+    h.readPaths.length = 0;
+    const before = new Map(h.records);
+    await expect(writer.registerImportedMember(body)).rejects.toMatchObject(closed);
+    expect(legacyReads(h.readPaths)).toEqual([]);
+    expect(h.records).toEqual(before);
+  });
+
+  it.each([
+    ["name", { fullName: "Synthetic Adult Recaptured" }],
+    ["mobile", { phoneNumber: "+441534000009" }],
+    ["gender", { gender: "male" }],
+    ["member number", { membershipNumber: "#00001235" }],
+  ])(
+    "refuses the writer's post-marker retry when the record's %s read before the marker changed",
+    async (_label, change) => {
+      // Same office request, so the receipt MAC matches; only the body MAC can tell them apart.
+      const { h, writer } = await registered();
+      cutOver(h);
+      const before = new Map(h.records);
+
+      await expect(
+        writer.registerImportedMember({
+          actor: actor(),
+          value: { ...composed(regyfitRecord("2000-01-02")), ...change },
+          now,
+          recordId: "161",
+        }),
+      ).rejects.toMatchObject({ code: "replay", message: "Divergent member write replay" });
+      expect(legacyReads(h.readPaths)).toEqual([]);
+      expect(h.records).toEqual(before);
+    },
+  );
+
+  describe("through the real callable, writer and an in-memory store", () => {
+    function call(h: ReturnType<typeof fakeFirestore>, data: unknown, role = "owner") {
+      const services: MemberDirectoryCallableServices = {
+        writer: service(h.firestore),
+        reader: {} as MemberDirectoryCallableServices["reader"],
+        isActorActive: async () => true,
+        now: () => now,
+      };
+      return registerImportedMemberForOfficeHandler(
+        {
+          data,
+          auth: {
+            uid: "owner-1",
+            token: { academyId: "academy-1", role, auth_time: 1_800_000_000 },
+          },
+          app: { appId: "web-app-1" },
+        } as never,
+        services,
+        h.firestore as never,
+      );
+    }
+
+    async function registeredThroughCallable() {
+      const h = fakeFirestore();
+      h.records.set(recordPath, regyfitRecord("2000-01-02"));
+      const first = await call(h, registration);
+      const receiptPath = [...h.records.keys()].find((path) =>
+        path.includes("/memberDirectoryWriteReceipts/"),
+      );
+      if (receiptPath === undefined) throw new Error("No receipt was written");
+      return { h, first, receiptPath };
+    }
+
+    it("answers a lost response's retry after the marker without reading Regyfit", async () => {
+      const { h, first, receiptPath } = await registeredThroughCallable();
+      expect(h.records.get(receiptPath)).toMatchObject({
+        schemaVersion: "2",
+        importedRequest: { recordId: "161", dateOfBirthFrom: "record" },
+      });
+      cutOver(h);
+      const before = new Map(h.records);
+
+      await expect(call(h, registration)).resolves.toEqual(first);
+      expect(legacyReads(h.readPaths)).toEqual([]);
+      expect(h.records).toEqual(before);
+    });
+
+    it("keeps a registration made before this change closed after the marker", async () => {
+      const { h, receiptPath } = await registeredThroughCallable();
+      h.records.set(receiptPath, asVersionOne(h.records.get(receiptPath)));
+      cutOver(h);
+
+      await expect(call(h, registration)).rejects.toMatchObject({
+        code: "failed-precondition",
+        details: { reason: "legacy-reads-eliminated" },
+      });
+      expect(legacyReads(h.readPaths)).toEqual([]);
+    });
+
+    it("refuses a changed retry after the marker as a rejected replay, not as an answer", async () => {
+      const { h } = await registeredThroughCallable();
+      cutOver(h);
+      const before = new Map(h.records);
+
+      await expect(call(h, { ...registration, trainingCenter: "West" })).rejects.toMatchObject({
+        code: "failed-precondition",
+        message: "Member request replay was rejected",
+      });
+      expect(h.records).toEqual(before);
+    });
+
+    it("refuses a coach before any read", async () => {
+      const { h } = await registeredThroughCallable();
+      cutOver(h);
+
+      await expect(call(h, registration, "coach")).rejects.toMatchObject({
+        code: "permission-denied",
+      });
+      expect(h.readPaths).toEqual([]);
+    });
   });
 });
 

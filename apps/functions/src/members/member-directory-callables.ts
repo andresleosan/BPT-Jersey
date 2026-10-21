@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { getApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { warn } from "firebase-functions/logger";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
@@ -359,8 +359,7 @@ export const revealRegyfitRecordField = onCall(memberDirectoryCallableOptions, a
  * A Regyfit record and its two links are legacy sources: read with the state that allows them, in
  * one transaction (see readWithDirectoryState), and refused unread once legacy reads are eliminated.
  */
-async function importedMemberRecord(academyId: string, recordId: string) {
-  const firestore = getFirestore();
+async function importedMemberRecord(firestore: Firestore, academyId: string, recordId: string) {
   const root = `academies/${academyId}`;
   const [snapshot, ...links] = await readWithDirectoryState(
     firestore,
@@ -397,6 +396,7 @@ export const resolveMemberSubscriptionProfile = onCall(
     if (!input.success) throw new HttpsError("invalid-argument", "Invalid member profile.");
     try {
       const { record: source, links } = await importedMemberRecord(
+        getFirestore(),
         actor.academyId,
         input.data.recordId,
       );
@@ -444,37 +444,65 @@ export const resolveMemberSubscriptionProfile = onCall(
   },
 );
 
+export async function registerImportedMemberForOfficeHandler(
+  request: CallableRequest<unknown>,
+  services: MemberDirectoryCallableServices,
+  firestore: Firestore,
+) {
+  const actor = await requireCanonicalMemberDirectoryActor(request, services.isActorActive);
+  const input = officeMemberRegistrationSchema.safeParse(request.data);
+  if (!input.success)
+    throw new HttpsError("invalid-argument", "Choose the member's date of birth and centre.");
+  const writer = services.writer as OfficeMemberDirectoryService;
+  try {
+    const imported = await importedMemberRecord(
+      firestore,
+      actor.academyId,
+      input.data.recordId,
+    ).catch((error: unknown) => {
+      if (
+        error instanceof CanonicalMemberDirectoryError &&
+        error.reason === "legacy_reads_eliminated"
+      )
+        return null;
+      throw error;
+    });
+    // The record is closed for good: only a retry its v2 receipt proves is answered (2026-10-21).
+    if (imported === null)
+      return await writer.replayImportedMember({ actor, registration: input.data });
+    const source = imported.record;
+    const value = {
+      requestId: input.data.requestId,
+      fullName: source.fullName,
+      dateOfBirth: source.birthDate ?? input.data.dateOfBirth,
+      trainingCenter: input.data.trainingCenter,
+      trainingTimePreferences: input.data.trainingTimePreferences,
+      ...(source.memberNumber ? { membershipNumber: source.memberNumber } : {}),
+      ...(source.mobile ? { phoneNumber: source.mobile } : {}),
+      gender: source.gender,
+    };
+    // ponytail: not awaited, as before 2026-10-21, so its refusals reach the screen unchanged. Awaiting
+    // maps them, and today's capacity refusal would then read as a subscription error. Capacity work.
+    return writer.registerImportedMember({
+      actor,
+      value,
+      recordId: source.recordId,
+      now: services.now(),
+    });
+  } catch (error) {
+    return mapMemberDirectoryError(error);
+  }
+}
+
 export const registerImportedMemberForOffice = onCall(
   {
     ...browserAdminCallableOptions,
     secrets: [identityKeySecret, migrationIntegritySecret, directoryCursorSecret],
   },
-  async (request) => {
-    const services = defaultMemberDirectoryCallableServices();
-    const actor = await requireCanonicalMemberDirectoryActor(request, services.isActorActive);
-    const input = officeMemberRegistrationSchema.safeParse(request.data);
-    if (!input.success)
-      throw new HttpsError("invalid-argument", "Choose the member's date of birth and centre.");
-    try {
-      const { record: source } = await importedMemberRecord(actor.academyId, input.data.recordId);
-      const value = {
-        requestId: input.data.requestId,
-        fullName: source.fullName,
-        dateOfBirth: source.birthDate ?? input.data.dateOfBirth,
-        trainingCenter: input.data.trainingCenter,
-        trainingTimePreferences: input.data.trainingTimePreferences,
-        ...(source.memberNumber ? { membershipNumber: source.memberNumber } : {}),
-        ...(source.mobile ? { phoneNumber: source.mobile } : {}),
-        gender: source.gender,
-      };
-      return (services.writer as OfficeMemberDirectoryService).registerImportedMember({
-        actor,
-        value,
-        recordId: source.recordId,
-        now: services.now(),
-      });
-    } catch (error) {
-      return mapMemberDirectoryError(error);
-    }
-  },
+  async (request) =>
+    registerImportedMemberForOfficeHandler(
+      request,
+      defaultMemberDirectoryCallableServices(),
+      getFirestore(),
+    ),
 );

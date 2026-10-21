@@ -34,6 +34,7 @@ import {
 import { parseFamilyRecord, type FamilyRecord } from "@bpt-jersey/domain/families";
 import { z } from "zod";
 import { parseStoredRegyfitMemberRecord } from "@bpt-jersey/domain/members/regyfit-records";
+import { officeMemberRegistrationSchema } from "@bpt-jersey/domain/memberships/admin";
 
 import { appendAuditEventInTransaction, matchesAuditEventReplay } from "../audit/audit-writer.js";
 import {
@@ -130,23 +131,32 @@ export const legacyMigrationErrorMessages = Object.freeze({
  */
 export function assertLegacyReadsOpen(state: unknown): void {
   const access = legacyReadState(state);
-  if (access === "eliminated") {
-    throw new CanonicalMemberDirectoryError(
-      "unavailable",
-      legacyRegistrationClosedMessage,
-      "legacy_reads_eliminated",
-    );
-  }
+  if (access === "eliminated") throw legacyReadsEliminated();
   if (access === "unknown") {
     throw new CanonicalMemberDirectoryError("unavailable", "Member directory state is unavailable");
   }
 }
+
+function legacyReadsEliminated(): CanonicalMemberDirectoryError {
+  return new CanonicalMemberDirectoryError(
+    "unavailable",
+    legacyRegistrationClosedMessage,
+    "legacy_reads_eliminated",
+  );
+}
+
+/** The office's retry of an imported registration once the Regyfit record can no longer be read. */
+export type OfficeImportedReplayCommand = Readonly<{
+  actor: CanonicalMemberDirectoryActor;
+  registration: unknown;
+}>;
 
 export type OfficeMemberDirectoryService = CanonicalMemberDirectoryService &
   Readonly<{
     registerImportedMember: (
       command: OfficeImportedMemberCommand,
     ) => Promise<CreateAdminAdultResult>;
+    replayImportedMember: (command: OfficeImportedReplayCommand) => Promise<CreateAdminAdultResult>;
     registerLegacyMember: (
       command: LegacyMemberRegistrationCommand,
     ) => Promise<CreateAdminAdultResult>;
@@ -232,7 +242,7 @@ const safeIdentifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const utcMillisecondPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 const macPattern = /^[a-f0-9]{64}$/u;
 
-const writeReceiptSchema = z.strictObject({
+const writeReceiptShape = {
   receiptId: z.string().regex(/^write-[a-f0-9]{64}$/u),
   academyId: z.string().regex(safeIdentifierPattern),
   actorId: z.string().regex(safeIdentifierPattern),
@@ -244,10 +254,34 @@ const writeReceiptSchema = z.strictObject({
   stateRevisionAfter: z.number().int().positive().safe(),
   status: z.literal("completed"),
   createdAt: z.string().regex(utcMillisecondPattern),
-  schemaVersion: z.literal("1"),
+};
+const writeReceiptSchema = z.strictObject({ ...writeReceiptShape, schemaVersion: z.literal("1") });
+
+/**
+ * Written by imported registrations from 2026-10-21 on, and the only receipt that answers their
+ * retry once the Regyfit record can no longer be read. It keeps no personal data: which record, where
+ * the date of birth came from, and a MAC over the whole receipt and the office's request.
+ */
+const importedWriteReceiptSchema = z.strictObject({
+  ...writeReceiptShape,
+  schemaVersion: z.literal("2"),
+  importedRequest: z.strictObject({
+    recordId: z.string().regex(/^[0-9]{1,12}$/u),
+    dateOfBirthFrom: z.enum(["record", "request"]),
+  }),
+  receiptMac: z.string().regex(macPattern),
 });
 
 type MemberDirectoryWriteReceipt = Readonly<z.infer<typeof writeReceiptSchema>>;
+type ImportedWriteReceipt = Readonly<z.infer<typeof importedWriteReceiptSchema>>;
+/** What the office sends for an imported registration (officeMemberRegistrationSchema). */
+type ImportedOfficeRequest = Readonly<{
+  recordId: string;
+  requestId: string;
+  dateOfBirth: string;
+  trainingCenter: string;
+  trainingTimePreferences: readonly string[];
+}>;
 
 export class CanonicalMemberDirectoryError extends Error {
   public readonly code: "unauthorized" | "invalid" | "unavailable" | "conflict" | "replay";
@@ -406,6 +440,75 @@ function requestMac(
     ],
     secretMaterial,
   });
+}
+
+/**
+ * Binds a v2 receipt to the caller's academy and actor, to every stored field (version, request MAC
+ * and result included) and to what the office asked for. The typed date of birth is part of that
+ * request only when the record had none: when it had one, that date was registered and the typed one
+ * ignored.
+ */
+function importedReceiptMac(
+  academyId: string,
+  actorId: string,
+  receipt: Readonly<Record<string, unknown>>,
+  request: ImportedOfficeRequest,
+  dateOfBirthFrom: "record" | "request",
+  secretMaterial: string,
+): string {
+  return createMemberDirectoryIntegrityMac({
+    domain: "bpt-member-directory-imported-write-receipt-v2",
+    values: [
+      academyId,
+      actorId,
+      canonicalizeMemberDirectoryValue(receipt),
+      canonicalizeMemberDirectoryValue({
+        recordId: request.recordId,
+        requestId: request.requestId,
+        trainingCenter: request.trainingCenter,
+        trainingTimePreferences: [...request.trainingTimePreferences],
+        ...(dateOfBirthFrom === "request" ? { dateOfBirth: request.dateOfBirth } : {}),
+      }),
+    ],
+    secretMaterial,
+  });
+}
+
+/**
+ * A v2 receipt answers only the academy, office user and request that wrote it. A v1 receipt holds
+ * nothing to check a retry against once the record is closed, so it is never rebuilt or trusted on
+ * its key alone: the path stays closed for it.
+ */
+function verifiedImportedReceipt(
+  receiptValue: unknown,
+  expected: Readonly<{ receiptId: string; academyId: string; actorId: string }>,
+  request: ImportedOfficeRequest,
+  secretMaterial: string,
+): ImportedWriteReceipt {
+  if (writeReceiptSchema.safeParse(receiptValue).success) throw legacyReadsEliminated();
+  const parsed = importedWriteReceiptSchema.safeParse(receiptValue);
+  if (
+    !parsed.success ||
+    parsed.data.receiptId !== expected.receiptId ||
+    parsed.data.academyId !== expected.academyId ||
+    parsed.data.actorId !== expected.actorId ||
+    parsed.data.importedRequest.recordId !== request.recordId
+  ) {
+    throw new CanonicalMemberDirectoryError("replay", "Divergent member write replay");
+  }
+  const { receiptMac, ...signed } = parsed.data;
+  const expectedMac = importedReceiptMac(
+    expected.academyId,
+    expected.actorId,
+    signed,
+    request,
+    signed.importedRequest.dateOfBirthFrom,
+    secretMaterial,
+  );
+  if (!constantTimeMacEquals(receiptMac, expectedMac)) {
+    throw new CanonicalMemberDirectoryError("replay", "Divergent member write replay");
+  }
+  return parsed.data;
 }
 
 function updateRequestMac(
@@ -820,29 +923,50 @@ async function resolveReplay(
   expectedAcademyId: string,
   expectedActorId: string,
   expectedRequestMac: string,
+  /** Present on an imported registration, whose receipt may be a v2 one. */
+  importedRequest?: ImportedOfficeRequest,
 ): Promise<CreateAdminAdultResult> {
-  const receipt = writeReceiptSchema.safeParse(receiptValue);
+  const v1 = writeReceiptSchema.safeParse(receiptValue);
+  const receipt = v1.success
+    ? v1.data
+    : importedRequest === undefined
+      ? undefined
+      : verifiedImportedReceipt(
+          receiptValue,
+          { receiptId: expectedReceiptId, academyId: expectedAcademyId, actorId: expectedActorId },
+          importedRequest,
+          dependencies.integritySecretMaterial,
+        );
   if (
-    !receipt.success ||
-    receipt.data.receiptId !== expectedReceiptId ||
-    receipt.data.academyId !== expectedAcademyId ||
-    receipt.data.actorId !== expectedActorId ||
-    !constantTimeMacEquals(receipt.data.requestMac, expectedRequestMac)
+    receipt === undefined ||
+    receipt.receiptId !== expectedReceiptId ||
+    receipt.academyId !== expectedAcademyId ||
+    receipt.actorId !== expectedActorId ||
+    !constantTimeMacEquals(receipt.requestMac, expectedRequestMac)
   ) {
     throw new CanonicalMemberDirectoryError("replay", "Divergent member write replay");
   }
+  return completedCreateReplay(transaction, dependencies, receipt);
+}
+
+/** The student, profile, audit event and reservations a completed create receipt points to. */
+async function completedCreateReplay(
+  transaction: MemberDirectoryTransaction,
+  dependencies: CanonicalMemberDirectoryDependencies,
+  receipt: MemberDirectoryWriteReceipt | ImportedWriteReceipt,
+): Promise<CreateAdminAdultResult> {
   const studentSnapshot = await transaction.get(
-    dependencies.firestore.doc(studentPath(receipt.data.academyId, receipt.data.studentId)),
+    dependencies.firestore.doc(studentPath(receipt.academyId, receipt.studentId)),
   );
   const profileSnapshot = await transaction.get(
-    dependencies.firestore.doc(profilePath(receipt.data.academyId, receipt.data.studentId)),
+    dependencies.firestore.doc(profilePath(receipt.academyId, receipt.studentId)),
   );
   const auditSnapshot = await transaction.get(
-    dependencies.firestore.doc(auditPath(receipt.data.academyId, receipt.data.auditEventId)),
+    dependencies.firestore.doc(auditPath(receipt.academyId, receipt.auditEventId)),
   );
   const student = parseStudentProfileAt(
     documentData(studentSnapshot, "Replay student"),
-    receipt.data.createdAt.slice(0, 10),
+    receipt.createdAt.slice(0, 10),
   );
   const profile = studentAdminProfileSchema.safeParse(
     documentData(profileSnapshot, "Replay admin profile"),
@@ -850,7 +974,7 @@ async function resolveReplay(
   const expectedKeys = profile.success ? buildKeys(profile.data, dependencies) : [];
   const keySnapshots = await Promise.all(
     expectedKeys.map((key) =>
-      transaction.get(dependencies.firestore.doc(keyPath(receipt.data.academyId, key.keyId))),
+      transaction.get(dependencies.firestore.doc(keyPath(receipt.academyId, key.keyId))),
     ),
   );
   const keysAreCurrent = expectedKeys.every((expectedKey, index) => {
@@ -869,29 +993,29 @@ async function resolveReplay(
     );
   });
   const auditIsCurrent =
-    auditSnapshot.id === receipt.data.auditEventId &&
+    auditSnapshot.id === receipt.auditEventId &&
     auditSnapshot.exists &&
-    matchesAuditEventReplay(auditSnapshot.data(), receipt.data.auditEventId, {
-      academyId: receipt.data.academyId,
-      actorId: receipt.data.actorId,
+    matchesAuditEventReplay(auditSnapshot.data(), receipt.auditEventId, {
+      academyId: receipt.academyId,
+      actorId: receipt.actorId,
       action: "member.created",
-      targetRef: studentPath(receipt.data.academyId, receipt.data.studentId),
+      targetRef: studentPath(receipt.academyId, receipt.studentId),
       purpose: "member-record-maintenance",
-      correlationId: receipt.data.receiptId,
+      correlationId: receipt.receiptId,
     } as unknown as AuditEventDraft);
   if (
     !student.ok ||
     !profile.success ||
     !auditIsCurrent ||
-    student.value.studentId !== receipt.data.studentId ||
-    student.value.academyId !== receipt.data.academyId ||
-    profile.data.studentId !== receipt.data.studentId ||
-    profile.data.academyId !== receipt.data.academyId ||
+    student.value.studentId !== receipt.studentId ||
+    student.value.academyId !== receipt.academyId ||
+    profile.data.studentId !== receipt.studentId ||
+    profile.data.academyId !== receipt.academyId ||
     !keysAreCurrent
   ) {
     throw new CanonicalMemberDirectoryError("replay", "Completed member write replay is invalid");
   }
-  return Object.freeze({ memberId: receipt.data.studentId, studentId: receipt.data.studentId });
+  return Object.freeze({ memberId: receipt.studentId, studentId: receipt.studentId });
 }
 
 export function createCanonicalMemberDirectoryService(
@@ -1016,8 +1140,21 @@ export function createCanonicalMemberDirectoryService(
     const studentId = requiredIdentifier(generateStudentId(), "generated student ID");
     const auditEventId = requiredIdentifier(generateAuditId(), "generated audit ID");
     const receiptRef = dependencies.firestore.doc(receiptPath(academyId, receiptId));
+    // An imported registration (never a legacy one) gets a v2 receipt bound to what the office sent.
+    const officeRequest: ImportedOfficeRequest | undefined =
+      legacy === undefined && sourceRecordId !== undefined
+        ? {
+            recordId: sourceRecordId,
+            requestId: parsedInput.value.requestId,
+            // Required on this path; the fallback only satisfies the legacy input's type.
+            dateOfBirth: parsedInput.value.dateOfBirth ?? "",
+            trainingCenter: parsedInput.value.trainingCenter,
+            trainingTimePreferences: parsedInput.value.trainingTimePreferences,
+          }
+        : undefined;
 
     return dependencies.firestore.runTransaction(async (transaction) => {
+      let importedDateOfBirthFrom: "record" | "request" | undefined;
       const accountLink = accountLinkDraft ? {...accountLinkDraft} : undefined;
       let reuseCourseFamily = false;
       await assertProvisionedActor(transaction, dependencies, command.actor);
@@ -1044,13 +1181,14 @@ export function createCanonicalMemberDirectoryService(
         if (prior.exists) return resolveReplay(transaction, dependencies, prior.data(), receiptId, academyId, actorId, expectedRequestMac);
       }
       // Legacy and imported registrations read members and Regyfit. After the global marker a new
-      // one is refused before either is read; an exact imported retry still answers from its receipt.
+      // one is refused before either is read; an exact imported retry still answers from its receipt,
+      // but only from a v2 one: a v1 receipt is never trusted once the record is closed.
       if (legacy || sourceRecordId) {
         const stateDocument = dependencies.firestore.doc(statePath(academyId));
         const state = (await transaction.get(stateDocument)).data();
         if (!legacy && legacyReadState(state) === "eliminated") {
           const prior = await transaction.get(receiptRef);
-          if (prior.exists) {
+          if (prior.exists && !writeReceiptSchema.safeParse(prior.data()).success) {
             return resolveReplay(
               transaction,
               dependencies,
@@ -1059,6 +1197,7 @@ export function createCanonicalMemberDirectoryService(
               academyId,
               actorId,
               expectedRequestMac,
+              officeRequest,
             );
           }
         }
@@ -1135,6 +1274,8 @@ export function createCanonicalMemberDirectoryService(
             "invalid",
             "Imported identity changed. Refresh before registering.",
           );
+        // The record's own date was registered and the typed one ignored, as the callable does.
+        if (!legacy) importedDateOfBirthFrom = source.value.birthDate ? "record" : "request";
         if (
           linkSnapshot.exists &&
           recoveredSnapshot.exists &&
@@ -1193,6 +1334,7 @@ export function createCanonicalMemberDirectoryService(
             ? actorId
             : String(receiptSnapshot.data()?.actorId ?? ""),
           expectedRequestMac,
+          officeRequest,
         );
       }
 
@@ -1433,7 +1575,7 @@ export function createCanonicalMemberDirectoryService(
       const studentRef = dependencies.firestore.doc(studentPath(academyId, studentId));
       const profileRef = dependencies.firestore.doc(profilePath(academyId, studentId));
       const auditRef = dependencies.firestore.doc(auditPath(academyId, auditEventId));
-      const receipt: MemberDirectoryWriteReceipt = writeReceiptSchema.parse({
+      const receiptFields = {
         receiptId,
         academyId,
         actorId,
@@ -1445,8 +1587,31 @@ export function createCanonicalMemberDirectoryService(
         stateRevisionAfter: nextState.stateRevision,
         status: "completed",
         createdAt: now,
-        schemaVersion: "1",
-      });
+      };
+      let receipt: MemberDirectoryWriteReceipt | ImportedWriteReceipt;
+      if (officeRequest === undefined || importedDateOfBirthFrom === undefined) {
+        receipt = writeReceiptSchema.parse({ ...receiptFields, schemaVersion: "1" });
+      } else {
+        const signed = {
+          ...receiptFields,
+          schemaVersion: "2",
+          importedRequest: {
+            recordId: officeRequest.recordId,
+            dateOfBirthFrom: importedDateOfBirthFrom,
+          },
+        };
+        receipt = importedWriteReceiptSchema.parse({
+          ...signed,
+          receiptMac: importedReceiptMac(
+            academyId,
+            actorId,
+            signed,
+            officeRequest,
+            importedDateOfBirthFrom,
+            dependencies.integritySecretMaterial,
+          ),
+        });
+      }
 
       if (officeFamilyRef && officeFamily?.ok)
         transaction.create(officeFamilyRef, officeFamily.value);
@@ -1867,6 +2032,48 @@ export function createCanonicalMemberDirectoryService(
       if (!/^[0-9]{1,12}$/u.test(command.recordId))
         throw new CanonicalMemberDirectoryError("invalid", "Invalid imported record ID");
       return createAdult(command, undefined, command.recordId);
+    },
+    /**
+     * After the global marker, the office's retry of an imported registration whose answer was lost.
+     * Read-only and never reads members or Regyfit: the v2 receipt alone, checked against the
+     * repeated request, says which student the first call created. No receipt, a v1 one, or none
+     * yet under this office user and key: the path stays closed.
+     */
+    async replayImportedMember(command: OfficeImportedReplayCommand) {
+      requireAuthorizedActor(command.actor);
+      const registration = officeMemberRegistrationSchema.safeParse(command.registration);
+      if (!registration.success)
+        throw new CanonicalMemberDirectoryError("invalid", "Invalid imported registration");
+      const academyId = command.actor.academyId;
+      const actorId = command.actor.actorId;
+      const receiptId = requestReceiptId(
+        academyId,
+        actorId,
+        registration.data.requestId,
+        dependencies.integritySecretMaterial,
+      );
+      return dependencies.firestore.runTransaction(async (transaction) => {
+        await assertProvisionedActor(transaction, dependencies, command.actor);
+        const state = (
+          await transaction.get(dependencies.firestore.doc(statePath(academyId)))
+        ).data();
+        if (legacyReadState(state) !== "eliminated")
+          throw new CanonicalMemberDirectoryError(
+            "unavailable",
+            "Member directory state is unavailable",
+          );
+        const prior = await transaction.get(
+          dependencies.firestore.doc(receiptPath(academyId, receiptId)),
+        );
+        if (!prior.exists) throw legacyReadsEliminated();
+        const receipt = verifiedImportedReceipt(
+          prior.data(),
+          { receiptId, academyId, actorId },
+          registration.data,
+          dependencies.integritySecretMaterial,
+        );
+        return completedCreateReplay(transaction, dependencies, receipt);
+      });
     },
     async createAdminAdult(command) {
       return createAdult(command);
