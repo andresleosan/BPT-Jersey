@@ -20,7 +20,7 @@ vi.mock("../../admin-gate", () => ({ useAdminOrStaffSession: mocks.useAdminOrSta
 
 import { TypesPage } from "./page";
 
-const marker = "Introduction Class: free trial class for adult beginners";
+const marker = "Introduction Class: free trial class for beginners";
 // Saved before the marker existed: only its name makes it an Introduction Class.
 const legacyIntro = {
   programId: "p-int",

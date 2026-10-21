@@ -200,7 +200,7 @@ export default function GraduationsRoute() {
                 </button>
               </div>
             ) : (
-              <p className="graduations-muted">Owner decides</p>
+              <p className="graduations-muted">The office decides</p>
             )}
           </div>
         ) : null}
@@ -257,9 +257,11 @@ export default function GraduationsRoute() {
     <section aria-label="Graduations" className="admin-module-page graduations-page">
       <AdminSectionHeader
         description={
-          board === null || board.canDecide
-            ? "Who graduates next, who graduates today and who is waiting for your decision."
-            : "Who graduates next, who graduates today and who is waiting for the owner's decision."
+          board === null
+            ? "Who graduates next, who graduates today and who is waiting for a decision."
+            : board.canDecide
+              ? "Who graduates next, who graduates today and who is waiting for your decision."
+              : "Who graduates next, who graduates today and who is waiting for the office's decision."
         }
         eyebrow="Mat / Levels"
         title="Graduations"

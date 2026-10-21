@@ -1,6 +1,10 @@
 import { expect, test, type Page, type Route, type TestInfo } from "@playwright/test";
 
-import { introductionClassAudienceError } from "@bpt-jersey/domain/schedule/classes-services";
+import {
+  introductionClassAudienceAllowed,
+  introductionClassAudienceError,
+  type ProgramAgeRange,
+} from "@bpt-jersey/domain/schedule/classes-services";
 
 import { installAdminFixture, type CallableCall } from "./admin-fixture";
 import { blockExternalRequests } from "./network-guard";
@@ -12,7 +16,7 @@ import { blockExternalRequests } from "./network-guard";
  * and the session editor names it in create and edit alike. Real pages, synthetic callables only:
  * browser UI coverage with a mocked backend (the server's pin-on-save and refusal are unit-tested).
  */
-const marker = "Introduction Class: free trial class for adult beginners";
+const marker = "Introduction Class: free trial class for beginners";
 const location = {
   locationId: "town",
   academyId: "bpt-jersey",
@@ -170,11 +174,11 @@ test.describe("Introduction Class marker (2026-10-20 item 3)", () => {
     await evidence(page, testInfo, "types-unmarked", h.blocked);
   });
 
-  test("a legacy kids Introduction Class: an unrelated edit saves, a new age range needs the marker off", async ({
+  test("a legacy kids Introduction Class: an unrelated edit saves, a children's range keeps it, a mixed range needs it off", async ({
     page,
   }, testInfo) => {
     // Saved before the marker and the v2 fields: its name makes it an Introduction Class, and its
-    // kids band means it can never admit every adult beginner.
+    // kids band makes it a children's one (operator 2026-10-21).
     const legacyKids = {
       programId: "p-kids",
       academyId: "bpt-jersey",
@@ -192,8 +196,9 @@ test.describe("Introduction Class marker (2026-10-20 item 3)", () => {
       updateProgram: null,
     };
     await installAdminFixture(page, { calls, callables });
-    // Mirrors the server for this type: while it stays an Introduction Class a different age range
-    // is refused; any other save pins the marker. The server side is unit-tested with this payload.
+    // Mirrors the server for this type with the domain's own rule: while it stays an Introduction
+    // Class a new age range must be children only or open to every adult; any other save pins the
+    // marker. The server side is unit-tested with this payload.
     await page.route("**/updateProgram", async (route) => {
       if (route.request().method() !== "POST") return route.fallback();
       const body = route.request().postDataJSON() as { data: Record<string, unknown> };
@@ -201,7 +206,16 @@ test.describe("Introduction Class marker (2026-10-20 item 3)", () => {
       const marked = body.data.introductionClass ?? stored.introductionClass ?? true;
       const newAges =
         JSON.stringify(body.data.ageRange ?? null) !== JSON.stringify(stored.ageRange ?? null);
-      if (marked === true && newAges) {
+      // As mergeProgramV2: a sent age range replaces the stored one (null clears it), and the
+      // audience is checked when the marker is sent or the range changes.
+      const audience = {
+        ageRange: ("ageRange" in body.data
+          ? body.data.ageRange
+          : (stored.ageRange ?? null)) as ProgramAgeRange | null,
+        ageBand: String(stored.ageBand),
+      };
+      const checked = "introductionClass" in body.data || newAges;
+      if (marked === true && checked && !introductionClassAudienceAllowed(audience)) {
         return json(route, 400, {
           error: {
             status: "FAILED_PRECONDITION",
@@ -232,10 +246,21 @@ test.describe("Introduction Class marker (2026-10-20 item 3)", () => {
     expect(unrelated).not.toHaveProperty("introductionClass");
     await evidence(page, testInfo, "types-legacy-kids-unrelated-edit", blocked);
 
-    // A new age range while it stays an Introduction Class: refused, the form kept to correct.
+    // A children's range keeps it an Introduction Class (operator 2026-10-21).
     await page.getByRole("button", { name: "Edit Introduction Class Kids" }).click();
     await editor.getByLabel("From age").selectOption("4");
     await editor.getByLabel("To age").selectOption("12");
+    await editor.getByRole("button", { name: "Save changes" }).click();
+    await expect(saved).toBeVisible();
+    expect(named(calls, "updateProgram").at(-1)).toMatchObject({
+      ageRange: { minAge: 4, maxAge: 12 },
+    });
+    await evidence(page, testInfo, "types-legacy-kids-children-range", blocked);
+
+    // A range mixing children and adults while it stays one: refused, the form kept to correct.
+    await page.getByRole("button", { name: "Edit Introduction Class Kids" }).click();
+    await expect(editor.getByRole("checkbox", { name: marker })).toBeChecked();
+    await editor.getByLabel("To age").selectOption("17");
     await editor.getByRole("button", { name: "Save changes" }).click();
     const refusal = page.getByRole("alert").filter({ hasText: introductionClassAudienceError });
     await expect(refusal).toHaveText(introductionClassAudienceError);
@@ -250,7 +275,8 @@ test.describe("Introduction Class marker (2026-10-20 item 3)", () => {
     await expect(row.getByText("Introduction Class", { exact: true })).toHaveCount(0);
     expect(named(calls, "updateProgram").slice(1)).toEqual([
       expect.objectContaining({ ageRange: { minAge: 4, maxAge: 12 } }),
-      expect.objectContaining({ ageRange: { minAge: 4, maxAge: 12 }, introductionClass: false }),
+      expect.objectContaining({ ageRange: { minAge: 4, maxAge: 17 } }),
+      expect.objectContaining({ ageRange: { minAge: 4, maxAge: 17 }, introductionClass: false }),
     ]);
     expect(named(calls, "updateProgram")[1]).not.toHaveProperty("introductionClass");
     await evidence(page, testInfo, "types-legacy-kids-unmarked", blocked);
@@ -333,7 +359,7 @@ test.describe("Introduction Class marker (2026-10-20 item 3)", () => {
       createAccess.locator("option", { hasText: "Introduction Class (set by the class type)" }),
     ).toHaveCount(1);
     await expect(
-      create.getByText("Free trial class for adult beginners (16 and over)"),
+      create.getByText("Free trial class for beginners of its type's ages", { exact: false }),
     ).toBeVisible();
     await evidence(page, testInfo, "session-create-marked-type", blocked);
     await create.getByRole("button", { name: "Close session" }).click();

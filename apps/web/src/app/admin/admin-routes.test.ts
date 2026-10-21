@@ -6,6 +6,7 @@ describe("staff routes", () => {
   it("lists what each role sees in the menu, in navigation order", () => {
     expect(staffRoutes.coach).toEqual([
       "/admin",
+      "/admin/graduations",
       "/admin/attendance",
       "/admin/members/search",
       "/admin/members/requests",
@@ -26,6 +27,9 @@ describe("staff routes", () => {
     expect(isStaffRouteAllowed("/admin/classes-services/locations", "coach")).toBe(true);
     expect(isStaffRouteAllowed("/admin/classes-services", "headCoach")).toBe(true);
     expect(isStaffRouteAllowed("/admin/levels", "coach")).toBe(true);
+    // Operator 2026-10-21: the mat reads the graduation board; only the office decides.
+    expect(isStaffRouteAllowed("/admin/graduations", "coach")).toBe(true);
+    expect(isStaffRouteAllowed("/admin/graduations", "headCoach")).toBe(true);
     expect(isStaffRouteAllowed("/admin/billing", "headCoach")).toBe(false);
   });
 

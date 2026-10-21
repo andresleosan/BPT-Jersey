@@ -716,8 +716,8 @@ export function SessionPanel({
             ) : null}
             {introByType ? (
               <p className="cs-session-help" id="cs-session-intro-help">
-                Free trial class for adult beginners (16 and over), set by its class type. Members
-                on a plan cannot book it.
+                Free trial class for beginners of its type&apos;s ages, set by its class type. Members on
+                a plan cannot book it.
               </p>
             ) : null}
             <h3>Session capacity</h3>

@@ -7,9 +7,11 @@ export type StaffRouteRole = StaffSession["role"];
  * What the mat can open inside /admin, in menu order. Operator decisions 2026-09-12 (ADR-010),
  * 2026-09-14 (Classes read-only, Levels) and 2026-09-17 (member record header and name search,
  * grill G6). The office directory (/admin/members and its add/import pages) stays office-only.
+ * The mat reads the graduation board too (operator 2026-10-21); only the office decides.
  */
 const coachRoutes = Object.freeze([
   "/admin",
+  "/admin/graduations",
   "/admin/attendance",
   "/admin/members/search",
   "/admin/members/requests",

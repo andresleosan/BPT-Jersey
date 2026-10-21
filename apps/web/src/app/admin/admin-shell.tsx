@@ -17,8 +17,6 @@ type NavigationItem = Readonly<{
   label: string;
   href: string;
   ownerOnly?: boolean;
-  /** Owner and administrator only. */
-  officeOnly?: boolean;
   /** Shown to the mat only: the office reaches the same task from the unified Members page. */
   staffOnly?: boolean;
 }>;
@@ -32,7 +30,7 @@ const navigationGroups: readonly NavigationGroup[] = [
     label: "Today",
     items: [
       { label: "Overview", href: "/admin" },
-      { label: "Graduations", href: "/admin/graduations", officeOnly: true },
+      { label: "Graduations", href: "/admin/graduations" },
       { label: "Attendance", href: "/admin/attendance" },
     ],
   },
@@ -137,7 +135,6 @@ export function AdminShell({
       items: group.items.filter(
         (item) =>
           (!item.ownerOnly || session.role === "owner" || session.role === "administrator") &&
-          (!item.officeOnly || session.role === "owner" || session.role === "administrator") &&
           (!item.staffOnly || allowedRoutes !== undefined) &&
           (allowedRoutes === undefined || allowedRoutes.includes(item.href)) &&
           // The coach group already names these pages, so no other group repeats them (T13).

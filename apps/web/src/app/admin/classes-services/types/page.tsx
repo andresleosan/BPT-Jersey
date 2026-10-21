@@ -47,7 +47,7 @@ const dropInLabels: Record<DropInPolicy, string> = {
   "5": "5 drop-ins/trials",
 };
 type Notice = Readonly<{ kind: "success" | "error"; message: string }>;
-const introductionLabel = "Introduction Class: free trial class for adult beginners";
+const introductionLabel = "Introduction Class: free trial class for beginners";
 
 export function TypesPage() {
   const session = useAdminOrStaffSession();

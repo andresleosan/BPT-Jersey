@@ -236,7 +236,7 @@ export async function updateLocation(input: UpdateLocationInput): Promise<Locati
   ).location;
 }
 
-// The server refuses to mark a type an Introduction Class unless every adult beginner may join it.
+// The server marks a type an Introduction Class only for every adult beginner or children only.
 const introductionAudience = {
   reason: "introduction-class-audience",
   message: introductionClassAudienceError,
@@ -638,7 +638,7 @@ export function walkInFailureMessage(error: unknown, name: string, sessionStartA
     case "private":
       return "Private lessons are arranged by the office.";
     case "intro":
-      return `Introduction Classes are for new adult beginners on their Free Trial; ${name} isn't one.`;
+      return `Introduction Classes are for beginners of the class's ages on their Free Trial; ${name} isn't one.`;
     case "plan-inactive":
       return `${name}'s plan is no longer offered.`;
     case "plan-age":

@@ -29,6 +29,10 @@ describe("shared staff workspace", () => {
     );
     expect(screen.getByRole("link", { name: "Dashboard" })).not.toHaveAttribute("aria-current");
     expect(screen.getByRole("link", { name: "Attendance" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Graduations" })).toHaveAttribute(
+      "href",
+      "/admin/graduations",
+    );
     for (const name of [
       "Financial dashboard",
       "Memberships",

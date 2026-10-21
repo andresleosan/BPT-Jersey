@@ -108,7 +108,9 @@ describe("SessionPanel: Introduction Class coherence (2026-10-20 item 3)", () =>
     expect(
       within(access).getByRole("option", { name: "Introduction Class (set by the class type)" }),
     ).toBeInTheDocument();
-    expect(access).toHaveAccessibleDescription(/Free trial class for adult beginners/u);
+    expect(access).toHaveAccessibleDescription(
+      /Free trial class for beginners of its type's ages/u,
+    );
 
     fireEvent.click(screen.getByRole("checkbox", { name: "coach-a" }));
     fireEvent.change(screen.getByLabelText("Maximum capacity"), { target: { value: "20" } });
