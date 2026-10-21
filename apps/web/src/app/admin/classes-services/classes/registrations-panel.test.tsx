@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   cancelBooking: vi.fn(),
+  getRegistrationChoice: vi.fn(),
   listMemberNames: vi.fn(),
   listMemberships: vi.fn(),
   listSessionBookings: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock("../../../../lib/schedule-client", () => ({
 }));
 vi.mock("../../../../lib/members-client", () => ({ listMemberNames: mocks.listMemberNames }));
 vi.mock("../../../../lib/membership-admin-client", () => ({
+  getRegistrationChoice: mocks.getRegistrationChoice,
   listMemberships: mocks.listMemberships,
 }));
 vi.mock("../../../../lib/groups-client", async (importOriginal) => ({
@@ -65,6 +67,21 @@ function membership(membershipId: string, studentId: string, familyId: string, s
   };
 }
 
+function bookWith(membershipId: string, studentId = "st2") {
+  return { studentId, choice: { kind: "membership", membershipId }, reason: null };
+}
+
+function refused(reason: string, studentId = "st2") {
+  return { studentId, choice: null, reason };
+}
+
+async function enrolByName(name: string, search = name.slice(0, 2)) {
+  fireEvent.change(screen.getByRole("searchbox", { name: "Enrol a member of this gym" }), {
+    target: { value: search },
+  });
+  fireEvent.click(await screen.findByRole("button", { name }));
+}
+
 describe("RegistrationsPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -98,7 +115,7 @@ describe("RegistrationsPanel", () => {
     mocks.listMemberNames.mockResolvedValue([
       { studentId: "st2", fullName: "Willow S.", familyId: null },
     ]);
-    mocks.listMemberships.mockResolvedValue([membership("m2", "st2", "f2", "active")]);
+    mocks.getRegistrationChoice.mockResolvedValue(bookWith("m2"));
     mocks.requestBooking.mockResolvedValue({
       bookingId: "b2",
       sessionId: "s1",
@@ -107,17 +124,16 @@ describe("RegistrationsPanel", () => {
     });
     render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships />);
     expect(await screen.findByRole("button", { name: /remove/i })).toBeInTheDocument();
-    fireEvent.change(screen.getByRole("searchbox", { name: "Enrol a member of this gym" }), {
-      target: { value: "wi" },
-    });
-    fireEvent.click(await screen.findByRole("button", { name: "Willow S." }));
+    await enrolByName("Willow S.", "wi");
     await waitFor(() =>
       expect(mocks.requestBooking).toHaveBeenCalledWith({
+        kind: "membership",
         sessionId: "s1",
         studentId: "st2",
         membershipId: "m2",
       }),
     );
+    expect(mocks.getRegistrationChoice).toHaveBeenCalledWith("s1", "st2");
   });
 
   it("removes a registration with the office reason", async () => {
@@ -171,45 +187,43 @@ describe("RegistrationsPanel", () => {
     mocks.listMemberNames.mockResolvedValue([
       { studentId: "st2", fullName: "Willow S.", familyId: null },
     ]);
-    mocks.listMemberships.mockResolvedValue([membership("m2", "st2", "f2", "cancelled")]);
+    mocks.getRegistrationChoice.mockResolvedValue(refused("no-plan"));
     render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships />);
-    fireEvent.change(screen.getByRole("searchbox", { name: "Enrol a member of this gym" }), {
-      target: { value: "wi" },
-    });
-    fireEvent.click(await screen.findByRole("button", { name: "Willow S." }));
+    await enrolByName("Willow S.", "wi");
     expect(await screen.findByText("No active membership")).toBeInTheDocument();
     expect(mocks.requestBooking).not.toHaveBeenCalled();
   });
 
-  it.each([
-    { startsAt: stamp, endsAt: sessionFixture.startAt },
-    { startsAt: "2026-09-15T00:00:00.000Z", endsAt: null },
-  ])("refuses a class outside the paid period: %o", async (period) => {
+  it("refuses a class outside the paid period, as the server judged it", async () => {
     mocks.listMemberNames.mockResolvedValue([
       { studentId: "st2", fullName: "Willow S.", familyId: null },
     ]);
-    mocks.listMemberships.mockResolvedValue([
-      { ...membership("m2", "st2", "f2", "active"), ...period },
-    ]);
+    mocks.getRegistrationChoice.mockResolvedValue(refused("plan-dates"));
     render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships />);
     await screen.findByText("No one is registered yet.");
-    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "wi" } });
-    fireEvent.click(await screen.findByRole("button", { name: "Willow S." }));
+    await enrolByName("Willow S.", "wi");
     expect(
       await screen.findByText(/outside the member's paid membership period/),
     ).toBeInTheDocument();
     expect(mocks.requestBooking).not.toHaveBeenCalled();
   });
 
-  it("names a refused membership list instead of blaming the member", async () => {
+  it("names a failed membership check instead of blaming the member", async () => {
     mocks.listMemberNames.mockResolvedValue([
       { studentId: "st2", fullName: "Willow S.", familyId: null },
     ]);
-    mocks.listMemberships.mockRejectedValue(new Error("unavailable"));
+    mocks.getRegistrationChoice.mockRejectedValue(
+      new Error("Unable to check this member's membership. Please try again."),
+    );
     render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships />);
-    expect(await screen.findByText("Membership list unavailable")).toBeInTheDocument();
-    expect(screen.getByRole("searchbox", { name: "Enrol a member of this gym" })).toBeDisabled();
+    await screen.findByText("No one is registered yet.");
+    expect(screen.getByRole("searchbox", { name: "Enrol a member of this gym" })).toBeEnabled();
+    await enrolByName("Willow S.", "wi");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Unable to check this member's membership. Please try again.",
+    );
     expect(screen.queryByText("No active membership")).not.toBeInTheDocument();
+    expect(mocks.requestBooking).not.toHaveBeenCalled();
   });
 
   it("explains that External registrations arrive with Drop-ins", () => {
@@ -270,7 +284,110 @@ describe("RegistrationsPanel", () => {
     expect(await screen.findByText("Enrolment needs an office account")).toBeInTheDocument();
     expect(screen.getByRole("searchbox", { name: "Enrol a member of this gym" })).toBeDisabled();
     expect(mocks.listMemberships).not.toHaveBeenCalled();
+    expect(mocks.getRegistrationChoice).not.toHaveBeenCalled();
     // The directory is office-only too: asking for it would only earn a refusal.
     expect(mocks.listMemberNames).not.toHaveBeenCalled();
+  });
+
+  // 2026-10-20: the panel read the academy-wide list, which stops at 100 of 122 memberships, matched
+  // ids exactly and always booked as "membership"; it now asks the server per student.
+  describe("per-student registration choice", () => {
+    it("books a member whose plan is past the academy's first hundred memberships", async () => {
+      mocks.listMemberships.mockResolvedValue(
+        Array.from({ length: 100 }, (_, index) =>
+          membership(`m${index}`, `other-${index}`, `f${index}`, "active"),
+        ),
+      );
+      mocks.listMemberNames.mockResolvedValue([
+        { studentId: "st101", fullName: "Rowan Late", familyId: null },
+      ]);
+      mocks.getRegistrationChoice.mockResolvedValue(bookWith("m101", "st101"));
+      mocks.requestBooking.mockResolvedValue({ bookingId: "b101", status: "confirmed" });
+      render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships />);
+      await enrolByName("Rowan Late");
+
+      await waitFor(() =>
+        expect(mocks.requestBooking).toHaveBeenCalledWith({
+          kind: "membership",
+          sessionId: "s1",
+          studentId: "st101",
+          membershipId: "m101",
+        }),
+      );
+      expect(mocks.getRegistrationChoice).toHaveBeenCalledWith("s1", "st101");
+      expect(mocks.listMemberships).not.toHaveBeenCalled();
+    });
+
+    it("books a Free Trial student as an intro, with no membership", async () => {
+      mocks.listMemberNames.mockResolvedValue([
+        { studentId: "st5", fullName: "Tia Trial", familyId: null },
+      ]);
+      mocks.getRegistrationChoice.mockResolvedValue({
+        studentId: "st5",
+        choice: { kind: "intro" },
+        reason: null,
+      });
+      mocks.requestBooking.mockResolvedValue({ bookingId: "b5", status: "confirmed" });
+      render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships />);
+      await enrolByName("Tia Trial");
+
+      await waitFor(() =>
+        expect(mocks.requestBooking).toHaveBeenCalledWith({
+          kind: "intro",
+          sessionId: "s1",
+          studentId: "st5",
+        }),
+      );
+      expect(screen.queryByText("No active membership")).not.toBeInTheDocument();
+    });
+
+    it("explains a Free Trial that cannot be used and books nothing", async () => {
+      mocks.listMemberNames.mockResolvedValue([
+        { studentId: "st5", fullName: "Tia Trial", familyId: null },
+      ]);
+      mocks.getRegistrationChoice.mockResolvedValue(refused("trial-unavailable", "st5"));
+      render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships />);
+      await enrolByName("Tia Trial");
+
+      expect(
+        await screen.findByText(
+          "This member's Free Trial is used up, has ended or is for the other centre",
+        ),
+      ).toBeInTheDocument();
+      expect(mocks.requestBooking).not.toHaveBeenCalled();
+    });
+
+    it("books with a membership the member holds under an earlier id", async () => {
+      mocks.listMemberNames.mockResolvedValue([
+        { studentId: "st-new", fullName: "Alias Member", familyId: null },
+      ]);
+      mocks.getRegistrationChoice.mockResolvedValue(bookWith("m-old", "st-canonical"));
+      mocks.requestBooking.mockResolvedValue({ bookingId: "b6", status: "confirmed" });
+      render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships />);
+      await enrolByName("Alias Member");
+
+      await waitFor(() =>
+        expect(mocks.requestBooking).toHaveBeenCalledWith({
+          kind: "membership",
+          sessionId: "s1",
+          studentId: "st-new",
+          membershipId: "m-old",
+        }),
+      );
+    });
+
+    it("shows a refused office session as safe text and books nothing", async () => {
+      const refusal =
+        "An active administrator session is required. Sign in again and reopen this class.";
+      mocks.listMemberNames.mockResolvedValue([
+        { studentId: "st2", fullName: "Willow S.", familyId: null },
+      ]);
+      mocks.getRegistrationChoice.mockRejectedValue(new Error(refusal));
+      render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships />);
+      await enrolByName("Willow S.", "wi");
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(refusal);
+      expect(mocks.requestBooking).not.toHaveBeenCalled();
+    });
   });
 });

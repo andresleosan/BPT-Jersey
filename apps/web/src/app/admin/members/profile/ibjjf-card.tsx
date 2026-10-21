@@ -132,7 +132,7 @@ export function IbjjfCard({
 
   const position = beltPosition(groupBelts(catalog), card.currentDefinition.definitionKey);
   const promotedOn = formatPromotedOn(card.currentLevelStartedAt);
-  const { classes, time } = card.criteria;
+  const { classes, time, skills } = card.criteria;
   // Spec 6.2: `null` means the top of the catalogue, NOT nought per cent. It must never reach a bar.
   // `targetDefinition` and `progressPercent` are INDEPENDENTLY nullable in the schema, so the two
   // are read separately: only an absent target may claim there is nothing left to work towards.
@@ -160,11 +160,21 @@ export function IbjjfCard({
       ) : percent === null ? (
         <p className="ibjjf-muted">Progress is not available for this level.</p>
       ) : (
-        <div className="ibjjf-progress">
-          <p id={`ibjjf-next-${studentId}`}>Next graduation</p>
-          <progress aria-labelledby={`ibjjf-next-${studentId}`} max={100} value={percent} />
-          <strong className="ibjjf-number">{percent}%</strong>
-        </div>
+        <>
+          <div className="ibjjf-progress">
+            <p id={`ibjjf-next-${studentId}`}>Overall progress</p>
+            <progress
+              aria-describedby={`ibjjf-next-note-${studentId}`}
+              aria-labelledby={`ibjjf-next-${studentId}`}
+              max={100}
+              value={percent}
+            />
+            <strong className="ibjjf-number">{percent}%</strong>
+          </div>
+          <p className="ibjjf-muted" id={`ibjjf-next-note-${studentId}`}>
+            Average of classes, days and skills. It is not the graduation review.
+          </p>
+        </>
       )}
       <dl className="ibjjf-criteria">
         <div className={classes.met ? "ibjjf-met" : "ibjjf-unmet"}>
@@ -192,7 +202,28 @@ export function IbjjfCard({
             <span className="ibjjf-status">{time.met ? "Met" : "Not met"}</span>
           </dd>
         </div>
+        {skills !== undefined && skills.total > 0 ? (
+          <div className={skills.met ? "ibjjf-met" : "ibjjf-unmet"}>
+            <dt>Skills at minimum rating</dt>
+            <dd>
+              <span className="ibjjf-number">
+                {formatCriterion(skills.completed, skills.total)}
+              </span>{" "}
+              <span className="ibjjf-status">{skills.met ? "Met" : "Not met"}</span>
+            </dd>
+          </div>
+        ) : null}
       </dl>
+      {/* The rule assessGraduation applies (graduation-contracts.ts), stated rather than computed:
+          this card has no stage, and the board that does is office-only. */}
+      {toppedOut ? null : (
+        <p className="ibjjf-muted">
+          Graduation review counts classes and days only. It opens at the first class attended at
+          BPT once the days are met and the classes reach the minimum (that class included), and
+          after any Not yet. Imported and office-added classes count towards the minimum but cannot
+          open it.
+        </p>
+      )}
       <a className="admin-auth-button" href={manageHref}>
         Manage
       </a>

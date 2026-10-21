@@ -1,4 +1,4 @@
-import { httpsCallable } from "./callable";
+import { appCheckFailureMessage, httpsCallable, isAppCheckFailure } from "./callable";
 import { z } from "zod";
 
 import {
@@ -13,6 +13,12 @@ import {
   membershipStatuses,
   type MembershipStatus,
 } from "@bpt-jersey/domain/memberships/lifecycle";
+import {
+  registrationChoiceQuerySchema,
+  registrationChoiceSchema,
+  type RegistrationChoice,
+  type RegistrationChoiceQuery,
+} from "@bpt-jersey/domain/memberships/admin";
 
 import { getFirebaseFunctions } from "./firebase-client";
 
@@ -123,6 +129,9 @@ const listMembershipsError = "Unable to load memberships. Please try again.";
 const createMembershipError = "Unable to create membership. Refresh before trying again.";
 const transitionMembershipError = "Unable to change membership status. Please try again.";
 const cancelMembershipError = "Unable to cancel membership. Please try again.";
+const registrationChoiceError = "Unable to check this member's membership. Please try again.";
+const officeSessionError =
+  "An active administrator session is required. Sign in again and reopen this class.";
 
 function parsePlan(value: unknown, safeMessage: string): ManagedMembershipPlan {
   const parsed = managedPlanSchema.safeParse(value);
@@ -193,6 +202,31 @@ export async function listMemberships(): Promise<readonly AdminMembership[]> {
     );
   } catch {
     throw new Error(listMembershipsError);
+  }
+}
+
+/** What the office would book one student into one class with, read per student on the server. */
+export async function getRegistrationChoice(
+  sessionId: string,
+  studentId: string,
+): Promise<RegistrationChoice> {
+  try {
+    const query = registrationChoiceQuerySchema.parse({ sessionId, studentId });
+    const callable = httpsCallable<RegistrationChoiceQuery, unknown>(
+      getFirebaseFunctions(),
+      "getRegistrationChoice",
+    );
+    const parsed = registrationChoiceSchema.safeParse((await callable(query)).data);
+    if (!parsed.success) throw new Error(registrationChoiceError);
+    return Object.freeze(parsed.data);
+  } catch (error) {
+    if (isAppCheckFailure(error)) throw new Error(appCheckFailureMessage);
+    const code = (error as { code?: unknown } | null)?.code;
+    throw new Error(
+      code === "functions/permission-denied" || code === "functions/unauthenticated"
+        ? officeSessionError
+        : registrationChoiceError,
+    );
   }
 }
 

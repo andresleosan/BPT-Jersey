@@ -47,6 +47,7 @@ import type {
   UpdateProgramInput,
   WeekPreview,
 } from "@bpt-jersey/domain/schedule/classes-services";
+import { introductionClassAudienceError } from "@bpt-jersey/domain/schedule/classes-services";
 
 import { siteValues } from "@bpt-jersey/domain/memberships";
 import {
@@ -235,12 +236,19 @@ export async function updateLocation(input: UpdateLocationInput): Promise<Locati
   ).location;
 }
 
+// The server refuses to mark a type an Introduction Class unless every adult beginner may join it.
+const introductionAudience = {
+  reason: "introduction-class-audience",
+  message: introductionClassAudienceError,
+};
+
 export async function saveProgramV2(input: CreateProgramInputV2): Promise<ProgramRecord> {
   return (
     await callSafely<CreateProgramInputV2, { program: ProgramRecord }>(
       "saveProgram",
       input,
       "Unable to save the class type",
+      introductionAudience,
     )
   ).program;
 }
@@ -251,6 +259,7 @@ export async function updateProgram(input: UpdateProgramInput): Promise<ProgramR
       "updateProgram",
       input,
       "Unable to update the class type",
+      introductionAudience,
     )
   ).program;
 }

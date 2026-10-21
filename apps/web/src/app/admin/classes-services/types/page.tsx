@@ -1,11 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
-import type { ProgramRecord } from "@bpt-jersey/domain/schedule";
+import {
+  isIntroductionClass,
+  programEditorFields,
+  programEditorUpdate,
+  type ProgramEditorFields,
+  type ProgramRecord,
+} from "@bpt-jersey/domain/schedule";
 import {
   dropInPolicies,
   parseCreateProgramInputV2,
-  parseUpdateProgramInput,
   programDefaultsV2,
   programKinds,
   programMessageMaxLength,
@@ -13,7 +18,6 @@ import {
   type ProgramAgeRange,
   type ProgramKind,
   type ProgramSite,
-  type ProgramV2Fields,
 } from "@bpt-jersey/domain/schedule/classes-services";
 import {
   deleteProgram,
@@ -43,7 +47,7 @@ const dropInLabels: Record<DropInPolicy, string> = {
   "5": "5 drop-ins/trials",
 };
 type Notice = Readonly<{ kind: "success" | "error"; message: string }>;
-type Edit = ProgramV2Fields & { programId: string; name: string; active: boolean };
+const introductionLabel = "Introduction Class: free trial class for adult beginners";
 
 export function TypesPage() {
   const session = useAdminOrStaffSession();
@@ -60,9 +64,11 @@ export function TypesPage() {
     abbreviation: "",
     ageRange: null as ProgramAgeRange | null,
     sites: [] as readonly ProgramSite[],
+    // Explicit on every new type: the name alone no longer decides it.
+    introductionClass: false,
   };
   const [draft, setDraft] = useState(emptyDraft);
-  const [editing, setEditing] = useState<Edit | null>(null);
+  const [editing, setEditing] = useState<ProgramEditorFields | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const busy = useRef(false);
   const createName = useRef<HTMLInputElement>(null);
@@ -127,12 +133,8 @@ export function TypesPage() {
   async function onSave(event: FormEvent): Promise<void> {
     event.preventDefault();
     if (!editing || !canEdit) return;
-    const { abbreviation, ...fields } = editing;
-    // Legacy catalogue entries have no abbreviation. Do not submit an invalid empty value.
-    const parsed = parseUpdateProgramInput({
-      ...fields,
-      ...(abbreviation.trim() ? { abbreviation } : {}),
-    });
+    const original = programs.find((program) => program.programId === editing.programId);
+    const parsed = programEditorUpdate(editing, original);
     if (!parsed.ok) {
       setNotice({ kind: "error", message: parsed.error });
       return;
@@ -167,20 +169,7 @@ export function TypesPage() {
   function startEdit(program: ProgramRecord) {
     if (editing && !window.confirm("Discard the open editor and edit this type?")) return;
     setNotice(null);
-    setEditing({
-      programId: program.programId,
-      name: program.name,
-      active: program.active,
-      abbreviation: program.abbreviation ?? programDefaultsV2.abbreviation,
-      colour: program.colour ?? programDefaultsV2.colour,
-      kind: program.kind ?? programDefaultsV2.kind,
-      dropInPolicy: program.dropInPolicy ?? programDefaultsV2.dropInPolicy,
-      notifyByEmail: program.notifyByEmail ?? programDefaultsV2.notifyByEmail,
-      showInList: program.showInList ?? programDefaultsV2.showInList,
-      message: program.message ?? programDefaultsV2.message,
-      ageRange: program.ageRange ?? programDefaultsV2.ageRange,
-      sites: program.sites ?? programDefaultsV2.sites,
-    });
+    setEditing(programEditorFields(program));
   }
 
   const available = programs.filter((program) => !program.deletedAt);
@@ -231,6 +220,18 @@ export function TypesPage() {
                 value={draft}
                 onChange={(audience) => setDraft({ ...draft, ...audience })}
               />
+              <div className="types-checks">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={draft.introductionClass}
+                    onChange={(event) =>
+                      setDraft({ ...draft, introductionClass: event.target.checked })
+                    }
+                  />
+                  {introductionLabel}
+                </label>
+              </div>
               <button className="types-primary" type="submit">
                 {pending === "create" ? "Creating…" : "Create type"}
               </button>
@@ -352,6 +353,7 @@ export function TypesPage() {
                     <div className="types-summary">
                       <span>{kindLabels[program.kind ?? programDefaultsV2.kind]}</span>
                       <span>{audienceSummary(program)}</span>
+                      {isIntroductionClass({}, program) ? <span>Introduction Class</span> : null}
                       <span className="types-state" data-active={program.active}>
                         {program.active ? "Active" : "Inactive"}
                       </span>
@@ -498,6 +500,16 @@ export function TypesPage() {
                                 }
                               />
                               Show in the public class list
+                            </label>
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={edit.introductionClass}
+                                onChange={(event) =>
+                                  setEditing({ ...edit, introductionClass: event.target.checked })
+                                }
+                              />
+                              {introductionLabel}
                             </label>
                           </div>
                           <AudienceFields

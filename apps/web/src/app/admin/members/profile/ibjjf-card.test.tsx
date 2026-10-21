@@ -62,7 +62,7 @@ describe("IbjjfCard", () => {
     expect(within(region).getByRole("img", { name: "WHITE BELT belt" })).toBeInTheDocument();
     expect(within(region).getByRole("heading", { name: "WHITE BELT" })).toBeInTheDocument();
     expect(within(region).getByText("Promoted on 1 Jul 2026")).toBeInTheDocument();
-    expect(within(region).getByRole("progressbar", { name: "Next graduation" })).toHaveAttribute(
+    expect(within(region).getByRole("progressbar", { name: "Overall progress" })).toHaveAttribute(
       "value",
       "44",
     );
@@ -108,7 +108,8 @@ describe("IbjjfCard", () => {
     ).toBeInTheDocument();
     expect(within(region).queryByRole("progressbar")).not.toBeInTheDocument();
     expect(within(region).queryByText("0%")).not.toBeInTheDocument();
-    expect(within(region).queryByText("Next graduation")).not.toBeInTheDocument();
+    expect(within(region).queryByText("Overall progress")).not.toBeInTheDocument();
+    expect(region.textContent).not.toMatch(/Graduation review/u);
   });
 
   // The schema makes `targetDefinition` and `progressPercent` independently nullable. A payload
@@ -122,7 +123,51 @@ describe("IbjjfCard", () => {
       within(region).getByText("Progress is not available for this level."),
     ).toBeInTheDocument();
     expect(region.textContent).not.toMatch(/highest level/iu);
-    expect(within(region).queryByText("Next graduation")).not.toBeInTheDocument();
+    expect(within(region).queryByText("Overall progress")).not.toBeInTheDocument();
+  });
+
+  // 2026-10-20 diagnosis: 4/4 classes (3 imported + 1 at BPT) and 42/30 days read as "ready" next
+  // to 66%, which the skills nobody had rated were holding down, and review needs a later class.
+  it("tells overall progress apart from the graduation review and names unmet skills", async () => {
+    levelsApi.getStudentLevelCard.mockResolvedValue(
+      card({
+        progressPercent: 66,
+        criteria: {
+          classes: { required: 4, completed: 4, imported: 3, met: true },
+          time: { requiredDays: 30, elapsedDays: 42, met: true },
+          skills: { total: 11, completed: 0, met: false },
+        },
+      }),
+    );
+    render(<IbjjfCard canOpenLevel manageHref={manageHref} studentId="student-1" />);
+    const region = await screen.findByRole("region", { name: "JIU-JITSU IBJJF" });
+    const bar = within(region).getByRole("progressbar", { name: "Overall progress" });
+    expect(bar).toHaveAttribute("value", "66");
+    expect(bar).toHaveAccessibleDescription(
+      "Average of classes, days and skills. It is not the graduation review.",
+    );
+    const classes = within(region).getByText("Classes since last promotion").closest("div")!;
+    expect(classes).toHaveClass("ibjjf-met");
+    expect(within(classes).getByText("3 imported + 1 in BPT")).toBeInTheDocument();
+    const skills = within(region).getByText("Skills at minimum rating").closest("div")!;
+    expect(skills).toHaveClass("ibjjf-unmet");
+    expect(within(skills).getByText("0/11")).toBeInTheDocument();
+    expect(within(skills).getByText("Not met")).toBeInTheDocument();
+    expect(region.textContent).toMatch(
+      /Graduation review counts classes and days only\..*Imported and office-added classes count towards the minimum but cannot open it\./su,
+    );
+  });
+
+  it("adds no skills row when the next level asks for no skill", async () => {
+    levelsApi.getStudentLevelCard.mockResolvedValue(
+      card({
+        criteria: { ...initialized.criteria, skills: { total: 0, completed: 0, met: true } },
+      }),
+    );
+    render(<IbjjfCard canOpenLevel manageHref={manageHref} studentId="student-1" />);
+    const region = await screen.findByRole("region", { name: "JIU-JITSU IBJJF" });
+    expect(within(region).getByText("12/20")).toBeInTheDocument();
+    expect(within(region).queryByText("Skills at minimum rating")).not.toBeInTheDocument();
   });
 
   it("renders the heading fallback when the stored level is not in the current catalogue", async () => {

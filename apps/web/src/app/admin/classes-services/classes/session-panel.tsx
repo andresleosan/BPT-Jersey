@@ -6,11 +6,12 @@ import { parseAgeCapacities, type AgeAvailability } from "@bpt-jersey/domain/sch
 
 import { lazy, Suspense, useEffect, useRef, useState, type ReactElement } from "react";
 
-import type {
-  ClassAccessMode,
-  CreateSessionInput,
-  SessionRecord,
-  UpdateSessionInput,
+import {
+  isIntroductionClass,
+  type ClassAccessMode,
+  type CreateSessionInput,
+  type SessionRecord,
+  type UpdateSessionInput,
 } from "@bpt-jersey/domain/schedule";
 import {
   localInstant,
@@ -411,6 +412,12 @@ export function SessionPanel({
   }
 
   const readOnly = !canEdit || busy;
+  // The type decides (its explicit marker, or the legacy name rule): the same answer in create
+  // and edit as the booking rules give. Nothing new is sent; accessMode keeps its meaning.
+  const introByType = isIntroductionClass(
+    {},
+    catalog.programs.find((program) => program.programId === draft.programId),
+  );
   const missingDateTime = !draft.date || !draft.startTime || !draft.endTime;
   const endsBeforeStart = minutesOf(draft.endTime) <= minutesOf(draft.startTime);
   const noTrainer = draft.trainers.length === 0;
@@ -678,6 +685,7 @@ export function SessionPanel({
                   value={draft.accessMode}
                   disabled={followUp || readOnly || locked}
                   title={locked ? lockedHint : undefined}
+                  aria-describedby={introByType ? "cs-session-intro-help" : undefined}
                   onChange={(event) =>
                     patch({
                       accessMode:
@@ -687,9 +695,14 @@ export function SessionPanel({
                     })
                   }
                 >
-                  <option value="membership">Membership required</option>
-                  {/* Introduction Class is a class type now; only a legacy stored value shows. */}
-                  {draft.accessMode === "intro" ? (
+                  <option value="membership">
+                    {introByType
+                      ? "Introduction Class (set by the class type)"
+                      : "Membership required"}
+                  </option>
+                  {/* Introduction Class is a class type now; only a legacy stored value shows, and
+                      it stays on offer after switching away so the change can be undone. */}
+                  {draft.accessMode === "intro" || session?.accessMode === "intro" ? (
                     <option value="intro">Free Intro Class</option>
                   ) : null}
                   {draft.accessMode === "private-lesson" ? (
@@ -700,6 +713,12 @@ export function SessionPanel({
             </div>
             {locked && canEdit ? (
               <p className="cs-session-help">To change the class or location, use Copy session.</p>
+            ) : null}
+            {introByType ? (
+              <p className="cs-session-help" id="cs-session-intro-help">
+                Free trial class for adult beginners (16 and over), set by its class type. Members
+                on a plan cannot book it.
+              </p>
             ) : null}
             <h3>Session capacity</h3>
             <div className="cs-form-row">

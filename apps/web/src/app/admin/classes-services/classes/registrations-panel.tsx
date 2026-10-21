@@ -11,10 +11,14 @@ import { GroupRegistrations } from "./group-registrations";
 import { useEffect, useMemo, useState, type ReactElement } from "react";
 
 import type { MemberNameRow } from "@bpt-jersey/domain/members/directory";
-import type { SessionRegistrationRecord, SessionRecord } from "@bpt-jersey/domain/schedule";
+import type {
+  RequestBookingInput,
+  SessionRegistrationRecord,
+  SessionRecord,
+} from "@bpt-jersey/domain/schedule";
 
 import { listMemberNames } from "../../../../lib/members-client";
-import { listMemberships, type AdminMembership } from "../../../../lib/membership-admin-client";
+import { getRegistrationChoice } from "../../../../lib/membership-admin-client";
 import {
   cancelBooking,
   listSessionBookings,
@@ -28,7 +32,7 @@ import {
 export type RegistrationsPanelProps = Readonly<{
   session: SessionRecord;
   canEdit: boolean;
-  /** `listMemberships` is an office-only read: a head coach may edit a class but not enrol. */
+  /** Membership reads are office-only: a head coach may edit a class but not enrol. */
   canReadMemberships: boolean;
 }>;
 
@@ -41,8 +45,12 @@ const tabs: readonly { id: Tab; label: string }[] = [
 ];
 
 const officeRemovalReason = "Removed by the office";
-const noMembership = "No active membership";
-const noMembershipList = "Membership list unavailable";
+// Why the server found nothing to book with (getRegistrationChoice).
+const refusals = {
+  "no-plan": "No active membership",
+  "plan-dates": "This class is outside the member's paid membership period",
+  "trial-unavailable": "This member's Free Trial is used up, has ended or is for the other centre",
+} as const;
 const minimumSearchLength = 2;
 const enrolmentPanelId = "cs-enrolment-panel";
 
@@ -59,8 +67,6 @@ export function RegistrationsPanel({
   const [tab, setTab] = useState<Tab>("member");
   const [bookings, setBookings] = useState<readonly SessionRegistrationRecord[]>([]);
   const [members, setMembers] = useState<readonly MemberNameRow[]>([]);
-  const [memberships, setMemberships] = useState<readonly AdminMembership[]>([]);
-  const [membershipsReady, setMembershipsReady] = useState(true);
   const [query, setQuery] = useState("");
   const [messages, setMessages] = useState<readonly string[]>([]);
   const [info, setInfo] = useState<string | null>(null);
@@ -76,23 +82,18 @@ export function RegistrationsPanel({
   useEffect(() => {
     let abandoned = false;
     void (async () => {
-      // Three independent reads with three different permissions: one refusal must not blank the
-      // other two. Roster names come from the session; directory names are an office fallback.
-      // The directory and memberships are office-only, so the mat does not ask for either.
-      const [bookingRows, memberRows, membershipRows] = await Promise.allSettled([
+      // Two independent reads with different permissions: one refusal must not blank the other.
+      // Roster names come from the session; directory names are an office fallback the mat never
+      // asks for. Memberships are read per student when the office enrols one.
+      const [bookingRows, memberRows] = await Promise.allSettled([
         listSessionBookings(sessionId),
         canReadMemberships ? listMemberNames() : Promise.resolve([] as readonly MemberNameRow[]),
-        canReadMemberships ? listMemberships() : Promise.resolve([] as readonly AdminMembership[]),
       ]);
       if (abandoned) return;
       setLoading(false);
       if (bookingRows.status === "fulfilled") setBookings(bookingRows.value);
       else setError(messageOf(bookingRows.reason, "Unable to load the registrations"));
       if (memberRows.status === "fulfilled") setMembers(memberRows.value);
-      if (membershipRows.status === "fulfilled") setMemberships(membershipRows.value);
-      // Telling an administrator "no active membership" when the list never arrived would send
-      // them to fix a membership that is probably fine.
-      setMembershipsReady(membershipRows.status === "fulfilled");
     })();
     return () => {
       abandoned = true;
@@ -104,7 +105,7 @@ export function RegistrationsPanel({
     return (studentId: string) => byStudent.get(studentId) ?? studentId;
   }, [members]);
 
-  const canEnrol = canReadMemberships && (isPrivateLesson || membershipsReady) && !loading;
+  const canEnrol = canReadMemberships && !loading;
   const registered = bookings.filter((booking) => booking.status !== "cancelled");
 
   const matches =
@@ -134,27 +135,21 @@ export function RegistrationsPanel({
         return messageOf(failure, "Unable to book this private lesson");
       }
     }
-    if (!membershipsReady) return noMembershipList;
-    const active = memberships.filter(
-      (candidate) =>
-        candidate.studentId === studentId &&
-        (candidate.status === "active" || candidate.status === "trial"),
-    );
-    if (!active.length) return noMembership;
-    const sessionTime = Date.parse(session.startAt);
-    const membership = active.find(
-      (candidate) =>
-        Date.parse(candidate.startsAt) <= sessionTime &&
-        (candidate.endsAt === null || sessionTime < Date.parse(candidate.endsAt)),
-    );
-    if (!membership) return "This class is outside the member's paid membership period";
+    // The server picks per student (earlier ids and Free Trials included); the booking re-checks
+    // payment, capacity, age, centre and allowance either way.
+    let request: RequestBookingInput;
     try {
-      await requestBooking({
-        kind: "membership",
-        sessionId,
-        studentId,
-        membershipId: membership.membershipId,
-      });
+      const { choice, reason } = await getRegistrationChoice(sessionId, studentId);
+      if (choice === null) return refusals[reason ?? "no-plan"];
+      request =
+        choice.kind === "intro"
+          ? { kind: "intro", sessionId, studentId }
+          : { kind: "membership", sessionId, studentId, membershipId: choice.membershipId };
+    } catch (failure) {
+      return messageOf(failure, "Unable to enrol this member");
+    }
+    try {
+      await requestBooking(request);
       return null;
     } catch (failure) {
       return messageOf(failure, "Unable to enrol this member");
@@ -330,9 +325,6 @@ export function RegistrationsPanel({
             {canReadMemberships ? null : (
               <p className="cs-placeholder">Enrolment needs an office account</p>
             )}
-            {canReadMemberships && !membershipsReady ? (
-              <p className="cs-placeholder">{noMembershipList}</p>
-            ) : null}
             <ul className="cs-results">
               {matches.map((member) => (
                 <li key={member.studentId}>
