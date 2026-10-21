@@ -99,13 +99,31 @@ export type AdminDirectoryReader = "canonical" | "legacy-rollback";
  * Why a directory writer refused a new student, carried beside the writer's own `code`, which other
  * refusals share. Spelt as the enrolment approval slug so office reads one name for it everywhere.
  */
-export type MemberDirectoryRefusalReason = "directory_capacity_exhausted";
+export type MemberDirectoryRefusalReason =
+  "directory_capacity_exhausted" | "legacy_reads_eliminated";
 
 export function isDirectoryCapacityExhausted(error: unknown): boolean {
   return (
     error instanceof Error &&
     (error as { reason?: unknown }).reason === "directory_capacity_exhausted"
   );
+}
+
+export function isLegacyReadsEliminated(error: unknown): boolean {
+  return (
+    error instanceof Error && (error as { reason?: unknown }).reason === "legacy_reads_eliminated"
+  );
+}
+
+/**
+ * Read before any legacy source (members, Regyfit). "open" only for a state that parses with the
+ * global marker false; a missing or unreadable state is "unknown", which a caller treats as closed
+ * rather than reading legacy data it may no longer be allowed to read.
+ */
+export function legacyReadState(value: unknown): "open" | "eliminated" | "unknown" {
+  const state = memberDirectoryStateSchema.safeParse(value);
+  if (!state.success) return "unknown";
+  return state.data.globalLegacyReadEliminated ? "eliminated" : "open";
 }
 
 type IntegrityBinding = Readonly<{

@@ -1,6 +1,8 @@
 import {
   assignMemberGuardianInputSchema,
   confirmMemberTrainingCenterInputSchema,
+  legacyReadsEliminatedReason,
+  memberMigrationClosedMessage,
   setMemberDateOfBirthInputSchema,
 } from "@bpt-jersey/domain/members/migration";
 import { CanonicalMemberDirectoryError } from "./canonical-member-directory-service.js";
@@ -13,7 +15,11 @@ import type {
   CanonicalMemberDirectoryActor,
   OfficeMemberDirectoryService,
 } from "./canonical-member-directory-service.js";
-import { defaultMemberDirectoryCallableServices } from "./member-directory-callables.js";
+import {
+  defaultMemberDirectoryCallableServices,
+  mapMemberDirectoryError,
+} from "./member-directory-callables.js";
+import { isLegacyReadsEliminated } from "./member-directory-state.js";
 import { createFirestoreMemberMigrationStore } from "./member-migration-firestore.js";
 import {
   createMemberMigrationService,
@@ -33,12 +39,31 @@ function requireOffice(actor: CanonicalMemberDirectoryActor): void {
   }
 }
 
+/** A closed queue or an unreadable state is a precondition, never passed off as an internal error. */
+function mapMigrationError(error: unknown): never {
+  if (isLegacyReadsEliminated(error)) {
+    throw new HttpsError("failed-precondition", memberMigrationClosedMessage, {
+      reason: legacyReadsEliminatedReason,
+    });
+  }
+  if (error instanceof MemberMigrationInputError) {
+    throw new HttpsError("invalid-argument", "Check the decisions and try again.");
+  }
+  if (error instanceof CanonicalMemberDirectoryError) mapMemberDirectoryError(error);
+  if (error instanceof HttpsError) throw error;
+  throw new HttpsError("internal", "The migration queue is unavailable. Try again.");
+}
+
 export async function listMemberMigrationQueueHandler(
   actor: CanonicalMemberDirectoryActor,
   service: Service,
 ) {
   requireOffice(actor);
-  return service.listQueue(actor);
+  try {
+    return await service.listQueue(actor);
+  } catch (error) {
+    return mapMigrationError(error);
+  }
 }
 
 export async function decideMemberMigrationHandler(
@@ -50,10 +75,7 @@ export async function decideMemberMigrationHandler(
   try {
     return await service.decide(actor, data);
   } catch (error) {
-    if (error instanceof MemberMigrationInputError) {
-      throw new HttpsError("invalid-argument", "Check the decisions and try again.");
-    }
-    throw new HttpsError("internal", "The migration queue is unavailable. Try again.");
+    return mapMigrationError(error);
   }
 }
 

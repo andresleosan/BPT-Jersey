@@ -25,12 +25,20 @@ import {
   type CanonicalMemberDirectoryReadService,
 } from "./canonical-member-directory-read-service.js";
 import {
+  assertLegacyReadsOpen,
   CanonicalMemberDirectoryError,
   createCanonicalMemberDirectoryService,
   type CanonicalMemberDirectoryService,
   type OfficeMemberDirectoryService,
 } from "./canonical-member-directory-service.js";
-import { createMemberDirectoryFirestoreAdapters } from "./member-directory-firestore.js";
+import {
+  legacyReadsEliminatedReason,
+  legacyRegistrationClosedMessage,
+} from "@bpt-jersey/domain/members/migration";
+import {
+  createMemberDirectoryFirestoreAdapters,
+  readWithDirectoryState,
+} from "./member-directory-firestore.js";
 
 import {
   importedSubscriptionQuerySchema,
@@ -60,6 +68,12 @@ function serverTimestamp(): string {
 
 export function mapMemberDirectoryError(error: unknown): never {
   if (error instanceof CanonicalMemberDirectoryError) {
+    // Closed for good rather than down: said in words, with a reason a screen can recognise.
+    if (error.reason === "legacy_reads_eliminated") {
+      throw new HttpsError("failed-precondition", legacyRegistrationClosedMessage, {
+        reason: legacyReadsEliminatedReason,
+      });
+    }
     switch (error.code) {
       case "unauthorized":
         throw new HttpsError("permission-denied", "Member operation is not permitted");
@@ -341,11 +355,26 @@ export const revealRegyfitRecordField = onCall(memberDirectoryCallableOptions, a
   revealRegyfitRecordFieldHandler(request, defaultMemberDirectoryCallableServices()),
 );
 
+/**
+ * A Regyfit record and its two links are legacy sources: read with the state that allows them, in
+ * one transaction (see readWithDirectoryState), and refused unread once legacy reads are eliminated.
+ */
 async function importedMemberRecord(academyId: string, recordId: string) {
-  const snapshot = await getFirestore()
-    .doc(`academies/${academyId}/regyfitMemberRecords/${recordId}`)
-    .get();
-  const data = snapshot.data();
+  const firestore = getFirestore();
+  const root = `academies/${academyId}`;
+  const [snapshot, ...links] = await readWithDirectoryState(
+    firestore,
+    academyId,
+    async (transaction, state) => {
+      assertLegacyReadsOpen(state);
+      return Promise.all(
+        ["regyfitMemberRecords", "regyfitMemberLinks", "regyfitOfficeLinks"].map((collection) =>
+          transaction.get(firestore.doc(`${root}/${collection}/${recordId}`)),
+        ),
+      );
+    },
+  );
+  const data = snapshot?.data();
   const parsed = parseStoredRegyfitMemberRecord(data);
   if (
     !parsed.ok ||
@@ -353,7 +382,7 @@ async function importedMemberRecord(academyId: string, recordId: string) {
     (data?.academyId !== undefined && data.academyId !== academyId)
   )
     throw new HttpsError("not-found", "Imported member is unavailable.");
-  return parsed.value;
+  return { record: parsed.value, links };
 }
 
 export const resolveMemberSubscriptionProfile = onCall(
@@ -367,11 +396,9 @@ export const resolveMemberSubscriptionProfile = onCall(
     const input = importedSubscriptionQuerySchema.safeParse(request.data);
     if (!input.success) throw new HttpsError("invalid-argument", "Invalid member profile.");
     try {
-      const source = await importedMemberRecord(actor.academyId, input.data.recordId);
-      const links = await Promise.all(
-        ["regyfitMemberLinks", "regyfitOfficeLinks"].map((collection) =>
-          getFirestore().doc(`academies/${actor.academyId}/${collection}/${source.recordId}`).get(),
-        ),
+      const { record: source, links } = await importedMemberRecord(
+        actor.academyId,
+        input.data.recordId,
       );
       const targets = new Set<string>();
       for (const snapshot of links) {
@@ -429,7 +456,7 @@ export const registerImportedMemberForOffice = onCall(
     if (!input.success)
       throw new HttpsError("invalid-argument", "Choose the member's date of birth and centre.");
     try {
-      const source = await importedMemberRecord(actor.academyId, input.data.recordId);
+      const { record: source } = await importedMemberRecord(actor.academyId, input.data.recordId);
       const value = {
         requestId: input.data.requestId,
         fullName: source.fullName,

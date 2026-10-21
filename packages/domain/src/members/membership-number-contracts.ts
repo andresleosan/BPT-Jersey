@@ -53,6 +53,17 @@ export type MembershipNumberPlanAction = (typeof membershipNumberPlanActions)[nu
 export const membershipNumberSourceKinds = Object.freeze(["canonical", "legacy"] as const);
 export type MembershipNumberSourceKind = (typeof membershipNumberSourceKinds)[number];
 
+/**
+ * A canonical row is a `studentAdminProfiles/` record and a legacy row a `members/` record, never
+ * the other way round: the legacy gate reads the kind while apply reads the path; both must agree.
+ */
+export function membershipNumberKindMatchesRecord(
+  sourceKind: MembershipNumberSourceKind,
+  recordRef: string,
+): boolean {
+  return recordRef.startsWith(sourceKind === "canonical" ? "studentAdminProfiles/" : "members/");
+}
+
 const opaqueIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u);
 const recordRefSchema = z
   .string()
@@ -84,6 +95,13 @@ export const membershipNumberPlanRowSchema = z
     proposed: canonicalStoredMembershipNumberSchema.optional(),
   })
   .superRefine((value, context) => {
+    if (!membershipNumberKindMatchesRecord(value.sourceKind, value.recordRef)) {
+      context.addIssue({
+        code: "custom",
+        path: ["sourceKind"],
+        message: "Source kind contradicts the record's collection",
+      });
+    }
     if (value.action === "manual_review" && value.proposed !== undefined) {
       context.addIssue({
         code: "custom",
@@ -102,11 +120,29 @@ export const membershipNumberPlanRowSchema = z
 
 export type MembershipNumberPlanRow = Readonly<z.infer<typeof membershipNumberPlanRowSchema>>;
 
+/**
+ * The member directory a plan was built from (2026-10-20): its state revision and whether legacy
+ * reads were already eliminated. Hashed with the rows, so a plan cannot be applied to another
+ * directory than the one it read; absent on plans written before, which then only apply while legacy
+ * reads are still allowed.
+ */
+export const membershipNumberDirectoryBindingSchema = z
+  .strictObject({
+    stateRevision: z.number().int().nonnegative().safe(),
+    legacyReadsEliminated: z.boolean(),
+  })
+  .readonly();
+
+export type MembershipNumberDirectoryBinding = Readonly<
+  z.infer<typeof membershipNumberDirectoryBindingSchema>
+>;
+
 export const membershipNumberPlanPayloadSchema = z
   .strictObject({
     academyId: opaqueIdSchema,
     generatedAt: utcMillisecondSchema,
     rows: z.array(membershipNumberPlanRowSchema).max(100_000).readonly(),
+    directory: membershipNumberDirectoryBindingSchema.optional(),
     schemaVersion: z.literal("1"),
   })
   .readonly();
@@ -120,6 +156,7 @@ export const membershipNumberPlanSchema = z
     academyId: opaqueIdSchema,
     generatedAt: utcMillisecondSchema,
     rows: z.array(membershipNumberPlanRowSchema).max(100_000).readonly(),
+    directory: membershipNumberDirectoryBindingSchema.optional(),
     schemaVersion: z.literal("1"),
     contentHash: z.string().regex(/^[a-f0-9]{64}$/u),
   })

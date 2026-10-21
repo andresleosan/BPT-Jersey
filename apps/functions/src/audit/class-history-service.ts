@@ -158,7 +158,9 @@ export async function readClassHistory(
     const directoryMemberId = block?.memberId ?? null;
     const directoryName =
       directoryMemberId === null ? undefined : directoryMemberNames.get(directoryMemberId);
-    const studentName = recordName ?? directoryName ?? block?.studentName ?? null;
+    // The same holds for a row linked to a student: no linked row falls back to its stored copy.
+    const linked = studentId !== null || directoryMemberId !== null;
+    const studentName = recordName ?? directoryName ?? (linked ? null : block?.studentName) ?? null;
     // A staff actor with no matching profile (the uid never resolved to a staffKey) is shown as
     // "Office" rather than the empty/generic wording composeClassHistorySentence would otherwise
     // fall back to - and never as the actor's own auth uid.

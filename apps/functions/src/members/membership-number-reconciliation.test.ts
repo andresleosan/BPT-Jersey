@@ -152,3 +152,52 @@ describe("membership number reconciliation planner", () => {
     });
   });
 });
+
+describe("the plan's directory binding (2026-10-20 capacity prep, part 4)", () => {
+  const input = {
+    academyId: "academy-1",
+    generatedAt,
+    rows: [row("studentAdminProfiles/s1", "canonical", "12")],
+  };
+
+  it("refuses legacy rows once legacy reads are eliminated", () => {
+    expect(() =>
+      buildMembershipNumberReconciliationPlan({
+        ...input,
+        rows: [...input.rows, row("members/m1", "legacy", "13")],
+        directory: { stateRevision: 795, legacyReadsEliminated: true },
+      }),
+    ).toThrow(/legacy reads are eliminated/u);
+  });
+
+  it("hashes the binding with the rows, so a plan cannot be moved to another state", () => {
+    const hashes = [
+      buildMembershipNumberReconciliationPlan(input),
+      buildMembershipNumberReconciliationPlan({
+        ...input,
+        directory: { stateRevision: 794, legacyReadsEliminated: false },
+      }),
+      buildMembershipNumberReconciliationPlan({
+        ...input,
+        directory: { stateRevision: 795, legacyReadsEliminated: false },
+      }),
+    ].map((plan) => plan.contentHash);
+
+    expect(new Set(hashes).size).toBe(3);
+  });
+
+  it.each([
+    ["a members record labelled canonical", row("members/m1", "canonical", "13")],
+    ["a profile labelled legacy", row("studentAdminProfiles/s2", "legacy", "13")],
+  ])("refuses %s, bound to the marker or not", (_label, mislabelled) => {
+    for (const directory of [undefined, { stateRevision: 795, legacyReadsEliminated: true }]) {
+      expect(() =>
+        buildMembershipNumberReconciliationPlan({
+          ...input,
+          rows: [...input.rows, mislabelled],
+          ...(directory === undefined ? {} : { directory }),
+        }),
+      ).toThrow(/contradicts the record's collection/u);
+    }
+  });
+});

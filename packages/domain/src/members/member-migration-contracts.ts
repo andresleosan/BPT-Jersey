@@ -10,6 +10,16 @@ import {
 
 export const MEMBER_MIGRATION_ID = "member-unification-s1-2026-09";
 
+/**
+ * The `details.reason` of a refusal once legacy reads are eliminated (T097): the migration queue,
+ * its decisions and every legacy or imported registration are closed for good, not unavailable.
+ */
+export const legacyReadsEliminatedReason = "legacy-reads-eliminated";
+export const memberMigrationClosedMessage =
+  "The member migration is closed: legacy member records are no longer read.";
+export const legacyRegistrationClosedMessage =
+  "Legacy and imported member records are no longer read. Add the person as a new member instead.";
+
 export type LegacyMemberInput = Readonly<{
   memberId: string;
   fullName: string;
@@ -284,6 +294,11 @@ export const decideMemberMigrationResultSchema = z.strictObject({
       }),
     ]),
   ),
+  /**
+   * Set when the queue closed (legacy reads eliminated) partway through: `results` holds what was
+   * decided before, and the decisions after it were not attempted.
+   */
+  closed: z.literal(true).optional(),
 });
 export type DecideMemberMigrationResult = z.infer<typeof decideMemberMigrationResultSchema>;
 

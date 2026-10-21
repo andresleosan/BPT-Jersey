@@ -801,6 +801,7 @@ describe("global legacy-read elimination (T097, prepared, not run)", () => {
       [{ completedDirectoryForwardCount: 0 }, "completed-directory-forward"],
       [{ verifiedRestoreAttestationCount: 0 }, "verified-backup-attestation"],
       [{ legacyMemberReaderCount: 3 }, "zero-legacy-dependencies"],
+      [{ legacyMemberReaderCount: null }, "zero-legacy-dependencies"],
       [{ nestedLegacyDocumentCount: null }, "nested-legacy-history-adapted"],
       [{ unexpiredApprovalCount: 2 }, "global-legacy-eliminate-approval"],
     ] as const;

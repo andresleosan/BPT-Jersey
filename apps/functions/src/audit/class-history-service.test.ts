@@ -262,6 +262,32 @@ describe("readClassHistory", () => {
       expect(rows[0]?.studentName).toBe("Olivia Lewis");
     });
 
+    it("never brings back the stored copy once the linked member no longer resolves", async () => {
+      const store = createStore();
+      store.events = [
+        { ...linkedImport, class: { ...linkedImport.class!, studentName: "Olivia Lewes" } },
+      ];
+      store.directoryMembers = new Map();
+
+      const { rows } = await readClassHistory(store, input, adminActor);
+
+      expect(rows[0]?.studentName).toBe(null);
+      expect(rows[0]?.sentence).toBe("Former member booked the class of 16 Sep 2026 at 18:30");
+    });
+
+    it("keeps no stored copy for a student who no longer exists", async () => {
+      const store = createStore();
+      store.events = [
+        { ...memberBooking, class: { ...memberBooking.class!, studentName: "Mia Snapshot" } },
+      ];
+      store.students = new Map();
+
+      const { rows } = await readClassHistory(store, input, adminActor);
+
+      expect(rows[0]?.studentName).toBe(null);
+      expect(rows[0]?.sentence).not.toContain("Mia Snapshot");
+    });
+
     it("falls back to Former member once the linked member is erased", async () => {
       const store = createStore();
       store.events = [linkedImport];

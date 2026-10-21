@@ -7,7 +7,11 @@ import type {
   ClassAuditEventClass,
   ClassAuditSource,
 } from "@bpt-jersey/domain/audit";
+import { memberMigrationDecisionRecordSchema } from "@bpt-jersey/domain/members/migration";
 
+import { readWithDirectoryState } from "../members/member-directory-firestore.js";
+import { legacyReadState } from "../members/member-directory-state.js";
+import { resolveCanonicalStudentIdInTransaction } from "../members/member-identity-resolution.js";
 import type {
   ClassHistoryQuery,
   ClassHistorySession,
@@ -148,6 +152,80 @@ async function readNameMap(
   return names;
 }
 
+/**
+ * An imported row names a legacy member. Its name comes from the canonical student that member was
+ * explicitly linked to - the migration decision, then any approved identity alias - never from a
+ * guess, a guardian or a stored copy. A member with no link reads the legacy directory only while
+ * legacy reads are allowed: once the global marker is set, or the state does not read, the legacy
+ * directory is not touched. Anyone erased or unresolved is simply absent.
+ */
+async function readDirectoryMemberNames(
+  firestore: Firestore,
+  academyId: string,
+  memberIds: readonly string[],
+): Promise<ReadonlyMap<string, string>> {
+  if (memberIds.length === 0) return new Map();
+  const root = `academies/${academyId}`;
+  const decisions = await firestore.getAll(
+    ...memberIds.map((id) => firestore.doc(`${root}/memberMigrationDecisions/${id}`)),
+  );
+  const linked = new Map<string, string>();
+  for (const document of decisions) {
+    const decision = memberMigrationDecisionRecordSchema.safeParse(document.data());
+    if (
+      decision.success &&
+      decision.data.academyId === academyId &&
+      decision.data.legacyMemberId === document.id &&
+      decision.data.kind !== "skip" &&
+      decision.data.studentId !== undefined
+    ) {
+      linked.set(document.id, decision.data.studentId);
+    }
+  }
+  const reader = {
+    async get(path: string) {
+      const snapshot = await firestore.doc(path).get();
+      return { id: snapshot.id, exists: snapshot.exists, data: snapshot.data() };
+    },
+  };
+  const canonical = new Map<string, string>();
+  await Promise.all(
+    [...linked].map(async ([memberId, studentId]) => {
+      // A broken or cyclic alias chain leaves the row unnamed rather than naming somebody else.
+      const resolved = await resolveCanonicalStudentIdInTransaction(
+        reader,
+        academyId,
+        studentId,
+      ).catch(() => undefined);
+      if (resolved !== undefined) canonical.set(memberId, resolved);
+    }),
+  );
+  const studentNames = await readNameMap(
+    firestore,
+    `${root}/students`,
+    [...new Set(canonical.values())],
+    "fullName",
+  );
+  const names = new Map<string, string>();
+  for (const [memberId, studentId] of canonical) {
+    const name = studentNames.get(studentId);
+    if (name !== undefined) names.set(memberId, name);
+  }
+  const unlinked = memberIds.filter((id) => !linked.has(id));
+  if (unlinked.length === 0) return names;
+  // Read with the state that allows it, in one transaction (see readWithDirectoryState).
+  const legacy = await readWithDirectoryState(firestore, academyId, async (transaction, state) =>
+    legacyReadState(state) === "open"
+      ? transaction.getAll(...unlinked.map((id) => firestore.doc(`${root}/members/${id}`)))
+      : [],
+  );
+  for (const document of legacy) {
+    const name = document.data()?.fullName;
+    if (typeof name === "string" && name.length > 0) names.set(document.id, name);
+  }
+  return names;
+}
+
 /** The Firestore adapter behind {@link ClassHistoryStore}, scoped to one academy. */
 export function createClassHistoryStore(
   firestore: Firestore,
@@ -158,7 +236,6 @@ export function createClassHistoryStore(
   const sessionsPath = `academies/${academyId}/sessions`;
   const programsPath = `academies/${academyId}/programs`;
   const staffPath = `academies/${academyId}/staff`;
-  const membersPath = `academies/${academyId}/members`;
 
   return Object.freeze({
     async queryEvents(query: ClassHistoryQuery) {
@@ -188,10 +265,8 @@ export function createClassHistoryStore(
     readStudents: (ids) => readNameMap(firestore, studentsPath, ids, "fullName"),
     readStaffNames: (ids) => readByUserId(firestore, staffPath, ids, null),
     readMemberNames: (uids) => readByUserId(firestore, studentsPath, uids, "fullName"),
-    // A member directory document is keyed by its own memberId, which is exactly what an imported
-    // row stores, so the names come back in one `getAll` - no `where in` chunking needed here.
     readDirectoryMemberNames: (memberIds) =>
-      readNameMap(firestore, membersPath, memberIds, "fullName"),
+      readDirectoryMemberNames(firestore, academyId, memberIds),
 
     async readSessions(ids) {
       if (ids.length === 0) return new Map();

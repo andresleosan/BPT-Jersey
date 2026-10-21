@@ -6,6 +6,7 @@ import {
   createCanonicalMemberDirectoryService,
   type MemberDirectoryDocumentData,
   type MemberDirectoryFirestore,
+  type MemberDirectoryTransaction,
 } from "./canonical-member-directory-service.js";
 import {
   buildStudentIdentityKey,
@@ -112,6 +113,7 @@ function controlPlaneSeedAt(
 function fakeFirestore(
   initial: Record<string, MemberDirectoryDocumentData> = controlPlaneSeed(),
   failCommitWhen?: (paths: readonly string[]) => boolean,
+  versions: Readonly<Record<string, string>> = {},
 ) {
   const records = new Map(Object.entries(initial));
   const readPaths: string[] = [];
@@ -126,7 +128,13 @@ function fakeFirestore(
         get: async (target: Ref) => {
           readPaths.push(target.path);
           const data = records.get(target.path);
-          return { id: target.id, exists: data !== undefined, data: () => data };
+          const version = versions[target.path];
+          return {
+            id: target.id,
+            exists: data !== undefined,
+            ...(version === undefined ? {} : { version }),
+            data: () => data,
+          };
         },
         create: (target: Ref, data: MemberDirectoryDocumentData) => {
           if (records.has(target.path) || staged.has(target.path))
@@ -1346,6 +1354,198 @@ describe("office registration of imported members", () => {
       }),
     ).rejects.toMatchObject({ code: "invalid" });
     expect(h.records).toEqual(before);
+  });
+});
+
+describe("legacy sources closed by the global marker (2026-10-20 capacity prep, parts 2-3)", () => {
+  const statePath = "academies/academy-1/memberDirectoryStates/current";
+  const memberPath = "academies/academy-1/members/legacyAbc1";
+  const eliminated = {
+    globalLegacyReadEliminated: true,
+    rollbackProtocolVersion: "disabled",
+  } as Partial<MemberDirectoryState>;
+  const legacyMember = {
+    memberId: "legacyAbc1",
+    academyId: "academy-1",
+    fullName: "Synthetic Adult",
+    birthDate: "2000-01-02",
+    gender: "unknown",
+    paymentStatus: "unknown",
+    membershipStatus: "active",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    createdBy: "import-1",
+    updatedAt: "2026-09-01T00:00:00.000Z",
+    updatedBy: "import-1",
+    source: "legacy-import",
+    schemaVersion: "1",
+  };
+  const command = (fullName = "Synthetic Adult") => ({
+    actor: actor(),
+    now,
+    legacyMemberId: "legacyAbc1",
+    review: { legacyVersion: "1:0", identityEvidence: "Synthetic passport seen", choices: [] },
+    trainingCenter: "Town" as const,
+    trainingTimePreferences: ["evening" as const],
+    value: {
+      requestId: "legacy-request-1",
+      fullName,
+      dateOfBirth: "2000-01-02",
+      trainingCenter: "Town",
+      trainingTimePreferences: ["evening"],
+      gender: "unknown",
+    },
+  });
+  const legacyReads = (paths: readonly string[]) =>
+    paths.filter((path) => path.includes("/members/") || path.includes("/regyfit"));
+  const closed = { code: "unavailable", reason: "legacy_reads_eliminated" };
+
+  function withLegacyMember(seed = controlPlaneSeed(), failCommitWhen?: () => boolean) {
+    return fakeFirestore({ ...seed, [memberPath]: legacyMember }, failCommitWhen, {
+      [memberPath]: "1:0",
+    });
+  }
+
+  it("answers an exact legacy retry from its receipt after the marker, reading no legacy source", async () => {
+    const harness = withLegacyMember();
+    const writer = service(harness.firestore);
+    const first = await writer.registerLegacyMember(command());
+    harness.records.set(statePath, { ...canonicalState(), ...eliminated });
+    harness.readPaths.length = 0;
+    const before = new Map(harness.records);
+
+    await expect(writer.registerLegacyMember(command())).resolves.toEqual(first);
+    expect(legacyReads(harness.readPaths)).toEqual([]);
+    expect(harness.records).toEqual(before);
+  });
+
+  it("refuses a retry whose body changed, still before any legacy read", async () => {
+    const harness = withLegacyMember();
+    const writer = service(harness.firestore);
+    await writer.registerLegacyMember(command());
+    harness.records.set(statePath, { ...canonicalState(), ...eliminated });
+    harness.readPaths.length = 0;
+
+    await expect(writer.registerLegacyMember(command("Someone Else"))).rejects.toMatchObject({
+      code: "replay",
+    });
+    expect(legacyReads(harness.readPaths)).toEqual([]);
+  });
+
+  it("refuses a new legacy registration after the marker before reading members or Regyfit", async () => {
+    const harness = withLegacyMember(controlPlaneSeedAt(eliminated));
+    const before = new Map(harness.records);
+
+    await expect(service(harness.firestore).registerLegacyMember(command())).rejects.toMatchObject(
+      closed,
+    );
+    expect(legacyReads(harness.readPaths)).toEqual([]);
+    expect(harness.records).toEqual(before);
+  });
+
+  it("closes a legacy registration that races the marker when the transaction runs again", async () => {
+    let raced = false;
+    const harness = withLegacyMember(controlPlaneSeed(), () => {
+      if (raced) return false;
+      // T097 commits first: this attempt read the open state, so its commit fails and it reruns.
+      raced = true;
+      harness.records.set(statePath, { ...canonicalState(), ...eliminated });
+      return true;
+    });
+    const retrying: MemberDirectoryFirestore = {
+      ...harness.firestore,
+      runTransaction: async <T>(
+        callback: (transaction: MemberDirectoryTransaction) => Promise<T>,
+      ): Promise<T> => {
+        try {
+          return await harness.firestore.runTransaction(callback);
+        } catch (error) {
+          if ((error as Error).message !== "synthetic commit failure") throw error;
+          harness.readPaths.length = 0;
+          return harness.firestore.runTransaction(callback);
+        }
+      },
+    };
+
+    await expect(service(retrying).registerLegacyMember(command())).rejects.toMatchObject(closed);
+    expect(raced).toBe(true);
+    expect(legacyReads(harness.readPaths)).toEqual([]);
+    expect(harness.committedWritePaths).toEqual([]);
+  });
+
+  it("revalidates a skip inside its transaction: refused after the marker, nothing written", async () => {
+    const harness = fakeFirestore(controlPlaneSeedAt(eliminated));
+    const before = new Map(harness.records);
+
+    await expect(
+      service(harness.firestore).skipLegacyMember({
+        actor: actor(),
+        legacyMemberId: "legacyAbc1",
+        reason: "Left in 2024",
+        now,
+      }),
+    ).rejects.toMatchObject(closed);
+    expect(harness.records).toEqual(before);
+  });
+
+  it("refuses a skip when the state does not read, as unavailable rather than closed", async () => {
+    const seed = controlPlaneSeed();
+    delete seed[statePath];
+    const harness = fakeFirestore(seed);
+
+    const refusal = service(harness.firestore).skipLegacyMember({
+      actor: actor(),
+      legacyMemberId: "legacyAbc1",
+      reason: "Left in 2024",
+      now,
+    });
+
+    await expect(refusal).rejects.toMatchObject({
+      code: "unavailable",
+      message: "Member directory state is unavailable",
+    });
+    await expect(refusal).rejects.not.toHaveProperty("reason", "legacy_reads_eliminated");
+  });
+
+  it("answers an exact imported retry after the marker and refuses a new one unread", async () => {
+    const harness = fakeFirestore();
+    const value = { ...input(), dateOfBirth: "2000-01-02" };
+    harness.records.set("academies/academy-1/regyfitMemberRecords/161", {
+      academyId: "academy-1",
+      recordId: "161",
+      memberNumber: value.membershipNumber,
+      fullName: value.fullName,
+      birthDate: value.dateOfBirth,
+      gender: "unknown",
+      membershipState: "active",
+      appAccess: { password: { obsolete: "synthetic-marker" } },
+      graduation: {},
+      plan: {},
+      attendance: { records: [] },
+      payments: [],
+      capturedAt: now,
+      source: "regyfit-admin-capture",
+      schemaVersion: "1",
+    });
+    const writer = service(harness.firestore);
+    const registration = { actor: actor(), value, now, recordId: "161" };
+    const first = await writer.registerImportedMember(registration);
+    harness.records.set(statePath, { ...canonicalState(), ...eliminated });
+    harness.readPaths.length = 0;
+
+    await expect(writer.registerImportedMember(registration)).resolves.toEqual(first);
+    await expect(
+      writer.registerImportedMember({ ...registration, value: { ...value, requestId: "new-1" } }),
+    ).rejects.toMatchObject(closed);
+    expect(legacyReads(harness.readPaths)).toEqual([]);
+  });
+
+  it("leaves an ordinary canonical create untouched after the marker", async () => {
+    const harness = fakeFirestore(controlPlaneSeedAt(eliminated));
+
+    await expect(
+      service(harness.firestore).createAdminAdult({ actor: actor(), value: input(), now }),
+    ).resolves.toMatchObject({ studentId: "student-new-1" });
+    expect(legacyReads(harness.readPaths)).toEqual([]);
   });
 });
 

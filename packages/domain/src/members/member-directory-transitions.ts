@@ -682,7 +682,7 @@ export type MemberDirectoryGlobalEliminationPrecondition =
 export type MemberDirectoryGlobalEliminationEvidence = Readonly<{
   completedDirectoryForwardCount: number;
   verifiedRestoreAttestationCount: number;
-  legacyMemberReaderCount: number;
+  legacyMemberReaderCount: number | null;
   nestedLegacyDocumentCount: number | null;
   unexpiredApprovalCount: number;
 }>;

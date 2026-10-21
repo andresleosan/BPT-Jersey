@@ -1,8 +1,10 @@
 import { FieldPath, getFirestore, type Firestore } from "firebase-admin/firestore";
 
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
+import { memberDirectoryStateSchema } from "@bpt-jersey/domain/members/directory";
 import {
   membershipNumberPlanSchema,
+  type MembershipNumberDirectoryBinding,
   type MembershipNumberPlan,
   type MembershipNumberPlanRow,
 } from "@bpt-jersey/domain/members/membership-number";
@@ -79,8 +81,9 @@ export type MembershipNumberReconciliationStore = Readonly<{
   firestore: MemberDirectoryFirestore;
   identitySecretMaterial: string;
   identitySecretVersion: string;
+  /** With legacy reads eliminated, canonical profiles only: the legacy directory is not listed. */
   listSourceRows: (
-    input: Readonly<{ academyId: string }>,
+    input: Readonly<{ academyId: string; legacyReadsEliminated?: boolean }>,
   ) => Promise<readonly MembershipNumberSourceRow[]>;
 }>;
 
@@ -89,8 +92,47 @@ function planPayload(plan: MembershipNumberPlan) {
     academyId: plan.academyId,
     generatedAt: plan.generatedAt,
     rows: plan.rows,
+    ...(plan.directory === undefined ? {} : { directory: plan.directory }),
     schemaVersion: plan.schemaVersion,
   } as const;
+}
+
+function statePath(academyId: string): string {
+  return `academies/${academyId}/memberDirectoryStates/current`;
+}
+
+function readableState(value: unknown) {
+  const state = memberDirectoryStateSchema.safeParse(value);
+  if (!state.success) {
+    throw new Error("Membership number reconciliation needs a readable directory state");
+  }
+  return state.data;
+}
+
+/**
+ * Checked in each chunk's transaction before any row is read or written. Once legacy reads are
+ * eliminated, a plan holding legacy rows or not bound to the eliminated directory is stale; any plan
+ * stops if the directory's mode changed or its revision went backwards since it was built.
+ */
+function assertPlanMatchesDirectory(plan: MembershipNumberPlan, value: unknown): void {
+  const state = readableState(value);
+  const eliminated = state.globalLegacyReadEliminated;
+  if (
+    eliminated &&
+    (plan.directory?.legacyReadsEliminated !== true ||
+      plan.rows.some((row) => row.sourceKind === "legacy"))
+  ) {
+    throw new Error(
+      "Membership number plan is stale: legacy reads were eliminated since it was built",
+    );
+  }
+  if (
+    plan.directory !== undefined &&
+    (plan.directory.legacyReadsEliminated !== eliminated ||
+      state.stateRevision < plan.directory.stateRevision)
+  ) {
+    throw new Error("Membership number plan does not match the member directory state");
+  }
 }
 
 export function expectedMembershipNumberReconciliationConfirmation(
@@ -102,14 +144,32 @@ export function expectedMembershipNumberReconciliationConfirmation(
   return `APPLY MEMBERSHIP NUMBERS ${academyId} ${operationId} ${contentHash}`;
 }
 
+/**
+ * The plan is bound to the directory state it read (revision and mode; fail closed when the state
+ * does not read). Listing is paged, so it is not one transaction with that state: a marker landing
+ * mid-listing yields a plan bound to the open state, which apply then refuses as stale.
+ */
 export async function planMembershipNumberReconciliation(
   store: MembershipNumberReconciliationStore,
   input: Readonly<{ academyId: string; generatedAt: string }>,
 ): Promise<MembershipNumberPlan> {
+  const state = readableState(
+    await store.firestore.runTransaction(async (transaction) =>
+      (await transaction.get(store.firestore.doc(statePath(input.academyId)))).data(),
+    ),
+  );
+  const directory: MembershipNumberDirectoryBinding = {
+    stateRevision: state.stateRevision,
+    legacyReadsEliminated: state.globalLegacyReadEliminated,
+  };
   return buildMembershipNumberReconciliationPlan({
     academyId: input.academyId,
     generatedAt: input.generatedAt,
-    rows: await store.listSourceRows({ academyId: input.academyId }),
+    rows: await store.listSourceRows({
+      academyId: input.academyId,
+      legacyReadsEliminated: directory.legacyReadsEliminated,
+    }),
+    directory,
   });
 }
 
@@ -202,6 +262,11 @@ export async function applyMembershipNumberReconciliation(
         }
         return replayRows(existingReceipt.data);
       }
+      // An exact replay above needs no state; anything new answers to the directory it was built from.
+      assertPlanMatchesDirectory(
+        plan,
+        (await transaction.get(store.firestore.doc(statePath(plan.academyId)))).data(),
+      );
 
       // Firestore rejects any read after the first write of a transaction, so every row is read and
       // decided first; the writes follow in a second pass.
@@ -357,10 +422,10 @@ export function createMembershipNumberReconciliationFirestoreStore(
     firestore: createMemberDirectoryFirestoreAdapters(firestore).writer,
     identitySecretMaterial: options.identitySecretMaterial,
     identitySecretVersion: options.identitySecretVersion ?? "identity-v1",
-    async listSourceRows({ academyId }) {
+    async listSourceRows({ academyId, legacyReadsEliminated = false }) {
       const [canonical, legacy] = await Promise.all([
         listCollectionRows(firestore, academyId, "studentAdminProfiles"),
-        listCollectionRows(firestore, academyId, "members"),
+        legacyReadsEliminated ? [] : listCollectionRows(firestore, academyId, "members"),
       ]);
       return Object.freeze([...canonical, ...legacy]);
     },

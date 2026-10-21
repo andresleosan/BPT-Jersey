@@ -5,6 +5,7 @@ import { canonicaliseMembershipNumber } from "@bpt-jersey/domain/members/members
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import {
   MEMBER_MIGRATION_ID,
+  legacyRegistrationClosedMessage,
   migrationIdentityReviewSchema,
   migrationIdentityValues,
   reviewedMigrationValues,
@@ -48,6 +49,7 @@ import {
   advanceMemberDirectoryControlPlane,
   assertCanonicalMemberDirectoryWriterReady,
   assertMemberDirectoryControlPlane,
+  legacyReadState,
   memberDirectoryRestoreGuardSchema,
   type MemberDirectoryRefusalReason,
 } from "./member-directory-state.js";
@@ -120,6 +122,25 @@ export const legacyMigrationErrorMessages = Object.freeze({
   alreadyDecided: "Legacy member already decided",
   recordLinked: "Imported record is already linked",
 } as const);
+
+/**
+ * Checked against the state document before any legacy source (members, Regyfit) is read: once legacy
+ * reads are eliminated the legacy and imported paths are closed for good, and a state that does not
+ * read closes them too rather than letting a legacy read through.
+ */
+export function assertLegacyReadsOpen(state: unknown): void {
+  const access = legacyReadState(state);
+  if (access === "eliminated") {
+    throw new CanonicalMemberDirectoryError(
+      "unavailable",
+      legacyRegistrationClosedMessage,
+      "legacy_reads_eliminated",
+    );
+  }
+  if (access === "unknown") {
+    throw new CanonicalMemberDirectoryError("unavailable", "Member directory state is unavailable");
+  }
+}
 
 export type OfficeMemberDirectoryService = CanonicalMemberDirectoryService &
   Readonly<{
@@ -1022,6 +1043,27 @@ export function createCanonicalMemberDirectoryService(
         const prior = await transaction.get(receiptRef);
         if (prior.exists) return resolveReplay(transaction, dependencies, prior.data(), receiptId, academyId, actorId, expectedRequestMac);
       }
+      // Legacy and imported registrations read members and Regyfit. After the global marker a new
+      // one is refused before either is read; an exact imported retry still answers from its receipt.
+      if (legacy || sourceRecordId) {
+        const stateDocument = dependencies.firestore.doc(statePath(academyId));
+        const state = (await transaction.get(stateDocument)).data();
+        if (!legacy && legacyReadState(state) === "eliminated") {
+          const prior = await transaction.get(receiptRef);
+          if (prior.exists) {
+            return resolveReplay(
+              transaction,
+              dependencies,
+              prior.data(),
+              receiptId,
+              academyId,
+              actorId,
+              expectedRequestMac,
+            );
+          }
+        }
+        assertLegacyReadsOpen(state);
+      }
       let reviewedSourceValues: ReturnType<typeof migrationIdentityValues> | undefined;
       if (legacy) {
         const review = migrationIdentityReviewSchema.parse(legacy.review);
@@ -1789,6 +1831,10 @@ export function createCanonicalMemberDirectoryService(
       );
       await dependencies.firestore.runTransaction(async (transaction) => {
         await assertProvisionedActor(transaction, dependencies, command.actor);
+        // A decision belongs to the legacy queue, which closes with legacy reads. Checked here, in
+        // the same transaction, so a skip racing the global marker cannot land after it.
+        const state = await transaction.get(dependencies.firestore.doc(statePath(academyId)));
+        assertLegacyReadsOpen(state.data());
         if ((await transaction.get(decisionRef)).exists)
           throw new CanonicalMemberDirectoryError(
             "conflict",

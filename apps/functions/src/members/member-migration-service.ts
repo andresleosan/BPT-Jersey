@@ -22,6 +22,7 @@ import {
   type CanonicalMemberDirectoryActor,
   type OfficeMemberDirectoryService,
 } from "./canonical-member-directory-service.js";
+import { isLegacyReadsEliminated } from "./member-directory-state.js";
 
 export type MemberMigrationSnapshot = Readonly<{
   versions: Readonly<{ members: Readonly<Record<string, string>>; records: Readonly<Record<string, string>> }>;
@@ -169,6 +170,9 @@ export function createMemberMigrationService(
             reject("not-a-candidate");
             continue;
           }
+          // The queue closed under this batch (the global marker landed): keep what was decided,
+          // stop, and say so, rather than filing every remaining decision as a failed write.
+          if (isLegacyReadsEliminated(error)) return { results, closed: true };
           reject(rejectionFor(error));
         }
       }

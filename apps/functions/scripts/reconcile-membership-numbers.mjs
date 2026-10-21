@@ -82,6 +82,8 @@ function safePlanView(plan, operationId, expectedConfirmation) {
     operationId,
     generatedAt: plan.generatedAt,
     contentHash: plan.contentHash,
+    // The directory state the plan is bound to (revision, legacy reads eliminated or not).
+    ...(plan.directory ? { directory: plan.directory } : {}),
     expectedConfirmation,
     counts,
     rows: plan.rows.map(({ recordRef, action, currentMasked }) => ({

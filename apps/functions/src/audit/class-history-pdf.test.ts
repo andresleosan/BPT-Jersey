@@ -9,6 +9,11 @@ import type {
 } from "@bpt-jersey/domain/audit/class-history";
 
 import { buildClassHistoryPdf } from "./class-history-pdf.js";
+import {
+  readClassHistory,
+  type ClassHistoryStore,
+  type ClassHistoryStoredEvent,
+} from "./class-history-service.js";
 
 const filters: ClassHistoryFilterSummary = {
   since: "2026-09-01T00:00:00.000Z",
@@ -170,6 +175,58 @@ describe("buildClassHistoryPdf", () => {
     expect(text).toContain("50");
     // generatedAt 2026-09-17T09:00:00.000Z is 10:00 in Jersey (BST, UTC+1) in September.
     expect(text).toContain("17 Sep 2026 at 10:00");
+  });
+
+  it("prints the names the history resolved, never a stored copy (2026-10-20 capacity prep)", async () => {
+    const imported = (
+      id: string,
+      memberId: string | null,
+      studentName: string,
+    ): ClassHistoryStoredEvent => ({
+      id,
+      occurredAt: "2026-09-15T09:00:00.000Z",
+      action: "booking.created",
+      actorId: "regyfit-import",
+      actorRole: "regyfit",
+      actorGroup: "member",
+      actorName: null,
+      actorIp: null,
+      source: "regyfit",
+      class: {
+        studentId: null,
+        memberId,
+        studentName,
+        sessionId: null,
+        sessionStartAt: "2026-09-16T17:30:00.000Z",
+        programId: null,
+        locationId: null,
+      },
+    });
+    const store: ClassHistoryStore = {
+      queryEvents: async () => [
+        imported("event-linked", "member-7", "Olivia Lewes"),
+        imported("event-erased", "member-gone", "Harry Snapshot"),
+        imported("event-unmatched", null, "Captured Person"),
+      ],
+      readStudents: async () => new Map(),
+      readSessions: async () => new Map(),
+      readStaffNames: async () => new Map(),
+      readMemberNames: async () => new Map(),
+      // What the Firestore adapter answers once member-7's migration decision links it.
+      readDirectoryMemberNames: async () => new Map([["member-7", "Olivia Lewis"]]),
+    };
+    const { rows } = await readClassHistory(
+      store,
+      { ...filters, academyId: "demo-academy", cursor: null },
+      { uid: "owner-1", academyId: "demo-academy", role: "owner" },
+    );
+
+    const text = extractPdfText(await buildClassHistoryPdf({ rows, filters, generatedAt }));
+
+    expect(text).toContain("Olivia Lewis booked the class of 16 Sep 2026 at 18:30");
+    expect(text).toContain("Former member booked the class of 16 Sep 2026 at 18:30");
+    expect(text).toContain("Captured Person booked the class of 16 Sep 2026 at 18:30");
+    for (const stored of ["Olivia Lewes", "Harry Snapshot"]) expect(text).not.toContain(stored);
   });
 
   it("handles an empty row set without throwing", async () => {

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { MemberDirectoryRestoreEnvironmentBinding } from "../members/member-directory-environment.js";
 import {
+  advanceMemberDirectoryControlPlane,
   assertMemberDirectoryControlPlane,
   buildInitialMemberDirectoryControlPlane,
 } from "../members/member-directory-state.js";
@@ -1094,5 +1095,59 @@ describe("backup v3 isolated rehearsal core", () => {
       }),
     ).rejects.toSatisfy((error: unknown) => expectCode(error, "unsafe-environment"));
     expect(source.sourceReads).toBe(0);
+  });
+});
+
+describe("backup v3 rehearsal after T097 (2026-10-20 capacity prep, part 6)", () => {
+  it("keeps a pre-T097 artifact quarantined and unbound to a live guard that saw the marker", async () => {
+    const artifact = await makeSnapshot();
+    const source = sourceControlPlane();
+    const eliminatedAt = "2026-09-03T12:20:00.000Z";
+    const live = advanceMemberDirectoryControlPlane({
+      projectId: "demo-bpt-jersey",
+      state: directoryState(),
+      guard: source.guard,
+      event: source.event,
+      nextState: {
+        ...directoryState(),
+        stateRevision: 1,
+        globalLegacyReadEliminated: true,
+        rollbackProtocolVersion: "disabled",
+        updatedAt: eliminatedAt,
+        updatedBy: "operator-1",
+      },
+      operationId: "t097-operation-1",
+      transitionKind: "global-legacy-eliminate",
+      integritySecretMaterial: sourceSecret,
+      integritySecretVersion: "source-integrity-v1",
+      now: eliminatedAt,
+      actorId: "operator-1",
+    });
+    const target = endpoint({ projectId: "demo-bpt-jersey-restore" });
+
+    const result = await restoreBackupV3RehearsalSnapshot(preparationInput(artifact, target.api));
+
+    // A rehearsal, not an activation: the copy holds user documents but no Auth user, never
+    // serves, and does not bind to the live guard it was taken before.
+    expect(result).toMatchObject({ authorityMode: "quarantined-no-auth", targetAuthUserCount: 0 });
+    expect(target.records.has(`academies/${academyId}/users/user-1`)).toBe(true);
+    const restored = target.records.get(`academies/${academyId}/memberDirectoryStates/current`);
+    expect(restored).toMatchObject({
+      directoryWriteMode: "blocked",
+      freezeStatus: "frozen",
+      operationPhase: "restore-prepared",
+      globalLegacyReadEliminated: false,
+      stateRevision: 0,
+    });
+    expect(() =>
+      assertMemberDirectoryControlPlane({
+        projectId: "demo-bpt-jersey",
+        state: restored,
+        guard: live.guard,
+        event: live.event,
+        integritySecretMaterial: sourceSecret,
+        integritySecretVersion: "source-integrity-v1",
+      }),
+    ).toThrow(/binding mismatch/u);
   });
 });

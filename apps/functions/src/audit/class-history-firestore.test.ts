@@ -3,6 +3,9 @@ import { readFileSync } from "node:fs";
 import { Timestamp } from "firebase-admin/firestore";
 import { describe, expect, it, vi } from "vitest";
 
+import { memberDirectoryStateSchema } from "@bpt-jersey/domain/members/directory";
+import { MEMBER_MIGRATION_ID } from "@bpt-jersey/domain/members/migration";
+
 import { createClassHistoryStore } from "./class-history-firestore.js";
 import type { ClassHistoryQuery } from "./class-history-service.js";
 
@@ -411,6 +414,248 @@ describe("createClassHistoryStore.readMemberNames", () => {
 
     expect(members.size).toBe(0);
     expect(firestore.collection).not.toHaveBeenCalled();
+  });
+});
+
+const root = "academies/demo-academy";
+
+function directoryState(overrides: Record<string, unknown> = {}) {
+  return memberDirectoryStateSchema.parse({
+    stateId: "current",
+    academyId: "demo-academy",
+    readerVersion: "canonical-v1",
+    directoryWriteMode: "canonical-v1",
+    freezeStatus: "open",
+    stateRevision: 794,
+    globalLegacyReadEliminated: false,
+    identityKeyCoverage: "complete",
+    identityKeyBaselineMac: "a".repeat(64),
+    identityKeyBaselineArtifactId: "baseline-1",
+    digestVersion: "hmac-sha256-v1",
+    secretVersion: "2",
+    rollbackProtocolVersion: "legacy-projection-v1",
+    rollbackCapacityLimit: 400,
+    rollbackEligibleStudentCount: 400,
+    operationPhase: "idle",
+    lastCommittedChunkNo: 0,
+    schemaVersion: "1",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    createdBy: "system",
+    updatedAt: "2026-10-20T00:00:00.000Z",
+    updatedBy: "system",
+    ...overrides,
+  });
+}
+
+const eliminated = { globalLegacyReadEliminated: true, rollbackProtocolVersion: "disabled" };
+
+function decision(memberId: string, studentId?: string, kind = "link") {
+  return {
+    legacyMemberId: memberId,
+    academyId: "demo-academy",
+    migrationId: MEMBER_MIGRATION_ID,
+    kind,
+    ...(studentId === undefined ? {} : { studentId }),
+    decidedAt: "2026-09-20T10:00:00.000Z",
+    decidedBy: "owner-1",
+    schemaVersion: "1",
+  };
+}
+
+function alias(studentId: string, canonicalStudentId: string) {
+  return {
+    academyId: "demo-academy",
+    studentId,
+    canonicalStudentId,
+    requestId: "4d2c1b0a-9e8f-4a7b-8c6d-5e4f3a2b1c0d",
+    evidence: "Same membership number",
+    reason: "Duplicate record",
+    previewRevision: "b".repeat(64),
+    approvedBy: "owner-1",
+    approvedAt: "2026-09-21T10:00:00.000Z",
+    schemaVersion: "1",
+  };
+}
+
+/**
+ * Answers by document path and records every path read, so a test proves what was touched. With
+ * `rerunAfter`, a transaction runs twice, as an optimistic engine reruns one whose reads went stale:
+ * `rerunAfter` changes the store in between (the global marker landing).
+ */
+function directoryFirestore(
+  documents: Readonly<Record<string, unknown>>,
+  rerunAfter?: (set: (path: string, value: unknown) => void) => void,
+) {
+  const stored = new Map(Object.entries(documents));
+  const reads: string[] = [];
+  const snapshot = (path: string) => {
+    reads.push(path);
+    const data = stored.get(path) as Record<string, unknown> | undefined;
+    return {
+      id: path.slice(path.lastIndexOf("/") + 1),
+      exists: data !== undefined,
+      data: () => data,
+    };
+  };
+  const getAll = async (...refs: readonly { path: string }[]) =>
+    refs.map((ref) => snapshot(ref.path));
+  const transaction = { get: async (ref: { path: string }) => snapshot(ref.path), getAll };
+  const firestore = {
+    doc: (path: string) => ({ path, get: async () => snapshot(path) }),
+    getAll,
+    runTransaction: async (callback: (current: typeof transaction) => Promise<unknown>) => {
+      const result = await callback(transaction);
+      if (rerunAfter === undefined) return result;
+      rerunAfter((path, value) => stored.set(path, value));
+      return callback(transaction);
+    },
+  };
+  return { reads, store: createClassHistoryStore(firestore as never, "demo-academy") };
+}
+
+const legacyReads = (reads: readonly string[]) =>
+  reads.filter((path) => path.startsWith(`${root}/members/`));
+
+describe("createClassHistoryStore.readDirectoryMemberNames", () => {
+  it("names a migrated member through its decision and approved alias, never the legacy copy", async () => {
+    const { reads, store } = directoryFirestore({
+      [`${root}/memberMigrationDecisions/member-7`]: decision("member-7", "student-old"),
+      [`${root}/memberIdentityAliases/student-old`]: alias("student-old", "student-7"),
+      [`${root}/students/student-7`]: { fullName: "Olivia Lewis" },
+      [`${root}/students/student-old`]: { fullName: "Olivia Old Record" },
+      [`${root}/members/member-7`]: { fullName: "Olivia Legacy" },
+    });
+
+    const names = await store.readDirectoryMemberNames(["member-7"]);
+
+    expect(names).toEqual(new Map([["member-7", "Olivia Lewis"]]));
+    expect(reads).toEqual([
+      `${root}/memberMigrationDecisions/member-7`,
+      `${root}/memberIdentityAliases/student-old`,
+      `${root}/memberIdentityAliases/student-7`,
+      `${root}/students/student-7`,
+    ]);
+  });
+
+  it.each([
+    ["a skipped member", decision("member-8", undefined, "skip")],
+    ["another academy's decision", { ...decision("member-8", "student-8"), academyId: "other" }],
+    ["a decision filed under another member", decision("member-9", "student-8")],
+    ["an unreadable decision", { legacyMemberId: "member-8", studentId: "student-8" }],
+  ])("guesses no link from %s", async (_label, stored) => {
+    const { reads, store } = directoryFirestore({
+      [`${root}/memberMigrationDecisions/member-8`]: stored,
+      [`${root}/students/student-8`]: { fullName: "Somebody Else" },
+      [`${root}/memberDirectoryStates/current`]: directoryState(eliminated),
+    });
+
+    const names = await store.readDirectoryMemberNames(["member-8"]);
+
+    expect(names.size).toBe(0);
+    expect(reads).not.toContain(`${root}/students/student-8`);
+    expect(legacyReads(reads)).toEqual([]);
+  });
+
+  it.each([
+    [
+      "a cyclic alias chain",
+      {
+        [`${root}/memberIdentityAliases/student-a`]: alias("student-a", "student-b"),
+        [`${root}/memberIdentityAliases/student-b`]: alias("student-b", "student-a"),
+      },
+    ],
+    [
+      "an alias that names another student",
+      { [`${root}/memberIdentityAliases/student-a`]: alias("student-x", "student-b") },
+    ],
+    ["an erased student", {}],
+  ])("leaves the member unnamed after %s", async (_label, aliases) => {
+    const { reads, store } = directoryFirestore({
+      [`${root}/memberMigrationDecisions/member-1`]: decision("member-1", "student-a"),
+      [`${root}/students/student-b`]: { fullName: "Bea Wrong Person" },
+      [`${root}/members/member-1`]: { fullName: "Legacy Copy" },
+      ...aliases,
+    });
+
+    const names = await store.readDirectoryMemberNames(["member-1"]);
+
+    expect(names.size).toBe(0);
+    expect(legacyReads(reads)).toEqual([]);
+  });
+
+  it("reads the legacy directory only for an unlinked member, and only before the marker", async () => {
+    const { reads, store } = directoryFirestore({
+      [`${root}/memberMigrationDecisions/member-1`]: decision("member-1", "student-1"),
+      [`${root}/students/student-1`]: { fullName: "Ana Canonical" },
+      [`${root}/members/member-1`]: { fullName: "Ana Legacy" },
+      [`${root}/members/member-2`]: { fullName: "Ben Not Migrated" },
+      [`${root}/memberDirectoryStates/current`]: directoryState(),
+    });
+
+    const names = await store.readDirectoryMemberNames(["member-1", "member-2"]);
+
+    expect(names).toEqual(
+      new Map([
+        ["member-1", "Ana Canonical"],
+        ["member-2", "Ben Not Migrated"],
+      ]),
+    );
+    expect(legacyReads(reads)).toEqual([`${root}/members/member-2`]);
+  });
+
+  it.each([
+    ["after global elimination", directoryState(eliminated)],
+    ["when the state is missing", undefined],
+    ["when the state does not read", { stateId: "current", globalLegacyReadEliminated: false }],
+  ])("never reads the legacy directory %s", async (_label, state) => {
+    const { reads, store } = directoryFirestore({
+      [`${root}/members/member-2`]: { fullName: "Ben Not Migrated" },
+      ...(state === undefined ? {} : { [`${root}/memberDirectoryStates/current`]: state }),
+    });
+
+    const names = await store.readDirectoryMemberNames(["member-2"]);
+
+    expect(names.size).toBe(0);
+    expect(legacyReads(reads)).toEqual([]);
+  });
+
+  it("reads members only with the state that allowed it; a rerun after the marker reads none", async () => {
+    let boundary = -1;
+    const statePath = `${root}/memberDirectoryStates/current`;
+    const { reads, store } = directoryFirestore(
+      {
+        [`${root}/members/member-2`]: { fullName: "Ben Not Migrated" },
+        [statePath]: directoryState(),
+      },
+      (set) => {
+        boundary = reads.length;
+        set(statePath, directoryState(eliminated));
+      },
+    );
+
+    const names = await store.readDirectoryMemberNames(["member-2"]);
+
+    // The state and the members read share one transaction, and its rerun reads no member.
+    expect(names.has("member-2")).toBe(false);
+    expect(reads).toEqual([
+      `${root}/memberMigrationDecisions/member-2`,
+      statePath,
+      `${root}/members/member-2`,
+      statePath,
+    ]);
+    expect(legacyReads(reads.slice(boundary))).toEqual([]);
+    // The blocker, stated rather than hidden: under an optimistic rerun the first attempt had
+    // already read members. Physical zero after the cutover would need server-side locks to keep
+    // the marker from committing meanwhile (documented, not verified here) or quiescence; neither
+    // is shown.
+    expect(legacyReads(reads.slice(0, boundary))).toEqual([`${root}/members/member-2`]);
+  });
+
+  it("reads nothing when no row names a member", async () => {
+    const { reads, store } = directoryFirestore({});
+
+    expect((await store.readDirectoryMemberNames([])).size).toBe(0);
+    expect(reads).toEqual([]);
   });
 });
 

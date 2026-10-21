@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 
 import {
   canonicaliseMembershipNumber,
+  membershipNumberDirectoryBindingSchema,
+  membershipNumberKindMatchesRecord,
   membershipNumberPlanPayloadSchema,
   membershipNumberPlanSchema,
   nextMonotonicMembershipNumber,
@@ -29,6 +31,9 @@ const sourceRowSchema = z
       .refine((value) => value === value.trim() && !/[\u0000-\u001f\u007f]/u.test(value)),
     membershipNumber: z.string().max(64),
   })
+  .refine((row) => membershipNumberKindMatchesRecord(row.sourceKind, row.recordRef), {
+    message: "Source kind contradicts the record's collection",
+  })
   .readonly();
 
 const inputSchema = z
@@ -36,6 +41,7 @@ const inputSchema = z
     academyId: opaqueIdSchema,
     generatedAt: z.string(),
     rows: z.array(sourceRowSchema).max(100_000).readonly(),
+    directory: membershipNumberDirectoryBindingSchema.optional(),
   })
   .readonly();
 
@@ -104,6 +110,13 @@ export function buildMembershipNumberReconciliationPlan(
   input: BuildMembershipNumberReconciliationPlanInput,
 ): MembershipNumberPlan {
   const parsed = inputSchema.parse(input);
+  // After the global marker only canonical profiles are planned; a legacy row means a stale read.
+  if (
+    parsed.directory?.legacyReadsEliminated === true &&
+    parsed.rows.some((row) => row.sourceKind === "legacy")
+  ) {
+    throw new Error("Legacy rows cannot be planned once legacy reads are eliminated");
+  }
   const rows = [...parsed.rows].sort((left, right) => compareText(left.recordRef, right.recordRef));
   const recordRefs = new Set<string>();
   const ownerIds = new Set<string>();
@@ -180,6 +193,7 @@ export function buildMembershipNumberReconciliationPlan(
     academyId: parsed.academyId,
     generatedAt: parsed.generatedAt,
     rows: plannedRows.sort(comparePlanRows),
+    ...(parsed.directory === undefined ? {} : { directory: parsed.directory }),
     schemaVersion: "1",
   });
   const contentHash = membershipNumberPlanContentHash(payload);

@@ -2,11 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 import { Timestamp } from "firebase-admin/firestore";
 
 import {
+  legacyReadsEliminatedReason,
+  legacyRegistrationClosedMessage,
+} from "@bpt-jersey/domain/members/migration";
+
+import {
   createMemberDirectoryActorActivityCheck,
   createMemberDirectoryHandler,
   getMemberDetailHandler,
   listMembersHandler,
   lookupMemberIdentityHandler,
+  mapMemberDirectoryError,
   revealRegyfitRecordFieldHandler,
   updateMemberDirectoryHandler,
   type MemberDirectoryCallableServices,
@@ -475,6 +481,34 @@ describe("canonical member directory callables", () => {
       code: "resource-exhausted",
       message: "Restricted member read rate limit exceeded",
     });
+  });
+  it("tells closed legacy registration from an outage, never as internal (2026-10-20 capacity prep, part 3)", () => {
+    const thrown = (error: unknown) => {
+      try {
+        mapMemberDirectoryError(error);
+      } catch (mapped) {
+        return mapped;
+      }
+    };
+
+    expect(
+      thrown(
+        new CanonicalMemberDirectoryError(
+          "unavailable",
+          legacyRegistrationClosedMessage,
+          "legacy_reads_eliminated",
+        ),
+      ),
+    ).toMatchObject({
+      code: "failed-precondition",
+      message: legacyRegistrationClosedMessage,
+      details: { reason: legacyReadsEliminatedReason },
+    });
+    expect(
+      thrown(
+        new CanonicalMemberDirectoryError("unavailable", "Member directory state is unavailable"),
+      ),
+    ).toMatchObject({ code: "failed-precondition", message: "Member directory is unavailable" });
   });
   it("reveals a Regyfit field only for an App-Checked active owner or administrator", async () => {
     const value = { recordId: "152", field: "idCardNumber", purpose: "regyfit-record-review" };

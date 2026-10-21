@@ -296,6 +296,56 @@ describe("member migration service", () => {
   });
 });
 
+describe("member migration once legacy reads are eliminated (2026-10-20 capacity prep, part 2)", () => {
+  const closedError = new CanonicalMemberDirectoryError(
+    "unavailable",
+    "Closed for good",
+    "legacy_reads_eliminated",
+  );
+
+  it("keeps what was decided when the queue closes partway, and attempts nothing after", async () => {
+    const second = { ...adult, memberId: "m2", fullName: "Bea Costa" } as unknown as MemberRecord;
+    const third = { ...adult, memberId: "m3", fullName: "Cai Duarte" } as unknown as MemberRecord;
+    const { service, writer } = harness({ members: [adult, second, third] });
+    writer.skipLegacyMember.mockResolvedValueOnce(undefined).mockRejectedValueOnce(closedError);
+
+    const result = await service.decide(actor, {
+      decisions: [
+        { kind: "skip", legacyMemberId: "m1", reason: "Duplicate row" },
+        { kind: "skip", legacyMemberId: "m2", reason: "Duplicate row" },
+        { kind: "skip", legacyMemberId: "m3", reason: "Duplicate row" },
+      ],
+    });
+
+    expect(result).toEqual({
+      results: [{ legacyMemberId: "m1", status: "applied" }],
+      closed: true,
+    });
+    expect(writer.skipLegacyMember).toHaveBeenCalledTimes(2);
+  });
+
+  it("passes a closed store on before building a queue or writing anything", async () => {
+    const writer = { registerLegacyMember: vi.fn(), skipLegacyMember: vi.fn() };
+    const service = createMemberMigrationService({
+      store: {
+        load: async () => {
+          throw closedError;
+        },
+      },
+      writer,
+      now: () => "2026-10-20T22:00:00.000Z",
+    });
+
+    await expect(service.listQueue(actor)).rejects.toBe(closedError);
+    await expect(
+      service.decide(actor, {
+        decisions: [{ kind: "skip", legacyMemberId: "m1", reason: "Duplicate row" }],
+      }),
+    ).rejects.toBe(closedError);
+    expect(writer.skipLegacyMember).not.toHaveBeenCalled();
+  });
+});
+
 it.each(["link", "create-unlinked"] as const)(
   "recovers a missing birth date from a strong match for %s",
   async (kind) => {

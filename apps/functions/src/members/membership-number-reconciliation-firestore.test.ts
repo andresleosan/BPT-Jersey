@@ -1,28 +1,76 @@
+import { createHash } from "node:crypto";
+
 import { describe, expect, it } from "vitest";
+
+import { memberDirectoryStateSchema } from "@bpt-jersey/domain/members/directory";
+import type { MembershipNumberPlan } from "@bpt-jersey/domain/members/membership-number";
 
 import { buildStudentIdentityKey } from "./member-directory-crypto.js";
 
 import {
   applyMembershipNumberReconciliation,
+  createMembershipNumberReconciliationFirestoreStore,
   expectedMembershipNumberReconciliationConfirmation,
   planMembershipNumberReconciliation,
   type MembershipNumberReconciliationStore,
 } from "./membership-number-reconciliation-firestore.js";
+import { buildMembershipNumberReconciliationPlan } from "./membership-number-reconciliation.js";
 
 const now = "2026-09-21T05:00:00.000Z";
 const identitySecret = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8";
 
 type Stored = Readonly<{ version: string; data: Readonly<Record<string, unknown>> }>;
 
+const statePath = "academies/academy-1/memberDirectoryStates/current";
+
+function directoryState(overrides: Record<string, unknown> = {}) {
+  return memberDirectoryStateSchema.parse({
+    stateId: "current",
+    academyId: "academy-1",
+    readerVersion: "canonical-v1",
+    directoryWriteMode: "canonical-v1",
+    freezeStatus: "open",
+    stateRevision: 794,
+    globalLegacyReadEliminated: false,
+    identityKeyCoverage: "complete",
+    identityKeyBaselineMac: "a".repeat(64),
+    identityKeyBaselineArtifactId: "baseline-1",
+    digestVersion: "hmac-sha256-v1",
+    secretVersion: "2",
+    rollbackProtocolVersion: "legacy-projection-v1",
+    rollbackCapacityLimit: 400,
+    rollbackEligibleStudentCount: 400,
+    operationPhase: "idle",
+    lastCommittedChunkNo: 0,
+    schemaVersion: "1",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    createdBy: "system",
+    updatedAt: "2026-10-20T00:00:00.000Z",
+    updatedBy: "system",
+    ...overrides,
+  });
+}
+
+const eliminated = {
+  globalLegacyReadEliminated: true,
+  rollbackProtocolVersion: "disabled",
+  stateRevision: 795,
+};
+
 function fakeStore(initial: Record<string, Stored>) {
   const records = new Map(Object.entries(initial));
   const writes: string[] = [];
-  const listRows = async ({ academyId }: Readonly<{ academyId: string }>) =>
+  const reads: string[] = [];
+  const listRows = async ({
+    academyId,
+    legacyReadsEliminated,
+  }: Readonly<{ academyId: string; legacyReadsEliminated?: boolean }>) =>
     [...records.entries()].flatMap(([path, stored]) => {
       const prefix = `academies/${academyId}/`;
       if (!path.startsWith(prefix)) return [];
       const recordRef = path.slice(prefix.length);
       if (!/^(?:studentAdminProfiles|members)\//u.test(recordRef)) return [];
+      if (legacyReadsEliminated === true && recordRef.startsWith("members/")) return [];
       const membershipNumber = stored.data.membershipNumber;
       if (typeof membershipNumber !== "string") return [];
       const sourceKind = recordRef.startsWith("studentAdminProfiles/") ? "canonical" : "legacy";
@@ -55,6 +103,7 @@ function fakeStore(initial: Record<string, Stored>) {
                 "Firestore transactions require all reads to be executed before all writes.",
               );
             }
+            reads.push(reference.path);
             const stored = records.get(reference.path);
             return {
               id: reference.id,
@@ -96,11 +145,13 @@ function fakeStore(initial: Record<string, Stored>) {
       },
     },
   };
-  return { store, records, writes };
+  return { store, records, writes, reads };
 }
 
 function seededRecords(): Record<string, Stored> {
   return {
+    // Plan and apply read the directory state they are bound to (2026-10-20).
+    [statePath]: { version: "state-v794", data: directoryState() },
     "academies/academy-1/studentAdminProfiles/canonical": {
       version: "canonical-v1",
       data: { studentId: "canonical", membershipNumber: "33", immutable: "profile-history" },
@@ -362,5 +413,266 @@ describe("membership number Firestore reconciliation", () => {
     await expect(
       applyMembershipNumberReconciliation(harness.store, plan, confirmation),
     ).rejects.toThrow(/receipt conflict/i);
+  });
+});
+
+describe("membership numbers bound to the member directory (2026-10-20 capacity prep, part 4)", () => {
+  const setState = (harness: ReturnType<typeof fakeStore>, overrides: Record<string, unknown>) =>
+    harness.records.set(statePath, { version: "state-later", data: directoryState(overrides) });
+  const apply = (
+    harness: ReturnType<typeof fakeStore>,
+    plan: Awaited<ReturnType<typeof buildPlan>>,
+  ) => applyMembershipNumberReconciliation(harness.store, plan, confirmationFor(plan));
+
+  it("binds a plan to the state's revision and mode, inside its hash", async () => {
+    const harness = fakeStore(seededRecords());
+    const plan = await buildPlan(harness);
+    const rebound = { ...plan, directory: { stateRevision: 795, legacyReadsEliminated: true } };
+
+    expect(plan.directory).toEqual({ stateRevision: 794, legacyReadsEliminated: false });
+    await expect(
+      applyMembershipNumberReconciliation(harness.store, rebound, confirmationFor(plan)),
+    ).rejects.toThrow(/hash/i);
+    expect(harness.writes).toEqual([]);
+  });
+
+  it("plans and applies canonical profiles only once legacy reads are eliminated", async () => {
+    const harness = fakeStore(seededRecords());
+    setState(harness, eliminated);
+    const legacyBefore = harness.records.get("academies/academy-1/members/legacy-a");
+
+    const plan = await buildPlan(harness);
+    const result = await apply(harness, plan);
+
+    expect(plan.directory).toEqual({ stateRevision: 795, legacyReadsEliminated: true });
+    expect(plan.rows.map((row) => row.recordRef)).toEqual(["studentAdminProfiles/canonical"]);
+    expect(result.rows).toEqual([
+      { recordRef: "studentAdminProfiles/canonical", status: "applied" },
+    ]);
+    expect(harness.records.get("academies/academy-1/members/legacy-a")).toEqual(legacyBefore);
+    expect(harness.writes.filter((path) => path.includes("/members/"))).toEqual([]);
+  });
+
+  it("refuses a plan built before the marker, before any row is read or written", async () => {
+    const harness = fakeStore(seededRecords());
+    const plan = await buildPlan(harness);
+    setState(harness, eliminated);
+    const before = new Map(harness.records);
+
+    await expect(apply(harness, plan)).rejects.toThrow(/stale/i);
+    expect(harness.writes).toEqual([]);
+    expect(harness.records).toEqual(before);
+  });
+
+  it("applies a plan written before the binding only while legacy reads are allowed", async () => {
+    const unboundPlan = async (harness: ReturnType<typeof fakeStore>) =>
+      buildMembershipNumberReconciliationPlan({
+        academyId: "academy-1",
+        generatedAt: now,
+        rows: await harness.store.listSourceRows({ academyId: "academy-1" }),
+      });
+    const open = fakeStore(seededRecords());
+    const closed = fakeStore(seededRecords());
+    setState(closed, eliminated);
+
+    const legacy = await unboundPlan(closed);
+    expect(legacy).not.toHaveProperty("directory");
+    await expect(apply(closed, legacy)).rejects.toThrow(/stale/i);
+    expect(closed.writes).toEqual([]);
+    await expect(apply(open, await unboundPlan(open))).resolves.toMatchObject({
+      rows: expect.arrayContaining([{ recordRef: "members/legacy-a", status: "applied" }]),
+    });
+  });
+
+  it("stops a plan whose directory went backwards since it was built", async () => {
+    const harness = fakeStore(seededRecords());
+    const plan = await buildPlan(harness);
+    // A restore took the directory back a revision: the plan no longer describes it.
+    setState(harness, { stateRevision: 793 });
+
+    await expect(apply(harness, plan)).rejects.toThrow(/does not match/i);
+    expect(harness.writes).toEqual([]);
+  });
+
+  it("answers an exact replay from its receipts after the marker (a lost response)", async () => {
+    const harness = fakeStore(seededRecords());
+    const plan = await buildPlan(harness);
+    await apply(harness, plan);
+    setState(harness, eliminated);
+    const writes = harness.writes.length;
+
+    const replay = await apply(harness, plan);
+
+    expect(replay.rows.every((row) => row.status === "already_applied")).toBe(true);
+    expect(harness.writes).toHaveLength(writes);
+  });
+
+  it("fails closed when the directory state does not read", async () => {
+    const harness = fakeStore(seededRecords());
+    const plan = await buildPlan(harness);
+    harness.records.delete(statePath);
+
+    await expect(buildPlan(harness)).rejects.toThrow(/readable directory state/i);
+    await expect(apply(harness, plan)).rejects.toThrow(/readable directory state/i);
+    expect(harness.writes).toEqual([]);
+  });
+
+  it("queries the legacy directory through Firestore only while legacy reads are allowed", async () => {
+    const queried: string[] = [];
+    const query = (path: string): Record<string, unknown> => ({
+      orderBy: () => query(path),
+      limit: () => query(path),
+      startAfter: () => query(path),
+      get: async () => {
+        queried.push(path);
+        return { docs: [], size: 0 };
+      },
+    });
+    const store = createMembershipNumberReconciliationFirestoreStore({
+      firestore: { collection: query } as never,
+      identitySecretMaterial: identitySecret,
+    });
+
+    await store.listSourceRows({ academyId: "academy-1", legacyReadsEliminated: true });
+    expect(queried).toEqual(["academies/academy-1/studentAdminProfiles"]);
+    queried.length = 0;
+    await store.listSourceRows({ academyId: "academy-1" });
+    expect([...queried].sort()).toEqual([
+      "academies/academy-1/members",
+      "academies/academy-1/studentAdminProfiles",
+    ]);
+  });
+
+  // An independent copy of the content hash: a checksum anyone can recompute, not a MAC.
+  function hashOf(value: unknown): string {
+    const canonical = (item: unknown): string => {
+      if (Array.isArray(item)) return `[${item.map(canonical).join(",")}]`;
+      if (item === null || typeof item !== "object") return JSON.stringify(item);
+      const fields = Object.keys(item)
+        .sort()
+        .map((key) => `${JSON.stringify(key)}:${canonical(Reflect.get(item, key))}`);
+      return `{${fields.join(",")}}`;
+    };
+    return createHash("sha256").update(canonical(value)).digest("hex");
+  }
+
+  it("refuses a row whose kind contradicts its collection before any read, whatever its hash", async () => {
+    const forge = (plan: MembershipNumberPlan, rows: MembershipNumberPlan["rows"]) => {
+      const { contentHash, ...payload } = plan;
+      expect(hashOf(payload)).toBe(contentHash);
+      const forged = { ...payload, rows };
+      return { ...forged, contentHash: hashOf(forged) };
+    };
+    const closed = fakeStore(seededRecords());
+    setState(closed, eliminated);
+    const afterMarker = await buildPlan(closed);
+    const open = fakeStore(seededRecords());
+    const beforeMarker = await buildPlan(open);
+    const cases: [ReturnType<typeof fakeStore>, MembershipNumberPlan][] = [
+      // A members record labelled canonical would pass the legacy gate after the marker.
+      [
+        closed,
+        forge(afterMarker, [
+          ...afterMarker.rows,
+          {
+            ...afterMarker.rows[0]!,
+            recordRef: "members/legacy-a",
+            ownerId: "legacy-a",
+            sourceVersion: "legacy-v1",
+          },
+        ]),
+      ],
+      // A profile labelled legacy would be read with the member record's owner field.
+      [
+        open,
+        forge(
+          beforeMarker,
+          beforeMarker.rows.map((row) =>
+            row.recordRef.startsWith("studentAdminProfiles/")
+              ? { ...row, sourceKind: "legacy" as const }
+              : row,
+          ),
+        ),
+      ],
+    ];
+
+    for (const [harness, forged] of cases) {
+      harness.reads.length = 0;
+      await expect(
+        applyMembershipNumberReconciliation(harness.store, forged, confirmationFor(forged)),
+      ).rejects.toThrow(/contradicts the record's collection/u);
+      expect(harness.reads).toEqual([]);
+      expect(harness.writes).toEqual([]);
+    }
+  });
+
+  function profiles(count: number): Record<string, Stored> {
+    const seeded: Record<string, Stored> = {
+      [statePath]: { version: "state-v794", data: directoryState() },
+    };
+    for (let index = 1; index <= count; index += 1) {
+      seeded[`academies/academy-1/studentAdminProfiles/s${index}`] = {
+        version: `profile-v${index}`,
+        data: { studentId: `s${index}`, membershipNumber: String(index) },
+      };
+    }
+    return seeded;
+  }
+  // The same store, running `before` ahead of its nth transaction, which then runs or is lost.
+  function aroundTransaction(
+    harness: ReturnType<typeof fakeStore>,
+    nth: number,
+    before: () => void,
+    lost = false,
+  ): MembershipNumberReconciliationStore {
+    let count = 0;
+    return {
+      ...harness.store,
+      firestore: {
+        ...harness.store.firestore,
+        runTransaction: async (callback) => {
+          count += 1;
+          if (count === nth) {
+            before();
+            if (lost) throw new Error("synthetic lost connection");
+          }
+          return harness.store.firestore.runTransaction(callback);
+        },
+      },
+    };
+  }
+  const receiptPath = (chunk: number) =>
+    `academies/academy-1/membershipNumberReconciliationReceipts/reconcile-2026-09-21:${chunk}`;
+
+  it("stops before the next chunk when the marker lands between chunks", async () => {
+    const harness = fakeStore(profiles(101));
+    const plan = await buildPlan(harness);
+    const store = aroundTransaction(harness, 2, () => setState(harness, eliminated));
+
+    await expect(
+      applyMembershipNumberReconciliation(store, plan, confirmationFor(plan)),
+    ).rejects.toThrow(/stale/i);
+    expect(harness.records.has(receiptPath(0))).toBe(true);
+    expect(harness.records.has(receiptPath(1))).toBe(false);
+    expect(harness.records.get("academies/academy-1/studentAdminProfiles/s101")?.version).toBe(
+      "profile-v101",
+    );
+  });
+
+  it("replays a committed first chunk after the marker and refuses the chunk that never ran", async () => {
+    const harness = fakeStore(profiles(101));
+    const plan = await buildPlan(harness);
+    const lost = aroundTransaction(harness, 2, () => undefined, true);
+    await expect(
+      applyMembershipNumberReconciliation(lost, plan, confirmationFor(plan)),
+    ).rejects.toThrow("synthetic lost connection");
+    setState(harness, eliminated);
+    const writes = harness.writes.length;
+    harness.reads.length = 0;
+
+    await expect(apply(harness, plan)).rejects.toThrow(/stale/i);
+    // Chunk 0 answers from its receipt without reading a row; chunk 1 stops at the state.
+    expect(harness.reads).toEqual([receiptPath(0), receiptPath(1), statePath]);
+    expect(harness.writes).toHaveLength(writes);
   });
 });

@@ -250,3 +250,88 @@ describe("member directory control-plane guard", () => {
     expect(() => selectAdminDirectoryReader(undefined)).toThrow(/state/i);
   });
 });
+
+describe("recovery eligibility (2026-10-20 capacity prep, part 6)", () => {
+  // A synthetic lineage under the test secret: a backup taken before T097, then the live control
+  // plane one step after it. No activation route exists; these are the guard's own refusals.
+  const binding = {
+    projectId: "demo-bpt-jersey",
+    integritySecretMaterial: integritySecret,
+    integritySecretVersion: "integrity-v1",
+  } as const;
+  const backup: MemberDirectoryState = { ...canonicalState(), rollbackEligibleStudentCount: 400 };
+  const initial = buildInitialMemberDirectoryControlPlane({
+    ...binding,
+    state: backup,
+    now: "2026-09-03T20:00:00.000Z",
+    actorId: "system-1",
+  });
+  const eliminatedAt = "2026-09-03T20:01:00.000Z";
+  const live = planMemberDirectoryGlobalLegacyElimination({
+    currentState: backup,
+    evidence: {
+      completedDirectoryForwardCount: 1,
+      verifiedRestoreAttestationCount: 1,
+      legacyMemberReaderCount: 0,
+      nestedLegacyDocumentCount: 0,
+      unexpiredApprovalCount: 1,
+    },
+    now: eliminatedAt,
+    actorId: "operator-1",
+  });
+  const liveControl = advanceMemberDirectoryControlPlane({
+    ...binding,
+    state: backup,
+    guard: initial.guard,
+    event: initial.event,
+    nextState: live,
+    operationId: "t097-operation-1",
+    transitionKind: "global-legacy-eliminate",
+    now: eliminatedAt,
+    actorId: "operator-1",
+  });
+  const restoredAt = "2026-09-03T20:02:00.000Z";
+  const restoreOnto = (nextState: MemberDirectoryState) =>
+    advanceMemberDirectoryControlPlane({
+      ...binding,
+      state: live,
+      guard: liveControl.guard,
+      event: liveControl.event,
+      nextState: { ...nextState, updatedAt: restoredAt, updatedBy: "operator-1" },
+      operationId: "restore-operation-1",
+      transitionKind: "restore-complete",
+      now: restoredAt,
+      actorId: "operator-1",
+    });
+
+  it("refuses a pre-T097 backup against a guard that has seen the marker", () => {
+    expect(liveControl.guard.globalLegacyReadEverEliminated).toBe(true);
+    expect(() =>
+      assertMemberDirectoryControlPlane({
+        ...binding,
+        state: backup,
+        guard: liveControl.guard,
+        event: liveControl.event,
+      }),
+    ).toThrow(/binding mismatch/u);
+    expect(() => restoreOnto(backup)).toThrow(/advance exactly once/u);
+    expect(() => restoreOnto({ ...backup, stateRevision: 2 })).toThrow(/cannot decrease/u);
+  });
+
+  it("keeps the revision, the counter and the marker, and checks nothing else", () => {
+    expect(() => restoreOnto({ ...live, stateRevision: 1 })).toThrow(/advance exactly once/u);
+    expect(() =>
+      restoreOnto({ ...live, stateRevision: 2, rollbackEligibleStudentCount: 150 }),
+    ).toThrow(/cannot decrease/u);
+
+    // The guard's arithmetic is the whole check: a restore-kind step that keeps all three passes
+    // it with no Auth identity binding and no audited activation, so recovery stays unavailable
+    // until an activation that requires both exists and is reviewed.
+    expect(restoreOnto({ ...live, stateRevision: 2 }).guard).toMatchObject({
+      highestStateRevision: 2,
+      globalLegacyReadEverEliminated: true,
+      highestRollbackEligibleStudentCount: 400,
+      restoreEpoch: 0,
+    });
+  });
+});

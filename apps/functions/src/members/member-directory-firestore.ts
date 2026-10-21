@@ -29,6 +29,26 @@ export type MemberDirectoryFirestoreAdapters = Readonly<{
 // read burst to occupy one callable for an unbounded backoff queue.
 const canonicalDirectoryReadTransactionMaxAttempts = 10;
 
+/**
+ * Reads the directory state, then whatever `read` needs, in one read-write transaction, so a legacy
+ * reader decides from a state consistent with what it reads (logical coherence). Whether the global
+ * marker is also kept from committing while `read` runs depends on Firestore's server-side locking:
+ * documented, not verified here, and an engine that reruns transactions optimistically may read
+ * before refusing on the rerun. Zero legacy reads after the cutover is therefore not claimed; it
+ * needs these readers quiesced, which the readiness check reports as unproven.
+ */
+export function readWithDirectoryState<T>(
+  firestore: Firestore,
+  academyId: string,
+  read: (transaction: Transaction, state: unknown) => Promise<T>,
+): Promise<T> {
+  return firestore.runTransaction(async (transaction) => {
+    const path = `academies/${academyId}/memberDirectoryStates/current`;
+    const state = await transaction.get(firestore.doc(path));
+    return read(transaction, state.data());
+  });
+}
+
 function copyData(value: DocumentData | undefined): DirectoryReadData | undefined {
   return value === undefined ? undefined : Object.freeze({ ...value });
 }
