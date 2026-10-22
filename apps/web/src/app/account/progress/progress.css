@@ -363,18 +363,10 @@
   }
 }
 
-/* The older history panel sits below as its own card. */
-.rank-body > section[aria-labelledby="recovered-history-title"] {
-  background: var(--gi-white);
-  border-radius: 1rem;
-  padding: 1.25rem;
-}
-
 @media (min-width: 48rem) {
   .rank-card,
   .rank-hero,
-  .graduation,
-  .rank-body > section[aria-labelledby="recovered-history-title"] {
+  .graduation {
     padding: 1.75rem;
   }
 

@@ -13,7 +13,6 @@ import {
   listMembersHandler,
   lookupMemberIdentityHandler,
   mapMemberDirectoryError,
-  revealRegyfitRecordFieldHandler,
   updateMemberDirectoryHandler,
   type MemberDirectoryCallableServices,
 } from "./member-directory-callables.js";
@@ -99,7 +98,6 @@ function services(): MemberDirectoryCallableServices {
         submittedBy: "shopper-1",
         submittedAt: now,
       })),
-      regyfitRecordFieldReveal: vi.fn(async () => ({ value: "ID-000789" })),
     },
     isActorActive: vi.fn(async () => true),
     now: () => now,
@@ -510,54 +508,20 @@ describe("canonical member directory callables", () => {
       ),
     ).toMatchObject({ code: "failed-precondition", message: "Member directory is unavailable" });
   });
-  it("reveals a Regyfit field only for an App-Checked active owner or administrator", async () => {
-    const value = { recordId: "152", field: "idCardNumber", purpose: "regyfit-record-review" };
 
-    const current = services();
-    await expect(
-      revealRegyfitRecordFieldHandler(
-        request(value, { role: "administrator", uid: "admin-1" }),
-        current,
-      ),
-    ).resolves.toEqual({ value: "ID-000789" });
-    expect(current.reader.regyfitRecordFieldReveal).toHaveBeenCalledWith({
-      actor: {
-        actorId: "admin-1",
-        academyId: "academy-1",
-        role: "administrator",
-        active: true,
-        appCheckVerified: true,
-      },
-      value,
-      now,
-    });
-
-    for (const role of ["coach", "headCoach", "anonymous"]) {
-      const denied = services();
-      await expect(
-        revealRegyfitRecordFieldHandler(request(value, { role }), denied),
-      ).rejects.toMatchObject({ code: expect.stringMatching(/permission-denied|unauthenticated/) });
-      expect(denied.reader.regyfitRecordFieldReveal).not.toHaveBeenCalled();
-    }
-
-    const noAppCheck = services();
-    await expect(
-      revealRegyfitRecordFieldHandler(request(value, { appCheck: false }), noAppCheck),
-    ).rejects.toMatchObject({ code: "unauthenticated" });
-    expect(noAppCheck.reader.regyfitRecordFieldReveal).not.toHaveBeenCalled();
-
-    const limited = services();
-    vi.mocked(limited.reader.regyfitRecordFieldReveal).mockRejectedValue(
-      new CanonicalMemberDirectoryReadError("rate-limited", "raw ID-000789"),
-    );
-    await expect(revealRegyfitRecordFieldHandler(request(value), limited)).rejects.toMatchObject({
-      code: "resource-exhausted",
-      message: "Restricted member read rate limit exceeded",
-    });
-  });
-
-  it("exports the reveal callable from the deploy surface", async () => {
+  // Loading index.ts runs every module of the deploy surface. The web retries a not-found call in
+  // us-central1, so a retired Regyfit reader must not come back under its old name.
+  it("loads the deploy surface with the exact lookup and without the six retired readers", async () => {
     const index = await import("../index.js");
-    expect(index.revealRegyfitRecordField).toBeDefined();
+    expect(index.lookupMemberIdentity).toBeDefined();
+    for (const name of [
+      "listRegyfitMemberRecords",
+      "getRegyfitMemberRecord",
+      "listRegyfitAccessRecords",
+      "revealRegyfitRecordField",
+      "getMemberHistory",
+      "getMemberRecoveryHistory",
+    ])
+      expect(name in index, name).toBe(false);
   });
 });

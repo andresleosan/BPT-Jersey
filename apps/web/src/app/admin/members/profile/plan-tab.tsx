@@ -316,7 +316,6 @@ export function PlanTab({
           </ul>
         </>
       ) : null}
-      <p>Earlier membership history may still be in the imported archive.</p>
     </section>
   );
 }

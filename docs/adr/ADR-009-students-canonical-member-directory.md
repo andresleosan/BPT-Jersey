@@ -492,3 +492,34 @@ Nunca se abre otro camino para salir de la duda.
 Lo que sigue prohibido. No se sube el literal 400. No se pone a cero ni se baja el contador. No se salta, desactiva ni rodea el guard ni ninguna comprobación. `globalLegacyReadEliminated` solo se activa con la transición `global-legacy-eliminate` de este procedimiento. T097 es una escritura productiva irreversible y necesita la confirmación del operador en el chat justo antes de aplicar. No se despliega ni se escribe en producción sin su aprobación concreta. T097 no borra `members` ni ningún dato; eso sigue en T011. La auditoría y los recibos de T097 solo llevan identificadores, revisiones y conteos.
 
 La regla del contador (párrafo «rollbackCapacityLimit es 400…») y el párrafo de T097 sobre la operación `global-legacy-elimination` con atestación I4 se leen con esta enmienda. Las pruebas retiradas aquí no se borran del documento de diseño, pero dejan de ser precondición de T097. Esta enmienda no declara realizadas las lecturas de producción pendientes (PITR, cadena MAC y conteos anidados) ni declara construido el ejecutor. El diseño original está en [member-directory-v1](../data/migrations/member-directory-v1.md), y el contexto y las alternativas en el [paquete de decisión](../operations/member-directory-capacity-decision-packet.md).
+
+## Enmienda 2026-10-22: seguimiento (S), retirada de los lectores Regyfit
+
+Esta enmienda registra el seguimiento (S) de la Enmienda 2026-10-21 sin cambiar su texto. El archivo Regyfit está vacío en producción desde el 2026-09-24, y T097 cerró las lecturas de `members` el 2026-10-21. El seguimiento (S) retira del código lo que solo leía ese archivo. No borra ningún documento de Firestore. No cambia reglas, índices ni listas de backup.
+
+Lo que se retira:
+
+- Los seis callables sin compuerta salen de `apps/functions/src/index.ts`: `listRegyfitMemberRecords`, `getRegyfitMemberRecord`, `listRegyfitAccessRecords`, `revealRegyfitRecordField`, `getMemberHistory` y `getMemberRecoveryHistory`. Sale también el código de functions y de la web que solo usaban ellos, salvo lo que se nombra en «Queda sin uso».
+- `manageMemberSubscription` se queda. Su contrato pierde el modo `previously-paid`, y el servicio pierde la rama que leía el archivo. La lectura de `previousPaymentRecordId` se queda, porque puede haber membresías vivas que lo lleven.
+- En la web salen la opción «Previously paid», el archivo importado de `/admin/members/search?archive` («Previous member records», con su ficha y el revelado de campos), la pestaña History de la ficha del alumno, el historial previo de `/account/progress` y los enlaces y frases de la ficha del alumno y de Members que remitían al archivo importado. La búsqueda exacta por número de socio, DNI o VAT sigue en `/admin/members/search?archive`.
+- Salen los CLI `qa/scripts/import-member-pdfs.mjs` y `qa/scripts/import-regyfit-member-records.mjs`. También `qa/scripts/normalize-regyfit-capture.mjs`, que solo preparaba la entrada del segundo, y `qa/scripts/member-unification-bulk-coverage.mjs`, que solo enviaba `previously-paid`. Sale además la prueba Playwright `qa/tests/imported-registration-retry.spec.ts`, que recorría el archivo.
+
+Lo que no cambia. `resolveMemberSubscriptionProfile`, `registerImportedMemberForOffice`, `listMemberMigrationQueue`, `decideMemberMigration` y la página `/admin/members/migration` siguen cerrados por T097. Los dos primeros se quedan sin llamador web. `qa/scripts/import-regyfit-access.mjs` y `apps/functions/src/regyfit/access-import.ts` siguen igual: no pueden escribir en producción y se revisan en un cambio aparte.
+
+Queda sin uso, a propósito, para un cambio aparte:
+
+- La pila de recuperación de cuentas: `member-recovery-callables.ts`, `member-recovery-service.ts`, `member-recovery-sources.ts`, `member-recovery-ticket.ts` y `member-recovery-subject-service.ts`, en `apps/functions/src/members/`. `index.ts` ya no exporta nada de ella; solo la usan sus pruebas unitarias y de integración.
+- Contratos de dominio sin llamador: `@bpt-jersey/domain/members/history`, los esquemas de listado y de revelado de `members/regyfit-records`, y `importedSubscriptionLinkSchema` y `OfficeMemberRegistration` de `memberships/admin`.
+- Restos menores: la prop `children` de `MemberProgress`, las reglas `.member-search-archive` y `.member-history` de `admin.css`, y la comprobación de `getRegyfitProjectionScope` en `qa/unit/release-delta.test.ts`, que ya no puede fallar.
+
+La acción de auditoría `regyfit.record.field.read` se queda: hay eventos guardados con ella.
+
+Pendiente de la aprobación del operador. Nada de esto está hecho todavía:
+
+1. Publicar la web nueva (push a `origin/main`).
+2. Redesplegar `manageMemberSubscription`, por nombre. Es la única función de (S) que cambia de comportamiento.
+3. Borrar de producción los seis callables, por nombre exacto y en todas las regiones, después de publicar la web. Están en europe-west9, y puede quedar alguna copia antigua en us-central1. La web reintenta en us-central1 cuando europe-west9 responde `not-found` (`apps/web/src/lib/callable.ts`). `firebase functions:delete` con los seis nombres y sin `--region` los busca en todas las regiones y pide confirmación antes de borrar. No borra datos.
+
+Hasta el paso 3, los seis siguen desplegados y leen un archivo vacío. Cuando se hagan los pasos, se anotan aquí el SHA del commit publicado, la hora del borrado y la salida de `functions:list`.
+
+Listas fijas de despliegue. En cuanto este cambio esté en `main`, las listas fijas de nombres de despliegue se regeneran desde `apps/functions/src/index.ts`. Las de `/root/bpt-runbook/`, por ejemplo `deploy-2026-10-21/lote-completo.txt` y `p06-cuenta-servicio/todas-353.txt`, todavía nombran los seis. Un `--only functions:<nombre>` que ya no está en el código aborta el lote entero con «No function matches the filter».

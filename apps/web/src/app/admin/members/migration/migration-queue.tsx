@@ -520,7 +520,7 @@ export function MigrationQueue() {
                                           }}>
                                           <option value="" disabled>Choose after checking the evidence</option>
                                           <option value="legacy">Keep the BPT source value</option>
-                                          <option value="regyfit">Use the Regyfit source value</option>
+                                          <option value="regyfit">Use the imported archive value</option>
                                         </select>
                                       </label>)}
                                     </fieldset> : null}

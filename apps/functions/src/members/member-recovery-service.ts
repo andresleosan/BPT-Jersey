@@ -1,4 +1,3 @@
-import { readAccountMemberHistory } from "./account-member-history-service.js";
 import { randomBytes, randomUUID } from "node:crypto";
 import type { Firestore, Transaction } from "firebase-admin/firestore";
 import { HttpsError } from "firebase-functions/v2/https";
@@ -1049,13 +1048,6 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
       return { recoveryId, expiresAt };
     },
     complete,
-    async history(uid: string, studentId?: string, cursor?: string) {
-      const user = await account(uid, "history");
-      if (!user.emailVerified || !["guardian", "adultStudent", "teenStudent"].includes(String(user.customClaims?.role))) {
-        throw new HttpsError("permission-denied", "Member access is required.");
-      }
-      return readAccountMemberHistory(d.firestore, academyId, uid, studentId, cursor);
-    },
     async list(actor: CanonicalMemberDirectoryActor) {
       return d.firestore.runTransaction(async (t) => {
         await admin(t, actor);

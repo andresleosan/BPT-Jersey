@@ -508,7 +508,9 @@ describe("member record page", () => {
     expect(screen.getByRole("tab", { name: "Details" }).getAttribute("aria-selected")).toBe("true");
 
     await user.click(screen.getByRole("tab", { name: "Plan" }));
-    expect(screen.getByRole("link", { name: "Open Memberships" })).toBeTruthy();
+    // Plan is the live membership history since 7849717, no longer the "Open Memberships" placeholder.
+    expect(screen.getByRole("tab", { name: "Plan" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("region", { name: "Membership history" })).toBeTruthy();
   });
 
   it("asks before a Back that would discard unsaved Details, and keeps the URL honest", async () => {

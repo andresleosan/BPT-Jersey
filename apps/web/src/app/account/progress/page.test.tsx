@@ -1,4 +1,5 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { LevelCatalogProjection } from "@bpt-jersey/domain/levels";
@@ -46,6 +47,17 @@ const mockProjection: LevelCatalogProjection = {
   sourceHash: "test-hash",
 };
 
+// The rank after the white belt: its first stripe.
+const firstStripe = {
+  ...mockProjection.definitions[0],
+  definitionKey: "white-belt-stripe-1",
+  kind: "stripe",
+  parentDefinitionKey: "white-belt",
+  name: "WHITE BELT 1 STRIPE",
+  sequence: 2,
+  stripeNumber: 1,
+};
+
 const levelsApi = vi.hoisted(() => ({
   getLevelCatalog: vi.fn(),
   getStudentProgressSummary: vi.fn(),
@@ -53,40 +65,59 @@ const levelsApi = vi.hoisted(() => ({
 
 const familyApi = vi.hoisted(() => ({ getFamily: vi.fn() }));
 
-const authState = vi.hoisted(() => ({
-  role: undefined as "guardian" | "adultStudent" | undefined,
+// Who trains on the account comes from listMyMemberProfiles, never from the role claim (35ba6b6).
+const accountApi = vi.hoisted(() => ({
+  profiles: [] as unknown[],
+  getClientProfile: vi.fn(),
 }));
 
 vi.mock("../../../lib/levels-client", () => levelsApi);
 
 vi.mock("../../../lib/family-client", () => familyApi);
 
+vi.mock("../../../lib/profile-client", () => ({ getClientProfile: accountApi.getClientProfile }));
+
+vi.mock("../../../lib/firebase-client", () => ({
+  getFirebaseAuth: () => ({ currentUser: null }),
+  getFirebaseFunctions: () => ({}),
+}));
+
+vi.mock("../../../lib/callable", () => ({
+  httpsCallable: (_functions: unknown, name: string) => async () => {
+    if (name !== "listMyMemberProfiles") throw new Error(`Unexpected callable ${name}`);
+    return { data: { profiles: accountApi.profiles } };
+  },
+}));
+
 vi.mock("../../../lib/client-auth", () => ({
   ClientAuthProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   ClientAuthGate: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  useClientSession: () => ({
-    status: "signed-in",
-    session: {
-      uid: "user-1",
-      email: "client@example.test",
-      displayName: "Student",
-      ...(authState.role === undefined ? {} : { role: authState.role }),
-    },
-    signOut: vi.fn(),
-  }),
 }));
 
 import AccountProgressPage from "./page";
+
+/** The account holder trains: one `self` profile, read through their own client profile. */
+function holderTrains() {
+  accountApi.profiles = [
+    { studentId: "student-1", fullName: "Student", via: "self", trainingDetailsRequired: false },
+  ];
+  accountApi.getClientProfile.mockResolvedValue({
+    student: { studentId: "student-1", fullName: "Student", trainingCenter: "town" },
+  });
+}
 
 describe("Account Progress Page", () => {
   afterEach(() => {
     cleanup();
     Object.values(levelsApi).forEach((mock) => mock.mockReset());
     familyApi.getFamily.mockReset();
-    authState.role = undefined;
+    accountApi.getClientProfile.mockReset();
+    accountApi.profiles = [];
   });
 
-  it("renders progression header and levels browser for client", async () => {
+  // d349622 took the catalogue of every belt and the old panels off this page.
+  it("renders the progress header for a client, without the catalogue of every belt", async () => {
+    holderTrains();
     levelsApi.getLevelCatalog.mockResolvedValue(mockProjection);
     levelsApi.getStudentProgressSummary.mockResolvedValue({
       state: "uninitialized",
@@ -96,19 +127,22 @@ describe("Account Progress Page", () => {
 
     render(<AccountProgressPage />);
 
+    expect(screen.getByRole("heading", { level: 1, name: "Progress" })).toBeDefined();
+    expect(await screen.findByRole("heading", { name: "No belt recorded yet" })).toBeDefined();
     expect(
-      screen.getByRole("heading", { name: "IBJJF Progression & Belt Requirements" }),
-    ).toBeDefined();
-    expect(await screen.findByRole("heading", { name: "JIU-JITSU - IBJJF" })).toBeDefined();
+      screen.queryByRole("heading", { name: "IBJJF Progression & Belt Requirements" }),
+    ).toBeNull();
+    expect(screen.queryByRole("heading", { name: "JIU-JITSU - IBJJF" })).toBeNull();
   });
 
   it("shows the connected own progress and never a synthetic peer cohort", async () => {
+    holderTrains();
     levelsApi.getLevelCatalog.mockResolvedValue(mockProjection);
     levelsApi.getStudentProgressSummary.mockResolvedValue({
       state: "initialized",
       studentId: "student-1",
       currentDefinition: mockProjection.definitions[0],
-      targetDefinition: { ...mockProjection.definitions[0], name: "WHITE BELT 1 STRIPE" },
+      targetDefinition: firstStripe,
       skillChecklist: [],
       criteria: {
         classes: { required: 20, completed: 20, met: true },
@@ -123,22 +157,43 @@ describe("Account Progress Page", () => {
 
     render(<AccountProgressPage />);
 
-    expect(await screen.findByRole("heading", { name: "Your progress" })).toBeInTheDocument();
-    expect(levelsApi.getStudentProgressSummary).toHaveBeenCalledWith();
-    const stats = within(await screen.findByTestId("own-progress-stats"));
-    expect(stats.getByText("WHITE BELT")).toBeInTheDocument();
-    expect(stats.getByText("WHITE BELT 1 STRIPE")).toBeInTheDocument();
-    expect(stats.getByText("20 / 20 towards the next level")).toBeInTheDocument();
-    expect(stats.getByText("60 / 60 days towards the next level")).toBeInTheDocument();
-    expect(stats.getByText("6 h")).toBeInTheDocument();
-    expect(stats.getByText("1 / 3")).toBeInTheDocument();
+    // d349622: the holder's belt, stripes and classes to the next rank, read by their own record.
+    expect(await screen.findByText("Your belt")).toBeInTheDocument();
+    expect(levelsApi.getStudentProgressSummary).toHaveBeenCalledWith("student-1");
+    expect(screen.getByRole("img", { name: "WHITE BELT belt" })).toBeInTheDocument();
+    expect(screen.getByText("No stripes yet")).toBeInTheDocument();
+    expect(
+      screen.getByRole("progressbar", {
+        name: "Next stripe WHITE BELT 1 STRIPE: 20 of 20 classes",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Classes complete.")).toBeInTheDocument();
     expect(screen.queryByText(/Competitors/u)).toBeNull();
     expect(screen.queryByText("Lucas Silva")).toBeNull();
     expect(screen.queryByText("Curriculum Technique Comparison")).toBeNull();
   });
 
   it("shows a guardian the progress of every linked child instead of an own-progress panel", async () => {
-    authState.role = "guardian";
+    accountApi.profiles = [
+      {
+        studentId: "student-1",
+        fullName: "Ana Child",
+        via: "guardian",
+        trainingDetailsRequired: false,
+      },
+      {
+        studentId: "student-2",
+        fullName: "Ben Child",
+        via: "guardian",
+        trainingDetailsRequired: false,
+      },
+      {
+        studentId: "student-3",
+        fullName: "Former Child",
+        via: "guardian",
+        trainingDetailsRequired: false,
+      },
+    ];
     levelsApi.getLevelCatalog.mockResolvedValue(mockProjection);
     familyApi.getFamily.mockResolvedValue({
       family: { familyId: "family-1", active: true, status: "active" },
@@ -151,7 +206,7 @@ describe("Account Progress Page", () => {
       students: [
         {
           studentId: "student-1",
-          fullName: "Child One",
+          fullName: "Ana Child",
           dateOfBirth: "2016-01-01",
           trainingCenter: "town",
           trainingTimePreferences: ["evening"],
@@ -160,7 +215,7 @@ describe("Account Progress Page", () => {
         },
         {
           studentId: "student-2",
-          fullName: "Child Two",
+          fullName: "Ben Child",
           dateOfBirth: "2018-01-01",
           trainingCenter: "west",
           trainingTimePreferences: ["evening"],
@@ -184,7 +239,7 @@ describe("Account Progress Page", () => {
             state: "initialized",
             studentId: "student-1",
             currentDefinition: mockProjection.definitions[0],
-            targetDefinition: { ...mockProjection.definitions[0], name: "WHITE BELT 1 STRIPE" },
+            targetDefinition: firstStripe,
             skillChecklist: [],
             criteria: {
               classes: { required: 20, completed: 20, met: true },
@@ -205,41 +260,47 @@ describe("Account Progress Page", () => {
 
     render(<AccountProgressPage />);
 
+    // 35ba6b6: one choice per child who trains on the account, one child on screen at a time. The
+    // holder does not train here, so there is no "You" and no own progress.
+    const people = within(await screen.findByRole("group", { name: "Choose member" }));
+    expect(people.getAllByRole("button").map((chip) => chip.textContent)).toEqual(["Ana", "Ben"]);
+    expect(await screen.findByText("Ana's belt")).toBeInTheDocument();
     expect(
-      await screen.findByRole("heading", { name: "Your family's progress" }),
+      screen.getByRole("progressbar", {
+        name: "Next stripe WHITE BELT 1 STRIPE: 20 of 20 classes",
+      }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Your progress" })).toBeNull();
+    expect(screen.queryByText("Your belt")).toBeNull();
+    expect(accountApi.getClientProfile).not.toHaveBeenCalled();
 
-    const first = within(await screen.findByTestId("family-progress-stats-student-1"));
-    expect(first.getByText("20 / 20 towards the next level")).toBeInTheDocument();
-    expect(first.getByText("60 / 60 days towards the next level")).toBeInTheDocument();
-    expect(first.getByText("6 h")).toBeInTheDocument();
-    expect(first.getByText("1 / 3")).toBeInTheDocument();
-    expect(screen.getByText("Child One")).toBeInTheDocument();
-    expect(screen.getByText("Child Two")).toBeInTheDocument();
-    expect(screen.getByText(/Level record not opened yet/u)).toBeInTheDocument();
+    await userEvent.setup().click(people.getByRole("button", { name: "Ben" }));
+    expect(
+      await screen.findByRole("heading", { name: "No belt recorded yet" }),
+    ).toBeInTheDocument();
 
     // Inactive children are not listed, and each child is read by its own identifier.
-    expect(screen.queryByText("Former Child")).toBeNull();
+    expect(screen.queryByText(/Former/u)).toBeNull();
     expect(levelsApi.getStudentProgressSummary).toHaveBeenCalledTimes(2);
     expect(levelsApi.getStudentProgressSummary).toHaveBeenCalledWith("student-1");
     expect(levelsApi.getStudentProgressSummary).toHaveBeenCalledWith("student-2");
   });
 
   it("tells a guardian with no linked child that nothing is connected yet", async () => {
-    authState.role = "guardian";
     levelsApi.getLevelCatalog.mockResolvedValue(mockProjection);
-    familyApi.getFamily.mockResolvedValue(undefined);
 
     render(<AccountProgressPage />);
 
     expect(
-      await screen.findByText("No active child is linked to your account yet."),
+      await screen.findByRole("heading", { name: "No children linked yet" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("The academy links each child to your account when they enrol."),
     ).toBeInTheDocument();
     expect(levelsApi.getStudentProgressSummary).not.toHaveBeenCalled();
   });
 
   it("explains an unopened level record without inventing data", async () => {
+    holderTrains();
     levelsApi.getLevelCatalog.mockResolvedValue(mockProjection);
     levelsApi.getStudentProgressSummary.mockResolvedValue({
       state: "uninitialized",
@@ -250,8 +311,9 @@ describe("Account Progress Page", () => {
     render(<AccountProgressPage />);
 
     expect(
-      await screen.findByText(/Your level record has not been opened yet/u),
+      await screen.findByText(/Your coach sets the starting belt after the first classes/u),
     ).toBeInTheDocument();
-    expect(screen.queryByTestId("own-progress-stats")).toBeNull();
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Classes to your next rank" })).toBeNull();
   });
 });

@@ -10,6 +10,8 @@ vi.mock("./firebase-client", () => ({
   getFirebaseFunctions: mocks.getFirebaseFunctions,
 }));
 
+// The client calls through ./callable (f06ea40), which always forwards the SDK's third `options`
+// argument, so each callable is created with `undefined` there.
 vi.mock("firebase/functions", () => ({
   httpsCallable: mocks.httpsCallable,
 }));
@@ -22,7 +24,6 @@ import {
   listMemberNames,
   lookupMemberIdentity,
   MemberDirectoryUninitializedError,
-  revealRegyfitRecordField,
   updateMember,
 } from "./members-client";
 
@@ -77,7 +78,7 @@ describe("canonical members web client", () => {
       memberId: "student-1",
       studentId: "student-1",
     });
-    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "createMember");
+    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "createMember", undefined);
     expect(mocks.callable).toHaveBeenCalledWith({
       ...createInput,
       membershipNumber: "1",
@@ -107,7 +108,7 @@ describe("canonical members web client", () => {
       memberId: "student-1",
       studentId: "student-1",
     });
-    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "updateMember");
+    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "updateMember", undefined);
     expect(mocks.callable).toHaveBeenCalledWith({
       ...updateInput,
       membershipNumber: "1",
@@ -130,7 +131,7 @@ describe("canonical members web client", () => {
       rows: [row],
       nextCursor: "signed-cursor",
     });
-    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "listMembers");
+    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "listMembers", undefined);
     expect(mocks.callable).toHaveBeenCalledWith({
       pageSize: 20,
       cursor: "prior-cursor",
@@ -165,7 +166,7 @@ describe("canonical members web client", () => {
     mocks.callable.mockResolvedValue({ data: detail });
 
     await expect(getMemberDetail("student-1")).resolves.toEqual(detail);
-    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "getMemberDetail");
+    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "getMemberDetail", undefined);
     expect(mocks.callable).toHaveBeenCalledWith({
       studentId: "student-1",
       purpose: "member-record-maintenance",
@@ -182,7 +183,7 @@ describe("canonical members web client", () => {
     await expect(
       lookupMemberIdentity("membership-number", "BPT 00000001"),
     ).resolves.toEqual({ matched: false });
-    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "lookupMemberIdentity");
+    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "lookupMemberIdentity", undefined);
     expect(mocks.callable).toHaveBeenCalledWith({
       lookupKind: "membership-number",
       value: "BPT 00000001",
@@ -239,7 +240,7 @@ describe("canonical members web client", () => {
     await expect(listMemberNames()).resolves.toEqual([
       { studentId: "s1", fullName: "Ana Coelho", familyId: null },
     ]);
-    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "listMemberNames");
+    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "listMemberNames", undefined);
 
     mocks.callable.mockRejectedValueOnce(
       Object.assign(new Error("x"), { code: "functions/failed-precondition" }),
@@ -253,38 +254,6 @@ describe("canonical members web client", () => {
     );
     await expect(listMemberNames()).rejects.toThrow("The member list is unavailable. Please try again.");
   });
-
-  it("reveals one Regyfit field with its closed purpose and sanitizes every failure", async () => {
-    mocks.callable.mockResolvedValueOnce({ data: { value: "ID-000789" } });
-    await expect(revealRegyfitRecordField("152", "idCardNumber")).resolves.toBe("ID-000789");
-    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "revealRegyfitRecordField");
-    expect(mocks.callable).toHaveBeenCalledWith({
-      recordId: "152",
-      field: "idCardNumber",
-      purpose: "regyfit-record-review",
-    });
-
-    mocks.callable.mockResolvedValueOnce({ data: { value: "ID-000789", recordId: "152" } });
-    await expect(revealRegyfitRecordField("152", "idCardNumber")).rejects.toThrow(
-      "Unable to reveal this value. Please try again.",
-    );
-
-    mocks.callable.mockRejectedValueOnce({ code: "functions/resource-exhausted", message: "raw" });
-    await expect(revealRegyfitRecordField("152", "idCardNumber")).rejects.toThrow(
-      "Too many restricted reads. Wait five minutes and try again.",
-    );
-
-    mocks.callable.mockRejectedValueOnce(new Error("private Firebase stack detail"));
-    await expect(revealRegyfitRecordField("152", "vatNumber")).rejects.toThrow(
-      "Unable to reveal this value. Please try again.",
-    );
-
-    mocks.callable.mockClear();
-    await expect(revealRegyfitRecordField("../152", "idCardNumber")).rejects.toThrow(
-      "Unable to reveal this value. Please try again.",
-    );
-    expect(mocks.callable).not.toHaveBeenCalled();
-  });
 });
 
 describe("initializeMemberDirectory", () => {
@@ -297,7 +266,11 @@ describe("initializeMemberDirectory", () => {
       academyId: "demo-academy",
       alreadyInitialized: false,
     });
-    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "initializeCanonicalMemberDirectory");
+    expect(mocks.httpsCallable).toHaveBeenCalledWith(
+      {},
+      "initializeCanonicalMemberDirectory",
+      undefined,
+    );
     expect(mocks.callable).toHaveBeenCalledWith({});
   });
 

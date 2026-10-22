@@ -69,6 +69,15 @@ that omits `ip`. Rules do not grant either role direct reads.
 academy, actor, action, target, purpose, correlation, count, hash, and run
 metadata; they never copy a source record or restricted field.
 
+Status 2026-10-22 (ADR-009 follow-up S): no function exported from
+`apps/functions/src/index.ts` reads this collection any more.
+`listRegyfitAccessRecords`, which served both projections above, left that file.
+Its deployed copy keeps answering until the operator deletes it by name; that
+deletion is pending. The import command (`qa/scripts/import-regyfit-access.mjs`
+with `apps/functions/src/regyfit/access-import.ts`) is now the only reader and
+writer, and it refuses production projects. The deny-all rules and the backup
+lists are unchanged.
+
 Classification applies during capture, transit, storage, caching, querying,
 logging, export, backup, restore, and deletion. A record, payload, export, or
 log that combines fields with different classifications inherits the highest

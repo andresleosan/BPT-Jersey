@@ -13,7 +13,6 @@ export function NotesTab({ note, onEdit }: { note?: string | undefined; onEdit: 
       <button className="member-record-button" type="button" onClick={onEdit}>
         Edit in Details
       </button>
-      <p>Earlier notes may still be in the imported archive.</p>
     </section>
   );
 }

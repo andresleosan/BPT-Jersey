@@ -35,7 +35,7 @@ const integritySecretMaterial = Buffer.alloc(32, 2).toString("base64url");
 const now = "2026-09-18T10:00:00.000Z";
 suite("old member access and paid sessions with real Firebase emulators", () => {
   it.each(["password", "google"])(
-    "recovers with %s, preserves history and uses the confirmed paid period",
+    "recovers with %s, preserves history and uses the assigned period",
     async (provider) => {
       const academyId = "recovered-" + randomUUID();
       const app = initializeApp({ projectId }, academyId);
@@ -297,15 +297,6 @@ suite("old member access and paid sessions with real Firebase emulators", () => 
         expect(
           (await database.doc(root + "studentLevelProgress/original-student").get()).data(),
         ).toEqual({ studentId: "original-student", attendedClasses: 30, historicalMarker: true });
-        expect(await service.history(uid)).toMatchObject({
-          records: [
-            {
-              graduation: archive.graduation,
-              attendance: archive.attendance,
-              payments: archive.payments,
-            },
-          ],
-        });
         const input = {
           operation: "assign" as const,
           membershipId: null,
@@ -315,11 +306,7 @@ suite("old member access and paid sessions with real Firebase emulators", () => 
           planId: plan.planId,
           startsAt: "2026-08-01T00:00:00.000Z",
           endsAt: "2026-10-01T00:00:00.000Z",
-          settlement: {
-            kind: "previously-paid" as const,
-            recordId: "123",
-            paymentConfirmed: true as const,
-          },
+          settlement: { kind: "complimentary" as const, reason: "Synthetic returning member" },
         };
         const actor = {
           kind: "user",

@@ -15,8 +15,6 @@ export {
 export type { AdminActor } from "./auth/admin-authorization.js";
 export { provisionAdminRole } from "./auth/admin-provisioning.js";
 export { registerShopperAccount } from "./auth/shopper-callables.js";
-export { listRegyfitAccessRecords } from "./regyfit/access-records.js";
-export { getRegyfitMemberRecord, listRegyfitMemberRecords } from "./regyfit/member-records.js";
 export { cleanupExpiredMemberImportSessionsSchedule } from "./members/member-callables.js";
 export {
   approveEnrolmentRequest,
@@ -35,7 +33,6 @@ export {
   initializeCanonicalMemberDirectory,
   listMembers,
   lookupMemberIdentity,
-  revealRegyfitRecordField,
   updateCanonicalMember as updateMember,
 } from "./members/member-directory-callables.js";
 export {
@@ -254,9 +251,6 @@ export * from "./promotion/promotion-callables.js";
 export * from "./competitors/competitors-callables.js";
 export * from "./session-roster/session-roster-callables.js";
 export * from "./account-settings/account-settings-callables.js";
-// Member access recovery left the web app on 2026-09-23 (a88ef48); only the recovered-history
-// view on Progress still reads it, so the begin/complete/review callables are no longer deployed.
-export { getMemberRecoveryHistory } from "./members/member-recovery-callables.js";
 
 export {
   listMemberSubscriptions,
@@ -334,8 +328,6 @@ export {
   reviewIntroMembershipApplication,
 } from "./memberships/intro-conversion-callables.js";
 export { introAttendanceCreated } from "./memberships/intro-conversion-trigger.js";
-
-export { getMemberHistory } from "./members/member-history-callables.js";
 
 export {
   getCourseSession,

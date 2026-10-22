@@ -211,7 +211,7 @@ export function MembersWorkspace() {
               ? "Guardian account"
               : isPendingRequest(row)
                 ? `${row.age === undefined ? "Age unknown" : `${row.age} years`} · Awaiting approval`
-                : `${row.age === undefined ? "Age unknown" : `${row.age} years`} · ${row.source === "regyfit" ? "Regyfit" : "BPT registration"}`}
+                : `${row.age === undefined ? "Age unknown" : `${row.age} years`} · ${row.source === "regyfit" ? "Imported" : "BPT registration"}`}
           </span>
         </div>
       ),
@@ -434,7 +434,7 @@ export function MembersWorkspace() {
               Source
               <select onChange={(event) => setSource(event.target.value)} value={source}>
                 <option value="">All sources</option>
-                <option value="regyfit">Regyfit linked</option>
+                <option value="regyfit">Imported</option>
                 <option value="bpt">New BPT registration</option>
               </select>
             </label>
@@ -458,10 +458,11 @@ export function MembersWorkspace() {
             <summary>Migration tools</summary>
             <p>
               Legacy members not yet in this directory are decided in the{" "}
-              <Link href="/admin/members/migration">migration queue</Link>. The{" "}
-              <Link href="/admin/members/search?archive">imported archive</Link> stays readable
-              until history moves into each record. Family operations:{" "}
-              <Link href="/admin/families">Families and minors</Link>. Exact-name lookup:
+              <Link href="/admin/members/migration">migration queue</Link>. Find a member by exact
+              membership, ID card or VAT number in the{" "}
+              <Link href="/admin/members/search?archive">exact identifier lookup</Link>. Family
+              operations: <Link href="/admin/families">Families and minors</Link>. Exact-name
+              lookup:
             </p>
             <MemberNameSearch />
           </details>

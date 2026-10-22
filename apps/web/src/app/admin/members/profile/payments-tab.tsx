@@ -118,7 +118,6 @@ export function PaymentsTab({
               </p>
             ))
         : null}
-      <p>Earlier payments may still be in the imported archive.</p>
       {canRecordPrivateLessons ? <PrivateLessonRecord studentId={studentId} /> : null}
       {state.status === "ready" && dialog?.kind === "record" ? (
         <RecordMemberPaymentDialog

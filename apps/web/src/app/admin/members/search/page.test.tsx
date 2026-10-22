@@ -1,24 +1,18 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
-
-import type { RegyfitMemberRecord } from "@bpt-jersey/domain/members/regyfit-records";
+import { useInsertionEffect } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const clientMocks = vi.hoisted(() => ({
   getMemberDetail: vi.fn(),
-  getRegyfitMemberRecord: vi.fn(),
-  listRegyfitMemberRecords: vi.fn(),
   lookupMemberIdentity: vi.fn(),
-  revealRegyfitRecordField: vi.fn(),
   updateMember: vi.fn(),
 }));
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 vi.mock("../../../../lib/members-client", () => clientMocks);
-vi.mock("../../../../lib/subscription-admin-client", () => ({
-  resolveImportedSubscription: vi.fn(async () => ({ studentId: null })),
-}));
 
 const profileClientMocks = vi.hoisted(() => ({ searchMemberNames: vi.fn() }));
 const gate = vi.hoisted(() => ({
@@ -48,80 +42,48 @@ const row = {
   membershipReference: "****0001",
 };
 
-const regyfitRecord: RegyfitMemberRecord = {
-  recordId: "152",
-  memberNumber: "1",
-  fullName: "Synthetic Child",
-  email: "guardian@example.test",
-  mobile: "00447700000000",
-  country: "Jersey",
-  idCardNumber: "•••789",
-  gender: "unknown",
-  birthDate: "2019-06-12",
-  age: 7,
-  registrationDate: "2026-02-01",
-  membershipState: "inactive",
-  accountManager: "Synthetic Guardian",
-  appAccess: { login: "a1", logins: 0, lastLogin: "----" },
-  graduation: {
-    modality: "JIU-JITSU - IBJJF",
-    belt: "Grey 4-5 and 5-7yo - 5th Stripe",
-    nextGraduationDate: "24 Apr 2026",
-    progressPercent: 50,
-    classesProgress: "0/4",
-    daysProgress: "132/30",
-  },
-  plan: { paymentMode: "Inactive", amount: "95.00", validUntil: "2026-07-25" },
-  attendance: {
-    registrations: 18,
-    attended: 10,
-    absences: 7,
-    thisMonth: 0,
-    last30Days: 0,
-    lastAttendance: "134 days ago",
-    records: [
-      { date: "26 May 2026", time: "17:30 - 18:15", className: "Strive Kids", status: "absent" },
-      { date: "21 Apr 2026", time: "17:30 - 18:15", className: "Strive Kids", status: "present" },
-    ],
-  },
-  payments: [{ date: "05 May 2026", description: "Fees", amount: "£ 95.00" }],
-  capturedAt: "2026-09-04T18:04:32.000Z",
-  source: "regyfit-admin-capture",
-  schemaVersion: "1",
-};
-
-const directoryPage = {
-  rows: [
-    {
-      recordId: "152",
-      memberNumber: "1",
-      fullName: "Synthetic Child",
-      email: "guardian@example.test",
-      birthDate: "2019-06-12",
-      membershipState: "inactive" as const,
-      paymentMode: "Inactive",
-      belt: "Grey 4-5 and 5-7yo - 5th Stripe",
-    },
-    {
-      recordId: "300",
-      fullName: "Unnumbered Adult",
-      membershipState: "active" as const,
-      paymentMode: "Livre-trânsito",
-    },
-  ],
-  total: 2,
-  capturedAt: "2026-09-04T18:04:32.000Z",
-};
-
 describe("Exact canonical member lookup page", () => {
+  // The office reaches this lookup with `?archive`; without it the page sends the office to
+  // /admin/members (469825b).
+  beforeEach(() => {
+    window.history.replaceState(null, "", "/admin/members/search?archive");
+  });
   afterEach(() => {
     cleanup();
+    window.history.replaceState(null, "", "/");
     clientMocks.getMemberDetail.mockReset();
-    clientMocks.getRegyfitMemberRecord.mockReset();
-    clientMocks.listRegyfitMemberRecords.mockReset();
     clientMocks.lookupMemberIdentity.mockReset();
-    clientMocks.revealRegyfitRecordField.mockReset();
     clientMocks.updateMember.mockReset();
+    router.replace.mockReset();
+  });
+
+  it("sends the office to Members when the address has no ?archive", () => {
+    window.history.replaceState(null, "", "/admin/members/search");
+    render(<SearchMembersPage />);
+
+    expect(router.replace).toHaveBeenCalledWith("/admin/members");
+  });
+
+  // Next's router writes a link's new address in an insertion effect, after the page rendered
+  // (HistoryUpdater in next/dist/client/components/app-router.js). This stands in for the
+  // Migration tools link on /admin/members.
+  it("keeps the office on the lookup when a link adds ?archive after the page rendered", () => {
+    window.history.replaceState(null, "", "/admin/members");
+    function LinkNavigation() {
+      useInsertionEffect(() => {
+        window.history.pushState(null, "", "/admin/members/search?archive");
+      }, []);
+      return null;
+    }
+    render(
+      <>
+        <SearchMembersPage />
+        <LinkNavigation />
+      </>,
+    );
+
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Exact identifier")).toBeVisible();
   });
 
   it("offers only the three approved exact identifiers and no legacy filters or reports", () => {
@@ -189,193 +151,22 @@ describe("Exact canonical member lookup page", () => {
   });
 });
 
-describe("Regyfit academy member directory", () => {
-  afterEach(() => {
-    cleanup();
-    clientMocks.getMemberDetail.mockReset();
-    clientMocks.getRegyfitMemberRecord.mockReset();
-    clientMocks.listRegyfitMemberRecords.mockReset();
-    clientMocks.lookupMemberIdentity.mockReset();
-    clientMocks.updateMember.mockReset();
-  });
-
-  it("loads the directory from the authenticated callable and never ships records in the page", async () => {
-    clientMocks.listRegyfitMemberRecords.mockResolvedValue(directoryPage);
-    render(<SearchMembersPage />);
-
-    expect(screen.getByText("Loading academy directory...")).toBeVisible();
-    expect(await screen.findByText("Synthetic Child")).toBeVisible();
-    expect(clientMocks.listRegyfitMemberRecords).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("Total: 2")).toBeVisible();
-    expect(screen.getByText("Active: 1")).toBeVisible();
-    expect(screen.getByText("No number: 1")).toBeVisible();
-    expect(screen.getByText(/Records imported on 2026-09-04/)).toBeVisible();
-    expect(
-      screen.getByRole("button", { name: "Open full record for Unnumbered Adult" }),
-    ).toHaveTextContent("#300");
-    expect(document.body).not.toHaveTextContent("104569");
-  });
-
-  it("filters by text, state and payment mode", async () => {
-    const user = userEvent.setup();
-    clientMocks.listRegyfitMemberRecords.mockResolvedValue(directoryPage);
-    render(<SearchMembersPage />);
-    await screen.findByText("Synthetic Child");
-
-    await user.type(screen.getByLabelText("Search members"), "guardian@");
-    expect(screen.queryByText("Unnumbered Adult")).not.toBeInTheDocument();
-    await user.clear(screen.getByLabelText("Search members"));
-    await user.selectOptions(screen.getByLabelText("Status filter"), "active");
-    expect(screen.queryByText("Synthetic Child")).not.toBeInTheDocument();
-    expect(screen.getByText("Unnumbered Adult")).toBeVisible();
-    await user.selectOptions(screen.getByLabelText("Payment"), "Inactive");
-    expect(screen.getByText("No members match your search criteria.")).toBeVisible();
-  });
-
-  it("surfaces a sanitized directory failure with a retry", async () => {
-    const user = userEvent.setup();
-    clientMocks.listRegyfitMemberRecords
-      .mockRejectedValueOnce(new Error("private callable failure"))
-      .mockResolvedValueOnce(directoryPage);
-    render(<SearchMembersPage />);
-
-    const alert = await screen.findByText(
-      "Unable to load the academy directory. Please try again.",
-    );
-    expect(alert).not.toHaveTextContent("private callable failure");
-    await user.click(screen.getByRole("button", { name: "Retry" }));
-    expect(await screen.findByText("Synthetic Child")).toBeVisible();
-  });
-
-  it("opens the full Regyfit record when a member number is clicked", async () => {
-    const user = userEvent.setup();
-    clientMocks.listRegyfitMemberRecords.mockResolvedValue(directoryPage);
-    clientMocks.getRegyfitMemberRecord.mockResolvedValue(regyfitRecord);
-    render(<SearchMembersPage />);
-    await screen.findByText("Synthetic Child");
-
-    await user.click(screen.getByRole("button", { name: "Open full record for Synthetic Child" }));
-
-    await waitFor(() => expect(clientMocks.getRegyfitMemberRecord).toHaveBeenCalledWith("152"));
-    const profile = await screen.findByRole("region", { name: "Synthetic Child" });
-    expect(within(profile).getByRole("tab", { name: "Profile" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    expect(within(profile).getByText("134 days ago")).toBeVisible();
-    expect(within(profile).queryByText("Password")).not.toBeInTheDocument();
-    expect(within(profile).getByText("Grey 4-5 and 5-7yo - 5th Stripe")).toBeVisible();
-    expect(within(profile).getByText("Synthetic Guardian")).toBeVisible();
-    expect(screen.getByLabelText("Exact identifier")).toHaveValue("1");
-
-    await user.click(within(profile).getByRole("tab", { name: "Details" }));
-    expect(within(profile).getByText("guardian@example.test")).toBeVisible();
-    await user.click(within(profile).getByRole("tab", { name: "Payments" }));
-    expect(within(profile).getByText("£ 95.00")).toBeVisible();
-    await user.click(within(profile).getByRole("tab", { name: "Classes" }));
-    expect(within(profile).getAllByText("Strive Kids", { selector: "td" })).toHaveLength(2);
-    await user.click(within(profile).getByRole("tab", { name: "Communication" }));
-    expect(within(profile).getByText(/not part of the imported record/)).toBeVisible();
-  });
-
-  it("runs the canonical lookup from the record and closes it", async () => {
-    const user = userEvent.setup();
-    clientMocks.listRegyfitMemberRecords.mockResolvedValue(directoryPage);
-    clientMocks.getRegyfitMemberRecord.mockResolvedValue(regyfitRecord);
-    clientMocks.lookupMemberIdentity.mockResolvedValue({ matched: true, row });
-    render(<SearchMembersPage />);
-    await screen.findByText("Synthetic Child");
-    await user.click(screen.getByRole("button", { name: "Open full record for Synthetic Child" }));
-    const profile = await screen.findByRole("region", { name: "Synthetic Child" });
-
-    await user.click(within(profile).getByRole("button", { name: "Load canonical record" }));
-    await waitFor(() =>
-      expect(clientMocks.lookupMemberIdentity).toHaveBeenCalledWith("membership-number", "1"),
-    );
-
-    await user.click(within(profile).getByRole("button", { name: "Close profile" }));
-    expect(screen.queryByRole("region", { name: "Synthetic Child" })).not.toBeInTheDocument();
-  });
-
-  it("sanitizes a record load failure", async () => {
-    const user = userEvent.setup();
-    clientMocks.listRegyfitMemberRecords.mockResolvedValue(directoryPage);
-    clientMocks.getRegyfitMemberRecord.mockRejectedValue(new Error("private record failure"));
-    render(<SearchMembersPage />);
-    await screen.findByText("Synthetic Child");
-
-    await user.click(screen.getByRole("button", { name: "Open full record for Synthetic Child" }));
-
-    const alert = await screen.findByText("Unable to load the member record. Please try again.");
-    expect(alert).not.toHaveTextContent("private record failure");
-  });
-
-  it("shows restricted identifiers masked and reveals one on an explicit action", async () => {
-    const user = userEvent.setup();
-    clientMocks.listRegyfitMemberRecords.mockResolvedValue(directoryPage);
-    clientMocks.getRegyfitMemberRecord.mockResolvedValue(regyfitRecord);
-    clientMocks.revealRegyfitRecordField.mockResolvedValue("ID-000789");
-    render(<SearchMembersPage />);
-    await screen.findByText("Synthetic Child");
-    await user.click(screen.getByRole("button", { name: "Open full record for Synthetic Child" }));
-    const profile = await screen.findByRole("region", { name: "Synthetic Child" });
-
-    await user.click(within(profile).getByRole("tab", { name: "Details" }));
-    expect(within(profile).getByText("•••789")).toBeVisible();
-    expect(clientMocks.revealRegyfitRecordField).not.toHaveBeenCalled();
-    expect(
-      within(profile).queryByRole("button", { name: "Reveal VAT number" }),
-    ).not.toBeInTheDocument();
-
-    await user.click(within(profile).getByRole("button", { name: "Reveal ID card Nº" }));
-
-    expect(clientMocks.revealRegyfitRecordField).toHaveBeenCalledWith("152", "idCardNumber");
-    expect(await within(profile).findByText("ID-000789")).toBeVisible();
-    expect(
-      within(profile).queryByRole("button", { name: "Reveal ID card Nº" }),
-    ).not.toBeInTheDocument();
-    expect(window.location.href).not.toContain("ID-000789");
-  });
-
-  it("sanitizes a reveal failure next to the field", async () => {
-    const user = userEvent.setup();
-    clientMocks.listRegyfitMemberRecords.mockResolvedValue(directoryPage);
-    clientMocks.getRegyfitMemberRecord.mockResolvedValue(regyfitRecord);
-    clientMocks.revealRegyfitRecordField.mockRejectedValue(
-      new Error("Too many restricted reads. Wait five minutes and try again."),
-    );
-    render(<SearchMembersPage />);
-    await screen.findByText("Synthetic Child");
-    await user.click(screen.getByRole("button", { name: "Open full record for Synthetic Child" }));
-    const profile = await screen.findByRole("region", { name: "Synthetic Child" });
-    await user.click(within(profile).getByRole("tab", { name: "Details" }));
-
-    await user.click(within(profile).getByRole("button", { name: "Reveal ID card Nº" }));
-
-    expect(await within(profile).findByRole("alert")).toHaveTextContent(
-      "Too many restricted reads. Wait five minutes and try again.",
-    );
-    expect(within(profile).getByText("•••789")).toBeVisible();
-  });
-});
-
 describe("canonical name search (T051V2)", () => {
   afterEach(() => {
     cleanup();
+    window.history.replaceState(null, "", "/");
     gate.role = "owner";
     profileClientMocks.searchMemberNames.mockReset();
-    clientMocks.listRegyfitMemberRecords.mockReset();
     clientMocks.lookupMemberIdentity.mockReset();
   });
 
-  it("leaves the name search to the mat: the office gets the read-only archive last, with no inline styles", async () => {
-    clientMocks.listRegyfitMemberRecords.mockResolvedValue(directoryPage);
+  it("leaves the name search to the mat: the office gets only the exact lookup, with no inline styles", () => {
+    window.history.replaceState(null, "", "/admin/members/search?archive");
     const { container } = render(<SearchMembersPage />);
-    await screen.findByText("Synthetic Child");
     const headings = screen.getAllByRole("heading").map((heading) => heading.textContent);
     expect(headings).not.toContain("Find a member");
     expect(screen.queryByLabelText("Member name")).toBeNull();
-    expect(headings.indexOf("Previous member records")).toBe(headings.length - 1);
+    expect(headings).toEqual(["Find by identifier"]);
     expect(container.querySelectorAll("[style]")).toHaveLength(0);
     expect(container.querySelectorAll(".admin-status-badge")).toHaveLength(0);
   });
@@ -386,7 +177,6 @@ describe("canonical name search (T051V2)", () => {
     profileClientMocks.searchMemberNames.mockResolvedValue([
       { studentId: "student-2", fullName: "Test Member B" },
     ]);
-    clientMocks.listRegyfitMemberRecords.mockResolvedValue(directoryPage);
     render(<SearchMembersPage />);
     await user.type(screen.getByLabelText("Member name"), "test");
     await user.click(screen.getByRole("button", { name: "Search" }));
@@ -404,7 +194,6 @@ describe("canonical name search (T051V2)", () => {
   it("reserves a one-line row while searching, not a record panel", async () => {
     gate.role = "coach";
     const user = userEvent.setup();
-    clientMocks.listRegyfitMemberRecords.mockResolvedValue(directoryPage);
     profileClientMocks.searchMemberNames.mockReturnValue(new Promise(() => {}));
     render(<SearchMembersPage />);
 
@@ -419,7 +208,6 @@ describe("canonical name search (T051V2)", () => {
   it("asks for two letters and explains an empty or failed search", async () => {
     gate.role = "coach";
     const user = userEvent.setup();
-    clientMocks.listRegyfitMemberRecords.mockResolvedValue(directoryPage);
     profileClientMocks.searchMemberNames
       .mockResolvedValueOnce([])
       .mockRejectedValueOnce(new Error("raw backend detail"));
@@ -450,7 +238,7 @@ describe("canonical name search (T051V2)", () => {
       expect(screen.getByLabelText("Member name")).toBeVisible();
       expect(screen.queryByLabelText("Exact identifier")).toBeNull();
       expect(screen.queryByText("Previous member records")).toBeNull();
-      expect(clientMocks.listRegyfitMemberRecords).not.toHaveBeenCalled();
+      expect(clientMocks.lookupMemberIdentity).not.toHaveBeenCalled();
       cleanup();
     }
   });

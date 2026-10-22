@@ -1,11 +1,7 @@
 import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 import { describe, expect, it } from "vitest";
 
-import {
-  assertAcademyScope,
-  getRegyfitProjectionScope,
-  requireAdminActor,
-} from "./admin-authorization.js";
+import { assertAcademyScope, requireAdminActor } from "./admin-authorization.js";
 
 function requestWithAuth(uid: string, token: Record<string, unknown>): CallableRequest {
   return {
@@ -133,11 +129,6 @@ describe("admin authorization boundary", () => {
       expect.objectContaining({ code: "permission-denied" }),
     );
     expect(() => assertAcademyScope(actor, "academy-1")).not.toThrow();
-  });
-
-  it("keeps owner data restricted and administrator data safe", () => {
-    expect(getRegyfitProjectionScope("owner")).toBe("restricted");
-    expect(getRegyfitProjectionScope("administrator")).toBe("safe");
   });
 
   it("uses Firebase callable errors for authorization failures", () => {

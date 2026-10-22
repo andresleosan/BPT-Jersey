@@ -208,7 +208,6 @@ export function ClassesTab({ studentId, onUnavailable, canManageGroups = false }
         onUnavailable={onUnavailable}
         kind="attendance"
       />
-      <p>Earlier class history may still be in the imported archive.</p>
     </div>
   );
 }

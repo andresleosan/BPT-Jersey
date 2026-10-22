@@ -30,7 +30,6 @@ import { ClassesTab } from "./classes-tab";
 import { DetailsTab } from "./details-tab";
 import { IbjjfCard, loadIbjjfCard, type IbjjfCardLoad } from "./ibjjf-card";
 import { ManageView, unsavedRatingsQuestion } from "./manage-view";
-import { HistoryTab } from "./history-tab";
 import { NotesTab } from "./notes-tab";
 import { PaymentsTab } from "./payments-tab";
 import { PlanTab } from "./plan-tab";
@@ -53,7 +52,6 @@ const tabLabels: Readonly<Record<MemberRecordTab, string>> = {
   classes: "Classes",
   communication: "Communication",
   notes: "Notes",
-  history: "History",
 };
 
 const unsavedDetailsQuestion = "You have unsaved changes in Details. Leave without saving?";
@@ -451,8 +449,6 @@ function MemberRecordSession({
           }}
         />
       );
-    if (activeTab === "history" && profile.view === "full")
-      return <HistoryTab key={profile.header.studentId} studentId={profile.header.studentId} />;
     if (activeTab === "details") {
       return profile.view === "full" ? (
         <DetailsTab
@@ -512,13 +508,7 @@ function MemberRecordSession({
       {load.status === "missing" ? (
         <div className="member-record-notice">
           <p role="status">Live member record unavailable. It may not have been created yet.</p>
-          {office ? (
-            <>
-              <Link href="/admin/members/migration">Review member migration</Link>
-              {" · "}
-              <Link href="/admin/members/search">Imported archive</Link>
-            </>
-          ) : null}
+          {office ? <Link href="/admin/members/migration">Review member migration</Link> : null}
         </div>
       ) : null}
 

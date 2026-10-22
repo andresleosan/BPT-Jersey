@@ -324,9 +324,6 @@ test.describe("S3 live member record", () => {
       const migration = record.getByRole("link", { name: "Review member migration" });
       await expect(migration).toHaveAttribute("href", "/admin/members/migration");
       await expect(record.getByRole("button")).toHaveCount(0);
-      await migration.focus();
-      await page.keyboard.press("Tab");
-      await expect(record.getByRole("link", { name: "Imported archive" })).toBeFocused();
       await capture(page, info, `${tab}-deleted`);
     });
   }

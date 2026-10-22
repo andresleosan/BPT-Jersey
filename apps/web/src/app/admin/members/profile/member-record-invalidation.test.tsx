@@ -90,7 +90,8 @@ it("removes loaded Classes and invalidates the parent when paging finds the memb
   expect(screen.getByRole("link", { name: "Review member migration" }).getAttribute("href")).toBe(
     "/admin/members/migration",
   );
-  expect(screen.getByRole("link", { name: "Imported archive" })).toBeTruthy();
+  // The imported archive screen is retired (ADR-009 follow-up S): nothing links to it any more.
+  expect(screen.queryByRole("link", { name: "Imported archive" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
   expect(screen.queryByText("private")).toBeNull();
 });
@@ -126,7 +127,7 @@ it.each(["plan", "payments"])(
     expect(screen.queryByRole("heading", { name: "Test Member A" })).toBeNull();
     expect(screen.getByText(/Live member record unavailable/)).toBeTruthy();
     expect(screen.getByRole("link", { name: "Review member migration" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Imported archive" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Imported archive" })).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.queryByRole("button", { name: "Refresh" })).toBeNull();
     expect(

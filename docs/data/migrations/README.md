@@ -40,15 +40,8 @@ La fuente CLI debe ser exactamente `%TEMP%\bpt-member-pdf-fixtures` y contener s
 sinteticos. La ruta historica de PDFs reales y cualquier root symlink/junction quedan rechazados.
 Estas guardas no autorizan staging real ni produccion.
 
-```powershell
-corepack pnpm --filter @bpt-jersey/domain build:runtime
-corepack pnpm --filter @bpt-jersey/functions build
-node qa/scripts/import-member-pdfs.mjs --dry-run --target emulator --project-id demo-bpt-jersey --academy-id demo-academy --source-root "$env:TEMP\bpt-member-pdf-fixtures" --run-id synthetic-run-1 --captured-at 2026-08-18T00:00:00.000Z --receipt "$env:TEMP\bpt-member-pdf-receipt.json"
-```
-
-No ejecutar el ejemplo con datos reales ni convertirlo en `confirm` fuera de Firebase Emulator
-Suite. El archivo de receipt es efimero, debe quedar fuera del repositorio y no sustituye las
-pruebas o el rollback de la tarea activa.
+El CLI `qa/scripts/import-member-pdfs.mjs` se retiró el 2026-10-22 (seguimiento S de ADR-009,
+Enmienda 2026-10-22). El runner sigue en el código y solo lo usan sus pruebas.
 
 ## Reglas no negociables
 

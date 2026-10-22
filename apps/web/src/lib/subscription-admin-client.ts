@@ -8,21 +8,13 @@ import {
   memberSubscriptionContextSchema,
   memberSubscriptionQuerySchema,
   subscriptionEditSchema,
-  importedSubscriptionQuerySchema,
-  importedSubscriptionLinkSchema,
-  officeMemberRegistrationSchema,
   manualSubscriptionSchema,
   subscriptionBillingSchema,
-  type OfficeMemberRegistration,
   type ManualSubscriptionInput,
   type AdminInboxQuery,
   type AdminNotificationAction,
   type SubscriptionEdit,
 } from "@bpt-jersey/domain/memberships/admin";
-import {
-  legacyReadsEliminatedReason,
-  legacyRegistrationClosedMessage,
-} from "@bpt-jersey/domain/members/migration";
 import { getFirebaseFunctions } from "./firebase-client";
 
 import { MemberRecordLoadError } from "./member-profile-client";
@@ -52,16 +44,6 @@ async function invoke<T>(name: string, input: unknown, schema: z.ZodType<T>): Pr
       throw new Error(
         "This member or payment reference already exists. Refresh before trying again.",
       );
-    // Closed for good once Regyfit is no longer read (T097), not a subscription problem.
-    const details: unknown =
-      typeof error === "object" && error !== null ? Reflect.get(error, "details") : undefined;
-    if (
-      code === "functions/failed-precondition" &&
-      typeof details === "object" &&
-      details !== null &&
-      Reflect.get(details, "reason") === legacyReadsEliminatedReason
-    )
-      throw new Error(legacyRegistrationClosedMessage);
     if (code === "functions/failed-precondition")
       throw new Error(
         "Check the member, subscription dates and outstanding balance. Recorded payments cannot be replaced; use Renew for a new period.",
@@ -100,20 +82,6 @@ export function updateNotification(input: AdminNotificationAction) {
   );
 }
 
-export function resolveImportedSubscription(recordId: string) {
-  return invoke(
-    "resolveMemberSubscriptionProfile",
-    importedSubscriptionQuerySchema.parse({ recordId }),
-    importedSubscriptionLinkSchema,
-  );
-}
-export function registerImportedMember(input: OfficeMemberRegistration) {
-  return invoke(
-    "registerImportedMemberForOffice",
-    officeMemberRegistrationSchema.parse(input),
-    z.strictObject({ memberId: z.string().min(1), studentId: z.string().min(1) }),
-  );
-}
 export function manageManualSubscription(input: ManualSubscriptionInput) {
   return invoke(
     "manageMemberSubscription",

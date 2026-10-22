@@ -1,5 +1,3 @@
-import { requireMemberAccountActor } from "./member-access-callables.js";
-import { memberHistoryInputSchema } from "@bpt-jersey/domain/members/history";
 import { getApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
@@ -114,12 +112,6 @@ export async function reviewMemberRecoveryHandler(
   const result = await handled(() => s.service.review(request.data, actor));
   return { status: result.status };
 }
-export const getMemberRecoveryHistory = onCall(options, async (request) => {
-  const actor = await requireMemberAccountActor(request);
-  const input = request.data === null || request.data === undefined ? undefined : memberHistoryInputSchema.safeParse(request.data);
-  if (input && !input.success) throw new HttpsError("invalid-argument", "Select a member to view their history");
-  return handled(() => services().service.history(actor.userId, input?.data?.studentId, input?.data?.cursor));
-});
 // Unauthenticated and it reads the directory: each call spends a fresh App Check token.
 export const beginMemberRecovery = onCall({ ...options, consumeAppCheckToken: true }, (request) =>
   beginMemberRecoveryHandler(request, services()),

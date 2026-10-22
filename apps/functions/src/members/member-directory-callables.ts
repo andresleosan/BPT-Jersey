@@ -187,22 +187,6 @@ export async function lookupMemberIdentityHandler(
   }
 }
 
-export async function revealRegyfitRecordFieldHandler(
-  request: CallableRequest<unknown>,
-  services: MemberDirectoryCallableServices,
-) {
-  const actor = await requireCanonicalMemberDirectoryActor(request, services.isActorActive);
-  try {
-    return await services.reader.regyfitRecordFieldReveal({
-      actor,
-      value: request.data,
-      now: services.now(),
-    });
-  } catch (error) {
-    return mapMemberDirectoryError(error);
-  }
-}
-
 export type CanonicalDirectoryInitializationCallableServices = Readonly<{
   initializer: CanonicalDirectoryInitializationService;
   isActorActive: MemberDirectoryActorActivityCheck;
@@ -349,10 +333,6 @@ export const getMemberDetail = onCall(memberDirectoryCallableOptions, async (req
 
 export const lookupMemberIdentity = onCall(memberDirectoryCallableOptions, async (request) =>
   lookupMemberIdentityHandler(request, defaultMemberDirectoryCallableServices()),
-);
-
-export const revealRegyfitRecordField = onCall(memberDirectoryCallableOptions, async (request) =>
-  revealRegyfitRecordFieldHandler(request, defaultMemberDirectoryCallableServices()),
 );
 
 /**

@@ -294,6 +294,20 @@ despliegue usa `--only functions` sin nombres. `listRegyfitAccessRecords` está 
 funcional (el panel web ya no existe) pero sigue exportada; retirarla es una decisión del operador
 pendiente desde el 2026-09-06.
 
+Actualización 2026-10-22 (seguimiento S de ADR-009, Enmienda 2026-10-22). `listRegyfitAccessRecords`
+sale de `index.ts` junto con `listRegyfitMemberRecords`, `getRegyfitMemberRecord`,
+`revealRegyfitRecordField`, `getMemberHistory` y `getMemberRecoveryHistory`. Las seis siguen
+desplegadas. Su borrado en producción está pendiente de la aprobación del operador. Se borran por
+nombre exacto y en todas las regiones (europe-west9 y cualquier copia antigua en us-central1), solo
+después de publicar la web que ya no las llama. El comando va en una sola línea:
+
+```bash
+npx firebase functions:delete listRegyfitMemberRecords getRegyfitMemberRecord listRegyfitAccessRecords revealRegyfitRecordField getMemberHistory getMemberRecoveryHistory --project bptjersey-f5a25
+```
+
+Sin `--region`, la CLI las busca en todas las regiones, lista cada una con su región y pide
+confirmación (y/N) antes de borrar.
+
 ### 4.4 Verificación posterior
 
 1. `functions:list` muestra exactamente el conjunto esperado, `state: ACTIVE`, sin funciones de más ni

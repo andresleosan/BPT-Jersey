@@ -1,5 +1,14 @@
 # Legacy member access recovery
 
+**Status 2026-10-22: historical.** Recovery left the web app on 2026-09-23 (a88ef48):
+`/login/recover` and the office queue are gone, and none of the recovery callables listed
+below is exported any more. The Regyfit archive was deleted from production on 2026-09-24.
+ADR-009 follow-up S (amendment 2026-10-22) retires the rest: **Progress → Your previous
+membership history**, **Previous member records** and **Previously paid: link existing
+payment**. The deployment lists below are kept as history only. They mix live and retired
+callables, so never deploy or delete from them. Deleting `getMemberRecoveryHistory` and the
+other callables retired by follow-up S from production is pending the operator's approval.
+
 Members start at `/login/recover`, enter their full name and optionally their old email,
 then sign in with Google or create an email/password account. The public response does
 not reveal whether a member was found. Passwords remain in Firebase Authentication.

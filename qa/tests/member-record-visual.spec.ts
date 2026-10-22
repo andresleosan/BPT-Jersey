@@ -83,7 +83,6 @@ test.describe("member record visual (T051V2)", () => {
         searchMemberNames: {
           members: [{ studentId: "student-visual-1", fullName: "Test Member A" }],
         },
-        listRegyfitMemberRecords: { rows: [], total: 0, capturedAt: "2026-09-04T18:04:32.000Z" },
         listMembers: { rows: [] },
       },
     });
