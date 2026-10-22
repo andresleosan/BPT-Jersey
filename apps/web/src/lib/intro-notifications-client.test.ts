@@ -14,7 +14,7 @@ describe("intro notifications client", () => {
   it("validates and returns notices from the in-app callable", async () => {
     callable.mockResolvedValue({ data: { notifications: [notice] } });
     await expect(listMemberNotifications()).resolves.toEqual([notice]);
-    expect(named).toHaveBeenCalledWith({}, "listMemberNotifications");
+    expect(named).toHaveBeenCalledWith({}, "listMemberNotifications", undefined);
     expect(callable).toHaveBeenCalledWith(null);
   });
   it("fails closed for hostile responses and invalid identifiers", async () => {
@@ -25,7 +25,7 @@ describe("intro notifications client", () => {
   it("marks one validated notice as read", async () => {
     callable.mockResolvedValue({ data: { ok: true } });
     await markMemberNotificationRead("intro-abc");
-    expect(named).toHaveBeenCalledWith({}, "markMemberNotificationRead");
+    expect(named).toHaveBeenCalledWith({}, "markMemberNotificationRead", undefined);
     expect(callable).toHaveBeenCalledWith({ notificationId: "intro-abc" });
   });
 });

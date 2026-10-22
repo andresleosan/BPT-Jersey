@@ -75,10 +75,51 @@ function harness() {
   };
   type Ref = { path: string; id: string; limit?: number } & QueryOptions;
   const ref = (path: string): Ref => ({ path, id: path.split("/").at(-1)! });
+  const matching = (target: Ref) =>
+    [...records.entries()]
+      .filter(
+        ([path, data]) =>
+          path.startsWith(target.path + "/") &&
+          path.split("/").length === target.path.split("/").length + 1 &&
+          (target.filters ?? []).every((filter) =>
+            filter.operator === "in"
+              ? (filter.value as unknown[]).includes(data[filter.field])
+              : filter.operator === "=="
+                ? data[filter.field] === filter.value
+                : filter.operator === ">" &&
+                  typeof data[filter.field] === "string" &&
+                  typeof filter.value === "string" &&
+                  String(data[filter.field]) > filter.value,
+          ) &&
+          (target.orders ?? []).every((order) => data[order.field] !== undefined),
+      )
+      .sort(([a, left], [b, right]) => {
+        for (const order of target.orders ?? []) {
+          const result = String(left[order.field]).localeCompare(String(right[order.field]));
+          if (result) return order.direction === "desc" ? -result : result;
+        }
+        return a.localeCompare(b);
+      })
+      .slice(0, target.limit);
   const query = (path: string, extra: QueryOptions = {}) => ({
     ...ref(path),
     ...extra,
-    limit: (count: number) => ({ ...ref(path), ...extra, limit: count }),
+    limit: (count: number) => {
+      const limited: Ref = { ...ref(path), ...extra, limit: count };
+      return {
+        ...limited,
+        // A plain read outside any transaction sees only committed documents.
+        get: async () => {
+          const docs = matching(limited).map(([path, data]) => ({
+            ...ref(path),
+            exists: true,
+            data: () => data,
+            get: (field: string) => data[field],
+          }));
+          return { empty: docs.length === 0, size: docs.length, docs };
+        },
+      };
+    },
     orderBy: (field: string, direction: "asc" | "desc" = "asc") =>
       query(path, { ...extra, orders: [...(extra.orders ?? []), { field, direction }] }),
     where: (field: string, operator: string, value: unknown) =>
@@ -101,36 +142,7 @@ function harness() {
           get: async (target: Ref) => {
             if (writing) throw new Error("read after write");
             if (typeof target.limit === "number")
-              return {
-                docs: [...records.entries()]
-                  .filter(
-                    ([path, data]) =>
-                      path.startsWith(target.path + "/") &&
-                      path.split("/").length === target.path.split("/").length + 1 &&
-                      (target.filters ?? []).every((filter) =>
-                        filter.operator === "in"
-                          ? (filter.value as unknown[]).includes(data[filter.field])
-                          : filter.operator === "=="
-                            ? data[filter.field] === filter.value
-                            : filter.operator === ">" &&
-                              typeof data[filter.field] === "string" &&
-                              typeof filter.value === "string" &&
-                              String(data[filter.field]) > filter.value,
-                      ) &&
-                      (target.orders ?? []).every((order) => data[order.field] !== undefined),
-                  )
-                  .sort(([a, left], [b, right]) => {
-                    for (const order of target.orders ?? []) {
-                      const result = String(left[order.field]).localeCompare(
-                        String(right[order.field]),
-                      );
-                      if (result) return order.direction === "desc" ? -result : result;
-                    }
-                    return a.localeCompare(b);
-                  })
-                  .slice(0, target.limit)
-                  .map(([path]) => snapshot(ref(path))),
-              };
+              return { docs: matching(target).map(([path]) => snapshot(ref(path))) };
             return snapshot(target);
           },
           create: (target: Ref, value: Record<string, unknown>) => {

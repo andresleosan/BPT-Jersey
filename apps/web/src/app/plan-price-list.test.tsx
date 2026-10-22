@@ -27,7 +27,9 @@ describe("PlanPriceList", () => {
     render(<PlanPriceList site="Town" />);
     const lessons = screen.getByRole("region", { name: "Private lessons" });
     expect(
-      within(lessons).getByText("£65.00 one lesson · £200.00 a month for 4 · £500.00 for 10"),
+      within(lessons).getByText(
+        "£65.00 one lesson · £200.00 a month, one a week · £500.00 for 10 within 3 months",
+      ),
     ).toBeInTheDocument();
   });
 });

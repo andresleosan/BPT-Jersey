@@ -10,6 +10,8 @@ it("labels a child on a free trial", () => {
     studentId: "s-child",
     rowKind: "member",
     fullName: "Kid Trial",
+    age: 8,
+    ageBand: "kids",
     trainingCenter: "Town",
     centreConfirmed: true,
     active: true,

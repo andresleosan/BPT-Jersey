@@ -61,12 +61,12 @@ describe("staff callable web client", () => {
   it("uses exact callable names and payloads for list and profile mutations", async () => {
     mocks.callable.mockResolvedValue({ data: [safeProfile] });
     await expect(listStaffProfiles()).resolves.toEqual([safeProfile]);
-    expect(mocks.httpsCallable).toHaveBeenLastCalledWith({}, "listStaffProfiles");
+    expect(mocks.httpsCallable).toHaveBeenLastCalledWith({}, "listStaffProfiles", undefined);
     expect(mocks.callable).toHaveBeenLastCalledWith({});
 
     mocks.callable.mockResolvedValue({ data: safeProfile });
     await createStaffProfile({ userId: "user-1", role: "coach", requestId: "request-1" });
-    expect(mocks.httpsCallable).toHaveBeenLastCalledWith({}, "createStaffProfile");
+    expect(mocks.httpsCallable).toHaveBeenLastCalledWith({}, "createStaffProfile", undefined);
     expect(mocks.callable).toHaveBeenLastCalledWith({
       userId: "user-1",
       role: "coach",
@@ -74,11 +74,11 @@ describe("staff callable web client", () => {
     });
 
     await updateStaffProfile({ staffKey: "staff-1", role: "coach" });
-    expect(mocks.httpsCallable).toHaveBeenLastCalledWith({}, "updateStaffProfile");
+    expect(mocks.httpsCallable).toHaveBeenLastCalledWith({}, "updateStaffProfile", undefined);
     expect(mocks.callable).toHaveBeenLastCalledWith({ staffKey: "staff-1", role: "coach" });
 
     await setStaffActive({ staffKey: "staff-1", active: false });
-    expect(mocks.httpsCallable).toHaveBeenLastCalledWith({}, "setStaffActive");
+    expect(mocks.httpsCallable).toHaveBeenLastCalledWith({}, "setStaffActive", undefined);
     expect(mocks.callable).toHaveBeenLastCalledWith({ staffKey: "staff-1", active: false });
   });
 

@@ -19,7 +19,7 @@ it("shows text with the review indicator and clears it after assignment", () => 
   const { rerender } = render(<MemberReviewBadge guardianStatus="pending" />);
   expect(screen.getByText("Guardian required")).toBeVisible();
   rerender(<MemberReviewBadge reviewReason="date-of-birth-missing" />);
-  expect(screen.getByText("Check age")).toBeVisible();
+  expect(screen.getByText("Date of birth needed")).toBeVisible();
   rerender(<MemberReviewBadge guardianStatus="assigned" />);
   expect(screen.queryByText("Guardian required")).not.toBeInTheDocument();
 });

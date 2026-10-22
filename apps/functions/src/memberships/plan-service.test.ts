@@ -271,12 +271,12 @@ describe("membership plan Firestore store", () => {
     ).rejects.toMatchObject({ code: "invalid" });
   });
 
-  it("seeds exactly eleven catalog plans and preserves envelopes on repeat", async () => {
+  it("seeds exactly twelve catalog plans and preserves envelopes on repeat", async () => {
     const { store, records, writes } = services();
     const first = await store.seedPlanCatalog(baseInput);
-    expect(first).toHaveLength(11);
+    expect(first).toHaveLength(12);
     expect(first.map((plan) => plan.planId)).toEqual(PLAN_CATALOG.map((plan) => plan.planId));
-    expect(writes).toHaveLength(11);
+    expect(writes).toHaveLength(12);
 
     const existing = records.get("academies/academy-1/plans/payg");
     expect(existing).toBeDefined();
@@ -285,9 +285,9 @@ describe("membership plan Firestore store", () => {
       actorId: "actor-2",
       now: "2026-08-21T10:00:00.000Z",
     });
-    expect(second).toHaveLength(11);
-    expect(writes).toHaveLength(22);
-    expect(writes.slice(11).every((write) => write.startsWith("set:"))).toBe(true);
+    expect(second).toHaveLength(12);
+    expect(writes).toHaveLength(24);
+    expect(writes.slice(12).every((write) => write.startsWith("set:"))).toBe(true);
     expect(records.get("academies/academy-1/plans/payg")).toMatchObject({
       createdAt: (existing as PlanRecord).createdAt,
       createdBy: (existing as PlanRecord).createdBy,

@@ -34,6 +34,27 @@ const archive = {
   mobile: "07700 900000",
 } as unknown as RegyfitMemberRecord;
 const training = { trainingCenter: "Town", trainingTimePreferences: ["evening"] };
+// Source document update times (`seconds:nanoseconds`), as the Firestore store reads them.
+const memberVersion = "1:0";
+const recordVersion = "2:0";
+// Since f33b54e a link or create-unlinked carries the reviewed source versions and evidence.
+const linkReview = {
+  legacyVersion: memberVersion,
+  recordVersion,
+  identityEvidence: "Synthetic passport seen",
+  choices: [],
+};
+const unlinkedReview = {
+  legacyVersion: memberVersion,
+  identityEvidence: "Synthetic passport seen",
+  choices: [],
+};
+const choice = (field: string, source: "legacy" | "regyfit") => ({
+  field,
+  source,
+  evidence: "Synthetic passport seen",
+  reason: "Checked by the office",
+});
 
 function harness(
   overrides: Partial<{
@@ -46,11 +67,17 @@ function harness(
     registerLegacyMember: vi.fn(async () => ({ memberId: "s1", studentId: "s1" })),
     skipLegacyMember: vi.fn(async () => undefined),
   };
+  const members = overrides.members ?? [adult];
+  const records = overrides.records ?? [archive];
   const service = createMemberMigrationService({
     store: {
       load: async () => ({
-        members: overrides.members ?? [adult],
-        records: overrides.records ?? [archive],
+        versions: {
+          members: Object.fromEntries(members.map((member) => [member.memberId, memberVersion])),
+          records: Object.fromEntries(records.map((record) => [record.recordId, recordVersion])),
+        },
+        members,
+        records,
         decidedMemberIds: new Set(overrides.decided ?? []),
         linkedRecordIds: new Set(),
       }),
@@ -80,6 +107,7 @@ describe("member migration service", () => {
           legacyMemberId: "m1",
           recordId: "10",
           requestId: crypto.randomUUID(),
+          review: linkReview,
           ...training,
         },
       ],
@@ -114,6 +142,11 @@ describe("member migration service", () => {
           legacyMemberId: "m1",
           recordId: "11",
           requestId: crypto.randomUUID(),
+          // Every difference resolved, so the only fault left is the record itself.
+          review: {
+            ...linkReview,
+            choices: [choice("fullName", "legacy"), choice("membershipNumber", "legacy")],
+          },
           ...training,
         },
       ],
@@ -140,23 +173,21 @@ describe("member migration service", () => {
       membershipNumber: undefined,
     } as unknown as MemberRecord;
     const { service } = harness({ members: [minor, undated], records: [] });
-    const result = await service.decide(actor, {
-      decisions: [
-        {
-          kind: "create-unlinked",
-          legacyMemberId: "m2",
-          requestId: crypto.randomUUID(),
-          ...training,
-        },
-        {
-          kind: "create-unlinked",
-          legacyMemberId: "m3",
-          requestId: crypto.randomUUID(),
-          ...training,
-        },
-      ],
-    });
-    expect(result.results.map((entry) => entry.status)).toEqual(["applied", "applied"]);
+    // One call each: since f33b54e only strong, conflict-free links may share a batch.
+    const register = (legacyMemberId: string) =>
+      service.decide(actor, {
+        decisions: [
+          {
+            kind: "create-unlinked",
+            legacyMemberId,
+            requestId: crypto.randomUUID(),
+            review: unlinkedReview,
+            ...training,
+          },
+        ],
+      });
+    const results = [...(await register("m2")).results, ...(await register("m3")).results];
+    expect(results.map((entry) => entry.status)).toEqual(["applied", "applied"]);
   });
 
   it("keeps going after a rejected decision and maps writer errors to safe codes", async () => {
@@ -177,6 +208,7 @@ describe("member migration service", () => {
           legacyMemberId: "m1",
           recordId: "10",
           requestId: crypto.randomUUID(),
+          review: linkReview,
           ...training,
         },
         { kind: "skip", legacyMemberId: "m2", reason: "Duplicate row" },
@@ -214,6 +246,7 @@ describe("member migration service", () => {
           kind: "create-unlinked",
           legacyMemberId: "m1",
           requestId: crypto.randomUUID(),
+          review: unlinkedReview,
           ...training,
         },
       ],
@@ -229,13 +262,23 @@ describe("member migration service", () => {
     const { service, writer } = harness({ members: [member], records: [] });
     const requestId = crypto.randomUUID();
     const result = await service.decide(actor, {
-      decisions: [{ kind: "create-unlinked", legacyMemberId: "m1", requestId, ...training }],
+      decisions: [
+        {
+          kind: "create-unlinked",
+          legacyMemberId: "m1",
+          requestId,
+          review: unlinkedReview,
+          ...training,
+        },
+      ],
     });
     expect(result.results).toEqual([{ legacyMemberId: "m1", status: "applied", studentId: "s1" }]);
     expect(writer.registerLegacyMember).toHaveBeenCalledExactlyOnceWith({
       actor,
       now: "2026-09-19T10:00:00.000Z",
       legacyMemberId: "m1",
+      // The writer re-derives the value from this review inside its transaction (f33b54e).
+      review: unlinkedReview,
       ...training,
       value: {
         requestId,
@@ -273,6 +316,7 @@ describe("member migration service", () => {
             kind: "create-unlinked",
             legacyMemberId: "m1",
             requestId: crypto.randomUUID(),
+            review: unlinkedReview,
             ...training,
           },
         ],
@@ -347,7 +391,7 @@ describe("member migration once legacy reads are eliminated (2026-10-20 capacity
 });
 
 it.each(["link", "create-unlinked"] as const)(
-  "recovers a missing birth date from a strong match for %s",
+  "recovers a missing birth date from a strong match only through a reviewed link (%s)",
   async (kind) => {
     const missing = { ...adult };
     delete missing.birthDate;
@@ -360,14 +404,27 @@ it.each(["link", "create-unlinked"] as const)(
         {
           kind,
           legacyMemberId: "m1",
-          ...(kind === "link" ? { recordId: "10" } : {}),
+          // No source wins by default: the office takes the archive's date explicitly.
+          ...(kind === "link"
+            ? {
+                recordId: "10",
+                review: { ...linkReview, choices: [choice("birthDate", "regyfit")] },
+              }
+            : { review: unlinkedReview }),
           requestId: crypto.randomUUID(),
           ...training,
         },
       ],
     });
+    // Since f33b54e an unlinked create takes nothing from the archive: the decision binds no record
+    // version and no source wins by default, so the writer flags the date as missing for review.
     expect(writer.registerLegacyMember).toHaveBeenCalledWith(
-      expect.objectContaining({ value: expect.objectContaining({ dateOfBirth: "2015-01-01" }) }),
+      expect.objectContaining({
+        value:
+          kind === "link"
+            ? expect.objectContaining({ dateOfBirth: "2015-01-01" })
+            : expect.not.objectContaining({ dateOfBirth: expect.anything() }),
+      }),
     );
   },
 );
@@ -380,6 +437,8 @@ it("keeps the member's own date when a linked strong record disagrees", async ()
         legacyMemberId: "m1",
         recordId: "10",
         requestId: crypto.randomUUID(),
+        // No source wins by default: the office keeps the member's own date explicitly.
+        review: { ...linkReview, choices: [choice("birthDate", "legacy")] },
         ...training,
       },
     ],

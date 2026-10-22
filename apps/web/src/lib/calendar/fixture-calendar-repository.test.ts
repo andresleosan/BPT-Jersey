@@ -93,8 +93,9 @@ describe("fixture calendar repository", () => {
 });
 
 describe("fixture self check-in", () => {
+  // 30 m and 320 m north of the Town pin; the self check-in radius is 300 m.
   const near = { latitude: 49.184224, longitude: -2.107142, accuracyMeters: 12 };
-  const far = { latitude: 49.185034, longitude: -2.107142, accuracyMeters: 12 };
+  const far = { latitude: 49.186834, longitude: -2.107142, accuracyMeters: 12 };
 
   it("seeds one ready session per participant, 30 minutes from load", async () => {
     for (const [role, studentId] of [
@@ -119,7 +120,7 @@ describe("fixture self check-in", () => {
       repo.clockIn({ sessionId: session.sessionId, studentId: "sam", position: far }),
     ).rejects.toMatchObject({
       code: "functions/failed-precondition",
-      details: { reason: "outside", distanceMeters: 120 },
+      details: { reason: "outside", distanceMeters: 320 },
     });
     const record = await repo.clockIn({
       sessionId: session.sessionId,

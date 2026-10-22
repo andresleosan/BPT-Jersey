@@ -543,7 +543,7 @@ describe("CoachDashboardPage", () => {
       fireEvent.click(screen.getByRole("button", { name: "Measure this device" }));
       await waitFor(() => {
         expect(screen.getByTestId("coach-proximity-status").textContent).toContain(
-          "outside the 50 m radius",
+          "outside the 300 m radius",
         );
       });
 

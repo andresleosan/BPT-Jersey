@@ -497,7 +497,7 @@ describe("membership Firestore store", () => {
     );
     await expect(
       minorWithoutRelationship.store.createMembership(baseCreateInput),
-    ).rejects.toMatchObject({ code: "invalid" });
+    ).rejects.toMatchObject({ code: "conflict" });
     expect(minorWithoutRelationship.writes).toEqual([]);
   });
 
@@ -598,12 +598,17 @@ describe("membership Firestore store", () => {
     );
     const current = membership({ membershipId: "membership-current-late", status: "active" });
 
+    // The history read is capped at 101: past 100 records the store fails closed instead of
+    // scanning a truncated page that could miss the current membership.
     await expect(
       services({
         ...history,
         [`academies/${academyId}/memberships/${current.membershipId}`]: current,
       }).store.createMembership(baseCreateInput),
-    ).rejects.toMatchObject({ code: "duplicate" });
+    ).rejects.toMatchObject({
+      code: "precondition",
+      message: "Member history needs a bounded review",
+    });
   });
 
   it("applies every valid transition and keeps immutable references", async () => {

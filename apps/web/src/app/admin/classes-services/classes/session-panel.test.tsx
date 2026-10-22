@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -6,9 +6,11 @@ const mocks = vi.hoisted(() => ({
   cancelSession: vi.fn(),
   listMemberNames: vi.fn(),
   listMemberships: vi.fn(),
+  listPrivateLessonPurchases: vi.fn(),
   listSessionBookings: vi.fn(),
   requestBooking: vi.fn(),
   saveSession: vi.fn(),
+  schedulePrivateLessons: vi.fn(),
   updateSession: vi.fn(),
 }));
 
@@ -24,7 +26,12 @@ vi.mock("../../../../lib/members-client", () => ({ listMemberNames: mocks.listMe
 vi.mock("../../../../lib/membership-admin-client", () => ({
   listMemberships: mocks.listMemberships,
 }));
+vi.mock("../../../../lib/private-lesson-client", () => ({
+  listPrivateLessonPurchases: mocks.listPrivateLessonPurchases,
+  schedulePrivateLessons: mocks.schedulePrivateLessons,
+}));
 
+import { privateLessonPurchaseRowSchema } from "@bpt-jersey/domain/private-lessons";
 import { parseCreateSessionInput, parseUpdateSessionInput } from "@bpt-jersey/domain/schedule";
 
 import { SessionPanel } from "./session-panel";
@@ -113,7 +120,10 @@ describe("SessionPanel", () => {
     mocks.listMemberships.mockResolvedValue([]);
   });
 
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
 
   it("creates a session with several trainers, a capacity and custom rules", async () => {
     mocks.saveSession.mockResolvedValue(sessionFixture);
@@ -162,7 +172,7 @@ describe("SessionPanel", () => {
   });
 
   it("submits the selected class access mode", async () => {
-    mocks.saveSession.mockResolvedValue({ ...sessionFixture, accessMode: "intro" });
+    mocks.saveSession.mockResolvedValue({ ...sessionFixture, accessMode: "membership" });
     render(
       <SessionPanel
         mode="create"
@@ -179,18 +189,65 @@ describe("SessionPanel", () => {
     );
     fireEvent.click(screen.getByRole("checkbox", { name: "coach-a" }));
     fireEvent.change(screen.getByLabelText("Maximum capacity"), { target: { value: "20" } });
-    fireEvent.change(screen.getByLabelText("Class access"), { target: { value: "intro" } });
+    // A new class offers membership access only: the class type decides an Introduction Class
+    // (a89275f retired Free Intro Class) and private lessons have their own tab (8d8359b).
+    const access = screen.getByLabelText("Class access");
+    expect(
+      within(access)
+        .getAllByRole("option")
+        .map((option) => option.getAttribute("value")),
+    ).toEqual(["membership"]);
+    fireEvent.change(access, { target: { value: "membership" } });
     fireEvent.click(screen.getByRole("button", { name: "Create session" }));
 
     await waitFor(() =>
       expect(mocks.saveSession).toHaveBeenCalledWith(
-        expect.objectContaining({ accessMode: "intro" }),
+        expect.objectContaining({ accessMode: "membership" }),
       ),
     );
   });
 
   it("creates a private lesson session", async () => {
-    mocks.saveSession.mockResolvedValue({ ...sessionFixture, accessMode: "private-lesson" });
+    // Since 8d8359b the office creates private lessons from the Private lesson tab, for a member
+    // who paid, through schedulePrivateLessons; the class form no longer offers that access mode.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(stamp));
+    const lesson = {
+      ...sessionFixture,
+      sessionId: "s-private",
+      programId: "private-lesson",
+      title: "Private lesson",
+      endAt: "2026-09-14T17:15:00.000Z",
+      capacity: 1,
+      minParticipants: 0,
+      accessMode: "private-lesson",
+    } as const;
+    mocks.listPrivateLessonPurchases.mockResolvedValue([
+      privateLessonPurchaseRowSchema.parse({
+        purchaseId: "plp-1",
+        studentId: "st1",
+        accountUid: "uid-1",
+        optionId: "single",
+        priceMinor: 6500,
+        creditsGranted: 1,
+        creditsRemaining: 1,
+        status: "approved",
+        source: "office",
+        method: "cash",
+        proofId: null,
+        bankReference: null,
+        submittedAt: stamp,
+        decidedAt: stamp,
+        decidedBy: "admin",
+        decisionReason: null,
+        expiresAt: "2026-12-10T09:00:00.000Z",
+        invoiceId: null,
+        schemaVersion: "1",
+        studentName: "Alex Member",
+      }),
+    ]);
+    mocks.schedulePrivateLessons.mockResolvedValue({ sessions: [lesson], requested: 1 });
+    const onSaved = vi.fn();
     render(
       <SessionPanel
         mode="create"
@@ -200,24 +257,28 @@ describe("SessionPanel", () => {
         defaults={{ date: "2026-09-14", startTime: "17:30" }}
         canEdit
         canReadMemberships
-        onSaved={vi.fn()}
+        onSaved={onSaved}
         onCancelled={vi.fn()}
         onClose={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole("checkbox", { name: "coach-a" }));
-    fireEvent.change(screen.getByLabelText("Minimum participants"), { target: { value: "0" } });
-    fireEvent.change(screen.getByLabelText("Maximum capacity"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("Class access"), {
-      target: { value: "private-lesson" },
+    fireEvent.click(screen.getByRole("button", { name: "Private lesson" }));
+    fireEvent.change(await screen.findByLabelText("Who paid for private lessons"), {
+      target: { value: "plp-1" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create session" }));
+    fireEvent.change(screen.getByLabelText("Trainer"), { target: { value: "coach-a" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create lessons" }));
 
-    await waitFor(() =>
-      expect(mocks.saveSession).toHaveBeenCalledWith(
-        expect.objectContaining({ accessMode: "private-lesson" }),
-      ),
-    );
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(lesson));
+    expect(mocks.schedulePrivateLessons).toHaveBeenCalledWith({
+      purchaseId: "plp-1",
+      locationId: "town",
+      instructorId: "coach-a",
+      date: "2026-09-14",
+      startTime: "17:30",
+      repeatWeekly: false,
+    });
+    expect(mocks.saveSession).not.toHaveBeenCalled();
   });
 
   it("loads and updates the access mode of an existing session", async () => {

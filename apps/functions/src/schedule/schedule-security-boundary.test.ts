@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   ScheduleAttendanceError,
@@ -110,6 +110,36 @@ function auditFields() {
   };
 }
 
+/** The booking's membership is on a monthly plan, so the class is paid without a PAYG invoice. */
+function monthlyMembership(studentId: string): ReadonlyArray<readonly [string, Data]> {
+  return [
+    [
+      `academies/${academyId}/memberships/membership-1`,
+      { membershipId: "membership-1", academyId, studentId, planId: "monthly" },
+    ],
+    [
+      `academies/${academyId}/plans/monthly`,
+      { planId: "monthly", academyId, billingPeriod: "monthly" },
+    ],
+  ];
+}
+
+/** The member's own account, which the server reads to confirm current member access. */
+function clientUser(userId: string, displayName: string): readonly [string, Data] {
+  return [
+    `academies/${academyId}/users/${userId}`,
+    {
+      userId,
+      academyId,
+      accountType: "client",
+      displayName,
+      email: `${userId}@example.test`,
+      phoneNumber: "+441534000000",
+      ...auditFields(),
+    },
+  ];
+}
+
 describe("transactional schedule security boundary", () => {
   it("keeps self check-in closed and atomically validates booking, minor release and audit evidence", async () => {
     const sessionId = "session-1";
@@ -175,6 +205,8 @@ describe("transactional schedule security boundary", () => {
             ...auditFields(),
           },
         ],
+        ...monthlyMembership(studentId),
+        clientUser("guardian-1", "Synthetic Guardian"),
       ]),
     );
     const service = createTransactionalAttendanceService({
@@ -314,6 +346,7 @@ describe("check-in proximity signal at the transaction boundary (T109)", () => {
           status: "confirmed",
         },
       ],
+      ...monthlyMembership(studentId),
     ]);
     if (geofence !== undefined) {
       seed.set(`academies/${academyId}/locations/town`, {
@@ -543,10 +576,14 @@ describe("check-in proximity signal at the transaction boundary (T109)", () => {
 });
 
 describe("site geofence writer at the transaction boundary (T109)", () => {
+  afterEach(() => vi.useRealTimers());
+
   it("stores the site coordinates and its audit event together, then clears them", async () => {
     const fixture = transactionalFirestore(new Map<string, Data>());
     const store = createFirestoreScheduleStore({ firestore: fixture.firestore as never });
 
+    // The audit id carries the save time to the millisecond, so each save gets its own instant.
+    vi.setSystemTime(new Date(now));
     const saved = await store.saveLocationGeofence(
       academyId,
       { locationId: "town", geofence: { latitude: 49.186, longitude: -2.106 } },
@@ -571,6 +608,7 @@ describe("site geofence writer at the transaction boundary (T109)", () => {
       targetRef: `academies/${academyId}/locations/town`,
     });
 
+    vi.setSystemTime(new Date("2026-09-03T18:06:00.000Z"));
     const cleared = await store.saveLocationGeofence(
       academyId,
       { locationId: "town", geofence: null },
@@ -587,7 +625,8 @@ describe("site geofence writer at the transaction boundary (T109)", () => {
 describe("member self check-in at the transaction boundary (T040V2)", () => {
   const town = { latitude: 49.183954, longitude: -2.107142 };
   const near = { latitude: 49.184224, longitude: -2.107142, accuracyMeters: 12 };
-  const far = { latitude: 49.185034, longitude: -2.107142, accuracyMeters: 12 };
+  // 400 m north of the pin: outside the 300 m check-in radius (5343788).
+  const far = { latitude: 49.187554, longitude: -2.107142, accuracyMeters: 12 };
 
   function selfCheckInFixture(extra: ReadonlyArray<readonly [string, Data]> = []) {
     const sessionId = "session-self";
@@ -643,6 +682,8 @@ describe("member self check-in at the transaction boundary (T040V2)", () => {
             `academies/${academyId}/programs/adult-fundamentals`,
             { programId: "adult-fundamentals", academyId, discipline: "bjj" },
           ],
+          ...monthlyMembership(studentId),
+          clientUser("adult-user-1", "Synthetic Adult"),
           ...extra,
         ]),
       ),
@@ -727,10 +768,11 @@ describe("member self check-in at the transaction boundary (T040V2)", () => {
     await expect(attempt(far)).rejects.toMatchObject({
       name: "SelfCheckInRefusedError",
       reason: "outside",
-      distanceMeters: 120,
+      distanceMeters: 400,
     });
-    await expect(attempt({ ...near, accuracyMeters: 101 })).rejects.toMatchObject({
-      reason: "imprecise",
+    // No precision gate since 60dd061: a reading wider than 100 m is judged on its distance alone.
+    await expect(attempt({ ...far, accuracyMeters: 101 })).rejects.toMatchObject({
+      reason: "outside",
     });
     await expect(attempt(near, "coach")).rejects.toMatchObject({ code: "credential" });
     await expect(attempt(far)).rejects.not.toThrow(/49\.18|-2\.10/u);

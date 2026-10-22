@@ -63,7 +63,7 @@ describe("member profile web client", () => {
   it("parses the role-trimmed response and refuses anything extra", async () => {
     mocks.callable.mockResolvedValue({ data: coachProfile });
     await expect(getMemberProfile("student-1")).resolves.toEqual(coachProfile);
-    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "getMemberProfile");
+    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "getMemberProfile", undefined);
     expect(mocks.callable).toHaveBeenCalledWith({ studentId: "student-1" });
 
     mocks.callable.mockResolvedValue({
@@ -94,6 +94,10 @@ describe("member profile web client", () => {
       ["functions/internal", "Unable to load this member record. Please try again."],
     ] as const) {
       mocks.callable.mockRejectedValueOnce({ code, message: "raw backend detail student-1" });
+      // ./callable asks us-central1 once more after a not-found; a missing record is missing there too.
+      if (code === "functions/not-found") {
+        mocks.callable.mockRejectedValueOnce({ code, message: "raw backend detail student-1" });
+      }
       const error = await getMemberProfile("student-1").catch((caught: unknown) => caught);
       expect(error).toBeInstanceOf(Error);
       expect((error as Error).message).toBe(message);
@@ -103,7 +107,7 @@ describe("member profile web client", () => {
   it("saves DETAILS through updateMember with the normalised payload", async () => {
     mocks.callable.mockResolvedValue({ data: { memberId: "student-1", studentId: "student-1" } });
     await expect(saveMemberDetails(detailsInput)).resolves.toBeUndefined();
-    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "updateMember");
+    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "updateMember", undefined);
     expect(mocks.callable).toHaveBeenCalledWith({
       ...detailsInput,
       membershipNumber: "1",
@@ -144,7 +148,7 @@ describe("member profile web client", () => {
     await expect(searchMemberNames(" test ")).resolves.toEqual([
       { studentId: "student-1", fullName: "Test Member A" },
     ]);
-    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "searchMemberNames");
+    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "searchMemberNames", undefined);
     expect(mocks.callable).toHaveBeenCalledWith({ query: "test" });
 
     mocks.callable.mockResolvedValue({

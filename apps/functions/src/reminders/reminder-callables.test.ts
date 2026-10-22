@@ -1,5 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
 
+// The handler passes the member-account gate (58c2498), which re-reads the live Auth user: here a
+// current member, enabled and verified, same academy and role, tokens not revoked since sign-in.
+vi.mock("firebase-admin/auth", () => ({
+  getAuth: () => ({
+    getUser: async (uid: string) => ({
+      disabled: false,
+      emailVerified: true,
+      customClaims: {
+        academyId: "academy-1",
+        role: uid === "adult-1" ? "adultStudent" : "guardian",
+      },
+      tokensValidAfterTime: "2025-01-01T00:00:00.000Z",
+    }),
+  }),
+}));
+
 import {
   createListClientRemindersHandler,
   type ReminderCallableServices,
@@ -7,7 +23,8 @@ import {
 
 function fakeRequest(data: unknown, role = "guardian", uid = "guardian-1") {
   return {
-    auth: { uid, token: { academyId: "academy-1", role } },
+    app: { appId: "verified-test-app" },
+    auth: { uid, token: { academyId: "academy-1", role, auth_time: 1_754_633_600 } },
     data,
   } as never;
 }

@@ -20,25 +20,28 @@ const syntheticSession = {
   role: "owner" as const,
 };
 
+// The owner's menu. Member search is the mat's entry since 2026-09-22; Member migration and
+// Medical conditions left the menu on 2026-09-20; Waitlists and Waivers are owner/administrator only.
 const pilotNavigation = [
   "Overview",
+  "Graduations",
   "Attendance",
   "Members",
-  "Member search",
-  "Member migration",
   "Memberships",
   "Enrolment requests",
-  "Medical conditions",
   "Classes / Services",
+  "Courses & seminars",
   "Levels",
+  "Waitlists",
   "Financial dashboard",
   "Shop",
+  "Visit the shop",
   "Staff",
   "Reports",
+  "Waivers and disclaimers",
 ] as const;
 
 const offNavigationRoutes = [
-  "/admin/waitlists",
   "/admin/crm",
   "/admin/retention",
   "/admin/billing",
@@ -176,6 +179,8 @@ describe("administrative shell", () => {
     await user.tab();
     expect(screen.getByRole("link", { name: "Overview" })).toHaveFocus();
     await user.tab();
+    expect(within(navigation).getByRole("link", { name: "Graduations" })).toHaveFocus();
+    await user.tab();
     expect(attendanceLink).toHaveFocus();
     expect(attendanceLink).toHaveAttribute("href", "/admin/attendance");
     expect(within(navigation).getByRole("link", { name: "Members" })).toHaveAttribute(
@@ -208,9 +213,7 @@ describe("administrative shell", () => {
     offNavigationRoutes.forEach((href) => {
       expect(navigation.querySelector(`a[href="${href}"]`)).toBeNull();
     });
-    expect(
-      within(navigation).queryByRole("link", { name: /waitlist|crm|retention|lesson/i }),
-    ).toBeNull();
+    expect(within(navigation).queryByRole("link", { name: /crm|retention|lesson/i })).toBeNull();
   });
 
   it("shows a coach the seven mat modules plus a way back to the coach portal", () => {
@@ -236,12 +239,11 @@ describe("administrative shell", () => {
       "->Progression syllabus",
       "->My sign-in",
       "->Overview",
+      "->Graduations",
       "->Attendance",
       "->Member search",
       "->Enrolment requests",
-      "->Medical conditions",
       "->Classes / Services",
-      "->Levels",
     ]);
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/coach");
     expect(screen.getByText("Coach operational access")).toBeVisible();
@@ -270,16 +272,15 @@ describe("administrative shell", () => {
       "->Progression syllabus",
       "->My sign-in",
       "->Overview",
+      "->Graduations",
       "->Attendance",
       "->Member search",
       "->Enrolment requests",
-      "->Medical conditions",
       "->Classes / Services",
-      "->Levels",
     ]);
   });
 
-  it("lists memberships but not waivers, whose route still exists", () => {
+  it("lists memberships and waivers but not medical conditions, whose route still exists", () => {
     render(
       <AdminShell session={syntheticSession}>
         <p>Content</p>
@@ -290,11 +291,10 @@ describe("administrative shell", () => {
       "href",
       "/admin/memberships",
     );
-    expect(within(navigation).queryByRole("link", { name: "Waivers" })).toBeNull();
-    expect(within(navigation).getByRole("link", { name: "Medical conditions" })).toHaveAttribute(
-      "href",
-      "/admin/members/medical",
-    );
+    expect(
+      within(navigation).getByRole("link", { name: "Waivers and disclaimers" }),
+    ).toHaveAttribute("href", "/admin/waivers");
+    expect(navigation.querySelector('a[href="/admin/members/medical"]')).toBeNull();
   });
 
   it("marks Members active without leaving legacy hash links", () => {

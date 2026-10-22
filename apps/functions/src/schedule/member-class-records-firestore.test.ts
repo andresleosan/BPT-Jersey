@@ -4,10 +4,24 @@ import { createMemberClassFirestoreStore } from "./member-class-records-firestor
 it("uses scoped ordered limit+1 queries and propagates missing-index errors without fallback", async () => {
   const query = { where: vi.fn(), orderBy: vi.fn(), startAfter: vi.fn(), limit: vi.fn() };
   for (const method of Object.values(query)) method.mockReturnValue(query);
-  const get = vi.fn().mockRejectedValue(new Error("missing index"));
+  // Canonical identity ids are resolved first, in the same transaction: "s" has no alias
+  // document and no approved historical ids, so only "s" is queried.
+  const aliases = "academies/a/memberIdentityAliases";
+  const aliasDoc = { path: `${aliases}/s` };
+  const aliasQuery = { where: vi.fn(), orderBy: vi.fn(), limit: vi.fn() };
+  for (const method of Object.values(aliasQuery)) method.mockReturnValue(aliasQuery);
+  const get = vi.fn(async (target: unknown) => {
+    if (target === aliasDoc) return { id: "s", exists: false, data: () => undefined };
+    if (target === aliasQuery) return { docs: [] };
+    throw new Error("missing index");
+  });
   const collection = vi.fn(() => query);
   const runTransaction = vi.fn(async (work) => work({ get }));
-  const db = { doc: vi.fn(() => ({ collection })), runTransaction } as unknown as Firestore;
+  const db = {
+    doc: vi.fn((path: string) => (path === aliasDoc.path ? aliasDoc : { collection })),
+    collection: vi.fn((path: string) => (path === aliases ? aliasQuery : undefined)),
+    runTransaction,
+  } as unknown as Firestore;
   const store = createMemberClassFirestoreStore(db);
   await expect(
     store.read("a", (reader) =>
@@ -30,6 +44,6 @@ it("uses scoped ordered limit+1 queries and propagates missing-index errors with
   expect(query.orderBy.mock.calls[1]![1]).toBe("desc");
   expect(query.limit).toHaveBeenCalledWith(26);
   expect(query.startAfter).toHaveBeenCalledWith("2026-09-20T10:00:00.000Z", "r");
-  expect(get).toHaveBeenCalledTimes(1);
+  expect(get.mock.calls).toEqual([[aliasDoc], [aliasQuery], [query]]);
   expect(runTransaction).toHaveBeenCalledWith(expect.any(Function), { readOnly: true });
 });

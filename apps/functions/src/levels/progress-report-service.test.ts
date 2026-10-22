@@ -63,6 +63,10 @@ describe("Firestore progress report store", () => {
         if (path.endsWith("/assessments")) {
           return { get: async () => ({ docs: [] }) };
         }
+        if (!path.endsWith("/attendance")) {
+          // Owner voids, owner-added dates, group access and programs: none stored, like Firestore.
+          return { get: async () => ({ docs: [] }) };
+        }
         return {
           get: async () => ({
             docs: [
@@ -81,6 +85,19 @@ describe("Firestore progress report store", () => {
             ],
           }),
         };
+      },
+      // Open Mat lookup (attendance → session → program) reads by path; no session is stored.
+      doc(path: string) {
+        paths.push(path);
+        return { path, id: path.split("/").at(-1) };
+      },
+      async getAll(...refs: { path: string; id: string }[]) {
+        return refs.map((ref) => ({
+          id: ref.id,
+          exists: false,
+          get: () => undefined,
+          data: () => undefined,
+        }));
       },
     };
 

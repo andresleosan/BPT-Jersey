@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { HttpsError } from "firebase-functions/v2/https";
 
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
@@ -32,6 +33,8 @@ function fakeRequest(
   } as never;
 }
 
+const memberRoles = new Set(["guardian", "adultStudent", "teenStudent"]);
+
 const authorization: LevelAuthorizationService = {
   requireActor: async (request) => {
     if (!request.auth) throw new Error("unauthenticated");
@@ -46,23 +49,34 @@ const authorization: LevelAuthorizationService = {
           : null,
     };
   },
-  resolveStudent: async (actor, requestedStudentId) => ({
-    studentId: requestedStudentId ?? actor.userId,
-    academyId: actor.academyId,
-    ...(actor.role === "adultStudent" ? { userId: actor.userId } : {}),
-    fullName: "Synthetic Student",
-    dateOfBirth: "1990-01-01",
-    trainingCenter: "Town",
-    trainingTimePreferences: ["evening"],
-    participantType: "adult",
-    active: true,
-    status: "active",
-    schemaVersion: "1",
-    createdAt: "2026-01-01T00:00:00.000Z",
-    createdBy: "owner-1",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-    updatedBy: "owner-1",
-  }),
+  resolveStudent: async (actor, requestedStudentId) => {
+    // Mirrors the real resolveStudent: since 58c2498 a member may name a student, and the
+    // member-access check refuses one who is not theirs (a member's own student id is the uid).
+    if (
+      memberRoles.has(actor.role) &&
+      requestedStudentId !== undefined &&
+      requestedStudentId !== actor.userId
+    ) {
+      throw new HttpsError("permission-denied", "Levels access is not permitted");
+    }
+    return {
+      studentId: requestedStudentId ?? actor.userId,
+      academyId: actor.academyId,
+      ...(actor.role === "adultStudent" ? { userId: actor.userId } : {}),
+      fullName: "Synthetic Student",
+      dateOfBirth: "1990-01-01",
+      trainingCenter: "Town",
+      trainingTimePreferences: ["evening"],
+      participantType: "adult",
+      active: true,
+      status: "active",
+      schemaVersion: "1",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "owner-1",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      updatedBy: "owner-1",
+    };
+  },
 };
 
 describe("Level Callables", () => {
@@ -277,7 +291,10 @@ describe("Level Callables", () => {
         listHandler(
           fakeRequest({ studentId: "adult-2" }, "adultStudent", "adult-1", "demo-academy"),
         ),
-      ).rejects.toThrow(/Levels payload is invalid/);
+      ).rejects.toMatchObject({
+        code: "permission-denied",
+        message: "Levels access is not permitted",
+      });
     });
   });
 
@@ -309,7 +326,10 @@ describe("Level Callables", () => {
         progressHandler(
           fakeRequest({ studentId: "other-student" }, "adultStudent", "adult-1", "demo-academy"),
         ),
-      ).rejects.toThrow(/Levels payload is invalid/);
+      ).rejects.toMatchObject({
+        code: "permission-denied",
+        message: "Levels access is not permitted",
+      });
     });
   });
 

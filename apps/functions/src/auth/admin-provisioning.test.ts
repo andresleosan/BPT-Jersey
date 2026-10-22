@@ -35,7 +35,7 @@ type SyntheticServicesOptions = Readonly<{
   failTransaction?: boolean;
   failTransactionNumber?: number;
   failTransactionNumbers?: ReadonlyArray<number>;
-  onGetUser?: (records: Map<string, FirestoreDocumentData>) => void;
+  onGetUser?: (records: Map<string, FirestoreDocumentData>, uid: string) => void;
   onSetCustomUserClaims?: (records: Map<string, FirestoreDocumentData>) => void;
   onTransactionFailure?: (
     records: Map<string, FirestoreDocumentData>,
@@ -62,7 +62,8 @@ type SyntheticServicesOptions = Readonly<{
 /**
  * `app` viaja siempre salvo que una prueba lo quite a proposito: desde que esta funcion se
  * despliega como callable, el manejador exige App Check verificada, igual que la puerta que
- * protege lo que esta concede.
+ * protege lo que esta concede. `auth_time` tambien: desde 5530b4e la sesion se compara con la
+ * revocacion viva en Auth (`assertActiveSession`).
  */
 function callableRequest(
   role: "owner" | "administrator",
@@ -72,7 +73,12 @@ function callableRequest(
   return {
     auth: {
       uid: "owner-1",
-      token: { academyId, role, firebase: { sign_in_second_factor: "totp" } },
+      token: {
+        academyId,
+        role,
+        auth_time: 1_700_000_000,
+        firebase: { sign_in_second_factor: "totp" },
+      },
     },
     app: { appId: "1:1:web:admin-console", token: {} },
     data: { action },
@@ -88,7 +94,12 @@ function callableProvisioningRequest(
   return {
     auth: {
       uid: "owner-1",
-      token: { academyId, role, firebase: { sign_in_second_factor: "totp" } },
+      token: {
+        academyId,
+        role,
+        auth_time: 1_700_000_000,
+        firebase: { sign_in_second_factor: "totp" },
+      },
     },
     app: { appId: "1:1:web:admin-console", token: {} },
     data,
@@ -107,7 +118,12 @@ function unattestedRequest(
   return {
     auth: {
       uid: "owner-1",
-      token: { academyId, role, firebase: { sign_in_second_factor: "totp" } },
+      token: {
+        academyId,
+        role,
+        auth_time: 1_700_000_000,
+        firebase: { sign_in_second_factor: "totp" },
+      },
     },
     data,
   } as never;
@@ -117,6 +133,11 @@ function createSyntheticServices(
   users: SyntheticUser[],
   options: SyntheticServicesOptions = {},
 ): AdminProvisioningServices & { firestore: SyntheticFirestore & { createPaths: string[] } } {
+  // Desde 5530b4e la funcion relee en Auth a quien llama antes de tocar a nadie. Las peticiones de
+  // prueba llaman como "owner-1": Auth lo tiene como owner salvo que la prueba traiga el suyo.
+  const authUsers = users.some((user) => user.uid === "owner-1")
+    ? users
+    : [...users, ownerIssuer()];
   const records = new Map<string, FirestoreDocumentData>();
   const createPaths: string[] = [];
   let nextAuditId = 0;
@@ -213,8 +234,8 @@ function createSyntheticServices(
     firestore,
     auth: {
       getUser: async (uid: string) => {
-        options.onGetUser?.(records);
-        const user = users.find((candidate) => candidate.uid === uid);
+        options.onGetUser?.(records, uid);
+        const user = authUsers.find((candidate) => candidate.uid === uid);
         if (!user) {
           throw new Error("auth/user-not-found");
         }
@@ -222,7 +243,7 @@ function createSyntheticServices(
       },
       setCustomUserClaims: async (uid: string, claims: Record<string, unknown>) => {
         options.onSetCustomUserClaims?.(records);
-        const user = users.find((candidate) => candidate.uid === uid);
+        const user = authUsers.find((candidate) => candidate.uid === uid);
         if (!user) {
           throw new Error("auth/user-not-found");
         }
@@ -238,6 +259,16 @@ const googleUser = (): SyntheticUser => ({
   displayName: "Synthetic Target",
   disabled: false,
   customClaims: {},
+  providerData: [{ providerId: "google.com" }],
+});
+
+/** El registro vivo de quien llama: sin deshabilitar y con la academia y el rol de su token. */
+const ownerIssuer = (): SyntheticUser => ({
+  uid: "owner-1",
+  email: "owner@example.test",
+  displayName: "Synthetic Owner",
+  disabled: false,
+  customClaims: { academyId: "academy-1", role: "owner" },
   providerData: [{ providerId: "google.com" }],
 });
 
@@ -430,15 +461,20 @@ describe("administrative role provisioning", () => {
   it("rejects non-owners, cross-academy targets, and non-Google users", async () => {
     const target = googleUser();
     target.customClaims = { academyId: "academy-2", role: "administrator" };
-    const services = createSyntheticServices([target]);
+    // db8bd61 (PRODUCT.md, 2026-10-15): an administrator has the owner's powers except over owner
+    // accounts, so a non-owner is refused when it reaches for the owner role.
+    const issuer = ownerIssuer();
+    issuer.customClaims = { academyId: "academy-1", role: "administrator" };
+    const services = createSyntheticServices([target, issuer]);
 
     await expect(
       provisionAdminRoleWithServices(
         callableRequest("administrator", "academy-1"),
-        { uid: target.uid, email: target.email, role: "administrator" },
+        { uid: target.uid, email: target.email, role: "owner" },
         services,
       ),
     ).rejects.toMatchObject({ code: "permission-denied" });
+    issuer.customClaims = { academyId: "academy-1", role: "owner" };
     await expect(
       provisionAdminRoleWithServices(
         callableRequest("owner", "academy-1"),
@@ -586,7 +622,9 @@ describe("administrative role provisioning", () => {
     const target = googleUser();
     let authMutationCount = 0;
     const services = createSyntheticServices([target], {
-      onGetUser: (records) => {
+      onGetUser: (records, uid) => {
+        // The caller's own read (5530b4e) comes before the lock; the lease expires at the target's.
+        if (uid !== target.uid) return;
         records.set("academies/academy-1/adminRoleLocks/target-1", {
           ...(records.get("academies/academy-1/adminRoleLocks/target-1") ?? {}),
           expiresAt: Date.now() - 1,
@@ -1211,7 +1249,9 @@ describe("administrative role provisioning", () => {
     const services = createSyntheticServices([target], {
       failTransaction: true,
       failTransactionNumber: 4,
-      onGetUser: () => {
+      onGetUser: (_records, uid) => {
+        // Count the target's reads only: the caller's own read (5530b4e) is not part of the race.
+        if (uid !== target.uid) return;
         authReadCount += 1;
         if (authReadCount === 2) {
           target.customClaims = {
@@ -1472,9 +1512,13 @@ describe("administrative role provisioning as a deployed callable", () => {
     expect(services.firestore.records).toEqual(new Map());
   });
 
-  it("never lets an administrator grant a role, to anyone or to themselves", async () => {
+  it("never lets an administrator grant the owner role, to anyone or to themselves", async () => {
+    // db8bd61 (PRODUCT.md, 2026-10-15): an administrator grants administrator access like an
+    // owner; only an owner creates an owner, so that is the line this gate holds for them.
     const target = googleUser();
-    const services = createSyntheticServices([target]);
+    const issuer = ownerIssuer();
+    issuer.customClaims = { academyId: "academy-1", role: "administrator" };
+    const services = createSyntheticServices([target, issuer]);
 
     await expect(
       provisionAdminRoleHandler(
@@ -1482,7 +1526,7 @@ describe("administrative role provisioning as a deployed callable", () => {
           action: "grant",
           uid: target.uid,
           email: target.email,
-          role: "administrator",
+          role: "owner",
         }),
         services,
       ),
@@ -1492,6 +1536,7 @@ describe("administrative role provisioning as a deployed callable", () => {
     // quien apunta la peticion.
     const self = googleUser();
     self.uid = "owner-1";
+    self.customClaims = { academyId: "academy-1", role: "administrator" };
     const selfServices = createSyntheticServices([self]);
     await expect(
       provisionAdminRoleHandler(
@@ -1506,7 +1551,7 @@ describe("administrative role provisioning as a deployed callable", () => {
     ).rejects.toMatchObject({ code: "permission-denied" });
 
     expect(target.customClaims).toEqual({});
-    expect(self.customClaims).toEqual({});
+    expect(self.customClaims).toEqual({ academyId: "academy-1", role: "administrator" });
     expect(selfServices.firestore.records).toEqual(new Map());
   });
 

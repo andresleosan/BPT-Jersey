@@ -353,7 +353,7 @@ describe("enrolment request queue", () => {
 
     await userEvent.click(firstButton(/review and enrol/i));
 
-    expect(await screen.findByText(/1991-03-04/)).toBeVisible();
+    expect(await screen.findByText("1991-03-04")).toBeVisible();
     expect(screen.getByText(/Sam Contact/)).toBeVisible();
     expect(screen.getByText(/2 Synthetic Lane/)).toBeVisible();
     // Only one request was opened, so only one detail was ever fetched.
@@ -368,11 +368,11 @@ describe("enrolment request queue", () => {
     const toggle = () => firstButton(/review and enrol|close review/i);
 
     await userEvent.click(toggle());
-    await screen.findByText(/1991-03-04/);
+    await screen.findByText("1991-03-04");
     await userEvent.click(toggle());
     await userEvent.click(toggle());
 
-    await screen.findByText(/1991-03-04/);
+    await screen.findByText("1991-03-04");
     expect(enrolmentApi.getEnrolmentRequestDetail).toHaveBeenCalledTimes(1);
   });
 
@@ -490,10 +490,11 @@ describe("requested enrolment plans", () => {
     const user = userEvent.setup();
     render(<EnrolmentRequestQueuePage />);
     await user.click((await screen.findAllByRole("button", { name: /review and enrol/i }))[0]!);
-    expect((await screen.findByText(/Town Child · born/)).closest("li")).toHaveTextContent(
+    const whoWillTrain = await screen.findByRole("list", { name: "Who will train" });
+    expect(within(whoWillTrain).getByText("Town Child").closest("li")).toHaveTextContent(
       "Town Kids & Teens 1x · £95 per term",
     );
-    expect(screen.getByText(/West Teen · born/).closest("li")).toHaveTextContent(
+    expect(within(whoWillTrain).getByText("West Teen").closest("li")).toHaveTextContent(
       "West Teens · £45 per month",
     );
   });
@@ -514,11 +515,15 @@ describe("trial declarations and preselected level", () => {
     render(<EnrolmentRequestQueuePage />);
     await user.click((await screen.findAllByRole("button", { name: /review and enrol/i }))[0]!);
 
-    expect(await screen.findByText("Trial (1 free Introduction Class)")).toBeVisible();
+    // Introduction Classes are for adult beginners only; a declared belt spends its one free class
+    // on a regular class of their age.
+    expect(await screen.findByText("Trial (1 free class)")).toBeVisible();
     expect(screen.getByText("Level: Blue belt · 2 stripes (declared)")).toBeVisible();
     expect(screen.getByLabelText("Initial level")).toHaveValue("blue-2nd-stripe");
     expect(
-      screen.getByText(/Trial — no plan, dates or payment\. Confirm the initial level\./),
+      screen.getByText(
+        /Trial — no plan, dates or payment: 2 free classes for a beginner, 1 for a declared belt, within 30 days\. .*Confirm the initial level\./,
+      ),
     ).toBeVisible();
     expect(screen.queryByLabelText("Subscription start")).not.toBeInTheDocument();
     // The trial has no plan to name, so the setup fieldset's "Plan: …" line must not render a bare
@@ -526,12 +531,12 @@ describe("trial declarations and preselected level", () => {
     expect(screen.queryByText(/^Plan:/)).not.toBeInTheDocument();
   });
 
-  it("leaves the initial level empty for a paid plan even though it carries a beginner declaration, so the guard still fires", async () => {
+  it("preselects the age's white belt for a paid plan with a beginner declaration, and the guard still fires once the level is cleared", async () => {
     // The public enrolment form sends a `beginner` declaration by default for every student, paid
     // or trial (apps/web/src/app/enrol/page.tsx builds one for every selected plan) — so a paid
-    // enrolment arrives WITH `levelDeclarations`, not without it. Preselection must be keyed on
-    // the plan, not on the declaration's presence: office must still choose the level for a
-    // paying member, so the approve guard has to keep firing when nobody has.
+    // enrolment arrives WITH `levelDeclarations`, not without it. A beginner starts on the white
+    // belt of their age whatever the plan (Luis, 2026-10-01), but office can still change it, so
+    // the approve guard has to keep firing when no level is chosen.
     enrolmentApi.getEnrolmentRequestDetail.mockResolvedValueOnce({
       ...detail,
       levelDeclarations: {
@@ -544,8 +549,9 @@ describe("trial declarations and preselected level", () => {
     await userEvent.click(firstButton(/review and enrol/i));
     await waitFor(() => expect(firstButton(/^approve$/i)).toBeEnabled());
 
-    expect(screen.getByLabelText("Initial level")).toHaveValue("");
+    expect(screen.getByLabelText("Initial level")).toHaveValue("white-belt");
 
+    await userEvent.selectOptions(screen.getByLabelText("Initial level"), "");
     await userEvent.click(firstButton(/^approve$/i));
 
     expect(
@@ -597,7 +603,8 @@ describe("trial declarations and preselected level", () => {
     render(<EnrolmentRequestQueuePage />);
     await user.click((await screen.findAllByRole("button", { name: /review and enrol/i }))[0]!);
 
-    await screen.findByText(/Nine YearOld · born/);
+    const whoWillTrain = await screen.findByRole("list", { name: "Who will train" });
+    expect(within(whoWillTrain).getByText("Nine YearOld")).toBeVisible();
     expect(screen.getByLabelText("Initial level")).toHaveValue("white-belt-kids-7-8-and-8-10-yo");
   });
 

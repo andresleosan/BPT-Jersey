@@ -61,6 +61,7 @@ function fakeFirestore(initial: Record<string, DocumentData> = {}) {
 const student: DocumentData = {
   studentId: "student-1",
   academyId: "academy-1",
+  familyId: "family-1",
   userId: "user-1",
   fullName: "Synthetic Minor",
   dateOfBirth: "2015-01-01",
@@ -94,6 +95,42 @@ const relationship: DocumentData = {
   updatedAt: "2026-08-01T00:00:00Z",
   updatedBy: "owner-1",
 };
+function clientUser(userId: string): DocumentData {
+  return {
+    userId,
+    academyId: "academy-1",
+    accountType: "client",
+    displayName: "Synthetic Guardian",
+    email: userId + "@example.test",
+    phoneNumber: "+15550000002",
+    active: true,
+    status: "active",
+    schemaVersion: "1",
+    createdAt: "2026-08-01T00:00:00Z",
+    createdBy: "owner-1",
+    updatedAt: "2026-08-01T00:00:00Z",
+    updatedBy: "owner-1",
+  };
+}
+// Guardian downloads go through the central member-access gate (58c2498, ADR-019), which also
+// reads the actor's account and the student's family; guardian-2 is a live account with no link.
+const guardianScope: Record<string, DocumentData> = {
+  "academies/academy-1/users/guardian-1": clientUser("guardian-1"),
+  "academies/academy-1/users/guardian-2": clientUser("guardian-2"),
+  "academies/academy-1/families/family-1": {
+    familyId: "family-1",
+    academyId: "academy-1",
+    primaryContactUserId: "guardian-1",
+    billingContactUserId: "guardian-1",
+    active: true,
+    status: "active",
+    schemaVersion: "1",
+    createdAt: "2026-08-01T00:00:00Z",
+    createdBy: "owner-1",
+    updatedAt: "2026-08-01T00:00:00Z",
+    updatedBy: "owner-1",
+  },
+};
 function r2For(bytes: Uint8Array): R2Client {
   return {
     createPdfUploadUrl: async () => "https://r2.example.test/upload",
@@ -106,6 +143,7 @@ function r2For(bytes: Uint8Array): R2Client {
 describe("private document store", () => {
   it("prepares, finalizes and authorizes a synthetic private waiver", async () => {
     const seeded = fakeFirestore({
+      ...guardianScope,
       "academies/academy-1/students/student-1": student,
       "academies/academy-1/relationships/family-1--student-1": relationship,
     });
@@ -150,7 +188,10 @@ describe("private document store", () => {
         role: "guardian",
         studentId: "student-1",
       }),
-    ).resolves.toMatchObject({ downloadUrl: "https://r2.example.test/download" });
+    ).resolves.toMatchObject({
+      // 58c2498: members get the verified bytes, never a reusable bearer URL into private storage.
+      downloadUrl: "data:application/pdf;base64," + Buffer.from(bytes).toString("base64"),
+    });
     await expect(
       store.getWaiverDownload({
         academyId: "academy-1",
@@ -173,6 +214,7 @@ describe("private document store", () => {
       { ...relationship, validTo: "2020-01-01T00:00:00Z" },
     ]) {
       const seeded = fakeFirestore({
+        ...guardianScope,
         "academies/academy-1/students/student-1": student,
         "academies/academy-1/relationships/family-1--student-1": currentRelationship,
       });

@@ -388,31 +388,45 @@ describe("Level Service & Store", () => {
         const ordered = [...catalog.definitions].sort((a, b) => a.sequence - b.sequence);
         const from = ordered.find((definition) => definition.kind === "belt")!;
         const to = ordered.find((definition) => definition.sequence === from.sequence + 1)!;
+        // cce8607: manual totals stop one below the next rank (4 classes, 30 days here).
         await store.openStudentLevel({
           academyId: "demo-academy",
           input: {
             studentId: "student-1", definitionKey: from.definitionKey,
             startedOn: "2026-09-05", decisionNotes: "Synthetic owner opening.",
-            newLevelClasses: 9, newLevelDays: 31,
+            newLevelClasses: 2, newLevelDays: 29,
           },
           openedBy: "owner-1", openedByStaffId: null, openedByRole: "owner",
           openedAt: "2026-10-05T10:00:00.000Z",
         });
+        // db8bd61: the administrator now sets new-level progress like the owner; a head coach cannot.
         await expect(store.openStudentLevel({
           academyId: "demo-academy",
           input: {
             studentId: "student-2", definitionKey: from.definitionKey,
             decisionNotes: "Synthetic administrator opening.",
-            newLevelClasses: 9, newLevelDays: 31,
+            newLevelClasses: 2, newLevelDays: 29,
           },
           openedBy: "admin-1", openedByStaffId: null, openedByRole: "administrator",
+          openedAt: "2026-10-05T10:00:00.000Z",
+        })).resolves.toMatchObject({
+          head: { importedBaseline: { classes: 2, source: "owner-set" }, daysOffset: 29 },
+        });
+        await expect(store.openStudentLevel({
+          academyId: "demo-academy",
+          input: {
+            studentId: "student-3", definitionKey: from.definitionKey,
+            decisionNotes: "Synthetic head coach opening.",
+            newLevelClasses: 2, newLevelDays: 29,
+          },
+          openedBy: "headcoach-1", openedByStaffId: "staff-head-1", openedByRole: "headCoach",
           openedAt: "2026-10-05T10:00:00.000Z",
         })).rejects.toMatchObject({ code: "tenant" });
         expect(await store.getStudentProgressSummary("demo-academy", "student-1")).toMatchObject({
           state: "initialized",
           criteria: {
-            classes: { completed: 9, imported: 9 },
-            time: { elapsedDays: 31 },
+            classes: { completed: 2, imported: 2 },
+            time: { elapsedDays: 29 },
           },
         });
 
@@ -448,13 +462,13 @@ describe("Level Service & Store", () => {
         expect(await store.getStudentProgressSummary("demo-academy", "student-1")).toMatchObject({
           state: "initialized",
           criteria: {
-            classes: { completed: 9, imported: 9 },
-            time: { elapsedDays: 31 },
+            classes: { completed: 2, imported: 2 },
+            time: { elapsedDays: 29 },
           },
         });
         vi.setSystemTime(new Date("2026-10-06T10:00:00.000Z"));
         expect(await store.getStudentProgressSummary("demo-academy", "student-1")).toMatchObject({
-          criteria: { time: { elapsedDays: 32 } },
+          criteria: { time: { elapsedDays: 30 } },
         });
       } finally {
         vi.useRealTimers();

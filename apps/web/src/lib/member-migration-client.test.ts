@@ -39,7 +39,7 @@ it("lists with null and validates the response", async () => {
     .mockResolvedValueOnce({ data: queue })
     .mockResolvedValueOnce({ data: { rows: "wrong" } });
   await expect(listMemberMigrationQueue()).resolves.toEqual(queue);
-  expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "listMemberMigrationQueue");
+  expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "listMemberMigrationQueue", undefined);
   expect(mocks.callable).toHaveBeenCalledWith(null);
   await expect(listMemberMigrationQueue()).rejects.toThrow(ZodError);
 });
@@ -79,7 +79,7 @@ it("wraps decisions and validates decision results", async () => {
     .mockResolvedValueOnce({ data: result })
     .mockResolvedValueOnce({ data: { results: [{ status: "unsafe" }] } });
   await expect(decideMemberMigration(decisions)).resolves.toEqual(result);
-  expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "decideMemberMigration");
+  expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "decideMemberMigration", undefined);
   expect(mocks.callable).toHaveBeenCalledWith({ decisions });
   await expect(decideMemberMigration(decisions)).rejects.toThrow(ZodError);
   expect(memberMigrationErrorMessage("record-already-linked")).toBe(
@@ -99,7 +99,7 @@ it("validates review responses and sanitizes SDK and validation failures", async
   const input = { studentId: "s1", requestId: "71cbb1aa-7020-4bb5-88a4-dbc73c5f0123", guardianContact: { fullName: "Synthetic Guardian", email: "guardian@example.test" } };
   mocks.callable.mockResolvedValueOnce({ data: { studentId: "s1" } }).mockRejectedValueOnce(new Error("Private SDK contact"));
   await expect(assignMemberGuardian(input)).resolves.toEqual({ studentId: "s1" });
-  expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "assignMemberGuardian");
+  expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "assignMemberGuardian", undefined);
   await expect(assignMemberGuardian(input)).rejects.toThrow("Could not assign the guardian. Please try again.");
   mocks.callable.mockResolvedValue({ data: { unexpected: true } });
   await expect(setMemberDateOfBirth({ studentId: "s1", requestId: input.requestId, dateOfBirth: "2014-01-01" })).rejects.toThrow("Could not set the date of birth. Please try again.");

@@ -55,6 +55,57 @@ function canonicalSeed(): Record<string, ProfileDocumentData> {
   };
 }
 
+// Since 58c2498 both store methods first ask the member-access gate, inside their transaction, for
+// the caller's own approved athlete (plan 2026-09-20-unified-members-directory, Task 6). Office
+// approval writes the active client account and the athlete, so a save completes that record and
+// never mints the person. This athlete has no self family yet; the save still has to add it.
+function approvedAccount(): ProfileDocumentData {
+  return {
+    userId: "user-1",
+    academyId: "academy-1",
+    accountType: "client",
+    displayName: "Synthetic Adult",
+    email: "adult@example.test",
+    phoneNumber: "+15550000001",
+    active: true,
+    status: "active",
+    schemaVersion: "1",
+    createdAt: "2026-08-19T10:00:00.000Z",
+    createdBy: "owner-1",
+    updatedAt: "2026-08-19T10:00:00.000Z",
+    updatedBy: "owner-1",
+  };
+}
+
+function approvedAthlete(studentId = "student-1"): ProfileDocumentData {
+  return {
+    studentId,
+    academyId: "academy-1",
+    userId: "user-1",
+    fullName: "Synthetic Adult",
+    dateOfBirth: "1990-08-19",
+    phoneNumber: "+15550000001",
+    email: "adult@example.test",
+    trainingCenter: "Town",
+    trainingTimePreferences: ["evening"],
+    participantType: "adult",
+    active: true,
+    status: "active",
+    schemaVersion: "1",
+    createdAt: "2026-08-19T10:00:00.000Z",
+    createdBy: "owner-1",
+    updatedAt: "2026-08-19T10:00:00.000Z",
+    updatedBy: "owner-1",
+  };
+}
+
+function approvedAdult(): Record<string, ProfileDocumentData> {
+  return {
+    "academies/academy-1/users/user-1": approvedAccount(),
+    "academies/academy-1/students/student-1": approvedAthlete(),
+  };
+}
+
 function createFakeFirestore(initial: Record<string, ProfileDocumentData> = {}) {
   const records = new Map(Object.entries({ ...canonicalSeed(), ...initial }));
   let generatedId = 0;
@@ -134,18 +185,31 @@ function profileStore(
 }
 
 describe("profile Firestore store", () => {
-  it("returns an empty lookup and atomically creates the adult user, family and student", async () => {
-    const { firestore, records } = createFakeFirestore();
-    const store = profileStore(firestore);
+  it("returns an empty lookup, refuses an unapproved athlete, and atomically completes the approved adult's user, family and student", async () => {
+    const { firestore, records } = createFakeFirestore({
+      "academies/academy-1/users/user-1": approvedAccount(),
+    });
+    const store = profileStore(firestore, () => "student-new");
 
     await expect(store.getClientProfile("user-1", "academy-1")).resolves.toBeUndefined();
+    const beforeRefusal = new Map(records);
+    await expect(store.saveClientProfile(input())).rejects.toThrow(/request approval/i);
+    expect(records).toEqual(beforeRefusal);
+
+    records.set("academies/academy-1/students/student-1", approvedAthlete());
     const projection = await store.saveClientProfile(input());
 
     expect(projection.user.userId).toBe("user-1");
     expect(projection.student.studentId).toBe("student-1");
     expect(projection.student.familyId).toMatch(/^adult-[a-f0-9]{64}$/u);
-    expect(records.has("academies/academy-1/users/user-1")).toBe(true);
-    expect(records.has("academies/academy-1/students/student-1")).toBe(true);
+    expect(records.get("academies/academy-1/users/user-1")).toMatchObject({
+      updatedAt: "2026-08-19T12:00:00.000Z",
+      updatedBy: "user-1",
+    });
+    expect(records.get("academies/academy-1/students/student-1")).toMatchObject({
+      familyId: projection.student.familyId,
+      updatedAt: "2026-08-19T12:00:00.000Z",
+    });
     expect(
       [...records.entries()].some(
         ([path, record]) =>
@@ -157,7 +221,7 @@ describe("profile Firestore store", () => {
   });
 
   it("updates the existing participant while preserving creation provenance", async () => {
-    const { firestore } = createFakeFirestore();
+    const { firestore } = createFakeFirestore(approvedAdult());
     let sequence = 0;
     const store = profileStore(firestore, () => `student-${++sequence}`);
 
@@ -179,19 +243,23 @@ describe("profile Firestore store", () => {
   });
 
   it("fails closed when the transactional client profile is no longer active", async () => {
-    const { firestore, records } = createFakeFirestore();
+    const { firestore, records } = createFakeFirestore(approvedAdult());
     const store = profileStore(firestore);
     await store.saveClientProfile(input());
+    await expect(store.getClientProfile("user-1", "academy-1")).resolves.toMatchObject({
+      user: { userId: "user-1", active: true },
+    });
     const userPath = "academies/academy-1/users/user-1";
     const currentUser = records.get(userPath);
     expect(currentUser).toBeDefined();
     records.set(userPath, { ...currentUser, active: false, status: "inactive" });
 
-    await expect(store.getClientProfile("user-1", "academy-1")).rejects.toThrow(/active/i);
+    // The member-access gate (58c2498) now refuses an inactive account before the projection is read.
+    await expect(store.getClientProfile("user-1", "academy-1")).rejects.toThrow(/office review/i);
   });
 
   it("rejects a replay whose receipt identity and audit correlation were both forged", async () => {
-    const { firestore, records } = createFakeFirestore();
+    const { firestore, records } = createFakeFirestore(approvedAdult());
     const store = profileStore(firestore);
     const command = input();
     await store.saveClientProfile(command);
@@ -212,12 +280,15 @@ describe("profile Firestore store", () => {
   });
 
   it("fails closed for tenant mismatches, duplicate identities, and forbidden fields", async () => {
+    // The gate counts only active athletes as an own link, so the store itself must still refuse a
+    // second, deactivated record bound to the same account.
     const duplicate = {
-      "academies/academy-1/students/student-a": {
-        userId: "user-1",
-      },
+      "academies/academy-1/users/user-1": approvedAccount(),
+      "academies/academy-1/students/student-a": approvedAthlete("student-a"),
       "academies/academy-1/students/student-b": {
-        userId: "user-1",
+        ...approvedAthlete("student-b"),
+        active: false,
+        status: "inactive",
       },
     };
     const { firestore } = createFakeFirestore(duplicate);
@@ -241,15 +312,17 @@ describe("profile Firestore store", () => {
         updatedBy: "user-1",
       },
     });
+    // Since 58c2498 the member-access gate parses the account strictly before the store's own
+    // checks, and answers a foreign-tenant or malformed account with its generic office-review error.
     await expect(profileStore(mismatch.firestore).saveClientProfile(input())).rejects.toThrow(
-      /tenant/i,
+      /office review/i,
     );
 
     const forbidden = createFakeFirestore({
       "academies/academy-1/users/user-1": { medicalConditions: "forbidden" },
     });
     await expect(profileStore(forbidden.firestore).saveClientProfile(input())).rejects.toThrow(
-      /invalid/i,
+      /office review/i,
     );
   });
 });

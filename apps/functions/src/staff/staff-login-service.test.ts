@@ -63,6 +63,7 @@ function fixture() {
     getUser: vi.fn(async () => user),
     createCustomToken: vi.fn(async () => "synthetic-custom-auth-result"),
     setCustomUserClaims: vi.fn(async () => undefined),
+    revokeRefreshTokens: vi.fn(async () => undefined),
   };
   return {
     records,
@@ -122,7 +123,12 @@ describe("staff numeric login", () => {
   });
   it("limits repeated attempts per ID even when the source IP changes", async () => {
     const { service } = fixture();
-    for (let i = 0; i < 10; i++) await service.signIn(input, `ip-${i}`);
+    // Only wrong passwords spend the per-ID budget; a successful sign-in does not.
+    await service.signIn(input, "ip-success");
+    for (let i = 0; i < 10; i++)
+      await expect(
+        service.signIn({ ...input, password: "incorrect" }, `ip-${i}`),
+      ).rejects.toMatchObject({ code: "unauthenticated" });
     await expect(service.signIn(input, "another-ip")).rejects.toMatchObject({
       code: "resource-exhausted",
     });
@@ -143,6 +149,8 @@ describe("staff numeric login", () => {
     const stored = records.get("staffLoginCredentials/100001")!;
     expect(stored.salt).not.toBe(hashed.salt);
     expect(JSON.stringify(stored)).not.toContain("replacement-password");
+    // The hash lives outside Firebase Auth, so sessions opened with the old password are revoked here.
+    expect(auth.revokeRefreshTokens).toHaveBeenCalledWith("coach-miro");
     await expect(service.signIn(input, "ip")).rejects.toMatchObject({ code: "unauthenticated" });
     await service.signIn({ ...input, password: "replacement-password" }, "ip");
     expect(auth.createCustomToken).toHaveBeenCalledWith("coach-miro");

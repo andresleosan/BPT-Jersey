@@ -92,7 +92,8 @@ describe("LevelsBrowser Shared Component", () => {
 
     const eleven = groups.find((g) => g.stripes.length === 11)!;
     const card = screen.getByRole("article", { name: eleven.belt.name });
-    const labels = within(within(card).getByRole("list")).getAllByRole("listitem");
+    const list = within(card).getByRole("list", { name: `${eleven.belt.name} stripes` });
+    const labels = within(list).getAllByRole("listitem");
     expect(labels.map((li) => li.querySelector("strong")?.textContent)).toEqual(
       ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th"].map(
         (n) => `${n} stripe`,

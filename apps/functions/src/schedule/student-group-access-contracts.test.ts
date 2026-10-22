@@ -8,9 +8,10 @@ import {
 const base = { studentId: "student-1", programIds: ["adults-gi"], revision: 0 };
 
 describe("additional group access exception", () => {
-  it("requires a reason to grant groups but not to clear them", () => {
-    expect(saveStudentGroupAccessSchema.safeParse(base).success).toBe(false);
-    expect(saveStudentGroupAccessSchema.safeParse({ ...base, reason: " " }).success).toBe(false);
+  // The reason is optional since 2026-09-23, at the office's request (215e353).
+  it("keeps the reason optional to grant groups and to clear them", () => {
+    expect(saveStudentGroupAccessSchema.safeParse(base).success).toBe(true);
+    expect(saveStudentGroupAccessSchema.safeParse({ ...base, reason: " " }).data?.reason).toBe("");
     expect(
       saveStudentGroupAccessSchema.safeParse({ ...base, reason: "Competition camp" }).success,
     ).toBe(true);

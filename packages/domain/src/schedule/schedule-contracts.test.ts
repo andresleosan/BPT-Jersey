@@ -1407,7 +1407,7 @@ describe("check-in proximity signal (T109)", () => {
       });
       expect(resolved.ok && resolved.value).toEqual({
         signal: "within",
-        distanceMeters: 50,
+        distanceMeters: checkInProximityRadiusMeters,
         accuracyMeters: 8,
         overrideReason: null,
       });
@@ -1415,21 +1415,21 @@ describe("check-in proximity signal (T109)", () => {
 
     it("requires a staff reason outside the radius and records it", () => {
       const refused = resolveCheckInProximity({
-        measurement: measurement(51),
+        measurement: measurement(checkInProximityRadiusMeters + 1),
         siteHasGeofence: true,
         nowMs,
       });
       expect(refused.ok).toBe(false);
 
       const resolved = resolveCheckInProximity({
-        measurement: measurement(51),
+        measurement: measurement(checkInProximityRadiusMeters + 1),
         siteHasGeofence: true,
         overrideReason: "Signal drifted indoors; the student is on the mat.",
         nowMs,
       });
       expect(resolved.ok && resolved.value).toEqual({
         signal: "outside",
-        distanceMeters: 51,
+        distanceMeters: checkInProximityRadiusMeters + 1,
         accuracyMeters: 8,
         overrideReason: "Signal drifted indoors; the student is on the mat.",
       });
@@ -1439,8 +1439,12 @@ describe("check-in proximity signal (T109)", () => {
       const cases = [
         { siteHasGeofence: true, nowMs },
         { measurement: measurement(10), siteHasGeofence: false, nowMs },
-        // Accuracy coarser than the radius cannot decide a 50 m question.
-        { measurement: measurement(10, 120), siteHasGeofence: true, nowMs },
+        // Accuracy coarser than the radius cannot decide whether the reading is within it.
+        {
+          measurement: measurement(10, checkInProximityRadiusMeters + 1),
+          siteHasGeofence: true,
+          nowMs,
+        },
         // A reading from an hour ago says nothing about now.
         { measurement: measurement(10), siteHasGeofence: true, nowMs: nowMs + 3_600_000 },
       ];

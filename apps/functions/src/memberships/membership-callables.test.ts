@@ -322,7 +322,6 @@ describe("membership callables", () => {
       expect(current.store.createMembership).toHaveBeenCalledWith({
         academyId,
         actorId: "admin-1",
-        memberActor: false,
         now,
         familyId,
         studentId: minorStudentId,
@@ -357,30 +356,24 @@ describe("membership callables", () => {
     expect(current.store.createMembership).toHaveBeenCalledWith({
       academyId,
       actorId: "admin-1",
-      memberActor: false,
       now,
       studentId: minorStudentId,
       planId: "bpt-jersey-adult",
       status: "trial",
       scope: { academyId, studentIds: [minorStudentId] },
     });
+    const lastInput = vi.mocked(current.store.createMembership).mock.lastCall?.[0];
+    expect(lastInput).not.toHaveProperty("familyId");
 
-    // Self-service adults resolve to their own linked family without naming it.
-    vi.mocked(current.familyStore!.getStaffFamily).mockResolvedValue(
-      staffFamilyProjection("adult-family-1"),
-    );
+    // Creation is office-only since cccafb8 (ADR-013): a self-service adult naming their own
+    // student without a family is refused before the store runs.
     await expect(
       createMembershipHandler(
         request({ ...withoutFamily, studentId: adultStudentId }, "adultStudent", "adult-user-1"),
         current,
       ),
-    ).resolves.toEqual(expect.objectContaining({ status: "trial" }));
-    const lastInput = vi.mocked(current.store.createMembership).mock.lastCall?.[0];
-    expect(lastInput).toMatchObject({
-      studentId: adultStudentId,
-      scope: { academyId, memberActorId: "adult-user-1", studentIds: [adultStudentId] },
-    });
-    expect(lastInput).not.toHaveProperty("familyId");
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    expect(current.store.createMembership).toHaveBeenCalledTimes(1);
 
     // The payload stays closed: unknown keys and a missing student are still rejected.
     await expect(
@@ -404,20 +397,12 @@ describe("membership callables", () => {
       studentIds: [minorStudentId],
     });
 
+    // Creation is office-only since cccafb8 (ADR-013): a guardian trial for their own related
+    // minor is refused before the store runs.
     await expect(
       createMembershipHandler(request(createPayload, "guardian", "guardian-1"), current),
-    ).resolves.toEqual(expect.objectContaining({ status: "trial" }));
-    expect(current.store.createMembership).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: "trial",
-        scope: {
-          academyId,
-          memberActorId: "guardian-1",
-          familyIds: [familyId],
-          studentIds: [minorStudentId],
-        },
-      }),
-    );
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    expect(current.store.createMembership).not.toHaveBeenCalled();
   });
 
   it("denies an unrelated guardian family, inactive relation, adult target, and active creation", async () => {
@@ -477,22 +462,11 @@ describe("membership callables", () => {
       memberActorId: "adult-user-1",
       studentIds: [adultStudentId],
     });
+    // Creation is office-only since cccafb8 (ADR-013): even a trial for the adult's own linked
+    // student is refused before the store runs.
     await expect(
       createMembershipHandler(request(payload, "adultStudent", "adult-user-1"), current),
-    ).resolves.toEqual(expect.objectContaining({ status: "trial" }));
-    expect(current.store.createMembership).toHaveBeenCalledWith(
-      expect.objectContaining({
-        familyId: "adult-family-1",
-        studentId: adultStudentId,
-        status: "trial",
-        scope: {
-          academyId,
-          memberActorId: "adult-user-1",
-          familyIds: ["adult-family-1"],
-          studentIds: [adultStudentId],
-        },
-      }),
-    );
+    ).rejects.toMatchObject({ code: "permission-denied" });
 
     await expect(
       createMembershipHandler(
@@ -513,6 +487,7 @@ describe("membership callables", () => {
         current,
       ),
     ).rejects.toMatchObject({ code: "permission-denied" });
+    expect(current.store.createMembership).not.toHaveBeenCalled();
 
     vi.mocked(current.memberStudentIds).mockResolvedValueOnce([]);
     await expect(

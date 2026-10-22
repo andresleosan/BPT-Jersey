@@ -60,6 +60,8 @@ function harness() {
   const reader = {
     getState: vi.fn(async () => state),
     getStudent: vi.fn(async () => student),
+    // Canonical identity with no approved aliases, as canonicalMemberIdentityIds returns it.
+    getIdentityIds: vi.fn(async (studentId: string): Promise<readonly string[]> => [studentId]),
     getRecord: vi.fn(),
     queryRecords: vi.fn(async () => Array.from({ length: 26 }, (_, i) => booking(String(26 - i)))),
     getSessions: vi.fn(async (ids: readonly string[]) =>

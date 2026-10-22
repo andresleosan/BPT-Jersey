@@ -173,6 +173,47 @@ const canonicalControlPlane = (state = canonicalState()) => {
   };
 };
 
+// Since 58c2498 a profile save only completes an approved own record: one client account linked to
+// one active adult athlete. It never mints the person (spec 2026-09-20 unified members directory:
+// new enrolments enter the directory only once approved). This one has no self family and no Auth
+// reservation yet, so the save still has to write both.
+const approvedAdult = (): Record<string, ProfileDocumentData> => ({
+  "academies/academy-1/users/user-1": {
+    userId: "user-1",
+    academyId: "academy-1",
+    accountType: "client",
+    displayName: "Adult Account",
+    email: "adult@example.com",
+    phoneNumber: "+1 201 555 0199",
+    active: true,
+    status: "active",
+    schemaVersion: "1",
+    createdAt: "2026-09-03T11:00:00.000Z",
+    createdBy: "owner-1",
+    updatedAt: "2026-09-03T11:00:00.000Z",
+    updatedBy: "owner-1",
+  },
+  "academies/academy-1/students/student-approved": {
+    studentId: "student-approved",
+    academyId: "academy-1",
+    userId: "user-1",
+    fullName: "Adult Example",
+    dateOfBirth: "1990-03-14",
+    phoneNumber: "+1 201 555 0199",
+    email: "adult@example.com",
+    trainingCenter: "Town",
+    trainingTimePreferences: ["evening"],
+    participantType: "adult",
+    active: true,
+    status: "active",
+    schemaVersion: "1",
+    createdAt: "2026-09-03T11:00:00.000Z",
+    createdBy: "owner-1",
+    updatedAt: "2026-09-03T11:00:00.000Z",
+    updatedBy: "owner-1",
+  },
+});
+
 const saveInput = (overrides: Partial<SaveClientProfileInput> = {}): SaveClientProfileInput => ({
   academyId: "academy-1",
   userId: "user-1",
@@ -208,13 +249,22 @@ const createCanonicalStore = (
 };
 
 describe("canonical adult profile directory linking", () => {
-  it("creates the user, self family, student, HMAC reservation, control-plane transition, receipt and audits atomically", async () => {
-    const firestore = new AtomicProfileFirestore(canonicalControlPlane());
+  it("refuses an unapproved account, then writes the approved member's self family, HMAC reservation, control-plane transition, receipt and audits atomically", async () => {
+    const unapproved = new AtomicProfileFirestore(canonicalControlPlane());
+    await expect(createCanonicalStore(unapproved).saveClientProfile(saveInput())).rejects.toThrow(
+      "Member access needs office review",
+    );
+    expect(unapproved.committedWritePaths).toHaveLength(0);
+
+    const firestore = new AtomicProfileFirestore({
+      ...canonicalControlPlane(),
+      ...approvedAdult(),
+    });
     const store = createCanonicalStore(firestore);
 
     const result = await store.saveClientProfile(saveInput());
 
-    expect(result.student.studentId).toBe("student-1");
+    expect(result.student.studentId).toBe("student-approved");
     const familyId = result.student.familyId;
     expect(familyId).toMatch(/^adult-[a-f0-9]{64}$/u);
     if (familyId === undefined) throw new Error("Expected an adult self family");
@@ -236,13 +286,13 @@ describe("canonical adult profile directory linking", () => {
       {
         academyId: "academy-1",
         kind: "auth-user-id",
-        ownerStudentId: "student-1",
+        ownerStudentId: "student-approved",
         secretVersion: "identity-v1",
       },
     );
     expect(
       firestore.records.get("academies/academy-1/memberDirectoryStates/current"),
-    ).toMatchObject({ stateRevision: 1, rollbackEligibleStudentCount: 3 });
+    ).toMatchObject({ stateRevision: 1, rollbackEligibleStudentCount: 2 });
     expect(firestore.records.get("memberDirectoryRestoreGuards/academy-1")).toMatchObject({
       highestStateRevision: 1,
     });
@@ -258,20 +308,20 @@ describe("canonical adult profile directory linking", () => {
     expect(receiptEntry?.[1]).toMatchObject({
       academyId: "academy-1",
       status: "completed",
-      studentId: "student-1",
+      studentId: "student-approved",
       familyId,
       auditEventId: "audit-profile-1",
       stateRevisionBefore: 0,
       stateRevisionAfter: 1,
-      createdStudent: true,
+      createdStudent: false,
       createdFamily: true,
       familyAuditEventId: expect.any(String),
       schemaVersion: "1",
     });
     expect(firestore.records.get("academies/academy-1/auditEvents/audit-profile-1")).toMatchObject({
-      action: "member.created",
+      action: "member.updated",
       actorId: "user-1",
-      targetRef: "academies/academy-1/students/student-1",
+      targetRef: "academies/academy-1/students/student-approved",
       correlationId: receiptEntry?.[1].receiptId,
       result: "completed",
       schemaVersion: 1,
@@ -303,7 +353,10 @@ describe("canonical adult profile directory linking", () => {
   });
 
   it("converges an exact retry and rejects a divergent replay without any additional write", async () => {
-    const firestore = new AtomicProfileFirestore(canonicalControlPlane());
+    const firestore = new AtomicProfileFirestore({
+      ...canonicalControlPlane(),
+      ...approvedAdult(),
+    });
     const store = createCanonicalStore(firestore);
 
     const first = await store.saveClientProfile(saveInput());
@@ -314,7 +367,7 @@ describe("canonical adult profile directory linking", () => {
     expect(firestore.committedWritePaths).toHaveLength(writeCount);
     expect(
       firestore.records.get("academies/academy-1/memberDirectoryStates/current"),
-    ).toMatchObject({ stateRevision: 1, rollbackEligibleStudentCount: 3 });
+    ).toMatchObject({ stateRevision: 1, rollbackEligibleStudentCount: 2 });
 
     await expect(
       store.saveClientProfile(saveInput({ fullName: "Divergent Name" })),
@@ -323,7 +376,10 @@ describe("canonical adult profile directory linking", () => {
   });
 
   it("advances the guard for an update without incrementing rollback capacity", async () => {
-    const firestore = new AtomicProfileFirestore(canonicalControlPlane());
+    const firestore = new AtomicProfileFirestore({
+      ...canonicalControlPlane(),
+      ...approvedAdult(),
+    });
     const store = createCanonicalStore(firestore);
     await store.saveClientProfile(saveInput());
 
@@ -337,14 +393,14 @@ describe("canonical adult profile directory linking", () => {
 
     expect(replayedUpdate).toEqual(updated);
     expect(updated.student).toMatchObject({
-      studentId: "student-1",
+      studentId: "student-approved",
       fullName: "Adult Updated",
-      createdAt: "2026-09-03T12:00:00.000Z",
+      createdAt: "2026-09-03T11:00:00.000Z",
       updatedAt: "2026-09-03T12:05:00.000Z",
     });
     expect(
       firestore.records.get("academies/academy-1/memberDirectoryStates/current"),
-    ).toMatchObject({ stateRevision: 2, rollbackEligibleStudentCount: 3 });
+    ).toMatchObject({ stateRevision: 2, rollbackEligibleStudentCount: 2 });
     expect(firestore.records.get("memberDirectoryRestoreGuards/academy-1/events/2")).toMatchObject({
       transitionKind: "adult-auth-link",
     });
@@ -369,6 +425,7 @@ describe("canonical adult profile directory linking", () => {
     });
     const conflicting = new AtomicProfileFirestore({
       ...canonicalControlPlane(),
+      ...approvedAdult(),
       [`academies/academy-1/studentIdentityKeys/${conflictingKey.keyId}`]: conflictingKey,
     });
     await expect(
@@ -376,20 +433,26 @@ describe("canonical adult profile directory linking", () => {
     ).rejects.toMatchObject({ code: "conflict" } satisfies Partial<ProfileStoreError>);
     expect(conflicting.committedWritePaths).toHaveLength(0);
 
+    // A new person at exhausted capacity: since 58c2498 the save refuses before it could mint one.
     const capacityState = canonicalState({ rollbackEligibleStudentCount: 400 });
     const atCapacity = new AtomicProfileFirestore(canonicalControlPlane(capacityState));
-    await expect(
-      createCanonicalStore(atCapacity).saveClientProfile(saveInput()),
-    ).rejects.toMatchObject({ code: "capacity" } satisfies Partial<ProfileStoreError>);
+    await expect(createCanonicalStore(atCapacity).saveClientProfile(saveInput())).rejects.toThrow(
+      "Member access needs office review",
+    );
     expect(atCapacity.committedWritePaths).toHaveLength(0);
 
-    const failedCommit = new AtomicProfileFirestore(canonicalControlPlane());
+    const seeded = approvedAdult();
+    const failedCommit = new AtomicProfileFirestore({ ...canonicalControlPlane(), ...seeded });
     failedCommit.failCommit = true;
     await expect(createCanonicalStore(failedCommit).saveClientProfile(saveInput())).rejects.toThrow(
       "synthetic commit failure",
     );
-    expect(failedCommit.records.has("academies/academy-1/users/user-1")).toBe(false);
-    expect(failedCommit.records.has("academies/academy-1/students/student-1")).toBe(false);
+    expect(failedCommit.records.get("academies/academy-1/users/user-1")).toEqual(
+      seeded["academies/academy-1/users/user-1"],
+    );
+    expect(failedCommit.records.get("academies/academy-1/students/student-approved")).toEqual(
+      seeded["academies/academy-1/students/student-approved"],
+    );
     expect(failedCommit.committedWritePaths).toHaveLength(0);
   });
 
@@ -400,17 +463,19 @@ describe("canonical adult profile directory linking", () => {
     } as Record<string, unknown>;
     delete incompleteRecord.identityKeyBaselineMac;
     delete incompleteRecord.identityKeyBaselineArtifactId;
-    const incomplete = new AtomicProfileFirestore(
-      canonicalControlPlane(incompleteRecord as unknown as MemberDirectoryState),
-    );
+    const incomplete = new AtomicProfileFirestore({
+      ...canonicalControlPlane(incompleteRecord as unknown as MemberDirectoryState),
+      ...approvedAdult(),
+    });
     await expect(
       createCanonicalStore(incomplete).saveClientProfile(saveInput()),
     ).rejects.toMatchObject({ code: "unavailable" } satisfies Partial<ProfileStoreError>);
     expect(incomplete.committedWritePaths).toHaveLength(0);
 
-    const mismatchedVersion = new AtomicProfileFirestore(
-      canonicalControlPlane(canonicalState({ secretVersion: "identity-v2" })),
-    );
+    const mismatchedVersion = new AtomicProfileFirestore({
+      ...canonicalControlPlane(canonicalState({ secretVersion: "identity-v2" })),
+      ...approvedAdult(),
+    });
     await expect(
       createCanonicalStore(mismatchedVersion).saveClientProfile(saveInput()),
     ).rejects.toMatchObject({ code: "unavailable" } satisfies Partial<ProfileStoreError>);
@@ -420,6 +485,7 @@ describe("canonical adult profile directory linking", () => {
     const eventPath = "memberDirectoryRestoreGuards/academy-1/events/0";
     const tampered = new AtomicProfileFirestore({
       ...validControl,
+      ...approvedAdult(),
       [eventPath]: {
         ...(validControl[eventPath] as ProfileDocumentData),
         eventMac: "b".repeat(64),
@@ -533,7 +599,7 @@ describe("canonical adult profile directory linking", () => {
         email: "adult@example.com",
         trainingCenter: "Town",
         trainingTimePreferences: ["evening"],
-        membershipNumber: "bpt 4321",
+        membershipNumber: "#4321",
       },
       account: {
         userId: "user-1",

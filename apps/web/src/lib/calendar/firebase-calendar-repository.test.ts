@@ -14,6 +14,10 @@ const schedule = vi.hoisted(() => {
   selfCheckIn: vi.fn(),
   listSessionBookedCounts: vi.fn(),
   getTrialAccess: vi.fn(),
+  walkInCheckIn: vi.fn(),
+  // loadMember's fire-and-forget cold-start warm-ups; the server answers the week one `{ warm: true }`.
+  warmMemberCalendarWeek: vi.fn().mockResolvedValue(undefined),
+  warmAccountHomeFunctions: vi.fn(),
 };
   // Stands in for the server's single week call by composing the older per-resource mocks.
   mocks.getMemberCalendarWeek.mockImplementation(async ({ studentId, from, to }) => ({
@@ -27,7 +31,8 @@ const schedule = vi.hoisted(() => {
   }));
   return mocks;
 });
-const profile = vi.hoisted(() => ({ getClientProfile: vi.fn() }));
+// Who trains on the account, whatever the role says (spec 2026-09-30 D14).
+const people = vi.hoisted(() => ({ loadAccountPeople: vi.fn() }));
 const courses = vi.hoisted(() => ({
   courseApi: {
     participants: vi.fn(),
@@ -40,24 +45,20 @@ vi.mock("../schedule-client", () => schedule);
 vi.mock("../membership-client", () => ({ listAvailableMembershipPlans: async () => PLAN_CATALOG }));
 vi.mock("../student-group-access-client", () => ({ getStudentGroupAccess: async (studentId: string) => ({ studentId, programIds: [], revision: 0, dateOfBirth: null }) }));
 const waitlist = vi.hoisted(() => ({ listClientMemberships: vi.fn() }));
-const family = vi.hoisted(() => ({ getFamily: vi.fn() }));
 vi.mock("../waitlist-client", () => waitlist);
-vi.mock("../family-client", () => family);
-vi.mock("../profile-client", () => profile);
+vi.mock("../account-people", () => people);
 vi.mock("../courses/course-client", () => courses);
 
 import { createFirebaseCalendarRepository } from "./firebase-calendar-repository";
 
 describe("firebase calendar repository", () => {
   beforeEach(() => {
-    profile.getClientProfile.mockResolvedValue({
-      user: { displayName: "Alex Demo" },
-      student: {
-        studentId: "s-1", fullName: "Alex Demo", dateOfBirth: "1990-01-01",
+    people.loadAccountPeople.mockResolvedValue([
+      {
+        studentId: "s-1", fullName: "Alex Demo", via: "self", dateOfBirth: "1990-01-01",
         trainingCenter: "Town",
       },
-    });
-    family.getFamily.mockResolvedValue(undefined);
+    ]);
     courses.courseApi.participants.mockResolvedValue({ items: [], cursor: null });
     courses.courseApi.calendar.mockResolvedValue({
       sessions: [], bookings: [], attendance: [], cursor: null,
@@ -119,9 +120,9 @@ describe("firebase calendar repository", () => {
     waitlist.listClientMemberships.mockResolvedValue([
       { membershipId: "m-2", studentId: "s-2", planId: "town-kids-2x", status: "active" },
     ]);
-    family.getFamily.mockResolvedValue({
-      students: [{ studentId: "s-2", fullName: "Maya Demo", dateOfBirth: thirteen }],
-    });
+    people.loadAccountPeople.mockResolvedValue([
+      { studentId: "s-2", fullName: "Maya Demo", via: "guardian", dateOfBirth: thirteen, trainingCenter: "Town" },
+    ]);
     const repo = createFirebaseCalendarRepository({ role: "guardian", displayName: "Jordan Demo" });
     const member = await repo.loadMember();
     expect(member.participants).toEqual([

@@ -16,9 +16,24 @@ function audit() {
   };
 }
 
+/** Member access (f5b98e2) first requires the actor's own active client account. */
+function clientUser(userId: string) {
+  return {
+    userId,
+    academyId: "academy-1",
+    accountType: "client",
+    displayName: "Synthetic Account",
+    email: `${userId}@example.test`,
+    phoneNumber: "+441534000000",
+    ...audit(),
+  };
+}
+
 describe("canonical client student scope", () => {
   it("resolves an adult by unique students.userId and a guardian by the active family chain", async () => {
     const documents = new Map<string, Record<string, unknown>>([
+      ["academies/academy-1/users/adult-user-1", clientUser("adult-user-1")],
+      ["academies/academy-1/users/guardian-1", clientUser("guardian-1")],
       [
         "academies/academy-1/students/student-opaque-1",
         {
@@ -145,7 +160,13 @@ describe("canonical client student scope", () => {
     const resolverFor = (profile: Record<string, unknown>) =>
       createCanonicalClientStudentScopeResolver({
         now: () => "2026-09-15T12:00:00.000Z",
-        getDocument: async () => ({ id: "", exists: false, data: undefined }),
+        getDocument: async (path) => {
+          const data = new Map<string, Record<string, unknown>>([
+            ["academies/academy-1/users/teen-user-1", clientUser("teen-user-1")],
+            ["academies/academy-1/students/student-teen-1", profile],
+          ]).get(path);
+          return { id: path.split("/").at(-1) ?? "", exists: data !== undefined, data };
+        },
         queryDocuments: async (path, field, value) =>
           path === "academies/academy-1/students" && field === "userId" && value === "teen-user-1"
             ? [{ id: "student-teen-1", exists: true, data: profile }]
@@ -197,8 +218,17 @@ describe("canonical client student scope", () => {
     ) =>
       createCanonicalClientStudentScopeResolver({
         now: () => now,
-        getDocument: async () => ({ id: "", exists: false, data: undefined }),
-        queryDocuments: async () => matches,
+        getDocument: async (path) => {
+          const data =
+            path === "academies/academy-1/users/teen-user-1"
+              ? clientUser("teen-user-1")
+              : matches.find((match) => path === `academies/academy-1/students/${match.id}`)?.data;
+          return { id: path.split("/").at(-1) ?? "", exists: data !== undefined, data };
+        },
+        queryDocuments: async (path, field, value) =>
+          path === "academies/academy-1/students" && field === "userId" && value === "teen-user-1"
+            ? matches
+            : [],
       });
 
     await expect(

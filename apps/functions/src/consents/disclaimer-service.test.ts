@@ -38,12 +38,66 @@ function hashOf(input: DisclaimerPublicationInput): string {
   return createHash("sha256").update(canonicalizeDisclaimerContent(input), "utf8").digest("hex");
 }
 
+// Authority goes through member access (58c2498): it parses full profiles, so the seeds are complete.
+const auditFields = {
+  active: true,
+  status: "active",
+  schemaVersion: "1",
+  createdAt: "2026-01-01T00:00:00.000Z",
+  createdBy: "owner-1",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+  updatedBy: "owner-1",
+} as const;
+
+function clientUser(userId: string): Data {
+  return {
+    userId,
+    academyId,
+    accountType: "client",
+    displayName: `Synthetic ${userId}`,
+    email: `${userId}@example.test`,
+    phoneNumber: "+441534000001",
+    ...auditFields,
+  };
+}
+
 function adultStudent(studentId: string, userId: string): Data {
-  return { studentId, academyId, participantType: "adult", userId, fullName: "Alex Adult" };
+  return {
+    studentId,
+    academyId,
+    userId,
+    fullName: "Alex Adult",
+    dateOfBirth: "1990-04-12",
+    trainingCenter: "Town",
+    trainingTimePreferences: ["evening"],
+    participantType: "adult",
+    ...auditFields,
+  };
 }
 
 function minorStudent(studentId: string): Data {
-  return { studentId, academyId, participantType: "minor", userId: null, fullName: "Mo Minor" };
+  return {
+    studentId,
+    academyId,
+    familyId: `family-${studentId}`,
+    fullName: "Mo Minor",
+    dateOfBirth: "2015-06-01",
+    trainingCenter: "Town",
+    trainingTimePreferences: ["evening"],
+    participantType: "minor",
+    ...auditFields,
+  };
+}
+
+// Member access also requires the guardian link's family to be active.
+function family(familyId: string, contactUserId: string): Data {
+  return {
+    familyId,
+    academyId,
+    primaryContactUserId: contactUserId,
+    billingContactUserId: contactUserId,
+    ...auditFields,
+  };
 }
 
 function relationship(studentId: string, adultUserId: string, overrides: Partial<Data> = {}): Data {
@@ -130,10 +184,13 @@ function fixture(seed: Iterable<readonly [string, Data]> = []) {
 }
 
 const adultSeed: readonly (readonly [string, Data])[] = [
+  [`academies/${academyId}/users/adult-1`, clientUser("adult-1")],
   [`academies/${academyId}/students/student-1`, adultStudent("student-1", "adult-1")],
 ];
 const minorSeed: readonly (readonly [string, Data])[] = [
+  [`academies/${academyId}/users/guardian-1`, clientUser("guardian-1")],
   [`academies/${academyId}/students/student-2`, minorStudent("student-2")],
+  [`academies/${academyId}/families/family-student-2`, family("family-student-2", "guardian-1")],
   [
     `academies/${academyId}/relationships/student-2__guardian-1`,
     relationship("student-2", "guardian-1"),
@@ -217,7 +274,12 @@ describe("createDisclaimerService (T117)", () => {
     });
 
     it("lets a guardian read for their minor and refuses an unrelated adult", async () => {
-      const { service } = fixture([...adultSeed, ...minorSeed]);
+      // The stranger holds a live account, so the refusal below is the missing link, not the account.
+      const { service } = fixture([
+        ...adultSeed,
+        ...minorSeed,
+        [`academies/${academyId}/users/stranger-1`, clientUser("stranger-1")],
+      ]);
       await publish(service);
 
       await expect(

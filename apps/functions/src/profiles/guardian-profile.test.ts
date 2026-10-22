@@ -76,7 +76,7 @@ function store(firestore: GuardianProfileFirestore) {
 
 function callableRequest(
   data: unknown,
-  role: "guardian" | "adultStudent" = "guardian",
+  role: "guardian" | "shopper" = "guardian",
   app: unknown = { appId: "verified-app" },
 ) {
   return {
@@ -107,6 +107,7 @@ function callableServices(): GuardianProfileCallableServices {
       getUser: vi.fn(async () => ({
         uid: "guardian-1",
         disabled: false,
+        emailVerified: true,
         email: "Guardian@Example.Test",
         customClaims: { academyId: "academy-1", role: "guardian", mfaEnrolled: true },
       })),
@@ -156,7 +157,7 @@ describe("guardian profile onboarding", () => {
     ).rejects.toMatchObject({ code: "unauthenticated" });
     expect(noAppCheck.auth.getUser).not.toHaveBeenCalled();
 
-    const adult = callableServices();
+    const shopper = callableServices();
     await expect(
       saveGuardianProfileHandler(
         callableRequest(
@@ -165,9 +166,9 @@ describe("guardian profile onboarding", () => {
             displayName: "Synthetic Guardian",
             phoneNumber: "+15550000001",
           },
-          "adultStudent",
+          "shopper",
         ),
-        adult,
+        shopper,
       ),
     ).rejects.toMatchObject({ code: "permission-denied" });
 
@@ -189,26 +190,37 @@ describe("guardian profile onboarding", () => {
       {
         uid: "guardian-1",
         disabled: true,
+        emailVerified: true,
         email: "guardian@example.test",
         customClaims: { academyId: "academy-1", role: "guardian" },
       },
       {
         uid: "other-guardian",
         disabled: false,
+        emailVerified: true,
         email: "guardian@example.test",
         customClaims: { academyId: "academy-1", role: "guardian" },
       },
       {
         uid: "guardian-1",
         disabled: false,
+        emailVerified: true,
         email: "guardian@example.test",
         customClaims: { academyId: "academy-2", role: "guardian" },
       },
       {
         uid: "guardian-1",
         disabled: false,
+        emailVerified: true,
         email: "guardian@example.test",
-        customClaims: { academyId: "academy-1", role: "adultStudent" },
+        customClaims: { academyId: "academy-1", role: "shopper" },
+      },
+      {
+        uid: "guardian-1",
+        disabled: false,
+        emailVerified: false,
+        email: "guardian@example.test",
+        customClaims: { academyId: "academy-1", role: "guardian" },
       },
     ]) {
       const revoked = callableServices();

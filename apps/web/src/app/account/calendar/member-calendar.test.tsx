@@ -20,6 +20,9 @@ const schedule = vi.hoisted(() => {
   cancelBooking: vi.fn(),
   listSessionBookedCounts: vi.fn(),
   selfCheckIn: vi.fn(),
+  walkInCheckIn: vi.fn(),
+  warmMemberCalendarWeek: vi.fn().mockResolvedValue(undefined),
+  warmAccountHomeFunctions: vi.fn(),
   getTrialAccess: vi.fn().mockResolvedValue(null),
 };
   // Stands in for the server's single week call by composing the older per-resource mocks.
@@ -63,6 +66,18 @@ vi.mock("../../../lib/profile-client", () => ({
       trainingCenter: "Town",
     },
   }),
+}));
+// The Firebase adapter asks here who trains on the account (35ba6b6, spec 2026-09-30 D14).
+vi.mock("../../../lib/account-people", () => ({
+  loadAccountPeople: vi.fn().mockResolvedValue([
+    {
+      studentId: "s-1",
+      fullName: "Alex",
+      via: "self",
+      dateOfBirth: "1990-01-01",
+      trainingCenter: "Town",
+    },
+  ]),
 }));
 vi.mock("../../../lib/courses/course-client", () => ({
   courseApi: {
@@ -128,7 +143,7 @@ describe("MemberCalendar", () => {
     expect(screen.getByRole("heading", { name: "Sam" })).toBeInTheDocument();
   });
 
-  it("desktop: renders six columns with today wider", async () => {
+  it("desktop: renders seven columns with today wider", async () => {
     stubViewport(true);
     render(
       <MemberCalendar
@@ -137,7 +152,8 @@ describe("MemberCalendar", () => {
         session={teen}
       />,
     );
-    await waitFor(() => expect(document.querySelectorAll(".day-column")).toHaveLength(6));
+    // Mon–Sun since 770bc08, so course sessions on Sundays show (DESIGN.md §9).
+    await waitFor(() => expect(document.querySelectorAll(".day-column")).toHaveLength(7));
     const week = document.querySelector<HTMLElement>(".member-week");
     expect(week?.style.getPropertyValue("--week-columns")).toContain("1.6fr");
   });
@@ -268,7 +284,8 @@ describe("MemberCalendar", () => {
   });
 
   it("counts the whole Jersey week's classes against the plan limit, even days not on screen", async () => {
-    // Thursday 2026-09-17 10:00 BST: the phone shows Thu and Fri; Mon and Wed are off screen.
+    // Thursday 2026-09-17 10:00 BST: the phone shows one day (9ff440b), so Friday is picked from
+    // the day strip; Mon and Wed are off screen.
     vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date("2026-09-17T09:00:00.000Z") });
     stubViewport(false);
     const fixture = createFixtureCalendarRepository("teenStudent");
@@ -291,6 +308,9 @@ describe("MemberCalendar", () => {
     render(
       <MemberCalendar onSignOut={vi.fn()} repository={{ ...fixture, loadWeek }} session={teen} />,
     );
+    // Let the week load first: a same-week tap while it loads drops that load (handleOffset).
+    await waitFor(() => expect(document.querySelector("[aria-busy='true']")).toBeNull());
+    await userEvent.click(screen.getByRole("button", { name: "Fri 18" }));
     const friday = await waitFor(() => {
       const card = document.querySelector('[data-session-id="2026-09-18_town_prog-teens"]');
       if (!card) throw new Error("Friday teens class not rendered");
@@ -303,8 +323,8 @@ describe("MemberCalendar", () => {
     );
     expect(document.querySelector('[data-session-id="2026-09-14_town_prog-teens"]')).toBeNull();
     expect(friday).toHaveAttribute("data-status", "locked");
-    await userEvent.click(within(friday).getByRole("button", { name: "Not available" }));
-    expect(within(friday).getByText("Weekly class limit reached")).toBeInTheDocument();
+    // The grey card names its reason itself since a4e5958 (no "Not available" toggle).
+    expect(within(friday).getByText("Weekly limit reached")).toBeInTheDocument();
   });
 
   it("books an eligible free Intro Class without a membership", async () => {
@@ -330,6 +350,17 @@ describe("MemberCalendar", () => {
             introSite: "Town" as const,
             hasAttendedIntro: false,
             hasActiveMembership: false,
+            // Since a89275f only a beginner on a Free Trial sees and books an Introduction Class
+            // (no date of birth on file counts as 16).
+            trial: {
+              site: "Town",
+              experience: "beginner",
+              allowance: 2,
+              attendedCount: 0,
+              futureBookings: 0,
+              expiresAt: "2026-10-31T12:00:00.000Z",
+              status: "active",
+            } as const,
           },
         ],
       }),
@@ -376,7 +407,8 @@ describe("MemberCalendar", () => {
         }),
     };
     render(<MemberCalendar onSignOut={vi.fn()} repository={empty} session={teen} />);
-    expect(await screen.findByText(/no active membership/i)).toBeInTheDocument();
+    // Since 38b4d99 a member without a plan is still a participant; none means no member linked.
+    expect(await screen.findByText(/not linked to a member yet/i)).toBeInTheDocument();
     expect(document.querySelector("[aria-busy='true']")).toBeNull();
     expect(document.querySelectorAll(".day-column")).toHaveLength(0);
   });
@@ -459,7 +491,7 @@ describe("MemberCalendar", () => {
       });
     }
 
-    it("renders the card as the first child of the app for a teen with an open window", async () => {
+    it("renders the card right after the purple header for a teen with an open window", async () => {
       stubViewport(false);
       render(
         <MemberCalendar
@@ -469,10 +501,13 @@ describe("MemberCalendar", () => {
         />,
       );
       const card = await screen.findByRole("region", { name: "Ready for Jiu Jitsu" });
-      expect(document.querySelector("main.member-app")?.firstElementChild).toBe(card);
+      // 084e288 put the purple header first; the check-in card follows it.
+      const header = screen.getByRole("banner");
+      expect(document.querySelector("main.member-app")?.firstElementChild).toBe(header);
+      expect(header.nextElementSibling).toBe(card);
     });
 
-    it("renders the top slot after the card and before the header", async () => {
+    it("renders the top slot after the header and the card", async () => {
       stubViewport(false);
       render(
         <MemberCalendar
@@ -484,8 +519,10 @@ describe("MemberCalendar", () => {
       );
       const card = await screen.findByRole("region", { name: "Ready for Jiu Jitsu" });
       const slot = screen.getByRole("region", { name: "Streak" });
-      expect(card.nextElementSibling).toBe(slot);
-      expect(slot.nextElementSibling).toBe(screen.getByRole("banner"));
+      // 084e288: header, then the check-in card, then the streak inside the .member-top band.
+      expect(screen.getByRole("banner").nextElementSibling).toBe(card);
+      expect(card.nextElementSibling).toBe(slot.parentElement);
+      expect(slot.parentElement).toHaveClass("member-top");
     });
 
     it("hides the card when the loaded week has no eligible open-window session", async () => {
@@ -541,7 +578,7 @@ describe("MemberCalendar", () => {
       await screen.findByText("Leo is ready too. Switch to Leo");
       await userEvent.click(screen.getByRole("button", { name: "Leo" }));
       await screen.findByRole("slider", { name: /Kids BJJ/u });
-      await screen.findByText("Maya is ready too — switch to Maya");
+      await screen.findByText("Maya is ready too. Switch to Maya");
     });
 
     it("re-reads the week every 60 s while a window is open across minute-clock ticks", async () => {
@@ -912,15 +949,16 @@ describe("free trial", () => {
       <MemberCalendar
         onSignOut={vi.fn()}
         repository={trialRepository({ attendedCount: 2, status: "exhausted" })}
-        session={teen}
+        // A teen account gets no plan link (B3, ce5af27): the guardian chooses the plan.
+        session={guardian}
       />,
     );
-    expect(
-      await screen.findByText(/You need an active membership to book more classes\./u),
-    ).toBeVisible();
-    expect(screen.getByRole("link", { name: "Get a membership" })).toHaveAttribute(
+    const band = await screen.findByText(/You need an active membership to book more classes\./u);
+    expect(band).toBeVisible();
+    // 38b4d99 renamed the link and sends it to My plan.
+    expect(within(band).getByRole("link", { name: "Choose a plan" })).toHaveAttribute(
       "href",
-      "/account/membership?from=intro",
+      "/account/membership",
     );
   });
 });

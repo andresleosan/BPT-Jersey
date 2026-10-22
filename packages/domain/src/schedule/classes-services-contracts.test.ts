@@ -62,7 +62,7 @@ describe("programs v2", () => {
       parseCreateProgramInputV2({ name: "GI All Levels Evenings", abbreviation: "LEV_EVE" }),
     ).toEqual({
       ok: true,
-      value: { name: "GI All Levels Evenings", abbreviation: "LEV_EVE" },
+      value: { name: "GI All Levels Evenings", abbreviation: "LEV_EVE", ageRange: null, sites: [] },
     });
   });
 

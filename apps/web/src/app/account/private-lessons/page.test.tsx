@@ -20,7 +20,8 @@ vi.mock("../../../lib/client-auth", () => ({
   ClientAuthProvider: ({ children }: { children: React.ReactNode }) => children,
   useClientSession: () => authState,
 }));
-vi.mock("../../../lib/family-plan-client", () => ({ listMyProfiles: api.listMyProfiles }));
+// The page asks here who trains on the account (35ba6b6); family-plan-client was removed (d633513).
+vi.mock("../../../lib/account-people", () => ({ listMyProfiles: api.listMyProfiles }));
 vi.mock("../../../lib/profile-client", () => ({ getClientProfile: api.getClientProfile }));
 vi.mock("../../../lib/family-client", () => ({ getFamily: api.getFamily }));
 vi.mock("../../../lib/private-lesson-client", () => ({

@@ -40,6 +40,7 @@ describe("schedule callable options", () => {
       cors: browserOrigins,
       invoker: "public",
       enforceAppCheck: true,
+      memory: "512MiB",
     });
     expect(scheduleReadCallableOptions).not.toHaveProperty("consumeAppCheckToken");
     expect(Object.isFrozen(scheduleReadCallableOptions)).toBe(true);

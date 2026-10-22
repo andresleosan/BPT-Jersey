@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PLAN_CATALOG } from "@bpt-jersey/domain/memberships";
 import { buildBookingId } from "@bpt-jersey/domain/schedule";
 
@@ -62,6 +62,18 @@ vi.mock("firebase-admin/firestore", () => {
       doc: (path: string) => ({ ...snapshot(path), get: async () => snapshot(path) }),
       collection: (path: string) => query(path),
       getAll: async (...refs: { path: string }[]) => refs.map((ref) => snapshot(ref.path)),
+      // As in Firestore, the writes land together only once the callback resolves.
+      runTransaction: async (work: (tx: object) => Promise<unknown>) => {
+        const writes: [string, Record<string, unknown>][] = [];
+        const result = await work({
+          get: async (ref: { path: string }) => snapshot(ref.path),
+          set: (ref: { path: string }, value: Record<string, unknown>) => {
+            writes.push([ref.path, value]);
+          },
+        });
+        for (const [path, value] of writes) mocks.docs.set(path, value);
+        return result;
+      },
     }),
   };
 });
@@ -246,6 +258,25 @@ beforeEach(() => {
 const classInput = { sessionId: "session-1", studentId: "student-1" };
 
 describe("confirmPaygClassPayment", () => {
+  // This writes to the ledger, so live Auth must still agree with each caller's token.
+  const liveRoles: Record<string, string> = {
+    "coach-1": "coach",
+    "head-1": "headCoach",
+    "admin-1": "administrator",
+    "owner-1": "owner",
+  };
+
+  beforeEach(() => {
+    mocks.getUser.mockImplementation(async (uid: string) => ({
+      uid,
+      disabled: false,
+      customClaims: { academyId, role: liveRoles[uid] },
+    }));
+    // At the door just before the class: a coach can only settle a class within a day of it.
+    vi.useFakeTimers({ now: new Date("2026-09-25T17:45:00.000Z") });
+  });
+  afterEach(() => vi.useRealTimers());
+
   it("refuses every non-staff role and never touches the money", async () => {
     for (const role of ["guardian", "adultStudent", "teenStudent", "shopper"]) {
       await expect(
@@ -288,7 +319,16 @@ describe("confirmPaygClassPayment", () => {
   it("records a transfer when the member said they had sent one", async () => {
     seed({ paygPayment: { method: "bank_transfer", proofId, reference: "BPT-1" } });
 
-    await confirmPaygClassPayment.run(request("headCoach", "head-1", classInput));
+    // Coaches take cash only: the office checks the screenshot and records the transfer.
+    await expect(
+      confirmPaygClassPayment.run(request("headCoach", "head-1", classInput)),
+    ).rejects.toMatchObject({
+      code: "permission-denied",
+      message: "The office checks transfer payments.",
+    });
+    expect(mocks.payments).toEqual([]);
+
+    await confirmPaygClassPayment.run(request("administrator", "admin-1", classInput));
 
     expect(mocks.payments[0]).toMatchObject({ method: "bank_transfer" });
     expect(mocks.payments[0]!.manualReference).toBe(
@@ -372,10 +412,11 @@ describe("uploadPaygClassProof", () => {
 
 describe("getPaygClassProofUrl", () => {
   beforeEach(() => {
-    mocks.getUser.mockResolvedValue({
+    mocks.getUser.mockImplementation(async (uid: string) => ({
+      uid,
       disabled: false,
       customClaims: { academyId, role: "owner" },
-    });
+    }));
   });
 
   it("signs a 60-second view of the screenshot the guardian uploaded for the teen's booking", async () => {

@@ -113,7 +113,7 @@ function renderView(role = "owner", age: number | null = 30) {
 }
 
 async function assignForm() {
-  return screen.findByRole("form", { name: "Assign next level" });
+  return screen.findByRole("form", { name: "Change level" });
 }
 
 beforeEach(() => {
@@ -439,57 +439,77 @@ describe("ManageView history", () => {
 });
 
 describe("ManageView assignment", () => {
-  it("lets the owner set classes and days on the new level", async () => {
+  // Since 2026-10-15 an administrator has the owner's powers, progress management included.
+  it.each(["owner", "administrator"])(
+    "lets %s set classes and days on the new level",
+    async (role) => {
+      api.assignLevel.mockResolvedValue({ promotionId: "grad_new" });
+      renderView(role);
+      const form = await assignForm();
+      fireEvent.change(within(form).getByLabelText("Level"), { target: { value: firstStripe } });
+      fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
+      fireEvent.change(within(form).getByLabelText(/^Classes completed/u), {
+        target: { value: "8" },
+      });
+      fireEvent.change(within(form).getByLabelText(/^Days completed/u), {
+        target: { value: "19" },
+      });
+      fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toHaveTextContent("Starting progress: 8 classes, 19 days.");
+      fireEvent.click(within(dialog).getByRole("button", { name: "Confirm promotion" }));
+      await waitFor(() =>
+        expect(api.assignLevel).toHaveBeenCalledWith({
+          studentId: "student-1",
+          fromDefinitionKey: whiteBelt,
+          toDefinitionKey: firstStripe,
+          promotedOn: today,
+          newLevelClasses: 8,
+          newLevelDays: 19,
+        }),
+      );
+    },
+  );
+
+  // Since 2026-10-05 a blank count keeps its automatic calculation, and a starting total stops
+  // one below the next level's requirement: White - 2nd Stripe asks for 25 classes.
+  it("rejects an owner count beyond the rank limit before making an assignment, and takes one count alone", async () => {
     api.assignLevel.mockResolvedValue({ promotionId: "grad_new" });
     renderView("owner");
     const form = await assignForm();
     fireEvent.change(within(form).getByLabelText("Level"), { target: { value: firstStripe } });
     fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
-    fireEvent.change(within(form).getByLabelText("Classes completed in the new level through today"), {
-      target: { value: "8" },
-    });
-    fireEvent.change(within(form).getByLabelText("Days completed in the new level through today"), {
-      target: { value: "19" },
-    });
+    const classes = within(form).getByLabelText(/^Classes completed/u);
+    fireEvent.change(classes, { target: { value: "25" } });
+    expect(classes).toBeInvalid();
     fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
-    const dialog = await screen.findByRole("dialog");
-    expect(dialog).toHaveTextContent("The new level will start with 8 classes and 19 days");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm promotion" }));
-    await waitFor(() => expect(api.assignLevel).toHaveBeenCalledWith({
-      studentId: "student-1",
-      fromDefinitionKey: whiteBelt,
-      toDefinitionKey: firstStripe,
-      promotedOn: today,
-      newLevelClasses: 8,
-      newLevelDays: 19,
-    }));
-  });
-
-  it("rejects a partial owner count before making an assignment", async () => {
-    renderView("owner");
-    const form = await assignForm();
-    fireEvent.change(within(form).getByLabelText("Level"), { target: { value: firstStripe } });
-    fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
-    fireEvent.change(within(form).getByLabelText("Classes completed in the new level through today"), {
-      target: { value: "8" },
-    });
-    fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
-    expect(within(form).getByRole("alert")).toHaveTextContent(
-      "Enter both new-level counts as whole numbers, or leave both blank.",
-    );
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(api.assignLevel).not.toHaveBeenCalled();
+
+    fireEvent.change(classes, { target: { value: "8" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("Starting progress: 8 classes.");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm promotion" }));
+    await waitFor(() =>
+      expect(api.assignLevel).toHaveBeenCalledWith({
+        studentId: "student-1",
+        fromDefinitionKey: whiteBelt,
+        toDefinitionKey: firstStripe,
+        promotedOn: today,
+        newLevelClasses: 8,
+      }),
+    );
   });
 
-  it.each(["administrator", "headCoach"])(
-    "does not offer progress overrides to %s",
-    async (role) => {
-      renderView(role);
-      const form = await assignForm();
-      expect(within(form).queryByLabelText("Classes completed in the new level through today")).toBeNull();
-      expect(within(form).queryByLabelText("Days completed in the new level through today")).toBeNull();
-    },
-  );
+  it.each(["headCoach"])("does not offer progress overrides to %s", async (role) => {
+    renderView(role);
+    const form = await assignForm();
+    // The counts appear only once a level is chosen, so choose one or this proves nothing.
+    fireEvent.change(within(form).getByLabelText("Level"), { target: { value: firstStripe } });
+    expect(within(form).queryByLabelText(/^Classes completed/u)).toBeNull();
+    expect(within(form).queryByLabelText(/^Days completed/u)).toBeNull();
+  });
   it.each(["owner", "administrator"])(
     "lets %s confirm unmet requirements with no note",
     async (role) => {
@@ -501,7 +521,7 @@ describe("ManageView assignment", () => {
       });
       renderView(role);
       const form = await assignForm();
-      fireEvent.change(within(form).getByLabelText("Next level"), {
+      fireEvent.change(within(form).getByLabelText("Level"), {
         target: { value: secondStripe },
       });
       fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
@@ -539,7 +559,7 @@ describe("ManageView assignment", () => {
     });
     renderView("headCoach");
     const form = await assignForm();
-    const select = within(form).getByLabelText("Next level");
+    const select = within(form).getByLabelText("Level");
     const options = within(select)
       .getAllByRole("option")
       .map((option) => option.textContent);
@@ -550,7 +570,8 @@ describe("ManageView assignment", () => {
     const date = within(form).getByLabelText("Promotion date");
     expect(date).toHaveValue("");
     expect(date).toHaveAttribute("max", today);
-    expect(date).toHaveAttribute("min", levelStart);
+    // The office backfills old members from its own records, so an earlier date is allowed.
+    expect(date).not.toHaveAttribute("min");
 
     fireEvent.change(select, { target: { value: secondStripe } });
     fireEvent.change(date, { target: { value: today } });
@@ -597,7 +618,7 @@ describe("ManageView assignment", () => {
   it("names the note's refusal as the textarea's own description", async () => {
     renderView();
     const form = await assignForm();
-    fireEvent.change(within(form).getByLabelText("Next level"), {
+    fireEvent.change(within(form).getByLabelText("Level"), {
       target: { value: firstStripe },
     });
     fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
@@ -630,7 +651,7 @@ describe("ManageView assignment", () => {
     );
     renderView();
     const form = await assignForm();
-    fireEvent.change(within(form).getByLabelText("Next level"), {
+    fireEvent.change(within(form).getByLabelText("Level"), {
       target: { value: firstStripe },
     });
     fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
@@ -681,7 +702,7 @@ describe("ManageView assignment", () => {
     );
     renderView();
     const form = await assignForm();
-    fireEvent.change(within(form).getByLabelText("Next level"), { target: { value: firstStripe } });
+    fireEvent.change(within(form).getByLabelText("Level"), { target: { value: firstStripe } });
     fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
     fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
     const dialog = await screen.findByRole("dialog");
@@ -696,7 +717,7 @@ describe("ManageView assignment", () => {
 
     // The write has resolved and the reload has NOT: nothing stale is left to act on.
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(screen.queryByRole("form", { name: "Assign next level" })).toBeNull();
+    expect(screen.queryByRole("form", { name: "Change level" })).toBeNull();
     expect(screen.queryByRole("table", { name: "Level history" })).toBeNull();
     expect(screen.getByRole("status").textContent).toBe("Level assigned.");
     fireEvent.click(confirm);
@@ -717,7 +738,7 @@ describe("ManageView assignment", () => {
     expect(invisible.trim().length).toBe(12);
     renderView();
     const form = await assignForm();
-    fireEvent.change(within(form).getByLabelText("Next level"), { target: { value: firstStripe } });
+    fireEvent.change(within(form).getByLabelText("Level"), { target: { value: firstStripe } });
     fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
     fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
     const dialog = await screen.findByRole("dialog");
@@ -746,7 +767,7 @@ describe("ManageView assignment", () => {
     });
     renderView();
     const form = await assignForm();
-    fireEvent.change(within(form).getByLabelText("Next level"), { target: { value: firstStripe } });
+    fireEvent.change(within(form).getByLabelText("Level"), { target: { value: firstStripe } });
     fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
     fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
     const dialog = await screen.findByRole("dialog");
@@ -794,7 +815,7 @@ describe("ManageView assignment", () => {
     });
     renderView("headCoach", 6);
     const form = await assignForm();
-    fireEvent.change(within(form).getByLabelText("Next level"), {
+    fireEvent.change(within(form).getByLabelText("Level"), {
       target: { value: kidsFirstStripe },
     });
     fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
@@ -827,7 +848,7 @@ describe("ManageView assignment", () => {
     });
     renderView("headCoach", 12);
     const form = await assignForm();
-    fireEvent.change(within(form).getByLabelText("Next level"), {
+    fireEvent.change(within(form).getByLabelText("Level"), {
       target: { value: target.definitionKey },
     });
     fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
@@ -852,13 +873,15 @@ describe("ManageView assignment", () => {
       ...card,
       criteria: {
         classes: { required: 25, completed: 40, imported: 0, met: true },
-        time: { requiredDays: 75, elapsedDays: 30, met: true },
+        // The dialog counts days from the card's elapsed days, which the server computes from
+        // the same start: 400 days back, with no correction.
+        time: { requiredDays: 75, elapsedDays: 400, met: true },
       },
       currentLevelStartedAt: `${dayBack(400)}T00:00:00.000Z`,
     });
     renderView();
     const form = await assignForm();
-    fireEvent.change(within(form).getByLabelText("Next level"), {
+    fireEvent.change(within(form).getByLabelText("Level"), {
       target: { value: firstStripe },
     });
     fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
@@ -884,7 +907,7 @@ describe("ManageView assignment", () => {
   it("warns that classes are counted as of today when the promotion is backdated", async () => {
     renderView();
     const form = await assignForm();
-    fireEvent.change(within(form).getByLabelText("Next level"), {
+    fireEvent.change(within(form).getByLabelText("Level"), {
       target: { value: firstStripe },
     });
     fireEvent.change(within(form).getByLabelText("Promotion date"), {
@@ -911,7 +934,7 @@ describe("ManageView assignment", () => {
     api.assignLevel.mockRejectedValue(new Error(api.levelsSafeErrors.assign));
     renderView();
     const form = await assignForm();
-    fireEvent.change(within(form).getByLabelText("Next level"), {
+    fireEvent.change(within(form).getByLabelText("Level"), {
       target: { value: firstStripe },
     });
     fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
@@ -932,7 +955,7 @@ describe("ManageView assignment", () => {
     api.assignLevel.mockRejectedValue(new Error("uid=abc123 staff=secret-doc"));
     renderView();
     const form = await assignForm();
-    fireEvent.change(within(form).getByLabelText("Next level"), {
+    fireEvent.change(within(form).getByLabelText("Level"), {
       target: { value: firstStripe },
     });
     fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
@@ -948,7 +971,9 @@ describe("ManageView assignment", () => {
     expect(document.body.textContent).not.toContain("secret-doc");
   });
 
-  it("offers no assignment at the top of what BPT tracks", async () => {
+  // The office may move a member forwards or back, so the top of the ladder still offers every
+  // level but the one held.
+  it("offers every other level at the top of what BPT tracks", async () => {
     api.getStudentLevelCard.mockResolvedValue({
       ...card,
       currentDefinition: { definitionKey: topLevel.definitionKey },
@@ -963,12 +988,16 @@ describe("ManageView assignment", () => {
     });
     renderView();
     await screen.findByRole("table", { name: "Level history" });
-    expect(screen.queryByRole("form", { name: "Assign next level" })).toBeNull();
-    expect(
-      screen.getByText(
-        "This is the highest level BPT tracks, so there is no next level to assign.",
-      ),
-    ).toBeInTheDocument();
+    const form = await assignForm();
+    const options = within(within(form).getByLabelText("Level"))
+      .getAllByRole("option")
+      .map((option) => option.textContent);
+    const below = [...catalog.definitions].sort((a, b) => b.sequence - a.sequence)[1]!;
+    // "Select a level", then every level in the catalogue but the top one.
+    expect(options).toHaveLength(catalog.definitions.length);
+    expect(options).not.toContain(topLevel.name);
+    expect(options).toContain(below.name);
+    expect(screen.queryByText("The catalogue has no other level to assign.")).toBeNull();
   });
 
   it("offers no assignment when the level on record is not in the catalogue", async () => {
@@ -978,7 +1007,7 @@ describe("ManageView assignment", () => {
     });
     renderView();
     await screen.findByRole("table", { name: "Level history" });
-    expect(screen.queryByRole("form", { name: "Assign next level" })).toBeNull();
+    expect(screen.queryByRole("form", { name: "Change level" })).toBeNull();
     expect(
       screen.getByText(
         "The level on record is not in the current catalogue, so no assignment can be checked here.",
@@ -1104,14 +1133,14 @@ describe("ManageView roles", () => {
   it("gives administrators sporting decisions as well as history", async () => {
     renderView("administrator");
     await screen.findByRole("table", { name: "Level history" });
-    expect(screen.getByRole("form", { name: "Assign next level" })).toBeInTheDocument();
+    expect(screen.getByRole("form", { name: "Change level" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Void" })).toBeInTheDocument();
   });
 
   it("gives a coach the same read-only view", async () => {
     renderView("coach");
     await screen.findByRole("table", { name: "Level history" });
-    expect(screen.queryByRole("form", { name: "Assign next level" })).toBeNull();
+    expect(screen.queryByRole("form", { name: "Change level" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Void" })).toBeNull();
     expect(
       screen.getByText("Only an administrator or the owner can open, assign or void a level."),
@@ -1145,10 +1174,10 @@ describe("ManageView open level", () => {
     fireEvent.change(within(form).getByLabelText("Notes"), {
       target: { value: "Synthetic opening with recorded progress." },
     });
-    fireEvent.change(within(form).getByLabelText("Classes completed at this level through today"), {
+    fireEvent.change(within(form).getByLabelText(/^Classes completed/u), {
       target: { value: "0" },
     });
-    fireEvent.change(within(form).getByLabelText("Days completed at this level through today"), {
+    fireEvent.change(within(form).getByLabelText(/^Days completed/u), {
       target: { value: "42" },
     });
     fireEvent.click(within(form).getByRole("button", { name: "Open level" }));
@@ -1383,7 +1412,7 @@ describe("ManageView skills assessment", () => {
     kidsRecord();
     renderView("coach", 6);
     await screen.findByRole("heading", { level: 3, name: "Skills assessment" });
-    expect(screen.queryByRole("form", { name: "Assign next level" })).toBeNull();
+    expect(screen.queryByRole("form", { name: "Change level" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Void" })).toBeNull();
   });
 
@@ -1446,7 +1475,7 @@ describe("ManageView skills assessment", () => {
     // And the view's own copy of the ratings moved by what was SENT, not by what is on screen:
     // the promotion dialog counts ONE skill at its minimum, not the in-flight second one.
     const form = await assignForm();
-    fireEvent.change(within(form).getByLabelText("Next level"), {
+    fireEvent.change(within(form).getByLabelText("Level"), {
       target: { value: kidsFirstStripe },
     });
     fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
@@ -1480,7 +1509,7 @@ describe("ManageView skills assessment", () => {
 
     // The same saved rating, read by the promotion dialog: 1 of 11, not 0 and not 2.
     const form = await assignForm();
-    fireEvent.change(within(form).getByLabelText("Next level"), {
+    fireEvent.change(within(form).getByLabelText("Level"), {
       target: { value: kidsFirstStripe },
     });
     fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
@@ -1558,7 +1587,7 @@ describe("ManageView skills assessment", () => {
     await screen.findByText("You have unsaved ratings.");
 
     const form = await assignForm();
-    fireEvent.change(within(form).getByLabelText("Next level"), {
+    fireEvent.change(within(form).getByLabelText("Level"), {
       target: { value: kidsFirstStripe },
     });
     fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });

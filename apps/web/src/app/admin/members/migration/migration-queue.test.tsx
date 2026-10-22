@@ -26,6 +26,7 @@ type Row = MemberMigrationQueueResponse["rows"][number];
 function strongRow(id: string, recordId: string): Row {
   return {
     legacyMemberId: id,
+    sourceVersion: "1:0",
     category: "strong",
     isMinor: false,
     member: {
@@ -37,6 +38,8 @@ function strongRow(id: string, recordId: string): Row {
     candidates: [
       {
         recordId,
+        sourceVersion: "2:0",
+        conflicts: [],
         reason: "member-number",
         record: {
           fullName: `Test Archive ${recordId}`,
@@ -51,7 +54,12 @@ function strongRow(id: string, recordId: string): Row {
 function queueWith(rows: Row[]): MemberMigrationQueueResponse {
   return memberMigrationQueueResponseSchema.parse({ rows, archiveOnly: 3, decided: 4 });
 }
+async function reviewIdentity() {
+  await userEvent.type(screen.getByLabelText("Identity evidence"), "Synthetic passport seen");
+  await userEvent.type(screen.getByLabelText("Reason for the reviewed choices"), "Same person");
+}
 async function chooseTraining() {
+  await reviewIdentity();
   await userEvent.selectOptions(screen.getByLabelText("Centre"), "Town");
   await userEvent.click(screen.getByLabelText("Evening"));
 }
@@ -82,13 +90,16 @@ it("approves every strong row in one batch with the chosen training", async () =
   });
   render(<MigrationQueue />);
   await screen.findByRole("tab", { name: /Strong \(2\)/ });
-  expect(screen.getByRole("button", { name: /Approve all visible/ })).toBeDisabled();
+  expect(screen.getByRole("button", { name: /Approve compatible matches/ })).toBeDisabled();
   expect(screen.getByText("Choose centre and training times first.")).toBeVisible();
   expect(screen.getByLabelText("Centre")).toHaveValue("");
+  await reviewIdentity();
   await userEvent.selectOptions(screen.getByLabelText("Centre"), "Town");
-  expect(screen.getByRole("button", { name: /Approve all visible/ })).toBeDisabled();
+  expect(screen.getByRole("button", { name: /Approve compatible matches/ })).toBeDisabled();
   await userEvent.click(screen.getByLabelText("Evening"));
-  await userEvent.click(screen.getByRole("button", { name: "Approve all visible (2)" }));
+  await userEvent.click(
+    screen.getByRole("button", { name: "Approve compatible matches (2, up to 50)" }),
+  );
   expect(mocks.decideMemberMigration).toHaveBeenCalledWith([
     expect.objectContaining({
       kind: "link",
@@ -110,6 +121,7 @@ it("chunks strong approvals at 50 and uses a unique UUID for every enrolment", a
     .mockResolvedValueOnce(
       queueWith(Array.from({ length: 51 }, (_, i) => strongRow(`m${i}`, String(i)))),
     )
+    .mockResolvedValueOnce(queueWith([strongRow("m50", "50")]))
     .mockResolvedValue(queueWith([]));
   mocks.decideMemberMigration.mockImplementation(
     async (decisions: MemberMigrationDecisionInput[]) => ({
@@ -119,8 +131,17 @@ it("chunks strong approvals at 50 and uses a unique UUID for every enrolment", a
   render(<MigrationQueue />);
   await screen.findByRole("tab", { name: "Strong (51)" });
   await chooseTraining();
-  await userEvent.click(screen.getByRole("button", { name: "Approve all visible (51)" }));
-  expect(await screen.findByText("Applied 51 · Rejected 0")).toBeVisible();
+  // One approval sends at most 50 compatible matches; the rest waits for the next approval.
+  await userEvent.click(
+    screen.getByRole("button", { name: "Approve compatible matches (50, up to 50)" }),
+  );
+  expect(await screen.findByText("Applied 50 · Rejected 0")).toBeVisible();
+  const next = await screen.findByRole("button", {
+    name: "Approve compatible matches (1, up to 50)",
+  });
+  await waitFor(() => expect(next).toBeEnabled());
+  await userEvent.click(next);
+  expect(await screen.findByText("Applied 1 · Rejected 0")).toBeVisible();
   expect(mocks.decideMemberMigration.mock.calls.map(([decisions]) => decisions.length)).toEqual([
     50, 1,
   ]);
@@ -147,7 +168,7 @@ it("allows decisions for minors and missing dates and shows their review flags",
   expect(screen.getByText("Test Member m1")).toBeVisible();
   expect(screen.getByText("Test Member m2")).toBeVisible();
   expect(screen.getByText("Guardian required")).toBeVisible();
-  expect(screen.getByText("Check age")).toBeVisible();
+  expect(screen.getByText("Date of birth needed")).toBeVisible();
   await chooseTraining();
   for (const name of ["Link to this record", "Create without archive record", "Skip…"])
     expect(screen.getAllByRole("button", { name })).toHaveLength(2);
@@ -165,9 +186,17 @@ it.each([true, "unknown"] as const)(
     render(<MigrationQueue />);
     await userEvent.click(await screen.findByRole("tab", { name: /Under 18/ }));
     await chooseTraining();
+    const review = {
+      legacyVersion: "1:0",
+      identityEvidence: "Synthetic passport seen",
+      choices: [],
+    };
     for (const [name, decision] of [
-      ["Link to this record", { kind: "link", recordId: "10" }],
-      ["Create without archive record", { kind: "create-unlinked" }],
+      [
+        "Link to this record",
+        { kind: "link", recordId: "10", review: { ...review, recordVersion: "2:0" } },
+      ],
+      ["Create without archive record", { kind: "create-unlinked", review }],
     ] as const) {
       await userEvent.click(screen.getByRole("button", { name }));
       expect(mocks.decideMemberMigration).toHaveBeenLastCalledWith([
@@ -241,13 +270,17 @@ it("preserves completed batches when a later batch and refresh fail", async () =
   render(<MigrationQueue />);
   await screen.findByRole("tab", { name: "Strong (51)" });
   await chooseTraining();
-  await userEvent.click(screen.getByRole("button", { name: "Approve all visible (51)" }));
+  await userEvent.click(
+    screen.getByRole("button", { name: "Approve compatible matches (50, up to 50)" }),
+  );
   expect(await screen.findByText("Applied 50 · Rejected 0")).toBeVisible();
+  // One approval sends at most 50: the failing later batch must never be sent with it.
+  expect(mocks.decideMemberMigration).toHaveBeenCalledTimes(1);
   expect(screen.getByText("The migration queue is unavailable. Try again.")).toBeVisible();
   expect(document.body).not.toHaveTextContent("The queue has been refreshed");
   expect(document.body).not.toHaveTextContent("raw batch detail");
   expect(document.body).not.toHaveTextContent("raw refresh detail");
-  expect(screen.queryByRole("button", { name: /Approve all visible/ })).toBeNull();
+  expect(screen.queryByRole("button", { name: /Approve compatible matches/ })).toBeNull();
 });
 
 it("supports keyboard tabs, masked comparisons and individual link or unlinked decisions", async () => {
@@ -277,7 +310,7 @@ it("supports keyboard tabs, masked comparisons and individual link or unlinked d
   expect(screen.getByText(/•••456/)).toBeVisible();
   expect(screen.getByText(/•••789/)).toBeVisible();
   expect(screen.getByRole("button", { name: "Link to this record" })).toBeDisabled();
-  expect(screen.queryByRole("button", { name: /Approve all visible/ })).toBeNull();
+  expect(screen.queryByRole("button", { name: /Approve compatible matches/ })).toBeNull();
   await chooseTraining();
   await userEvent.click(screen.getByRole("button", { name: "Link to this record" }));
   expect(mocks.decideMemberMigration).toHaveBeenLastCalledWith([
@@ -329,7 +362,7 @@ it("disables repeat submissions and refreshes after a safe transport error", asy
   await screen.findByRole("tab", { name: "Strong (1)" });
   await chooseTraining();
   await userEvent.click(screen.getByRole("button", { name: "Link to this record" }));
-  expect(screen.getByRole("button", { name: /Approve all visible/ })).toBeDisabled();
+  expect(screen.getByRole("button", { name: /Approve compatible matches/ })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Skip…" })).toBeDisabled();
   reject(new Error("raw write detail"));
   expect(await screen.findByRole("alert")).toHaveTextContent(/Could not save/);

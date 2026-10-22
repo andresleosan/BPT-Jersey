@@ -1,5 +1,6 @@
 import type { CallableRequest } from "firebase-functions/v2/https";
 import { describe, expect, it, vi } from "vitest";
+import type { TeamCoachProfile } from "@bpt-jersey/domain/staff/team-access";
 import {
   listTeamDirectoryHandler,
   createStaffInvitationHandler,
@@ -19,6 +20,7 @@ function request(data: unknown = {}, role = "owner") {
         role,
         email: "actor@example.test",
         email_verified: true,
+        auth_time: 1_700_000_000,
         firebase: { sign_in_provider: "google.com" },
       },
     },
@@ -61,6 +63,8 @@ function services() {
       finish: vi.fn(async () => undefined),
     },
     grant: vi.fn(async () => undefined),
+    coachProfilesByUser: vi.fn(async () => new Map<string, TeamCoachProfile>()),
+    demoteToCoach: vi.fn(async () => undefined),
     now: () => new Date("2026-09-20T12:00:00.000Z"),
   } satisfies TeamAccessServices & { current: unknown; invite: unknown };
 }
@@ -104,8 +108,20 @@ describe("team directory and administrative invitations", () => {
     expect(s.auth.listUsers).toHaveBeenCalledWith(1000, "first");
     expect(result).toEqual({
       people: [
-        { userId: "actor", name: "Academy owner", email: "actor@example.test", role: "owner" },
-        { userId: "coach", name: "Academy owner", email: "actor@example.test", role: "coach" },
+        {
+          userId: "actor",
+          name: "Academy owner",
+          email: "actor@example.test",
+          role: "owner",
+          coach: null,
+        },
+        {
+          userId: "coach",
+          name: "Academy owner",
+          email: "actor@example.test",
+          role: "coach",
+          coach: null,
+        },
       ],
       nextPageToken: "next",
     });
@@ -121,34 +137,28 @@ describe("team directory and administrative invitations", () => {
     ).rejects.toMatchObject({ code: "unauthenticated" });
     expect(s.auth.listUsers).not.toHaveBeenCalled();
   });
-  it("creates an invitation without granting a role or sending email", async () => {
+  // d3e5df5: no new email invitations; staff are created with an initial password instead.
+  it("refuses new invitations without saving one, granting a role or sending email", async () => {
     const s = services();
-    await createStaffInvitationHandler(
-      request({ email: " TEAM@Example.test ", role: "administrator" }),
-      s,
-    );
-    expect(s.invitations.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        academyId: "academy-1",
-        email: "team@example.test",
-        invitedBy: "actor",
-        role: "administrator",
-        status: "pending",
-        expiresAt: "2026-09-27T12:00:00.000Z",
-      }),
-    );
+    await expect(
+      createStaffInvitationHandler(
+        request({ email: " TEAM@Example.test ", role: "administrator" }),
+        s,
+      ),
+    ).rejects.toMatchObject({ code: "failed-precondition" });
+    expect(s.invitations.save).not.toHaveBeenCalled();
     expect(s.grant).not.toHaveBeenCalled();
   });
-  it("allows an administrator to invite a coach without granting administrative access", async () => {
+  it("refuses an administrator's coach invitation without granting administrative access", async () => {
     const s = services();
     s.current.customClaims.role = "administrator";
-    await createStaffInvitationHandler(
-      request({ email: "coach@example.test", role: "coach" }, "administrator"),
-      s,
-    );
-    expect(s.invitations.save).toHaveBeenCalledWith(
-      expect.objectContaining({ email: "coach@example.test", role: "coach", invitedBy: "actor" }),
-    );
+    await expect(
+      createStaffInvitationHandler(
+        request({ email: "coach@example.test", role: "coach" }, "administrator"),
+        s,
+      ),
+    ).rejects.toMatchObject({ code: "failed-precondition" });
+    expect(s.invitations.save).not.toHaveBeenCalled();
     expect(s.grant).not.toHaveBeenCalled();
   });
 
@@ -160,13 +170,14 @@ describe("team directory and administrative invitations", () => {
         request({ email: "team@example.test", role: "owner" }, "administrator"),
         s,
       ),
-    ).rejects.toMatchObject({ code: "permission-denied" });
+    ).rejects.toMatchObject({ code: "failed-precondition" });
+    // db8bd61: administrators manage roles like an owner, so the self-change check refuses this.
     await expect(
       changeTeamRoleHandler(
         request({ userId: "actor", email: "actor@example.test", role: "owner" }, "administrator"),
         s,
       ),
-    ).rejects.toMatchObject({ code: "permission-denied" });
+    ).rejects.toMatchObject({ code: "failed-precondition" });
     expect(s.grant).not.toHaveBeenCalled();
     expect(s.invitations.save).not.toHaveBeenCalled();
   });
@@ -209,12 +220,14 @@ describe("team directory and administrative invitations", () => {
     expect(s.invitations.claim).not.toHaveBeenCalled();
   });
   it("rejects an unverified or disabled account before claiming an invitation", async () => {
-    for (const patch of [{ emailVerified: false }, { disabled: true }]) {
+    for (const [patch, code] of [
+      [{ emailVerified: false }, "failed-precondition"],
+      // 5530b4e: a disabled account's session has ended (assertActiveSession).
+      [{ disabled: true }, "unauthenticated"],
+    ] as const) {
       const s = services();
       Object.assign(s.current, patch);
-      await expect(acceptStaffInvitationHandler(request(), s)).rejects.toMatchObject({
-        code: "failed-precondition",
-      });
+      await expect(acceptStaffInvitationHandler(request(), s)).rejects.toMatchObject({ code });
       expect(s.invitations.claim).not.toHaveBeenCalled();
     }
   });

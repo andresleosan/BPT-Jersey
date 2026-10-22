@@ -402,8 +402,12 @@ describe("enrolment approval", () => {
 
   it("stops before any write when the account has no name or email to build a client record from", async () => {
     // `parseUserProfile` requires both, and a member without a client document is half-enrolled -
-    // for a tutor it blocks their children entirely.
-    const { dependencies, calls } = harness({ account: { displayName: "  " } });
+    // for a tutor it blocks their children entirely. The name is the one the application carries,
+    // falling back to the Auth display name (password accounts may have none), so neither has one.
+    const { dependencies, calls } = harness({
+      record: record({ applicant: { ...applicant, fullName: "  " } }),
+      account: { displayName: "  " },
+    });
 
     await expect(approve(dependencies)).rejects.toMatchObject({
       failureCode: "applicant_account_incomplete",

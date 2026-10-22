@@ -241,9 +241,10 @@ describe("nextSelfCheckInSession", () => {
 });
 
 const town = { latitude: 49.183954, longitude: -2.107142 };
-// 1e-5° of latitude ≈ 1.11 m
+// 1e-5° of latitude ≈ 1.11 m. 111 195 m per degree is distanceInMetres' sphere, so at(n) still
+// rounds to n metres at the 300 m edge (111 000 drifted +0.56 m there and read 301).
 const at = (metresNorth: number, accuracyMeters = 12) => ({
-  latitude: Number((town.latitude + metresNorth / 111_000).toFixed(6)),
+  latitude: Number((town.latitude + metresNorth / 111_195).toFixed(6)),
   longitude: town.longitude,
   accuracyMeters,
 });
@@ -313,18 +314,18 @@ describe("decideSelfCheckIn", () => {
       ok: false,
       error: { reason: "site_not_ready" },
     });
-    expect(decideSelfCheckIn({ ...base, position: at(120) })).toEqual({
+    expect(decideSelfCheckIn({ ...base, position: at(320) })).toEqual({
       ok: false,
-      error: { reason: "outside", distanceMeters: 120 },
+      error: { reason: "outside", distanceMeters: 320 },
     });
   });
-  it("passes at exactly 50 m and exactly 100 m accuracy, fails at 51 m and 101 m", () => {
-    expect(decideSelfCheckIn({ ...base, position: at(50, 100) })).toEqual({
+  it("passes at exactly 300 m and fails at 301 m; 101 m accuracy no longer fails", () => {
+    expect(decideSelfCheckIn({ ...base, position: at(300, 100) })).toEqual({
       ok: true,
-      value: { signal: "within", distanceMeters: 50, accuracyMeters: 100, overrideReason: null },
+      value: { signal: "within", distanceMeters: 300, accuracyMeters: 100, overrideReason: null },
     });
-    expect(decideSelfCheckIn({ ...base, position: at(51) }).ok).toBe(false);
-    expect(decideSelfCheckIn({ ...base, position: at(0, 101) }).ok).toBe(false);
+    expect(decideSelfCheckIn({ ...base, position: at(301) }).ok).toBe(false);
+    expect(decideSelfCheckIn({ ...base, position: at(0, 101) }).ok).toBe(true);
   });
   it("never refuses for accuracy: a wide reading near the pin passes", () => {
     expect(decideSelfCheckIn({ ...base, position: at(0, 2500) })).toMatchObject({ ok: true });

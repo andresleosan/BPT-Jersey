@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -12,6 +12,8 @@ const authOperations = vi.hoisted(() => ({
 }));
 const invitations = vi.hoisted(() => ({
   acceptStaffInvitation: vi.fn(async () => ({ activated: false })),
+  // These accounts have one access mode: the callable refuses and the client answers false.
+  switchAccessMode: vi.fn(async () => false),
 }));
 vi.mock("../../lib/team-access-client", () => invitations);
 
@@ -34,13 +36,24 @@ vi.mock("../../lib/login-flow", async () => {
 
 import { LoginForm } from "./login-form";
 
-const signedInUser = { uid: "user-1", email: "person@example.test" };
+const signedInUser = {
+  uid: "user-1",
+  email: "person@example.test",
+  // Sign-in reads the token it was just issued before refreshing it: unless a test changes the
+  // claims in between, that token carries the claims the forced refresh returns.
+  getIdTokenResult: vi.fn(() => authOperations.refreshAuthToken.getMockImplementation()?.()),
+};
+
+// The member page also has a "Sign in" mode toggle above the form: this is the form's submit.
+function signInButton(): HTMLElement {
+  return within(document.getElementById("login-form")!).getByRole("button", { name: "Sign in" });
+}
 
 async function signInWithEmailAs(email: string): Promise<void> {
   const user = userEvent.setup();
   await user.type(screen.getByLabelText(/email address/i), email);
   await user.type(screen.getByLabelText("Password"), "password");
-  await user.click(screen.getByRole("button", { name: "Sign in" }));
+  await user.click(signInButton());
 }
 
 describe("LoginForm", () => {
@@ -64,6 +77,8 @@ describe("LoginForm", () => {
   it("activates a pending Google invitation before refreshing staff claims", async () => {
     const user = userEvent.setup();
     authOperations.signInWithGoogle.mockResolvedValue({ user: signedInUser });
+    // Invited, not yet staff: the token issued at sign-in has no staff claims.
+    signedInUser.getIdTokenResult.mockResolvedValueOnce({ claims: {} });
     invitations.acceptStaffInvitation.mockResolvedValueOnce({ activated: true });
     authOperations.refreshAuthToken.mockResolvedValue({
       claims: { academyId: "demo-academay", role: "administrator" },
@@ -100,8 +115,8 @@ describe("LoginForm", () => {
   it("offers members registration, Google and password reset with no staff context", () => {
     render(<LoginForm audience="member" />);
 
-    expect(screen.getByRole("heading", { name: "Client account" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Create client account" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Member sign-in" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Create member account" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Continue with Google" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Forgot password?" })).toBeVisible();
     expect(screen.getByLabelText(/email address/i)).toBeVisible();
@@ -119,7 +134,7 @@ describe("LoginForm", () => {
     window.history.replaceState({}, "", "/login?role=administrator");
     render(<LoginForm audience="member" />);
 
-    expect(screen.getByRole("heading", { name: "Client account" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Member sign-in" })).toBeVisible();
     expect(screen.queryByText(/staff/i)).not.toBeInTheDocument();
   });
 
@@ -127,7 +142,7 @@ describe("LoginForm", () => {
     render(<LoginForm audience="staff" />);
 
     expect(screen.getByRole("heading", { name: "Staff sign-in" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Create client account" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create member account" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /member sign-in/i })).toHaveAttribute("href", "/login");
     expect(screen.getByRole("button", { name: "Continue with Google" })).toBeVisible();
   });
@@ -136,7 +151,7 @@ describe("LoginForm", () => {
     const user = userEvent.setup();
     render(<LoginForm audience="member" />);
 
-    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await user.click(signInButton());
 
     expect(screen.getByLabelText(/email address/i)).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText("Password")).toHaveAttribute("aria-invalid", "true");
@@ -177,17 +192,23 @@ describe("LoginForm", () => {
   it("sends a member to the allowlisted return path after signing in", async () => {
     window.history.replaceState({}, "", "/login?returnTo=%2Fshop");
     authOperations.signInWithEmail.mockResolvedValue({ user: signedInUser });
+    authOperations.refreshAuthToken.mockResolvedValue({
+      claims: { academyId: "demo-academy", role: "adultStudent" },
+    });
     render(<LoginForm audience="member" />);
 
     await signInWithEmailAs("client@example.test");
 
     await waitFor(() => expect(navigation.navigateTo).toHaveBeenCalledWith("/shop"));
-    expect(authOperations.refreshAuthToken).not.toHaveBeenCalled();
+    expect(authOperations.refreshAuthToken).toHaveBeenCalledWith(signedInUser);
   });
 
   it("sends a member to the account home when the return path is not allowlisted", async () => {
     window.history.replaceState({}, "", "/login?returnTo=%2Fadmin");
     authOperations.signInWithEmail.mockResolvedValue({ user: signedInUser });
+    authOperations.refreshAuthToken.mockResolvedValue({
+      claims: { academyId: "demo-academy", role: "adultStudent" },
+    });
     render(<LoginForm audience="member" />);
 
     await signInWithEmailAs("client@example.test");

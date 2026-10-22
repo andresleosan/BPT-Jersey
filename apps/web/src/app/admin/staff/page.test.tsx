@@ -1,6 +1,7 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { TeamDirectoryPerson } from "@bpt-jersey/domain/staff/team-access";
 
 const staffApi = vi.hoisted(() => ({
   createStaffProfile: vi.fn(),
@@ -24,7 +25,38 @@ const permissionsApi = vi.hoisted(() => ({
         : `Active until ${grant.expiresAt.slice(0, 10)}`,
 }));
 
-vi.mock("./team-directory", () => ({ TeamDirectory: () => null }));
+// The team directory has its own suite. Here it stands in for one directory row: its Manage
+// button hands that person to the page, and it shows the refresh key the page passes down.
+const directory = vi.hoisted(() => {
+  const person: TeamDirectoryPerson = {
+    userId: "coach-user-1",
+    name: "Ana Coach",
+    email: "ana.coach@example.test",
+    role: "coach",
+    coach: { staffKey: "staff-1", active: true, belt: null },
+  };
+  return { person };
+});
+
+vi.mock("./team-directory", () => ({
+  TeamDirectory: ({
+    onManage,
+    refreshKey = 0,
+  }: {
+    onManage?: (person: TeamDirectoryPerson) => void;
+    refreshKey?: number;
+  }) => (
+    <section aria-label="Team directory" data-refresh-key={refreshKey}>
+      <button
+        aria-label={`Manage ${directory.person.name}`}
+        onClick={() => onManage?.(directory.person)}
+        type="button"
+      >
+        Manage
+      </button>
+    </section>
+  ),
+}));
 vi.mock("../../../lib/staff-client", () => staffApi);
 vi.mock("../../../lib/staff-permissions-client", () => permissionsApi);
 vi.mock("next/navigation", () => ({
@@ -32,6 +64,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import StaffAdminPage from "./page";
+import { AdminGateSessionProvider } from "../admin-gate";
 import { AdminShell } from "../admin-shell";
 
 const coach = {
@@ -59,8 +92,29 @@ const activeGrant = {
   status: "active" as const,
 };
 
+function sessionFor(role: "owner" | "administrator") {
+  return {
+    uid: `synthetic-${role}`,
+    email: `${role}@example.test`,
+    displayName: `Synthetic ${role}`,
+    academyId: "synthetic-academy",
+    role,
+  };
+}
+
+// The page reads the signed-in admin from the gate that wraps every /admin route.
+function renderStaffPage() {
+  return render(
+    <AdminGateSessionProvider session={sessionFor("owner")}>
+      <StaffAdminPage />
+    </AdminGateSessionProvider>,
+  );
+}
+
 describe("admin staff page", () => {
   beforeEach(() => {
+    // jsdom has no scrollIntoView; the page scrolls the Manage panel into view when it opens.
+    Element.prototype.scrollIntoView = vi.fn();
     // Every test renders the T116 panel, so the grant list must resolve to something.
     permissionsApi.listStaffPermissionGrants.mockResolvedValue([]);
   });
@@ -72,85 +126,65 @@ describe("admin staff page", () => {
     permissionsApi.revokeStaffPermission.mockReset();
   });
 
-  it("announces loading and then the empty state", async () => {
-    let resolveList!: (profiles: readonly (typeof coach)[]) => void;
-    staffApi.listStaffProfiles.mockReturnValue(
-      new Promise((resolve) => {
-        resolveList = resolve;
-      }),
-    );
-    render(<StaffAdminPage />);
+  it("renders only the safe staff projection and reports generic errors", async () => {
+    const user = userEvent.setup();
+    staffApi.setStaffActive.mockRejectedValue(new Error("private backend details"));
+    renderStaffPage();
 
-    expect(screen.getByRole("status")).toHaveTextContent("Loading staff profiles");
-    resolveList([]);
-    expect(await screen.findByText("No staff profiles found.")).toBeVisible();
-  });
-
-  it("renders only the safe staff projection and reports generic load errors", async () => {
-    staffApi.listStaffProfiles.mockResolvedValue([
-      { ...coach, userId: "private-user", auditId: "private-audit", createdAt: "private-time" },
-    ]);
-    render(<StaffAdminPage />);
-
-    const table = await screen.findByRole("table", { name: "Staff profiles" });
-    expect(within(table).getByText("staff-1")).toBeVisible();
-    expect(within(table).getByText("Coach")).toBeVisible();
-    expect(within(table).getByText("Active")).toBeVisible();
-    expect(screen.queryByText(/private-user|private-audit|private-time/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Manage Ana Coach" }));
+    const panel = screen.getByRole("region", { name: "Ana Coach" });
+    expect(within(panel).getByText("Manage · Coach")).toBeVisible();
+    expect(within(panel).getByText(/^Active: they can sign in to Coach\./)).toBeVisible();
+    expect(screen.queryByText(/coach-user-1/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Auth UID|claims|firestore|createdAt/i)).not.toBeInTheDocument();
 
-    cleanup();
-    staffApi.listStaffProfiles.mockRejectedValue(new Error("private backend details"));
-    render(<StaffAdminPage />);
+    await user.click(within(panel).getByRole("button", { name: "Deactivate coach access" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Unable to load staff profiles. Please try again.",
+      "Unable to update staff status. Please try again.",
     );
     expect(screen.queryByText("private backend details")).not.toBeInTheDocument();
   });
 
   it("removes the duplicate user-ID provisioning form", async () => {
-    staffApi.listStaffProfiles.mockResolvedValue([]);
-    render(<StaffAdminPage />);
-    await screen.findByText("No staff profiles found.");
+    renderStaffPage();
+    await screen.findByText("No permission has been delegated.");
     expect(screen.queryByLabelText("User ID")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Request ID")).not.toBeInTheDocument();
   });
 
-  it("updates role and activation while restoring focus to the selected row action", async () => {
+  it("updates activation from the manage panel, which takes focus when it opens", async () => {
     const user = userEvent.setup();
-    staffApi.listStaffProfiles.mockResolvedValue([coach]);
-    staffApi.updateStaffProfile.mockResolvedValue(coach);
     staffApi.setStaffActive.mockResolvedValue({ ...coach, active: false, status: "inactive" });
-    render(<StaffAdminPage />);
+    renderStaffPage();
 
-    await screen.findByRole("table", { name: "Staff profiles" });
-    const rowAction = screen.getByRole("button", { name: "Select staff staff-1" });
-    await user.click(rowAction);
-    expect(screen.getByRole("link", { name: "team directory" })).toHaveAttribute(
-      "href",
-      "#staff-account-roles",
-    );
+    await user.click(screen.getByRole("button", { name: "Manage Ana Coach" }));
+    const title = screen.getByRole("heading", { name: "Ana Coach" });
+    expect(title).toHaveFocus();
+    expect(vi.mocked(Element.prototype.scrollIntoView).mock.contexts).toContain(title);
 
-    await user.click(screen.getByRole("button", { name: "Deactivate staff profile" }));
+    await user.click(screen.getByRole("button", { name: "Deactivate coach access" }));
     await waitFor(() =>
       expect(staffApi.setStaffActive).toHaveBeenCalledWith({
         staffKey: "staff-1",
         active: false,
       }),
     );
-    expect(rowAction).toHaveFocus();
-    expect(screen.getByRole("row", { name: /staff-1.*Coach.*Inactive/i })).toBeVisible();
+    expect(await screen.findByRole("status")).toHaveTextContent("Staff profile deactivated.");
+    expect(screen.getByText(/^Paused: they cannot sign in to Coach/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Reactivate coach access" })).toBeEnabled();
+    expect(screen.getByRole("region", { name: "Team directory" })).toHaveAttribute(
+      "data-refresh-key",
+      "1",
+    );
   });
 
   it("replaces availability and assignments with explicit fields", async () => {
     const user = userEvent.setup();
-    staffApi.listStaffProfiles.mockResolvedValue([coach]);
     staffApi.replaceStaffAvailability.mockResolvedValue([]);
     staffApi.replaceStaffAssignments.mockResolvedValue([]);
-    render(<StaffAdminPage />);
+    renderStaffPage();
 
-    await screen.findByRole("table", { name: "Staff profiles" });
-    await user.click(screen.getByRole("button", { name: "Select staff staff-1" }));
+    await user.click(screen.getByRole("button", { name: "Manage Ana Coach" }));
     await user.selectOptions(screen.getByLabelText("Weekday"), "1");
     await user.type(screen.getByLabelText("Start local time"), "17:00");
     await user.type(screen.getByLabelText("End local time"), "19:00");
@@ -178,14 +212,12 @@ describe("admin staff page", () => {
 
   it("clears stale success state and describes invalid availability fields", async () => {
     const user = userEvent.setup();
-    staffApi.listStaffProfiles.mockResolvedValue([coach]);
     staffApi.replaceStaffAvailability
       .mockResolvedValueOnce([])
       .mockRejectedValueOnce(new Error("private backend details"));
-    render(<StaffAdminPage />);
+    renderStaffPage();
 
-    await screen.findByRole("table", { name: "Staff profiles" });
-    await user.click(screen.getByRole("button", { name: "Select staff staff-1" }));
+    await user.click(screen.getByRole("button", { name: "Manage Ana Coach" }));
     await user.type(screen.getByLabelText("Start local time"), "17:00");
     await user.type(screen.getByLabelText("End local time"), "19:00");
     await user.type(screen.getByLabelText("IANA timezone"), "Europe/London");
@@ -216,18 +248,16 @@ describe("admin staff page", () => {
   it("disables selected-row actions while a mutation is pending", async () => {
     const user = userEvent.setup();
     let resolveUpdate!: (profile: typeof coach) => void;
-    staffApi.listStaffProfiles.mockResolvedValue([coach]);
     staffApi.setStaffActive.mockReturnValue(
       new Promise((resolve) => {
         resolveUpdate = resolve;
       }),
     );
-    render(<StaffAdminPage />);
+    renderStaffPage();
 
-    await screen.findByRole("table", { name: "Staff profiles" });
-    await user.click(screen.getByRole("button", { name: "Select staff staff-1" }));
-    await user.click(screen.getByRole("button", { name: "Deactivate staff profile" }));
-    expect(screen.getByRole("button", { name: "Deactivate staff profile" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Manage Ana Coach" }));
+    await user.click(screen.getByRole("button", { name: "Deactivate coach access" }));
+    expect(screen.getByRole("button", { name: "Deactivate coach access" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Replace availability" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Replace assignment" })).toBeDisabled();
     resolveUpdate(coach);
@@ -236,19 +266,13 @@ describe("admin staff page", () => {
   it.each(["owner", "administrator"] as const)(
     "keeps the staff workspace visible for %s",
     async (role) => {
-      staffApi.listStaffProfiles.mockResolvedValue([]);
+      const session = sessionFor(role);
       render(
-        <AdminShell
-          session={{
-            uid: `synthetic-${role}`,
-            email: `${role}@example.test`,
-            displayName: `Synthetic ${role}`,
-            academyId: "synthetic-academy",
-            role,
-          }}
-        >
-          <StaffAdminPage />
-        </AdminShell>,
+        <AdminGateSessionProvider session={session}>
+          <AdminShell session={session}>
+            <StaffAdminPage />
+          </AdminShell>
+        </AdminGateSessionProvider>,
       );
 
       expect(screen.getByRole("link", { name: "Staff" })).toHaveAttribute("href", "/admin/staff");
@@ -258,8 +282,7 @@ describe("admin staff page", () => {
 
   describe("delegated permissions (T116)", () => {
     it("no longer offers new grants and explains why", async () => {
-      staffApi.listStaffProfiles.mockResolvedValue([coach]);
-      render(<StaffAdminPage />);
+      renderStaffPage();
 
       expect(
         await screen.findByRole("heading", { name: "Existing permission grants" }),
@@ -271,13 +294,12 @@ describe("admin staff page", () => {
     });
 
     it("shows a live grant with who gave it and lets office take it away", async () => {
-      staffApi.listStaffProfiles.mockResolvedValue([coach]);
       permissionsApi.listStaffPermissionGrants.mockResolvedValue([activeGrant]);
       permissionsApi.revokeStaffPermission.mockResolvedValue({
         ...activeGrant,
         status: "revoked",
       });
-      render(<StaffAdminPage />);
+      renderStaffPage();
 
       expect(await screen.findByText("Review no-show penalties · coach-1")).toBeVisible();
       expect(screen.getByText(/Active until 2026-10-05/)).toBeVisible();
@@ -293,22 +315,20 @@ describe("admin staff page", () => {
     });
 
     it("does not offer revoke on a grant that is already gone", async () => {
-      staffApi.listStaffProfiles.mockResolvedValue([coach]);
       permissionsApi.listStaffPermissionGrants.mockResolvedValue([
         { ...activeGrant, status: "expired" },
       ]);
-      render(<StaffAdminPage />);
+      renderStaffPage();
 
       expect(await screen.findByText(/Expired/)).toBeVisible();
       expect(screen.queryByRole("button", { name: "Revoke" })).toBeNull();
     });
 
     it("reports a generic error when the grant list cannot be read", async () => {
-      staffApi.listStaffProfiles.mockResolvedValue([coach]);
       permissionsApi.listStaffPermissionGrants.mockRejectedValue(
         new Error("Unable to load permission grants. Please try again."),
       );
-      render(<StaffAdminPage />);
+      renderStaffPage();
 
       expect(await screen.findByRole("alert")).toHaveTextContent(
         "Unable to load permission grants.",

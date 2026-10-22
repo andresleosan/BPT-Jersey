@@ -45,11 +45,14 @@ describe("financial dashboard callable", () => {
     for (const role of ["owner", "administrator"]) {
       const current = services();
       const handler = createGetFinancialDashboardHandler(current);
+      const call = request(null, role);
 
-      await expect(handler(request(null, role))).resolves.toEqual({ dashboard });
+      await expect(handler(call)).resolves.toEqual({ dashboard });
       expect(current.store.getFinancialDashboard).toHaveBeenCalledWith("academy-1", undefined);
+      // The session gate also reads the caller's own token (auth_time) from the request.
       expect(current.isActorActive).toHaveBeenCalledWith(
         expect.objectContaining({ userId: "owner-1", academyId: "academy-1", role }),
+        call,
       );
     }
   });

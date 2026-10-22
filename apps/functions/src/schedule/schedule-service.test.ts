@@ -1607,37 +1607,57 @@ describe("classes-services Firestore store", () => {
       data.set(path, docs);
       return docs;
     };
+    const collection = (path: string) => ({
+      doc: (id?: string) => {
+        autoId += 1;
+        const docId = id ?? `auto-${autoId}`;
+        return {
+          id: docId,
+          get: async () => ({
+            exists: collectionOf(path).has(docId),
+            data: () => collectionOf(path).get(docId),
+          }),
+          set: async (value: unknown) => {
+            collectionOf(path).set(docId, value as Record<string, unknown>);
+          },
+          update: async () => {
+            throw new Error(`unexpected update() on ${path}`);
+          },
+        };
+      },
+      get: async () => ({
+        empty: collectionOf(path).size === 0,
+        docs: [...collectionOf(path).entries()].map(([id, value]) => ({
+          id,
+          data: () => value,
+        })),
+      }),
+      where: () => {
+        throw new Error(`unexpected where() on ${path}`);
+      },
+    });
     return {
       data,
       firestore: {
-        collection: (path: string) => ({
-          doc: (id?: string) => {
-            autoId += 1;
-            const docId = id ?? `auto-${autoId}`;
-            return {
-              id: docId,
-              get: async () => ({
-                exists: collectionOf(path).has(docId),
-                data: () => collectionOf(path).get(docId),
-              }),
-              set: async (value: unknown) => {
-                collectionOf(path).set(docId, value as Record<string, unknown>);
-              },
-              update: async () => {
-                throw new Error(`unexpected update() on ${path}`);
-              },
-            };
-          },
-          get: async () => ({
-            docs: [...collectionOf(path).entries()].map(([id, value]) => ({
-              id,
-              data: () => value,
-            })),
-          }),
-          where: () => {
-            throw new Error(`unexpected where() on ${path}`);
-          },
-        }),
+        collection,
+        // As in Firestore, `doc("a/b/c/d")` is `collection("a/b/c").doc("d")`.
+        doc: (path: string) => {
+          const slash = path.lastIndexOf("/");
+          return collection(path.slice(0, slash)).doc(path.slice(slash + 1));
+        },
+        // Type seeding and edits run in a transaction (b59f116): reads see the stored documents,
+        // and the writes land together only once the work succeeds, as Firestore commits them.
+        runTransaction: async <T>(work: (transaction: unknown) => Promise<T>): Promise<T> => {
+          const writes: Array<() => Promise<void>> = [];
+          const result = await work({
+            get: (ref: { get: () => Promise<unknown> }) => ref.get(),
+            set: (ref: { set: (value: unknown) => Promise<void> }, value: unknown) => {
+              writes.push(() => ref.set(value));
+            },
+          });
+          for (const write of writes) await write();
+          return result;
+        },
       },
     };
   };

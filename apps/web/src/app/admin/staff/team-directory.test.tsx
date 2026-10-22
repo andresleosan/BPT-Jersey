@@ -5,7 +5,7 @@ import { TeamDirectoryContent } from "./team-directory";
 const api = vi.hoisted(() => ({
   listTeamDirectory: vi.fn(),
   changeTeamRole: vi.fn(),
-  createStaffInvitation: vi.fn(),
+  createStaffWithPassword: vi.fn(),
   listStaffInvitations: vi.fn(),
   cancelStaffInvitation: vi.fn(),
 }));
@@ -69,16 +69,24 @@ describe("team directory", () => {
     expect(await screen.findByText(/Role changed to/)).toBeVisible();
   });
   it("shows name, email and role, with no separate profile page", async () => {
-    render(<TeamDirectoryContent session={{ ...session, role: "administrator" }} />);
+    const user = userEvent.setup();
+    render(
+      <TeamDirectoryContent
+        session={{ ...session, uid: "administrator", role: "administrator" }}
+      />,
+    );
     const table = await screen.findByRole("table", { name: "Team directory" });
     expect(within(table).getByText("Academy coach")).toBeVisible();
     expect(within(table).getByText("coach@example.test")).toBeVisible();
     expect(within(table).getByText("Coach")).toBeVisible();
-    expect(screen.queryByRole("button", { name: /Change role/ })).toBeNull();
-    expect(screen.getByLabelText("Staff email")).toBeVisible();
-    expect(screen.getByLabelText("Staff role")).toHaveValue("coach");
+    expect(screen.getByRole("button", { name: "Change role for Academy coach" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Change role for Academy owner" })).toBeNull();
+    expect(within(table).getByText("Owner account")).toBeVisible();
+    await user.click(screen.getByText("New staff account"));
+    expect(screen.getByLabelText("Direct staff email")).toBeVisible();
+    expect(screen.getByLabelText("Direct staff role")).toHaveValue("coach");
     expect(
-      within(screen.getByLabelText("Staff role")).queryByRole("option", { name: "Owner" }),
+      within(screen.getByLabelText("Direct staff role")).queryByRole("option", { name: "Owner" }),
     ).toBeNull();
     expect(api.listStaffInvitations).not.toHaveBeenCalled();
   });
@@ -101,22 +109,33 @@ describe("team directory", () => {
     );
     expect(await screen.findByText(/Role changed to Administrator/)).toBeVisible();
   });
-  it("authorises an email only after reviewing the email and role", async () => {
+  it("creates staff access for an email and role only when the form is submitted", async () => {
+    api.createStaffWithPassword.mockResolvedValue({
+      userId: "new-owner",
+      email: "new@example.test",
+      role: "owner",
+      passwordChangeRequired: true,
+    });
     const user = userEvent.setup();
     render(<TeamDirectoryContent session={session} />);
     await screen.findByRole("table");
-    await user.type(screen.getByLabelText("Staff email"), "NEW@example.test");
-    await user.selectOptions(screen.getByLabelText("Staff role"), "owner");
-    await user.click(screen.getByRole("button", { name: "Review staff access" }));
-    expect(api.createStaffInvitation).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "Confirm access" }));
+    await user.click(screen.getByText("New staff account"));
+    await user.type(screen.getByLabelText("Full name"), "New owner");
+    await user.type(screen.getByLabelText("Direct staff email"), "NEW@example.test");
+    await user.type(screen.getByLabelText("Initial password"), "synthetic-password");
+    await user.selectOptions(screen.getByLabelText("Direct staff role"), "owner");
+    expect(api.createStaffWithPassword).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Create staff account" }));
     await waitFor(() =>
-      expect(api.createStaffInvitation).toHaveBeenCalledWith({
+      expect(api.createStaffWithPassword).toHaveBeenCalledWith({
+        displayName: "New owner",
         email: "new@example.test",
+        password: "synthetic-password",
         role: "owner",
       }),
     );
-    expect(await screen.findByText(/Access authorised for new@example.test/)).toBeVisible();
+    expect(await screen.findByText(/Staff account created/)).toBeVisible();
+    expect(api.listTeamDirectory).toHaveBeenCalledTimes(2);
   });
   it("shows safe errors and permits retry after a failed directory read", async () => {
     api.listTeamDirectory.mockRejectedValueOnce(new Error("private internal message"));

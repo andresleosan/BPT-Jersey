@@ -8,7 +8,7 @@ const refusal = (reason: string, extra: Record<string, unknown> = {}) =>
 describe("self check-in messages", () => {
   it("turns each refusal into one plain sentence", () => {
     expect(selfCheckInFailureMessage(refusal("outside", { distanceMeters: 120 }))).toBe(
-      "You're 120 m away. Get to the gym and try again.",
+      "You need to be within 100 m of the gym to check in. You're 120 m away.",
     );
     expect(selfCheckInFailureMessage(refusal("imprecise"))).toBe(
       "Your location isn't precise enough yet. Turn on Precise Location, step near the entrance and try again.",
@@ -32,17 +32,17 @@ describe("self check-in messages", () => {
   it("uses the generic outside message unless distance is a finite nonnegative integer", () => {
     for (const distanceMeters of [undefined, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(selfCheckInFailureMessage(refusal("outside", { distanceMeters }))).toBe(
-        "You're too far from the gym. Get to the gym and try again.",
+        "You need to be within 100 m of the gym to check in. Get closer and try again.",
       );
     }
   });
 
   it("explains a missing position", () => {
     expect(positionFailureMessage("denied")).toBe(
-      "Location is off. Allow it for this site, or ask a coach to check you in.",
+      "Turn on your location to check in: switch on Location (GPS) on your phone and allow it for bptjersey.com in your browser, then scan again.",
     );
     expect(positionFailureMessage("unavailable")).toBe(
-      "Couldn't read your location. Try again outside, or ask a coach to check you in.",
+      "We couldn't find your location. Make sure Location (GPS) is switched on in your phone settings, then scan again.",
     );
   });
 });

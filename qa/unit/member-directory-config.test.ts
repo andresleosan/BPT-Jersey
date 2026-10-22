@@ -72,9 +72,10 @@ describe("T092 member-directory Firebase configuration", () => {
         indexes,
       }))
       .sort((left, right) => left.key.localeCompare(right.key));
-    // The sweeps add cross-academy indexes for subscription expiry and session quorum.
-    // A restricted field given indexes drops out of `actual` and fails.
+    // The sweeps add cross-academy indexes for class IP retention, subscription expiry and
+    // session quorum. A restricted field given indexes drops out of `actual` and fails.
     expect(all.filter(({ indexes }) => indexes.length > 0).map(({ key }) => key)).toEqual([
+      "auditEvents.occurredAt",
       "memberships.endsAt",
       "sessions.startAt",
     ]);

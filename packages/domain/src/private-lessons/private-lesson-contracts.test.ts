@@ -45,7 +45,7 @@ describe("private lesson catalogue", () => {
     expect(PRIVATE_LESSON_OPTIONS["pack-10"]).toMatchObject({
       priceMinor: 50000,
       credits: 10,
-      validityMonths: 6,
+      validityMonths: 3,
     });
   });
 
@@ -67,7 +67,7 @@ describe("private lesson catalogue", () => {
 
   it("clamps expiry to the end of short months", () => {
     expect(privateLessonExpiry("monthly", "2026-01-31T09:00:00Z")).toBe("2026-02-28T09:00:00.000Z");
-    expect(privateLessonExpiry("pack-10", "2026-08-31T09:00:00Z")).toBe("2027-02-28T09:00:00.000Z");
+    expect(privateLessonExpiry("pack-10", "2026-08-31T09:00:00Z")).toBe("2026-11-30T09:00:00.000Z");
     // A short month on the way does not drag the final day down.
     expect(privateLessonExpiry("single", "2026-01-31T09:00:00Z")).toBe("2026-04-30T09:00:00.000Z");
   });

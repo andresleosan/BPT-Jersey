@@ -1,5 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
+// The participant callables re-read the live Auth user (requireMemberAccountActor); each fake
+// request below keeps that user in step with its token.
+const liveAuthUsers = vi.hoisted(() => new Map<string, Record<string, unknown>>());
+vi.mock("firebase-admin/auth", () => ({
+  getAuth: () => ({
+    getUser: async (uid: string) => liveAuthUsers.get(uid),
+  }),
+}));
+
 import {
   createAcceptDisclaimerHandler,
   createGetOutstandingDisclaimersHandler,
@@ -12,7 +21,18 @@ import {
 import { DisclaimerError, type DisclaimerService } from "./disclaimer-service";
 
 function fakeRequest(data: unknown, role = "owner", uid = "office-1") {
-  return { auth: { uid, token: { academyId: "academy-1", role } }, data } as never;
+  liveAuthUsers.set(uid, {
+    uid,
+    disabled: false,
+    emailVerified: true,
+    customClaims: { academyId: "academy-1", role },
+    tokensValidAfterTime: "2020-01-01T00:00:00.000Z",
+  });
+  return {
+    app: { appId: "test-app" },
+    auth: { uid, token: { academyId: "academy-1", role, auth_time: 1_700_000_000 } },
+    data,
+  } as never;
 }
 
 function service(overrides: Partial<DisclaimerService> = {}): DisclaimerService {

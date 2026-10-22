@@ -98,6 +98,20 @@ const minor = {
   updatedAt: now,
   updatedBy: "owner-1",
 };
+// Guardian authority goes through member access, which also requires the link's family to be active.
+const family = {
+  familyId: "family-1",
+  academyId: "academy-1",
+  primaryContactUserId: "guardian-1",
+  billingContactUserId: "guardian-1",
+  active: true,
+  status: "active",
+  schemaVersion: "1",
+  createdAt: now,
+  createdBy: "owner-1",
+  updatedAt: now,
+  updatedBy: "owner-1",
+};
 const relationship = {
   relationshipId: "family-1--student-1",
   academyId: "academy-1",
@@ -171,6 +185,7 @@ function seededStore(failCreate = "") {
     {
       "academies/academy-1/users/guardian-1": user,
       "academies/academy-1/students/student-1": minor,
+      "academies/academy-1/families/family-1": family,
       "academies/academy-1/relationships/family-1--student-1": relationship,
     },
     failCreate,
@@ -557,6 +572,7 @@ describe("consent store", () => {
       typedName: "Synthetic Guardian",
       clauseResponses: responses,
     });
+    // Client roles get the stored evidence inline, checked against its recorded size and SHA-256.
     await expect(
       seeded.store.getWaiverEvidenceDownload({
         academyId: "academy-1",
@@ -565,7 +581,9 @@ describe("consent store", () => {
         consentId: accepted.consentId,
         now,
       }),
-    ).resolves.toMatchObject({ downloadUrl: "https://r2.example.test/download" });
+    ).resolves.toMatchObject({
+      downloadUrl: `data:application/pdf;base64,${Buffer.from("%PDF synthetic waiver evidence").toString("base64")}`,
+    });
     expect(seeded.audits).toEqual(
       expect.arrayContaining([expect.objectContaining({ action: "consent.evidence.downloaded" })]),
     );

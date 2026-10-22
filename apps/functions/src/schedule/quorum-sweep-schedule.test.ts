@@ -8,6 +8,8 @@ vi.mock("firebase-functions/logger", () => ({ info: mocks.info, error: mocks.err
 vi.mock("./quorum-sweep-firestore", () => ({ createFirestoreQuorumSweepStore: () => ({}) }));
 vi.mock("./quorum-sweep-job", () => ({ sweepSessionQuorums: mocks.sweep }));
 
+// Loaded first, as index.ts does: the sweep inherits the global region instead of pinning one.
+import "../global-options";
 import { sweepSessionQuorumsSchedule } from "./quorum-sweep-schedule";
 
 const report = {
@@ -26,7 +28,7 @@ describe("quorum schedule entry point", () => {
   it("exports a v2 five-minute schedule with UTC, bounded concurrency and retries", () => {
     expect(sweepSessionQuorumsSchedule.__endpoint).toMatchObject({
       platform: "gcfv2",
-      region: ["us-central1"],
+      region: ["europe-west9"],
       maxInstances: 1,
       concurrency: 1,
       scheduleTrigger: {

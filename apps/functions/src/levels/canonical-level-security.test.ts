@@ -155,6 +155,8 @@ function authorizationFixture(tokensValidAfterTime?: string) {
     getAuthUser: async (uid) => ({
       uid,
       disabled: false,
+      // 58c2498: client roles need a verified email before any member scope is read.
+      emailVerified: true,
       customClaims: claimsByUser.get(uid) ?? {},
       ...(tokensValidAfterTime === undefined ? {} : { tokensValidAfterTime }),
     }),
@@ -410,27 +412,40 @@ describe("canonical Levels security boundary", () => {
       set: async () => undefined,
       delete: async () => undefined,
     });
+    // Like Firestore, a collection reads as the documents directly beneath it.
+    const documentsIn = (path: string) =>
+      [...records.entries()]
+        .filter(([key]) => key.startsWith(`${path}/`) && !key.slice(path.length + 1).includes("/"))
+        .map(([key, data]) => ({
+          id: key.split("/").at(-1) ?? "",
+          exists: true,
+          data: () => data,
+        }));
+    type Snapshot =
+      | { exists: boolean; data: () => Record<string, unknown> | undefined }
+      | { docs: ReturnType<typeof documentsIn> };
     const firestore = {
       doc: reference,
-      collection: vi.fn(() => ({ get: async () => ({ docs: [] }) })),
+      collection: vi.fn((path: string) => ({
+        path,
+        get: async () => ({ docs: documentsIn(path) }),
+      })),
       batch: vi.fn(() => {
         throw new Error("assessment must use a transaction");
       }),
       runTransaction: async <T>(
         update: (transaction: {
-          get: (ref: ReturnType<typeof reference>) => Promise<{
-            exists: boolean;
-            data: () => Record<string, unknown> | undefined;
-          }>;
+          // 83ecbfa: the write reads the active catalogue (levelSystems) inside the transaction.
+          get: (ref: { path: string }) => Promise<Snapshot>;
           create: (ref: ReturnType<typeof reference>, data: Record<string, unknown>) => void;
           set: (ref: ReturnType<typeof reference>, data: Record<string, unknown>) => void;
         }) => Promise<T>,
       ) =>
         update({
-          get: async (ref) => ({
-            exists: records.has(ref.path),
-            data: () => records.get(ref.path),
-          }),
+          get: async (ref) =>
+            ref.path.split("/").length % 2 === 1
+              ? { docs: documentsIn(ref.path) }
+              : { exists: records.has(ref.path), data: () => records.get(ref.path) },
           create: (ref, data) => {
             if (records.has(ref.path)) throw new Error("create collision");
             creates.push({ path: ref.path, data });
@@ -567,6 +582,11 @@ describe("canonical Levels security boundary", () => {
             kind: "stripe",
           },
         ],
+        // 83ecbfa: a level opens only against the active (published) catalogue.
+        [
+          "academies/academy-1/levelSystems/system-1",
+          { systemId: "system-1", academyId: "academy-1", status: "published" },
+        ],
       ]);
       const creates: { path: string; data: Record<string, unknown> }[] = [];
       const reference = (path: string) => ({
@@ -576,27 +596,41 @@ describe("canonical Levels security boundary", () => {
         set: async () => undefined,
         delete: async () => undefined,
       });
+      // Like Firestore, a collection reads as the documents directly beneath it.
+      const documentsIn = (path: string) =>
+        [...records.entries()]
+          .filter(
+            ([key]) => key.startsWith(`${path}/`) && !key.slice(path.length + 1).includes("/"),
+          )
+          .map(([key, data]) => ({
+            id: key.split("/").at(-1) ?? "",
+            exists: true,
+            data: () => data,
+          }));
+      type Snapshot =
+        | { exists: boolean; data: () => Record<string, unknown> | undefined }
+        | { docs: ReturnType<typeof documentsIn> };
       const firestore = {
         doc: reference,
-        collection: vi.fn(() => ({ get: async () => ({ docs: [] }) })),
+        collection: vi.fn((path: string) => ({
+          path,
+          get: async () => ({ docs: documentsIn(path) }),
+        })),
         batch: vi.fn(() => {
           throw new Error("level opening must use a transaction");
         }),
         runTransaction: async <T>(
           update: (transaction: {
-            get: (ref: ReturnType<typeof reference>) => Promise<{
-              exists: boolean;
-              data: () => Record<string, unknown> | undefined;
-            }>;
+            get: (ref: { path: string }) => Promise<Snapshot>;
             create: (ref: ReturnType<typeof reference>, data: Record<string, unknown>) => void;
             set: (ref: ReturnType<typeof reference>, data: Record<string, unknown>) => void;
           }) => Promise<T>,
         ) =>
           update({
-            get: async (ref) => ({
-              exists: records.has(ref.path),
-              data: () => records.get(ref.path),
-            }),
+            get: async (ref) =>
+              ref.path.split("/").length % 2 === 1
+                ? { docs: documentsIn(ref.path) }
+                : { exists: records.has(ref.path), data: () => records.get(ref.path) },
             create: (ref, data) => {
               if (records.has(ref.path)) throw new Error("create collision");
               creates.push({ path: ref.path, data });

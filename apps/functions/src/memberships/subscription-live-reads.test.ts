@@ -43,10 +43,14 @@ function harness(records: Record<string, unknown>[], missing = false) {
     updatedBy: "u",
   };
   const collection = (name: string): object => {
+    // No active plan and no approved identity alias exist for this member.
+    const docs =
+      name === "plans" || name.endsWith("/memberIdentityAliases") ? [] : records.map(snap);
     const query = {
       where: () => query,
+      orderBy: () => query,
       limit: () => query,
-      get: async () => ({ docs: name === "plans" ? [] : records.map(snap), size: records.length }),
+      get: async () => ({ docs, size: docs.length }),
       doc: () => ({
         collection,
         get: async () => ({ data: () => (missing ? undefined : student) }),
@@ -54,7 +58,19 @@ function harness(records: Record<string, unknown>[], missing = false) {
     };
     return query;
   };
-  return { doc: () => ({ collection }), collection } as unknown as Firestore;
+  // Direct path reads are the alias lookups (`memberIdentityAliases/{id}`): none exists.
+  const doc = (path: string) => ({
+    collection,
+    get: async () => ({
+      id: path.slice(path.lastIndexOf("/") + 1),
+      exists: false,
+      data: () => undefined,
+    }),
+  });
+  // A transaction read returns what a plain read of the same reference or query returns.
+  const runTransaction = (callback: (tx: object) => Promise<unknown>) =>
+    callback({ get: (target: { get: () => Promise<unknown> }) => target.get() });
+  return { doc, collection, runTransaction } as unknown as Firestore;
 }
 it("both Plan and Profile ignore raw imported memberships before domain parsing", async () => {
   const db = harness([

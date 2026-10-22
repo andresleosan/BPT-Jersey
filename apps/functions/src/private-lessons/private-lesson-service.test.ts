@@ -195,7 +195,7 @@ describe("reviewPrivateLessonPurchase", () => {
     expect(result).toMatchObject({
       status: "approved",
       creditsRemaining: 10,
-      expiresAt: "2027-02-28T09:00:00.000Z",
+      expiresAt: "2026-11-30T09:00:00.000Z",
       decidedBy: "office-uid",
     });
     expect(fake.invoices).toHaveLength(1);

@@ -247,14 +247,26 @@ describe("Schedule Callables", () => {
     expect(queried.sessions).toHaveLength(1);
     expect(queried.sessions[0]?.sessionId).toBe(created.session.sessionId);
 
+    // ADR-010 (8970e25): a coach only reads Classes; cancelling is for managers.
+    await expect(
+      cancelHandler(
+        fakeRequest(
+          { sessionId: created.session.sessionId, reason: "Instructor ill" },
+          "coach",
+          "coach-1",
+          "demo-academy",
+        ),
+      ),
+    ).rejects.toThrow(/Manager access required to cancel sessions/);
+
     const cancelled = await cancelHandler(
       fakeRequest(
         {
           sessionId: created.session.sessionId,
           reason: "Instructor ill",
         },
-        "coach",
-        "coach-1",
+        "headCoach",
+        "headcoach-1",
         "demo-academy",
       ),
     );
@@ -692,6 +704,8 @@ describe("Schedule Callables", () => {
         resolveClientStudentScope: ownStudentScope,
       });
 
+      // Coaches mark attendance from 2 h before a class to 12 h after it (8970e25).
+      const startAt = new Date(Date.now() + 30 * 60_000);
       const session = await store.createSession(
         "demo-academy",
         {
@@ -699,8 +713,8 @@ describe("Schedule Callables", () => {
           locationId: "town",
           instructorId: "coach-1",
           title: "Evening Class",
-          startAt: "2099-09-01T18:00:00Z",
-          endAt: "2099-09-01T19:00:00Z",
+          startAt: startAt.toISOString(),
+          endAt: new Date(startAt.getTime() + 3_600_000).toISOString(),
           capacity: 25,
         },
         "owner-1",
@@ -796,6 +810,8 @@ describe("Schedule Callables", () => {
         resolveClientStudentScope: ownStudentScope,
       });
 
+      // Coaches mark attendance from 2 h before a class to 12 h after it (8970e25).
+      const startAt = new Date(Date.now() + 30 * 60_000);
       const session = await store.createSession(
         "demo-academy",
         {
@@ -803,8 +819,8 @@ describe("Schedule Callables", () => {
           locationId: "town",
           instructorId: "coach-1",
           title: "Evening Class",
-          startAt: "2099-09-01T18:00:00Z",
-          endAt: "2099-09-01T19:00:00Z",
+          startAt: startAt.toISOString(),
+          endAt: new Date(startAt.getTime() + 3_600_000).toISOString(),
           capacity: 25,
         },
         "owner-1",
@@ -925,6 +941,8 @@ describe("Schedule Callables", () => {
         resolveClientStudentScope: guardianScope,
       });
 
+      // Coaches mark attendance from 2 h before a class to 12 h after it (8970e25).
+      const startAt = new Date(Date.now() + 30 * 60_000);
       const session = await store.createSession(
         "demo-academy",
         {
@@ -932,8 +950,8 @@ describe("Schedule Callables", () => {
           locationId: "town",
           instructorId: "coach-1",
           title: "Kids Gi Class",
-          startAt: "2099-09-01T16:00:00Z",
-          endAt: "2099-09-01T17:00:00Z",
+          startAt: startAt.toISOString(),
+          endAt: new Date(startAt.getTime() + 3_600_000).toISOString(),
           capacity: 20,
         },
         "owner-1",
@@ -1132,7 +1150,8 @@ describe("Schedule Callables", () => {
 describe("Self check-in callable", () => {
   const town = { latitude: 49.183954, longitude: -2.107142 };
   const near = { latitude: 49.184224, longitude: -2.107142, accuracyMeters: 12 };
-  const far = { latitude: 49.185034, longitude: -2.107142, accuracyMeters: 12 };
+  // 400 m from the pin: beyond the 300 m radius (5343788).
+  const far = { latitude: 49.187554, longitude: -2.107142, accuracyMeters: 12 };
 
   async function seeded() {
     const store = createInMemoryScheduleStore();
@@ -1262,6 +1281,8 @@ describe("Self check-in callable", () => {
       });
     }
     expect(recordSelfCheckIn).not.toHaveBeenCalled();
+    // No precision gate since 60dd061 (operator 2026-10-16): the raw reading reaches the store
+    // unrounded and only the distance to the pin counts, so a 100.4 m reading near it checks in.
     await expect(
       handler(
         fakeRequest(
@@ -1270,11 +1291,13 @@ describe("Self check-in callable", () => {
           "student-1",
         ),
       ),
-    ).rejects.toMatchObject({
-      code: "failed-precondition",
-      details: { reason: "imprecise" },
+    ).resolves.toMatchObject({
+      attendance: { method: "self", proximity: { signal: "within", accuracyMeters: 100 } },
     });
     expect(recordSelfCheckIn).toHaveBeenCalledOnce();
+    expect(recordSelfCheckIn.mock.calls[0]?.[1]).toMatchObject({
+      position: { accuracyMeters: 100.4 },
+    });
   });
 
   it("maps every domain refusal to safe failed-precondition details", async () => {
@@ -1285,15 +1308,16 @@ describe("Self check-in callable", () => {
         fakeRequest({ sessionId, studentId: "student-1", position }, "adultStudent", "student-1"),
       );
 
-    await expect(attempt(session.sessionId, far)).rejects.toMatchObject({
-      code: "failed-precondition",
-      details: { reason: "outside", distanceMeters: 120 },
-    });
-    await expect(
-      attempt(session.sessionId, { ...near, accuracyMeters: 101 }),
-    ).rejects.toMatchObject({
-      details: { reason: "imprecise" },
-    });
+    // No distance in the reply since H-02 (802bd57): it let a caller trilaterate the site.
+    const outside = attempt(session.sessionId, far);
+    await expect(outside).rejects.toMatchObject({ code: "failed-precondition" });
+    await expect(outside).rejects.toHaveProperty("details", { reason: "outside" });
+    // No precision gate since 60dd061: a coarse reading is refused on distance, never precision.
+    await expect(attempt(session.sessionId, { ...far, accuracyMeters: 101 })).rejects.toMatchObject(
+      {
+        details: { reason: "outside" },
+      },
+    );
     await store.saveLocationGeofence(
       "demo-academy",
       { locationId: "town", geofence: null },
@@ -1469,7 +1493,8 @@ describe("check-in proximity signal through the callables (T109)", () => {
     store: ReturnType<typeof createInMemoryScheduleStore>,
     locationId: "town" | "west",
   ) {
-    const startAt = new Date(Date.now() + 3 * 3_600_000);
+    // Inside the coach window: from 2 h before a class to 12 h after it (8970e25).
+    const startAt = new Date(Date.now() + 3_600_000);
     const created = (await createSaveSessionHandler({ store })(
       fakeRequest({
         classId: null,
@@ -2045,6 +2070,21 @@ describe("classes-services callables", () => {
   });
   it("hands the caller address to the store for a check-in, a booking and a cancellation", async () => {
     const store = createInMemoryScheduleStore();
+    // A coach checks in from 2 h before a class to 12 h after it (8970e25): the class must exist.
+    const startAt = new Date(Date.now() + 30 * 60_000);
+    const { sessionId } = await store.createSession(
+      "demo-academy",
+      {
+        programId: "adult-fundamentals",
+        locationId: "town",
+        instructorId: "coach-1",
+        title: "Evening Class",
+        startAt: startAt.toISOString(),
+        endAt: new Date(startAt.getTime() + 3_600_000).toISOString(),
+        capacity: 20,
+      },
+      "owner-1",
+    );
     const checkIn = vi.spyOn(store, "recordCheckIn").mockResolvedValue({} as never);
     const book = vi.spyOn(store, "requestBooking").mockResolvedValue({} as never);
     const cancel = vi.spyOn(store, "cancelBooking").mockResolvedValue({} as never);
@@ -2055,11 +2095,7 @@ describe("classes-services callables", () => {
     };
 
     await createCheckInHandler({ store })(
-      forwarded(
-        { sessionId: "session-1", studentId: "student-1", method: "manual" },
-        "coach",
-        "coach-1",
-      ),
+      forwarded({ sessionId, studentId: "student-1", method: "manual" }, "coach", "coach-1"),
     );
     await createRequestBookingHandler({ store, resolveClientStudentScope: ownStudentScope })(
       forwarded(
@@ -2078,7 +2114,7 @@ describe("classes-services callables", () => {
 
     expect(checkIn.mock.calls[0]).toEqual([
       "demo-academy",
-      { sessionId: "session-1", studentId: "student-1", method: "manual" },
+      { sessionId, studentId: "student-1", method: "manual" },
       "coach-1",
       undefined,
       "coach",
@@ -2298,18 +2334,21 @@ describe("bulk eligible booking", () => {
       ]),
       requestBooking,
     };
-    const result = await createBulkBookEligibleSessionsHandler({ store })(
-      fakeRequest(
-        {
-          studentId: "student-1",
-          membershipId: "membership-1",
-          from: "2099-09-01T00:00:00.000Z",
-          to: "2099-09-30T00:00:00.000Z",
-        },
-        "owner",
-        "owner-1",
-      ),
-    );
+    const input = {
+      studentId: "student-1",
+      membershipId: "membership-1",
+      from: "2099-09-01T00:00:00.000Z",
+      to: "2099-09-30T00:00:00.000Z",
+    };
+    const handler = createBulkBookEligibleSessionsHandler({
+      store,
+      resolveClientStudentScope: ownStudentScope,
+    });
+    // "Book all my classes" is the member's own action (ADR-018, 8970e25): staff are refused.
+    await expect(handler(fakeRequest(input, "owner", "owner-1"))).rejects.toMatchObject({
+      code: "permission-denied",
+    });
+    const result = await handler(fakeRequest(input, "adultStudent", "student-1"));
     expect(result).toMatchObject({
       bookedCount: 1,
       alreadyBookedCount: 1,

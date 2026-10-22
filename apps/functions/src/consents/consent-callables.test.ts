@@ -10,6 +10,16 @@ vi.mock("../auth/office-actor.js", async (importOriginal) => {
     requireActiveUserActor: async (request: never) => requireUserActor(request),
   };
 });
+// The member-account gate (58c2498) reads live Auth too; it is stubbed the same way, and the
+// registration test checks that every member operation still goes through it.
+vi.mock("../members/member-access-callables.js", async (importOriginal) => {
+  const original = await importOriginal<typeof import("../members/member-access-callables.js")>();
+  const { requireUserActor } = await import("../auth/user-authorization.js");
+  return {
+    ...original,
+    requireMemberAccountActor: vi.fn(async (request: never) => requireUserActor(request)),
+  };
+});
 
 import {
   acceptWaiverHandler,
@@ -21,6 +31,7 @@ import {
   withdrawCurrentWaiverHandler,
   type ConsentCallableServices,
 } from "./consent-callables.js";
+import { requireMemberAccountActor } from "../members/member-access-callables.js";
 
 const publication = {
   versionLabel: "pilot-2026-08",
@@ -125,6 +136,7 @@ describe("consent callables", () => {
 
   it("allows guardian and adultStudent registration operations with exact derived scope", async () => {
     const current = services();
+    vi.mocked(requireMemberAccountActor).mockClear();
     await getWaiverRegistrationHandler(request(null, "guardian", "guardian-1"), current);
     await acceptWaiverHandler(request(acceptance, "guardian", "guardian-1"), current);
     await revokeWaiverConsentHandler(
@@ -135,6 +147,12 @@ describe("consent callables", () => {
       request({ consentId: "consent-1" }, "guardian", "guardian-1"),
       current,
     );
+    expect(vi.mocked(requireMemberAccountActor).mock.calls).toEqual([
+      [request(null, "guardian", "guardian-1")],
+      [request(acceptance, "guardian", "guardian-1")],
+      [request({ consentId: "consent-1" }, "adultStudent", "adult-1")],
+      [request({ consentId: "consent-1" }, "guardian", "guardian-1")],
+    ]);
     expect(current.store.acceptWaiver).toHaveBeenCalledWith({
       academyId: "academy-1",
       actorId: "guardian-1",

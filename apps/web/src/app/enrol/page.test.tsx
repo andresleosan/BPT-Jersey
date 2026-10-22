@@ -172,6 +172,8 @@ describe("enrolment request page", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Enter your date of birth.");
     expect(screen.queryByText("£65 per month")).not.toBeInTheDocument();
     await user.type(screen.getByLabelText("Date of birth"), "1994-04-02");
+    // The belt sits under "I have trained before" and is checked before the plans step (1f4a2c4).
+    await user.selectOptions(screen.getByLabelText("Belt"), "blue-belt");
     await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
     await user.click(screen.getByLabelText("Evening"));
     await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
@@ -186,7 +188,6 @@ describe("enrolment request page", () => {
     expect(screen.getByRole("radio", { name: /Free Trial/ })).toBeChecked();
     await user.click(screen.getByRole("radio", { name: /West Adult/ }));
     expect(screen.getByRole("radio", { name: /Free Trial/ })).not.toBeChecked();
-    await user.selectOptions(screen.getByLabelText("Belt"), "blue-belt");
     await completePayment(user);
     await user.click(screen.getByRole("button", { name: /send request/i }));
     await waitFor(() => expect(enrolmentApi.submitEnrolmentRequest).toHaveBeenCalledOnce());
@@ -251,7 +252,7 @@ describe("enrolment request page", () => {
     await waitFor(() => expect(screen.getByLabelText("Full name")).toBeVisible());
     await user.type(screen.getByLabelText("Date of birth"), "1994-04-02");
     await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
-    await user.click(screen.getByLabelText(/parent or guardian/i));
+    await user.click(screen.getByLabelText("My child or children"));
     await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
     await user.click(screen.getByRole("button", { name: /continue to plans/i }));
 
@@ -266,7 +267,7 @@ describe("enrolment request page", () => {
     await waitFor(() => expect(screen.getByLabelText("Full name")).toBeVisible());
     await user.type(screen.getByLabelText("Date of birth"), "1990-01-01");
     await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
-    await user.click(screen.getByLabelText(/parent or guardian/i));
+    await user.click(screen.getByLabelText("My child or children"));
     await user.click(screen.getByRole("button", { name: /add a child/i }));
     await user.type(
       screen.getByLabelText("Full name", { selector: "#enrol-minor-0-name" }),
@@ -497,6 +498,7 @@ describe("enrolment steps", () => {
 
     await fillAdult(user);
     await user.click(screen.getByLabelText("Yes, I have trained before"));
+    await user.selectOptions(screen.getByLabelText("Belt"), "blue-belt");
     await user.selectOptions(screen.getByLabelText("Training centre"), "West");
     await user.click(screen.getByRole("button", { name: /continue to plans/i }));
 
@@ -518,6 +520,7 @@ describe("enrolment steps", () => {
     expect(screen.getByRole("radio", { name: /Town Adult/ })).toBeChecked();
     await user.click(screen.getByRole("button", { name: /back to details/i }));
     await user.click(screen.getByLabelText("Yes, I have trained before"));
+    await user.selectOptions(screen.getByLabelText("Belt"), "blue-belt");
     await user.selectOptions(screen.getByLabelText("Training centre"), "West");
     await user.click(screen.getByRole("button", { name: /continue to plans/i }));
     expect(screen.queryByRole("radio", { name: /Town Adult/ })).not.toBeInTheDocument();
@@ -534,19 +537,24 @@ describe("enrolment steps", () => {
     await screen.findByLabelText("Full name");
     await user.type(screen.getByLabelText("Date of birth"), "1990-01-01");
     await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
-    await user.click(screen.getByLabelText(/parent or guardian/i));
+    await user.click(screen.getByLabelText("My child or children"));
     const children = [
       { name: "Town Child", dob: "2018-05-10", centre: "Town", plan: "Town Kids & Teens 1x" },
       { name: "West Teen", dob: "2011-05-10", centre: "West", plan: "West Teens single class" },
     ];
     for (const [index, child] of children.entries()) {
-      await user.click(screen.getByRole("button", { name: /add a child/i }));
+      await user.click(
+        screen.getByRole("button", { name: index === 0 ? "Add a child" : "Add another child" }),
+      );
       const fields = within(screen.getByRole("group", { name: `Child ${index + 1}` }));
       await user.type(fields.getByLabelText("Full name"), child.name);
       await user.type(fields.getByLabelText("Date of birth"), child.dob);
-      // West is only open to a child who has trained before.
+      // West is only open to a child who has trained before. With no gender chosen the answer
+      // names the child by first name (c28f4c8), and the belt sits right under it (1f4a2c4).
       if (child.centre === "West") {
-        await user.click(fields.getByLabelText("Yes, they have trained before"));
+        await user.click(fields.getByLabelText("Yes, West has trained before"));
+        const westBelt = fields.getByLabelText("Belt") as HTMLSelectElement;
+        await user.selectOptions(westBelt, westBelt.options[1]!.value);
       }
       await user.selectOptions(fields.getByLabelText("Training centre"), child.centre);
       await user.click(fields.getByLabelText("Afternoon"));
@@ -563,8 +571,6 @@ describe("enrolment steps", () => {
     expect(west.getByRole("radio", { name: /Free Trial/ })).toBeChecked();
     await user.click(town.getByRole("radio", { name: /Town Kids & Teens 1x/ }));
     expect(west.getByRole("radio", { name: /Free Trial/ })).toBeChecked();
-    const westBelt = west.getByLabelText("Belt") as HTMLSelectElement;
-    await user.selectOptions(westBelt, westBelt.options[1]!.value);
     expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
     await user.click(west.getByRole("radio", { name: /West Teens single class/ }));
     await completePayment(user);
@@ -678,13 +684,14 @@ describe("beginner trial", () => {
     await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
     await user.click(screen.getByLabelText("Evening"));
     await user.click(screen.getByLabelText("Yes, I have trained before"));
+    // The belt is declared right under that answer, before the plans step (1f4a2c4).
+    await user.selectOptions(screen.getByLabelText("Belt"), "blue-belt");
+    await user.selectOptions(screen.getByLabelText("Stripes"), "2");
     await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
     await user.click(screen.getByRole("button", { name: /continue to plans/i }));
 
     // A student who has trained before gets one free class, not two.
     expect(screen.getByText("1 free class at Town")).toBeVisible();
-    await user.selectOptions(screen.getByLabelText("Belt"), "blue-belt");
-    await user.selectOptions(screen.getByLabelText("Stripes"), "2");
 
     await user.click(screen.getByRole("button", { name: /continue to review/i }));
     await user.click(screen.getByRole("button", { name: /send request to the academy/i }));

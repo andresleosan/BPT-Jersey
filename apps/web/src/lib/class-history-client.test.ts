@@ -56,7 +56,7 @@ describe("class history web client", () => {
   it("parses the rows the callable returns", async () => {
     mocks.callable.mockResolvedValue({ data: { rows: [row], total: 1 } });
     await expect(fetchClassHistory(input)).resolves.toEqual({ rows: [row], total: 1 });
-    expect(mocks.httpsCallable).toHaveBeenLastCalledWith({}, "listClassHistory");
+    expect(mocks.httpsCallable).toHaveBeenLastCalledWith({}, "listClassHistory", undefined);
     expect(mocks.callable).toHaveBeenLastCalledWith(input);
   });
 
@@ -83,7 +83,7 @@ describe("class history web client", () => {
       data: { pdfBase64, fileName: "class-history-2026-09-16.pdf" },
     });
     const result = await downloadClassHistoryPdf(input);
-    expect(mocks.httpsCallable).toHaveBeenLastCalledWith({}, "exportClassHistoryPdf");
+    expect(mocks.httpsCallable).toHaveBeenLastCalledWith({}, "exportClassHistoryPdf", undefined);
     expect(result.fileName).toBe("class-history-2026-09-16.pdf");
     expect(result.blob.type).toBe("application/pdf");
     expect(await result.blob.text()).toBe("%PDF-1.4 test");

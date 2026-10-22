@@ -12,7 +12,8 @@ vi.mock("../../../lib/client-auth", () => ({
   ClientAuthGate: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   useClientSession: () => ({ session: { role: mocks.role } }),
 }));
-vi.mock("../../../lib/family-plan-client", () => ({ listMyProfiles: mocks.listMyProfiles }));
+// The page asks here who trains on the account (35ba6b6); family-plan-client was removed (d633513).
+vi.mock("../../../lib/account-people", () => ({ listMyProfiles: mocks.listMyProfiles }));
 vi.mock("../../../lib/family-client", () => ({ getFamily: vi.fn() }));
 vi.mock("../../../lib/account-settings-client", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../lib/account-settings-client")>()),

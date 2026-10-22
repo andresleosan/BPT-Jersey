@@ -172,11 +172,26 @@ describe("deploy runtime import preparation", () => {
       stdio: "pipe",
       shell: process.platform === "win32",
     });
-    execFileSync(packageManager, ["pnpm", "--filter", "@bpt-jersey/functions", "build"], {
-      cwd: repositoryRoot,
-      stdio: "pipe",
-      shell: process.platform === "win32",
-    });
+    // Compile as build-deploy-artifact.mjs does: tsconfig.deploy.json leaves the *.test.ts out.
+    execFileSync(
+      packageManager,
+      [
+        "pnpm",
+        "--filter",
+        "@bpt-jersey/functions",
+        "exec",
+        "tsc",
+        "-p",
+        "tsconfig.deploy.json",
+        "--module",
+        "ESNext",
+        "--moduleResolution",
+        "Bundler",
+        "--rootDir",
+        ".",
+      ],
+      { cwd: repositoryRoot, stdio: "pipe", shell: process.platform === "win32" },
+    );
     const root = await mkdtemp(join(tmpdir(), "bpt-deploy-layout-"));
     temporaryDirectories.push(root);
     const deployRoot = join(root, "functions");
@@ -215,6 +230,12 @@ describe("deploy runtime import preparation", () => {
       join(deployRoot, "package.json"),
       await readFile(join(repositoryRoot, "apps", "functions", "package.json"), "utf8"),
     );
+    const overrides =
+      'overrides:\n  nanoid: 3.3.18\n  # Kept verbatim.\n  "qs@<6.16.0": 6.16.0\n\n';
+    await writeFile(
+      join(root, "pnpm-workspace.yaml"),
+      `packages:\n  - "apps/*"\n\n${overrides}catalog:\n  zod: 4.4.3\n`,
+    );
     // The runtime preparation script is intentionally a JavaScript deploy artifact.
     // @ts-expect-error The script has no generated TypeScript declaration.
     const prepareDeployRuntime = (await import("../scripts/prepare-deploy-runtime.mjs"))
@@ -226,7 +247,7 @@ describe("deploy runtime import preparation", () => {
       deployRoot: temporaryDeployRoot,
     });
     expect(await readFile(join(deployRoot, "pnpm-workspace.yaml"), "utf8")).toBe(
-      'packages:\n  - "."\n',
+      `packages:\n  - "."\n\n${overrides}`,
     );
     const indexPath = join(deployRoot, "lib", "src", "index.js");
     const indexSource = await readFile(indexPath, "utf8");
@@ -242,9 +263,10 @@ describe("deploy runtime import preparation", () => {
       readFile(join(domainRoot, "members", "member-recovery-contracts.js"), "utf8"),
     ).resolves.toContain("completeMemberRecoveryResultSchema");
     const deployedFunctions = await import(pathToFileURL(indexPath).href);
-    expect(deployedFunctions["beginMemberRecovery"]).toBeTypeOf("function");
-    expect(deployedFunctions["completeMemberRecovery"]).toBeTypeOf("function");
-    expect(deployedFunctions["reviewMemberRecovery"]).toBeTypeOf("function");
+    expect(deployedFunctions["getMemberRecoveryHistory"]).toBeUndefined();
+    expect(deployedFunctions["beginMemberRecovery"]).toBeUndefined();
+    expect(deployedFunctions["completeMemberRecovery"]).toBeUndefined();
+    expect(deployedFunctions["reviewMemberRecovery"]).toBeUndefined();
     expect(deployedFunctions["createMember"]).toBeTypeOf("function");
     expect(deployedFunctions["listMembers"]).toBeTypeOf("function");
     expect(deployedFunctions["getMemberDetail"]).toBeTypeOf("function");

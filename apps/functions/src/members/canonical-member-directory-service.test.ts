@@ -1138,20 +1138,69 @@ describe("DETAILS block on the canonical update (T051V2)", () => {
   });
 });
 
+const legacyReview = {
+  legacyVersion: "1:0",
+  identityEvidence: "Synthetic passport seen",
+  choices: [],
+};
+/** A legacy registration sends the reviewed identity, gender included (f33b54e). */
+const legacyInput = (requestId?: string) => ({ ...input(requestId), gender: "unknown" as const });
+
+/**
+ * Legacy members holding the identity `legacyInput()` sends, at the version `legacyReview` saw. Since
+ * the explicit reconciliation decisions (f33b54e) the writer re-reads the member in its transaction,
+ * checks that version and refuses any identity other than the reviewed one.
+ */
+function withReviewedLegacyMembers(
+  dateOfBirth: string | undefined,
+  ...legacyMemberIds: readonly string[]
+) {
+  const { fullName, email, phoneNumber, membershipNumber, idCardNumber, vatNumber, gender } =
+    legacyInput();
+  const seed = controlPlaneSeed();
+  const versions: Record<string, string> = {};
+  for (const memberId of legacyMemberIds) {
+    const path = `academies/academy-1/members/${memberId}`;
+    seed[path] = {
+      memberId,
+      academyId: "academy-1",
+      fullName,
+      ...(dateOfBirth === undefined ? {} : { birthDate: dateOfBirth }),
+      email,
+      mobileNumber: phoneNumber,
+      membershipNumber,
+      idCardNumber,
+      vatNumber,
+      gender,
+      paymentStatus: "unknown",
+      membershipStatus: "active",
+      createdAt: "2026-09-01T00:00:00.000Z",
+      createdBy: "import-1",
+      updatedAt: "2026-09-01T00:00:00.000Z",
+      updatedBy: "import-1",
+      source: "legacy-import",
+      schemaVersion: "1",
+    };
+    versions[path] = legacyReview.legacyVersion;
+  }
+  return fakeFirestore(seed, undefined, versions);
+}
+
 describe("legacy member migration", () => {
   const migrationNow = "2026-09-19T10:00:00.000Z";
   const decisionPath = "academies/academy-1/memberMigrationDecisions/legacyAbc1";
   const legacy = {
     legacyMemberId: "legacyAbc1",
+    review: legacyReview,
     trainingCenter: "Town" as const,
     trainingTimePreferences: ["evening" as const],
   };
 
   it("creates the student with a legacy-member-migration profile, a legacy key and the decision", async () => {
-    const harness = fakeFirestore(controlPlaneSeed());
+    const harness = withReviewedLegacyMembers("2000-01-02", "legacyAbc1");
     const result = await service(harness.firestore).registerLegacyMember({
       actor: actor(),
-      value: input(),
+      value: legacyInput(),
       now: migrationNow,
       ...legacy,
     });
@@ -1172,6 +1221,29 @@ describe("legacy member migration", () => {
       trainingTimePreferences: ["evening"],
       decidedAt: migrationNow,
       decidedBy: "owner-1",
+      review: legacyReview,
+      sourceValues: {
+        legacy: {
+          fullName: "Synthetic Adult",
+          birthDate: "2000-01-02",
+          email: "adult@example.test",
+          mobileNumber: "+441534000001",
+          membershipNumber: "#00001234",
+          idCardNumber: "id-1234",
+          vatNumber: "vat-1234",
+          gender: "unknown",
+        },
+        archive: {
+          fullName: null,
+          birthDate: null,
+          email: null,
+          mobileNumber: null,
+          membershipNumber: null,
+          idCardNumber: null,
+          vatNumber: null,
+          gender: null,
+        },
+      },
       schemaVersion: "1",
     });
     const legacyKeys = [...harness.records.entries()].filter(([path]) =>
@@ -1190,9 +1262,15 @@ describe("legacy member migration", () => {
   });
 
   it("refuses receipt replay for a different legacy member", async () => {
-    const harness = fakeFirestore(controlPlaneSeed());
+    // A duplicate of the same person, imported in the same commit: same identity, same version.
+    const harness = withReviewedLegacyMembers("2000-01-02", "legacyAbc1", "legacyXyz");
     const writer = service(harness.firestore);
-    const command = { actor: actor(), value: input("request-1"), now: migrationNow, ...legacy };
+    const command = {
+      actor: actor(),
+      value: legacyInput("request-1"),
+      now: migrationNow,
+      ...legacy,
+    };
     await writer.registerLegacyMember(command);
     const before = new Map(harness.records);
 
@@ -1200,7 +1278,7 @@ describe("legacy member migration", () => {
       writer.registerLegacyMember({
         ...command,
         legacyMemberId: "legacyXyz",
-        value: input("request-1"),
+        value: legacyInput("request-1"),
       }),
     ).rejects.toMatchObject({ code: "replay", message: "Divergent member write replay" });
     expect(harness.records.has("academies/academy-1/memberMigrationDecisions/legacyXyz")).toBe(
@@ -1210,9 +1288,14 @@ describe("legacy member migration", () => {
   });
 
   it("refuses a second decision for the same legacy member", async () => {
-    const harness = fakeFirestore(controlPlaneSeed());
+    const harness = withReviewedLegacyMembers("2000-01-02", "legacyAbc1");
     const writer = service(harness.firestore);
-    const command = { actor: actor(), value: input("request-1"), now: migrationNow, ...legacy };
+    const command = {
+      actor: actor(),
+      value: legacyInput("request-1"),
+      now: migrationNow,
+      ...legacy,
+    };
     await writer.registerLegacyMember(command);
     const before = new Map(harness.records);
     await expect(
@@ -1223,19 +1306,20 @@ describe("legacy member migration", () => {
         now: "2026-09-19T10:01:00.000Z",
       }),
     ).rejects.toThrow("Legacy member already decided");
-    await expect(writer.registerLegacyMember(command)).rejects.toThrow(
-      "Legacy member already decided",
-    );
+    // An exact retry is answered from its receipt (f33b54e); a second decision is a new request.
+    await expect(
+      writer.registerLegacyMember({ ...command, value: legacyInput("request-2") }),
+    ).rejects.toThrow("Legacy member already decided");
     expect(harness.records).toEqual(before);
   });
 
   it.each(["2012-01-01", undefined])(
     "creates a reviewable student with DOB %s and no family",
     async (dateOfBirth) => {
-      const harness = fakeFirestore(controlPlaneSeed());
+      const harness = withReviewedLegacyMembers(dateOfBirth, "legacyAbc1");
       await service(harness.firestore).registerLegacyMember({
         actor: actor(),
-        value: { ...input(), dateOfBirth },
+        value: { ...legacyInput(), dateOfBirth },
         now: migrationNow,
         ...legacy,
       });
@@ -2142,13 +2226,14 @@ describe("S1 admin review", () => {
     guardianContact: guardian,
   };
   async function migrated(dateOfBirth: string | null = "2012-01-01") {
-    const harness = fakeFirestore();
+    const harness = withReviewedLegacyMembers(dateOfBirth ?? undefined, "legacy-1");
     const writer = service(harness.firestore);
     await writer.registerLegacyMember({
       actor: actor(),
       now,
-      value: { ...input(), dateOfBirth: dateOfBirth ?? undefined },
+      value: { ...legacyInput(), dateOfBirth: dateOfBirth ?? undefined },
       legacyMemberId: "legacy-1",
+      review: legacyReview,
       trainingCenter: "Town",
       trainingTimePreferences: ["evening"],
     });

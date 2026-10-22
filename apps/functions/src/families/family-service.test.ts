@@ -196,12 +196,15 @@ function createServices(
       if (authUser === undefined) throw new Error("auth user missing");
       return {
         uid: authUser.userId,
+        // The family writer only links a verified account (office approval vouches for it, D8).
+        emailVerified: true,
         customClaims: { academyId: authUser.academyId, role: "guardian" },
       };
     },
   };
   let familyNumber = 0;
   let studentNumber = 0;
+  let auditNumber = 0;
   const store = createFamilyStore({
     firestore: fake.firestore,
     auth,
@@ -214,7 +217,8 @@ function createServices(
     },
     generateFamilyId: () => `family-${++familyNumber}`,
     generateStudentId: () => `student-${++studentNumber}`,
-    generateAuditId: () => `audit-${familyNumber}-${studentNumber}`,
+    // Unique per call like the production randomUUID: one operation may write several audits.
+    generateAuditId: () => `audit-${++auditNumber}`,
   });
   return { ...fake, store };
 }
@@ -490,7 +494,7 @@ describe("family Firestore store", () => {
     });
   });
 
-  it("rejects duplicate tutor membership, invalid Auth, tenant mismatch, and linked student collisions", async () => {
+  it("keeps a second family for the same tutor separate, and rejects invalid Auth, tenant mismatch, and linked student collisions", async () => {
     const first = createServices({
       "academies/academy-1/users/user-1": tutorUser(),
     });
@@ -504,9 +508,17 @@ describe("family Firestore store", () => {
       now: "2026-08-19T10:00:00.000Z",
     } as const;
     await first.store.createFamily(input);
+    // A guardian account may hold more than one family (985b517; unified members plan, Task 4:
+    // "Do not limit an account to a single family result"). A new request gets its own family
+    // and never rewrites the first one.
+    const firstFamily = first.records.get("academies/academy-1/families/family-1");
     await expect(
       first.store.createFamily({ ...input, requestId: "request-create-duplicate-2" }),
-    ).rejects.toMatchObject({ code: "duplicate" });
+    ).resolves.toMatchObject({
+      family: { familyId: "family-2", primaryContactUserId: "user-1" },
+      students: [{ studentId: "student-2", familyId: "family-2" }],
+    });
+    expect(first.records.get("academies/academy-1/families/family-1")).toEqual(firstFamily);
 
     await expect(createServices({}, undefined).store.createFamily(input)).rejects.toMatchObject({
       code: "precondition",
@@ -537,7 +549,7 @@ describe("family Firestore store", () => {
     });
   });
 
-  it("propagates a replacement tutor to the family contacts and active relationships", async () => {
+  it("refuses a whole-family tutor replacement and keeps the family contacts and active relationships", async () => {
     const secondTutor = tutorUser({ userId: "user-2", email: "second@example.test" });
     const { store, records } = createServices(
       {
@@ -556,25 +568,32 @@ describe("family Firestore store", () => {
       now: "2026-08-19T10:00:00.000Z",
     });
 
-    const projection = await store.updateFamily({
-      academyId: "academy-1",
-      actorId: "admin-2",
-      actorRole: "administrator",
-      familyId: "family-1",
-      operation: { kind: "replaceTutor", tutorUserId: "user-2" },
-      now: "2026-08-20T10:00:00.000Z",
-    });
+    // The whole-family path must not bypass the per-child guardian review (985b517; unified
+    // members plan, Task 5: "Prevent the old whole-family `replaceTutor` path...").
+    await expect(
+      store.updateFamily({
+        academyId: "academy-1",
+        actorId: "admin-2",
+        actorRole: "administrator",
+        familyId: "family-1",
+        operation: { kind: "replaceTutor", tutorUserId: "user-2" },
+        now: "2026-08-20T10:00:00.000Z",
+      }),
+    ).rejects.toMatchObject({ code: "precondition" });
 
-    expect(projection.family.primaryContactUserId).toBe("user-2");
-    expect(projection.family.billingContactUserId).toBe("user-2");
-    expect(projection.relationships[0]?.adultUserId).toBe("user-2");
     expect(records.get("academies/academy-1/families/family-1")).toMatchObject({
+      primaryContactUserId: "user-1",
+      billingContactUserId: "user-1",
       createdAt: "2026-08-19T10:00:00.000Z",
-      updatedBy: "admin-2",
+      updatedBy: "admin-1",
+    });
+    expect(records.get("academies/academy-1/relationships/family-1--student-1")).toMatchObject({
+      active: true,
+      adultUserId: "user-1",
     });
   });
 
-  it("replaces an office contact with an Auth tutor and remains readable", async () => {
+  it("refuses a whole-family tutor replacement on an office contact family, which remains readable", async () => {
     const familyPath = "academies/academy-1/families/office-student-1";
     const { store, records } = createServices({
       "academies/academy-1/users/user-1": tutorUser(),
@@ -593,24 +612,34 @@ describe("family Firestore store", () => {
         updatedBy: "admin-1",
       },
     });
-    const updated = await store.updateFamily({
-      academyId: "academy-1",
-      actorId: "admin-1",
-      actorRole: "administrator",
-      familyId: "office-student-1",
-      operation: { kind: "replaceTutor", tutorUserId: "user-1" },
-      now: "2026-08-20T10:00:00.000Z",
-    });
-    await expect(store.getStaffFamily("academy-1", "office-student-1")).resolves.toEqual(updated);
-    expect(records.get(familyPath)).not.toHaveProperty("guardianContact");
-    expect(updated.family).toMatchObject({
-      primaryContactUserId: "user-1",
-      billingContactUserId: "user-1",
-      createdAt: CONTROL_NOW,
+    const officeFamily = records.get(familyPath);
+    // Linking an online guardian is a reviewed per-child action now; the old whole-family path is
+    // refused but its historical records stay readable (985b517; unified members plan, Task 5).
+    await expect(
+      store.updateFamily({
+        academyId: "academy-1",
+        actorId: "admin-1",
+        actorRole: "administrator",
+        familyId: "office-student-1",
+        operation: { kind: "replaceTutor", tutorUserId: "user-1" },
+        now: "2026-08-20T10:00:00.000Z",
+      }),
+    ).rejects.toMatchObject({ code: "precondition" });
+    expect(records.get(familyPath)).toEqual(officeFamily);
+    await expect(store.getStaffFamily("academy-1", "office-student-1")).resolves.toMatchObject({
+      family: {
+        familyId: "office-student-1",
+        primaryContactUserId: null,
+        billingContactUserId: null,
+        guardianContact: { fullName: "Synthetic Guardian", email: "guardian@example.test" },
+        createdAt: CONTROL_NOW,
+      },
+      students: [],
+      relationships: [],
     });
   });
 
-  it("deactivates one relationship and then the family without deleting documents", async () => {
+  it("refuses a single-relationship deactivation, then deactivates the family without deleting documents", async () => {
     const { store, records } = createServices({
       "academies/academy-1/users/user-1": tutorUser(),
     });
@@ -624,16 +653,23 @@ describe("family Firestore store", () => {
       now: "2026-08-19T10:00:00.000Z",
     });
 
-    await store.updateFamily({
-      academyId: "academy-1",
-      actorId: "admin-1",
-      actorRole: "administrator",
-      familyId: "family-1",
-      operation: { kind: "deactivateRelationship", studentId: "student-1" },
-      now: "2026-08-20T10:00:00.000Z",
-    });
+    // Ending one child's guardian link is a reviewed per-child action now (985b517; unified
+    // members plan, Task 5), so the family update leaves both links in place.
+    await expect(
+      store.updateFamily({
+        academyId: "academy-1",
+        actorId: "admin-1",
+        actorRole: "administrator",
+        familyId: "family-1",
+        operation: { kind: "deactivateRelationship", studentId: "student-1" },
+        now: "2026-08-20T10:00:00.000Z",
+      }),
+    ).rejects.toMatchObject({ code: "precondition" });
     const guardian = await store.getGuardianFamily("academy-1", "user-1");
-    expect(guardian?.students.map((student) => student.studentId)).toEqual(["student-2"]);
+    expect(guardian?.students.map((student) => student.studentId)).toEqual([
+      "student-1",
+      "student-2",
+    ]);
 
     await store.updateFamily({
       academyId: "academy-1",
@@ -676,9 +712,42 @@ describe("family Firestore store", () => {
     expect(projection?.students[0]).not.toHaveProperty("familyId");
   });
 
-  it("fails closed when guardian relationships resolve to more than one family", async () => {
+  it("returns one family's children when guardian relationships resolve to more than one family", async () => {
+    // Single-family callers get one family filtered to its own children, never a merged
+    // projection; account readers list the union instead (58c2498; unified members plan, Task 6).
+    const familyWithMinor = (suffix: "a" | "b") => ({
+      [`academies/academy-1/families/family-${suffix}`]: {
+        familyId: `family-${suffix}`,
+        academyId: "academy-1",
+        primaryContactUserId: "user-1",
+        billingContactUserId: "user-1",
+        active: true,
+        status: "active",
+        schemaVersion: "1",
+        createdAt: "2026-08-19T10:00:00.000Z",
+        createdBy: "admin-1",
+        updatedAt: "2026-08-19T10:00:00.000Z",
+        updatedBy: "admin-1",
+      },
+      [`academies/academy-1/students/student-${suffix}`]: {
+        ...draft(`Synthetic Minor ${suffix.toUpperCase()}`),
+        studentId: `student-${suffix}`,
+        academyId: "academy-1",
+        familyId: `family-${suffix}`,
+        participantType: "minor",
+        active: true,
+        status: "active",
+        schemaVersion: "1",
+        createdAt: "2026-08-19T10:00:00.000Z",
+        createdBy: "admin-1",
+        updatedAt: "2026-08-19T10:00:00.000Z",
+        updatedBy: "admin-1",
+      },
+    });
     const { store } = createServices({
       "academies/academy-1/users/user-1": tutorUser(),
+      ...familyWithMinor("a"),
+      ...familyWithMinor("b"),
       "academies/academy-1/relationships/family-a--student-a": {
         relationshipId: "family-a--student-a",
         academyId: "academy-1",
@@ -715,9 +784,9 @@ describe("family Firestore store", () => {
       },
     });
 
-    await expect(store.getGuardianFamily("academy-1", "user-1")).rejects.toMatchObject({
-      code: "duplicate",
-    });
+    const projection = await store.getGuardianFamily("academy-1", "user-1");
+    expect(projection?.family.familyId).toBe("family-a");
+    expect(projection?.students.map((student) => student.studentId)).toEqual(["student-a"]);
   });
 
   it("replays an identical create receipt and rejects a divergent request with the same requestId", async () => {
@@ -1124,9 +1193,10 @@ describe("family Firestore store", () => {
     });
 
     expect(writes.some((write) => /(?:^|\/)members(?:\/|$)/u.test(write))).toBe(false);
+    // memberGuardianStates is the per-child guardian anchor every family writer seeds (985b517).
     expect(
       writes.every((write) =>
-        /(?:academies\/academy-1\/(?:families|students|relationships|memberDirectoryStates|familyWriteReceipts|auditEvents)\/|memberDirectoryRestoreGuards\/academy-1(?:\/events\/)?)/u.test(
+        /(?:academies\/academy-1\/(?:families|students|relationships|memberGuardianStates|memberDirectoryStates|familyWriteReceipts|auditEvents)\/|memberDirectoryRestoreGuards\/academy-1(?:\/events\/)?)/u.test(
           write,
         ),
       ),

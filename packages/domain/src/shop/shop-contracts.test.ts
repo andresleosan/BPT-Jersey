@@ -269,7 +269,7 @@ describe("shop helpers", () => {
     expect(shopMadeToOrderLabel(6)).toBe("Made to order · about 6 weeks");
   });
   it("derives the same reference from the order id or the request id", () => {
-    expect(shopOrderReference("order-6f1c2a7e-1111")).toBe("SHOP-6F1C2A7E");
-    expect(shopOrderReference("6f1c2a7e-1111")).toBe("SHOP-6F1C2A7E");
+    expect(shopOrderReference({ orderId: "order-6f1c2a7e-1111" })).toBe("SHOP-6F1C2A7E");
+    expect(shopOrderReference({ orderId: "6f1c2a7e-1111" })).toBe("SHOP-6F1C2A7E");
   });
 });

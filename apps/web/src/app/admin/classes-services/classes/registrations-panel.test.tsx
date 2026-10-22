@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   listSessionBookings: vi.fn(),
   requestBooking: vi.fn(),
   confirmPaygClassPayment: vi.fn(),
+  listSessionGroups: vi.fn(),
+  registerMemberGroup: vi.fn(),
 }));
 
 vi.mock("../../../../lib/schedule-client", () => ({
@@ -24,6 +26,8 @@ vi.mock("../../../../lib/membership-admin-client", () => ({
 vi.mock("../../../../lib/groups-client", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   confirmPaygClassPayment: mocks.confirmPaygClassPayment,
+  listSessionGroups: mocks.listSessionGroups,
+  registerMemberGroup: mocks.registerMemberGroup,
 }));
 
 import { RegistrationsPanel } from "./registrations-panel";
@@ -157,30 +161,51 @@ describe("RegistrationsPanel", () => {
     );
   });
 
-  it("enrols every student of a family from the Group tab", async () => {
+  // 2026-09-22 (fb95011, ADR-018 group exception): the Group tab no longer books each student of a
+  // directory family from the browser; the office registers a group and the server books its members.
+  it("enrols every member of a group from the Group tab", async () => {
+    const notYet = { missingPayment: false, state: "pending", reason: "Not registered yet" };
+    const group = {
+      groupId: "g1",
+      name: "Scally family",
+      site: "Town",
+      active: true,
+      assigned: false,
+      recurring: false,
+      members: [
+        { studentId: "st3", fullName: "Ada Scally", ...notYet },
+        { studentId: "st4", fullName: "Ben Scally", ...notYet },
+      ],
+    };
     mocks.listMemberNames.mockResolvedValue([
       { studentId: "st3", fullName: "Ada Scally", familyId: "f1" },
       { studentId: "st4", fullName: "Ben Scally", familyId: "f1" },
     ]);
-    mocks.listMemberships.mockResolvedValue([
-      membership("m3", "st3", "f1", "active"),
-      membership("m4", "st4", "f1", "active"),
+    mocks.listSessionGroups.mockResolvedValue([group]);
+    mocks.registerMemberGroup.mockResolvedValue([
+      {
+        ...group,
+        assigned: true,
+        members: group.members.map((member) => ({
+          ...member,
+          state: "registered",
+          reason: "Registered",
+        })),
+      },
     ]);
-    mocks.requestBooking.mockResolvedValue({
-      bookingId: "b",
-      sessionId: "s1",
-      studentId: "st3",
-      status: "confirmed",
-    });
+    mocks.listSessionBookings.mockResolvedValueOnce([]).mockResolvedValue([
+      { bookingId: "b3", sessionId: "s1", studentId: "st3", status: "confirmed" },
+      { bookingId: "b4", sessionId: "s1", studentId: "st4", status: "confirmed" },
+    ]);
     render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships />);
     fireEvent.click(screen.getByRole("tab", { name: "Group" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Scally family" }));
-    await waitFor(() => expect(mocks.requestBooking).toHaveBeenCalledTimes(2));
-    expect(mocks.requestBooking).toHaveBeenCalledWith({
-      sessionId: "s1",
-      studentId: "st4",
-      membershipId: "m4",
-    });
+    fireEvent.click(await screen.findByRole("button", { name: /Scally family/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Register group" }));
+    await waitFor(() => expect(mocks.registerMemberGroup).toHaveBeenCalledTimes(1));
+    expect(mocks.registerMemberGroup).toHaveBeenCalledWith("g1", "s1");
+    expect(await screen.findByRole("button", { name: "Remove Ben Scally" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove Ada Scally" })).toBeInTheDocument();
+    expect(mocks.requestBooking).not.toHaveBeenCalled();
   });
 
   it("refuses to enrol a member without an active membership", async () => {

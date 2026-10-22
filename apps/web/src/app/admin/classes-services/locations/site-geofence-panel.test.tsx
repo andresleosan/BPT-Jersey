@@ -61,7 +61,7 @@ describe("SiteGeofencePanel", () => {
       }),
     );
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "BPT Town: coordinates saved. The 50 m check-in signal is active there.",
+      "BPT Town: coordinates saved. The 300 m check-in signal is active there.",
     );
   });
 

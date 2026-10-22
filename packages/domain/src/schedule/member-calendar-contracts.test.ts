@@ -249,7 +249,10 @@ describe("deriveSessionStatus", () => {
         membershipEndsAt: session.startAt,
       },
     };
-    expect(deriveSessionStatus(expired)).toEqual({ status: "locked", lockedReason: "paid_period" });
+    expect(deriveSessionStatus(expired)).toEqual({
+      status: "locked",
+      lockedReason: "needs_renewal",
+    });
     expect(deriveSessionStatus({ ...expired, booking }).status).toBe("booked");
     expect(deriveSessionStatus({ ...expired, attendance: attendance("attended") }).status).toBe(
       "attended",
@@ -349,6 +352,8 @@ describe("deriveSessionStatus", () => {
       introSite: "Town" as const,
       hasActiveMembership: false,
       hasAttendedIntro: false,
+      // Intro sessions are booked on the Free Trial, at its site (spec 2026-09-22 §4.2).
+      trial: { ...trial, site: "Town" as const },
     };
 
     expect(
@@ -372,11 +377,11 @@ describe("deriveSessionStatus", () => {
 
     expect(deriveSessionStatus({ ...base, session: introSession, member: { ...member, hasAttendedIntro: true } })).toEqual({
       status: "locked",
-      lockedReason: "paid_period",
+      lockedReason: "age_band",
     });
     expect(deriveSessionStatus({ ...base, session: introSession, member: { ...member, hasActiveMembership: true } })).toEqual({
       status: "locked",
-      lockedReason: "paid_period",
+      lockedReason: "age_band",
     });
   });
 
@@ -391,6 +396,7 @@ describe("deriveSessionStatus", () => {
           introSite: "West",
           hasActiveMembership: false,
           hasAttendedIntro: false,
+          trial: { ...trial, site: "West" as const },
         },
       }),
     ).toEqual({ status: "locked", lockedReason: "site" });
@@ -472,7 +478,7 @@ describe("jerseyWeekKey", () => {
 
 describe("lockedReasonLabel weekly limit", () => {
   it("names the weekly limit", () => {
-    expect(lockedReasonLabel("weekly_limit", "Town", "teens")).toBe("Weekly class limit reached");
+    expect(lockedReasonLabel("weekly_limit", "Town", "teens")).toBe("Weekly limit reached");
   });
 });
 
@@ -493,7 +499,7 @@ describe("cancel rules and labels", () => {
     expect(lockedReasonLabel("age_band", "Town", "kids")).toBe("Kids only");
     expect(lockedReasonLabel("site", "Town", "teens")).toBe("Your plan doesn't cover Town");
     expect(lockedReasonLabel("open_mat", "West", "teens")).toBe(
-      "Open Mats at West aren't in your plan",
+      "Open Mat not included in your plan",
     );
   });
 
@@ -528,12 +534,12 @@ describe("trial calendar access", () => {
     expect(
       deriveSessionStatus({
         session: westClass,
-        program: teensProgram,
+        program: { ...teensProgram, ageBand: "adult" },
         member: trialMember,
         bookedCount: 0,
         now: twoHoursBefore,
       }).lockedReason,
-    ).toBe("trial_intro_only");
+    ).toBe("trial_intro_first");
     expect(
       deriveSessionStatus({
         session: { ...westIntro, locationId: "town" },
@@ -569,8 +575,9 @@ describe("trial calendar access", () => {
         bookedCount: 0,
         now: twoHoursBefore,
       }).lockedReason,
-    ).toBe("trial_ended");
+    ).toBe("trial_booked");
     const expired = { ...trialMember, trial: { ...trial, status: "expired" as const } };
+    // Introduction Classes are hidden once the trial is over.
     expect(
       deriveSessionStatus({
         session: westIntro,
@@ -579,7 +586,7 @@ describe("trial calendar access", () => {
         bookedCount: 0,
         now: twoHoursBefore,
       }).lockedReason,
-    ).toBe("trial_ended");
+    ).toBe("age_band");
   });
 
   it("still shows a held session as booked after the trial locks", () => {
@@ -598,11 +605,11 @@ describe("trial calendar access", () => {
   });
 
   it("labels the trial reasons", () => {
-    expect(lockedReasonLabel("trial_ended", "West", "all")).toBe(
-      "Your trial has ended. Choose a membership to keep training.",
+    expect(lockedReasonLabel("trial_booked", "West", "all")).toBe(
+      "Your free trial classes are booked",
     );
-    expect(lockedReasonLabel("trial_intro_only", "West", "all")).toBe(
-      "During your trial you can book Introduction Classes only.",
+    expect(lockedReasonLabel("trial_intro_first", "West", "all")).toBe(
+      "Your first free class is an Introduction Class",
     );
   });
 });

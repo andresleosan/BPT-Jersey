@@ -1,4 +1,4 @@
-import { Timestamp } from "firebase-admin/firestore";
+import { FieldPath, Timestamp } from "firebase-admin/firestore";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
@@ -27,6 +27,7 @@ type Ref = {
   path: string;
   filters?: readonly Readonly<{ field: string; value: unknown }>[];
   max?: number;
+  byId?: boolean;
 };
 
 /** In-memory Firestore with transactional reads before buffered writes. */
@@ -36,6 +37,7 @@ function fakeFirestore(records: Stored) {
     id: path.split("/").at(-1) ?? "",
     exists: records.has(path),
     data: () => records.get(path),
+    get: (field: string) => records.get(path)?.[field],
   });
   const docRef = (path: string) => ({
     kind: "doc" as const,
@@ -46,13 +48,14 @@ function fakeFirestore(records: Stored) {
     delete: async () => void records.delete(path),
   });
   type Filter = Readonly<{ field: string; value: unknown }>;
-  const children = (path: string, filters: readonly Filter[] = [], max = Infinity) =>
+  const children = (path: string, filters: readonly Filter[] = [], max = Infinity, byId = false) =>
     [...records.entries()]
       .filter(
         ([candidate]) =>
           candidate.startsWith(`${path}/`) && !candidate.slice(path.length + 1).includes("/"),
       )
       .filter(([, data]) => filters.every(({ field, value }) => data[field] === value))
+      .sort(([left], [right]) => (byId ? Number(left > right) - Number(left < right) : 0))
       .slice(0, max)
       .map(([candidate, data]) => ({
         id: candidate.split("/").at(-1) ?? "",
@@ -61,16 +64,25 @@ function fakeFirestore(records: Stored) {
       }));
   const firestore = {
     doc: docRef,
+    getAll: async (...refs: Ref[]) => refs.map((ref) => snapshotOf(ref.path)),
     collection: (path: string) => {
-      const query = (filters: readonly Filter[], max = Infinity) => ({
+      const query = (filters: readonly Filter[], max = Infinity, byId = false) => ({
         kind: "collection" as const,
         path,
         filters,
         max,
-        get: async () => ({ docs: children(path, filters, max) }),
+        byId,
+        get: async () => ({ docs: children(path, filters, max, byId) }),
         where: (field: string, _operator: "==", value: unknown) =>
-          query([...filters, { field, value }], max),
-        limit: (count: number) => query(filters, count),
+          query([...filters, { field, value }], max, byId),
+        limit: (count: number) => query(filters, count, byId),
+        // The canonical member-identity reads order by document id; no other order is faked.
+        orderBy: (field: unknown) => {
+          if (!(field instanceof FieldPath) || !field.isEqual(FieldPath.documentId())) {
+            throw new Error("the fake Firestore orders by document id only");
+          }
+          return query(filters, max, true);
+        },
       });
       return query([]);
     },
@@ -82,7 +94,7 @@ function fakeFirestore(records: Stored) {
       const result = await update({
         get: async (ref: Ref) =>
           ref.kind === "collection"
-            ? { docs: children(ref.path, ref.filters, ref.max) }
+            ? { docs: children(ref.path, ref.filters, ref.max, ref.byId) }
             : snapshotOf(ref.path),
         create: (ref: Ref, data: Record<string, unknown>) => {
           if (records.has(ref.path)) throw new Error(`create collision ${ref.path}`);
@@ -160,6 +172,28 @@ function attendance(id: string, occurredAt: string): [string, Record<string, unk
       correctionOf: null,
       occurredAt,
     },
+  ];
+}
+
+/**
+ * A class attended in its own one-hour session. A visit is keyed by (session, student) and the
+ * progress count takes one visit per session (60049ca), so visits on different days need
+ * different sessions; the store reads each counted session for its duration.
+ */
+function attendedClass(id: string, occurredAt: string): [string, Record<string, unknown>][] {
+  const sessionId = `session-${id}`;
+  const [path, record] = attendance(id, occurredAt);
+  return [
+    [
+      `academies/${academyId}/sessions/${sessionId}`,
+      {
+        sessionId,
+        academyId,
+        startAt: occurredAt,
+        endAt: new Date(Date.parse(occurredAt) + 3_600_000).toISOString(),
+      },
+    ],
+    [path, { ...record, sessionId }],
   ];
 }
 
@@ -283,9 +317,9 @@ async function seededStore(extra: [string, Record<string, unknown>][] = []) {
 }
 
 const baselineAttendance = [
-  attendance("att-1", "2026-08-20T18:00:00.000Z"),
-  attendance("att-2", "2026-09-01T18:00:00.000Z"),
-  attendance("att-3", "2026-09-05T18:00:00.000Z"),
+  ...attendedClass("att-1", "2026-08-20T18:00:00.000Z"),
+  ...attendedClass("att-2", "2026-09-01T18:00:00.000Z"),
+  ...attendedClass("att-3", "2026-09-05T18:00:00.000Z"),
 ];
 
 describe("progress summary at the current level (T051V2)", () => {
@@ -383,6 +417,7 @@ describe("progress summary at the current level (T051V2)", () => {
       currentLevelStartedAt: "2026-07-01T00:00:00.000Z",
       lastApprovedPromotionId: null,
       importedBaseline: baseline,
+      daysOffset: 0,
     });
   });
 });
@@ -628,6 +663,7 @@ describe.each(parityFixtures)("promotion parity — %s (T051V2)", (_label, makeF
       currentLevelStartedAt: levelStartedAt,
       lastApprovedPromotionId: null,
       importedBaseline: null,
+      daysOffset: 0,
     });
     expect(await fixture.progressOf("student-1")).toEqual({
       state: "initialized",
@@ -700,6 +736,7 @@ describe.each(parityFixtures)("promotion parity — %s (T051V2)", (_label, makeF
       currentLevelStartedAt: levelStartedAt,
       lastApprovedPromotionId: null,
       importedBaseline: null,
+      daysOffset: 0,
     });
     expect(await fixture.progressOf("student-1")).toEqual({
       state: "initialized",
@@ -856,20 +893,29 @@ describe.each(parityFixtures)("promotion parity — %s (T051V2)", (_label, makeF
   });
 
   // A self-promotion parses (`assignLevelInputSchema` does not compare the two keys), so the
-  // server has to refuse it, along with every backwards move.
-  it.each(["white-belt", "white-belt-kids-4-5-and-5-7-yo"])(
-    "refuses an assignment to %s, which is not forwards",
-    async (toDefinitionKey) => {
-      const fixture = await makeFixture();
-      await expect(
-        fixture.assign({ note: "Competition result justifies it.", toDefinitionKey }),
-      ).rejects.toMatchObject({
-        code: "conflict",
-        message: "Promotion references are not current",
-      });
-      expect(await fixture.currentDefinitionKey()).toBe("white-belt");
-    },
-  );
+  // server has to refuse it.
+  it("refuses an assignment to white-belt, the level the student already holds", async () => {
+    const fixture = await makeFixture();
+    await expect(
+      fixture.assign({ note: "Competition result justifies it.", toDefinitionKey: "white-belt" }),
+    ).rejects.toMatchObject({
+      code: "conflict",
+      message: "Promotion references are not current",
+    });
+    expect(await fixture.currentDefinitionKey()).toBe("white-belt");
+  });
+
+  // 063de39: any other level, earlier ones included, is the office's call, so a backwards move to
+  // the first level of the catalogue is assigned rather than refused.
+  it("assigns white-belt-kids-4-5-and-5-7-yo, an earlier level, as the office's call", async () => {
+    const fixture = await makeFixture();
+    const result = await fixture.assign({
+      note: "Competition result justifies it.",
+      toDefinitionKey: "white-belt-kids-4-5-and-5-7-yo",
+    });
+    expect(result.toDefinitionKey).toBe("white-belt-kids-4-5-and-5-7-yo");
+    expect(await fixture.currentDefinitionKey()).toBe("white-belt-kids-4-5-and-5-7-yo");
+  });
 
   // Task 10. Plan decision 2: a void restores the head from the promotion's OWN restore snapshot,
   // so it never has to reconstruct history, and it appends a record rather than mutating one.
@@ -1130,8 +1176,8 @@ describe("openStudentLevel at any definition (T051V2)", () => {
   // the recorded opening day — is NOT counted at the new level.
   it("counts no class from the Jersey day before the opening day", async () => {
     const { store } = await seededStore([
-      attendance("att-prev-day", "2026-09-10T08:00:00.000Z"),
-      attendance("att-same-day", "2026-09-11T08:00:00.000Z"),
+      ...attendedClass("att-prev-day", "2026-09-10T08:00:00.000Z"),
+      ...attendedClass("att-same-day", "2026-09-11T08:00:00.000Z"),
     ]);
     const { head: opened } = await store.openStudentLevel(
       open({
@@ -1510,15 +1556,15 @@ describe("assignLevel (T051V2, grill G7)", () => {
    */
   it("counts no class trained after the promotion day, so a backdated promotion cannot inflate", async () => {
     const beforeThePromotion = [
-      attendance("att-early-1", "2026-07-10T18:00:00.000Z"),
-      attendance("att-early-2", "2026-08-01T18:00:00.000Z"),
+      ...attendedClass("att-early-1", "2026-07-10T18:00:00.000Z"),
+      ...attendedClass("att-early-2", "2026-08-01T18:00:00.000Z"),
     ];
     // 25 classes trained between the promotion day and the day the head coach records it: enough
     // to close the 25-class minimum on their own if they were counted.
     const afterThePromotion = Array.from({ length: 25 }, (_, index) => {
       const day = new Date(Date.UTC(2026, 7, 16 + index)).toISOString().slice(0, 10);
-      return attendance(`att-late-${index}`, `${day}T18:00:00.000Z`);
-    });
+      return attendedClass(`att-late-${index}`, `${day}T18:00:00.000Z`);
+    }).flat();
     const { store, records } = await seededStore([
       [`academies/${academyId}/studentLevelProgress/student-1`, head()],
       ...beforeThePromotion,
@@ -1644,9 +1690,11 @@ describe("voidPromotion and getStudentLevelHistory (T051V2)", () => {
       decidedByStaffId: "staff-head-1",
       decidedAt: voidAt,
     });
-    // The head is the head the promotion replaced, including the baseline the promotion dropped.
+    // The head is the head the promotion replaced, including the baseline the promotion dropped
+    // and its day adjustment, which the restore writes out even when it is zero (none was set).
     expect(records.get(headPath)).toEqual({
       ...head({ importedBaseline: baseline }),
+      daysOffset: 0,
       updatedAt: voidAt,
       updatedBy: "head-user-1",
     });

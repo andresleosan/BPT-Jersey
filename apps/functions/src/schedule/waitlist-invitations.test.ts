@@ -64,11 +64,16 @@ describe("waitlist class owner callables", () => {
   );
 
   it.each([getWaitlistClassSource, createWaitlistClass, listWaitlistClassHistory])(
-    "keeps the owner-only token gate",
+    "keeps the office-only token gate",
     async (callable) => {
-      await expect(callable.run(request({}, "administrator"))).rejects.toMatchObject({
+      // Administrators share the owner's powers since 2026-10-15 (PRODUCT.md); other staff stay out.
+      await expect(callable.run(request({}, "headCoach"))).rejects.toMatchObject({
         code: "permission-denied",
       });
+      const data = { sessionId: "s-1", sourceSessionId: "s-1", operationId: "op-1" };
+      await expect(callable.run(request(data, "administrator"))).rejects.toThrow(
+        "Firestore must not be read",
+      );
     },
   );
 });

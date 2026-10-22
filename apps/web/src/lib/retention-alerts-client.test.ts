@@ -39,7 +39,7 @@ describe("retention alerts callable client", () => {
 
     const result = await listRetentionAlerts();
 
-    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "listRetentionAlerts");
+    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "listRetentionAlerts", undefined);
     expect(mocks.callable).toHaveBeenCalledWith(null);
     expect(result).toEqual([validAlert]);
     expect(Object.isFrozen(result)).toBe(true);

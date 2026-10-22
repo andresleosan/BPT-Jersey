@@ -216,16 +216,29 @@ describe("countClassesAtLevel", () => {
   });
 
   it("counts the whole promotion day toward the new level, and the day before toward neither", () => {
-    // Spec §6.2 compares DATES: a member who trained at 10:00 and 18:00 and was promoted at 12:00
-    // has three classes at the new level (the 9 imported are gone), not two. An instant comparison
-    // would drop the 10:00 class from both levels.
+    // Spec §6.2 compares DATES: a member who trained at 10:00 and 18:00 on the promotion day has
+    // both classes at the new level when the level starts at 00:00 of that day, as assignLevel and
+    // openStudentLevel store it.
     expect(
       countClassesAtLevel({
         attendedAt: ["2026-07-01T10:00:00.000Z", "2026-07-01T18:00:00.000Z"],
-        currentLevelStartedAt: "2026-07-01T12:00:00.000Z",
+        currentLevelStartedAt: "2026-07-01T00:00:00.000Z",
         importedBaseline: null,
       }),
     ).toEqual({ imported: 0, bpt: 2, total: 2 });
+    // 3fa3ec8: a Graduations promotion starts the level AT the graduation class (12:00 here), so
+    // that class and the 10:00 one stay with the previous level; only 18:00 is at the new level.
+    expect(
+      countClassesAtLevel({
+        attendedAt: [
+          "2026-07-01T10:00:00.000Z",
+          "2026-07-01T12:00:00.000Z",
+          "2026-07-01T18:00:00.000Z",
+        ],
+        currentLevelStartedAt: "2026-07-01T12:00:00.000Z",
+        importedBaseline: null,
+      }),
+    ).toEqual({ imported: 0, bpt: 1, total: 1 });
     expect(
       countClassesAtLevel({
         attendedAt: ["2026-06-30T23:59:59.999Z"],

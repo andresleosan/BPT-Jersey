@@ -62,6 +62,7 @@ function createFakeFirestore(initial: Record<string, HealthDocumentData> = {}) {
 const student: HealthDocumentData = {
   studentId: "student-1",
   academyId: "academy-1",
+  familyId: "family-1",
   userId: "user-1",
   fullName: "Synthetic Minor",
   dateOfBirth: "2015-01-01",
@@ -95,6 +96,35 @@ const relationship: HealthDocumentData = {
   updatedAt: "2026-08-01T00:00:00Z",
   updatedBy: "owner-1",
 };
+// Guardian access runs the shared member-scope gate: an active client account and an active family.
+const clientAccount = (userId: string): HealthDocumentData => ({
+  userId,
+  academyId: "academy-1",
+  accountType: "client",
+  displayName: "Synthetic Guardian",
+  email: userId + "@example.test",
+  phoneNumber: "+15550000002",
+  active: true,
+  status: "active",
+  schemaVersion: "1",
+  createdAt: "2026-08-01T00:00:00Z",
+  createdBy: "owner-1",
+  updatedAt: "2026-08-01T00:00:00Z",
+  updatedBy: "owner-1",
+});
+const family: HealthDocumentData = {
+  familyId: "family-1",
+  academyId: "academy-1",
+  primaryContactUserId: "guardian-1",
+  billingContactUserId: "guardian-1",
+  active: true,
+  status: "active",
+  schemaVersion: "1",
+  createdAt: "2026-08-01T00:00:00Z",
+  createdBy: "owner-1",
+  updatedAt: "2026-08-01T00:00:00Z",
+  updatedBy: "owner-1",
+};
 const saveInput = {
   academyId: "academy-1",
   actorId: "owner-1",
@@ -111,6 +141,10 @@ describe("health support store", () => {
     const seeded = createFakeFirestore({
       "academies/academy-1/students/student-1": student,
       "academies/academy-1/relationships/family-1--student-1": relationship,
+      "academies/academy-1/families/family-1": family,
+      "academies/academy-1/users/guardian-1": clientAccount("guardian-1"),
+      // A real, active account with no link to the student: refused for being unrelated.
+      "academies/academy-1/users/guardian-2": clientAccount("guardian-2"),
     });
     const store = createHealthStore({ firestore: seeded.firestore });
     const admin = await store.saveHealthProfile(saveInput);
@@ -140,6 +174,8 @@ describe("health support store", () => {
     const seeded = createFakeFirestore({
       "academies/academy-1/students/student-1": student,
       "academies/academy-1/relationships/family-1--student-1": relationship,
+      "academies/academy-1/families/family-1": family,
+      "academies/academy-1/users/guardian-1": clientAccount("guardian-1"),
     });
     const store = createHealthStore({
       firestore: seeded.firestore,

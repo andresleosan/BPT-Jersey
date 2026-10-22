@@ -305,13 +305,15 @@ describe("ReadyForJiuJitsu", () => {
 
     slideToEnd();
     await screen.findByText(
-      "Location is off. Allow it for this site, or ask a coach to check you in.",
+      "Turn on your location to check in: switch on Location (GPS) on your phone and allow it for bptjersey.com in your browser, then scan again.",
     );
     expect(clockIn).not.toHaveBeenCalled();
 
     stubGeolocation((ok) => ok(near));
     slideToEnd();
-    await screen.findByText("You're 120 m away. Get to the gym and try again.");
+    await screen.findByText(
+      "You need to be within 100 m of the gym to check in. You're 120 m away.",
+    );
     expect(slider().value).toBe("0");
   });
 

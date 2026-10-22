@@ -141,6 +141,8 @@ describe("maskIdentifier", () => {
 
 describe("decideMemberMigrationInputSchema", () => {
   const training = { trainingCenter: "Town", trainingTimePreferences: ["evening"] };
+  // Since f33b54e a link or create-unlinked carries the reviewed source versions and evidence.
+  const review = { legacyVersion: "1:0", identityEvidence: "Synthetic passport seen", choices: [] };
   it("accepts link, create-unlinked and skip", () => {
     const parsed = decideMemberMigrationInputSchema.safeParse({
       decisions: [
@@ -149,12 +151,14 @@ describe("decideMemberMigrationInputSchema", () => {
           legacyMemberId: "m1",
           recordId: "10",
           requestId: crypto.randomUUID(),
+          review: { ...review, recordVersion: "2:0" },
           ...training,
         },
         {
           kind: "create-unlinked",
           legacyMemberId: "m2",
           requestId: crypto.randomUUID(),
+          review,
           ...training,
         },
         { kind: "skip", legacyMemberId: "m3", reason: "Duplicate row" },
@@ -171,7 +175,13 @@ describe("decideMemberMigrationInputSchema", () => {
     expect(
       decideMemberMigrationInputSchema.safeParse({
         decisions: [
-          { kind: "link", legacyMemberId: "m", requestId: crypto.randomUUID(), ...training },
+          {
+            kind: "link",
+            legacyMemberId: "m",
+            requestId: crypto.randomUUID(),
+            review,
+            ...training,
+          },
         ],
       }).success,
     ).toBe(false);

@@ -45,7 +45,7 @@ describe("operational reports client", () => {
 
   it("sends the validated range and accepts an aggregate-only response", async () => {
     await expect(getOperationalReport(query)).resolves.toEqual(report);
-    expect(api.httpsCallable).toHaveBeenCalledWith({}, "getOperationalReport");
+    expect(api.httpsCallable).toHaveBeenCalledWith({}, "getOperationalReport", undefined);
     expect(api.invoke).toHaveBeenCalledWith(query);
   });
 
@@ -119,7 +119,7 @@ describe("aggregate report export client", () => {
 
   it("sends only the validated closed-purpose request", async () => {
     await expect(prepareAggregateReportExport(exportRequest)).resolves.toEqual(preparedExport);
-    expect(api.httpsCallable).toHaveBeenCalledWith({}, "prepareAggregateReportExport");
+    expect(api.httpsCallable).toHaveBeenCalledWith({}, "prepareAggregateReportExport", undefined);
     expect(api.invoke).toHaveBeenCalledWith(exportRequest);
   });
 

@@ -1,4 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+
+// The member-account gate reads live Firebase Auth; the auth emulator spec exercises it.
+vi.mock("../members/member-access-callables.js", () => ({
+  requireMemberAccountActor: vi.fn(async () => undefined),
+}));
 import type { CallableRequest } from "firebase-functions/v2/https";
 
 import type { UserActorContext } from "@bpt-jersey/domain";
@@ -22,6 +27,7 @@ import {
 } from "./finance-callables.js";
 import { FinanceStoreError, type FinanceStore } from "./finance-service.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
+import { requireMemberAccountActor } from "../members/member-access-callables.js";
 
 const academyId = "academy-1";
 
@@ -85,6 +91,7 @@ function services(overrides: Partial<FinanceCallableServices> = {}): FinanceCall
   } as unknown as FinanceStore;
   return {
     store,
+    payerFamilyIds: vi.fn().mockResolvedValue(["family-1"]),
     familyStore: {
       getGuardianFamily: vi.fn().mockResolvedValue(guardianFamily()),
     },
@@ -212,8 +219,11 @@ describe("finance callables", () => {
   it("limits guardian reads to the linked family and denies cross-tenant actors", async () => {
     const finance = services();
     const store = finance.store as unknown as { listFinancialAccount: ReturnType<typeof vi.fn> };
+    const guardianRead = request(null, actor("guardian", "guardian-1"));
 
-    await listFinancialAccountHandler(request(null, actor("guardian", "guardian-1")), finance);
+    await listFinancialAccountHandler(guardianRead, finance);
+    expect(requireMemberAccountActor).toHaveBeenCalledWith(guardianRead);
+    expect(finance.payerFamilyIds).toHaveBeenCalledWith(academyId, "guardian-1");
     expect(store.listFinancialAccount).toHaveBeenCalledWith({
       academyId,
       familyIds: ["family-1"],
@@ -244,12 +254,14 @@ describe("finance callables", () => {
       payments: [],
     });
 
-    await getInvoiceHandler(
-      request({ invoiceId: "invoice-1" }, actor("adultStudent", "adult-1")),
-      finance,
-    );
+    const adultRead = request({ invoiceId: "invoice-1" }, actor("adultStudent", "adult-1"));
+
+    await getInvoiceHandler(adultRead, finance);
+    expect(requireMemberAccountActor).toHaveBeenCalledWith(adultRead);
+    expect(finance.payerFamilyIds).toHaveBeenCalledWith(academyId, "adult-1");
+    // Billing access follows the recorded payer, so no per-student narrowing (58c2498).
     expect(store.getInvoice).toHaveBeenCalledWith(
-      { academyId, familyIds: ["family-1"], studentIds: ["student-1"] },
+      { academyId, familyIds: ["family-1"] },
       "invoice-1",
     );
   });

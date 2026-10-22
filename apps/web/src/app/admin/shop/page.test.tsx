@@ -1,6 +1,6 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { shopOrderReference } from "@bpt-jersey/domain/shop";
 
@@ -90,6 +90,18 @@ const transferOrder = {
 };
 
 describe("club shop admin page", () => {
+  // Row buttons keep part of their name in `.visually-hidden` spans (a1e76cc, "accessible names
+  // unchanged"). admin.css makes those spans position: absolute, which computes display to block,
+  // so the browser keeps the spaces. jsdom loads no CSS, the spans stay inline and the name
+  // computation trims each one ("EditBPT competition gi"), so mirror the browser's value here.
+  let visuallyHiddenStyle: HTMLStyleElement;
+  beforeAll(() => {
+    visuallyHiddenStyle = document.createElement("style");
+    visuallyHiddenStyle.textContent = ".visually-hidden { display: block; }";
+    document.head.append(visuallyHiddenStyle);
+  });
+  afterAll(() => visuallyHiddenStyle.remove());
+
   beforeEach(() => {
     shopApi.listManagedShopProducts.mockResolvedValue([gi, hiddenProduct]);
     shopApi.listShopOrders.mockResolvedValue([transferOrder]);
@@ -112,8 +124,12 @@ describe("club shop admin page", () => {
     render(<ShopAdminPage />);
 
     expect(await screen.findByRole("heading", { name: "Club shop", level: 2 })).toBeVisible();
-    const products = await screen.findByRole("table", { name: "Club shop products" });
-    expect(within(products).getByText("BPT competition gi")).toBeVisible();
+    // Orders, Products and the editor are separate tabs since e72f09e.
+    await user.click(await screen.findByRole("tab", { name: "Products" }));
+    let products = screen.getByRole("table", { name: "Club shop products" });
+    // The row's Edit button repeats the name for screen readers (a1e76cc); read the shown name.
+    const shownText = { ignore: ".visually-hidden" };
+    expect(within(products).getByText("BPT competition gi", shownText)).toBeVisible();
     expect(within(products).getByText("£95.00")).toBeVisible();
     expect(within(products).getByText("Visible")).toBeVisible();
     expect(
@@ -131,7 +147,9 @@ describe("club shop admin page", () => {
     await user.type(screen.getByLabelText("Name"), "BPT rashguard");
     await user.type(screen.getByLabelText("Price in pounds"), "45");
     await user.selectOptions(screen.getByLabelText("Category"), "rashguard");
-    await user.type(screen.getByLabelText("Sizes (comma separated)"), "S, M, L");
+    // The sizes editor (12a4c6f) replaced the comma-separated field; a pasted list adds each size.
+    await user.type(screen.getByLabelText("New size"), "S, M, L");
+    await user.click(screen.getByRole("button", { name: "Add size" }));
     await user.click(screen.getByRole("button", { name: "Create product" }));
 
     await waitFor(() =>
@@ -150,7 +168,9 @@ describe("club shop admin page", () => {
       }),
     );
     expect(await screen.findByRole("status")).toHaveTextContent('Product "BPT rashguard" saved.');
-    expect(within(products).getByText("BPT rashguard")).toBeVisible();
+    await user.click(screen.getByRole("tab", { name: "Products" }));
+    products = screen.getByRole("table", { name: "Club shop products" });
+    expect(within(products).getByText("BPT rashguard", shownText)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Hide BPT competition gi from shop" }));
     await waitFor(() =>
@@ -158,6 +178,7 @@ describe("club shop admin page", () => {
     );
     expect(await screen.findByText("Hidden")).toBeVisible();
 
+    await user.click(screen.getByRole("tab", { name: "Orders" }));
     const orders = screen.getByRole("table", { name: "Club shop orders" });
     expect(within(orders).getByText("Sam Client")).toBeVisible();
     expect(within(orders).getByText("Requested")).toBeVisible();
@@ -178,10 +199,13 @@ describe("club shop admin page", () => {
   it("puts orders first and shows centre, payment method and lines", async () => {
     render(<ShopAdminPage />);
     const orders = await screen.findByRole("region", { name: "Orders" });
-    const products = screen.getByRole("region", { name: "Products" });
+    // Since e72f09e the page opens on the Orders tab, ahead of Products, which waits behind its tab.
+    const ordersTab = screen.getByRole("tab", { name: "Orders", selected: true });
+    const productsTab = screen.getByRole("tab", { name: "Products", selected: false });
     expect(
-      orders.compareDocumentPosition(products) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ordersTab.compareDocumentPosition(productsTab) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Products" })).not.toBeInTheDocument();
     // The centre filter in the same region also offers "West", so read the cell from the table.
     const table = within(orders).getByRole("table", { name: "Club shop orders" });
     expect(within(table).getByText("West")).toBeVisible();
@@ -201,20 +225,22 @@ describe("club shop admin page", () => {
   });
 
   it("names every select for autofill and form tools", async () => {
+    const user = userEvent.setup();
     render(<ShopAdminPage />);
     await screen.findByRole("table", { name: "Club shop orders" });
-    const selects = [...document.querySelectorAll("select")];
-    expect(selects.map((select) => select.getAttribute("name"))).toEqual([
-      "orderFilter",
-      "centreFilter",
-      "category",
-      "stockStatus",
-    ]);
+    const selectNames = () =>
+      [...document.querySelectorAll("select")].map((select) => select.getAttribute("name"));
+    // The History tab replaced the open/all order filter (ee994df) and the editor has its own
+    // tab (e72f09e), so each view's selects are read on that view.
+    expect(selectNames()).toEqual(["centreFilter"]);
+    await user.click(screen.getByRole("tab", { name: "Add product" }));
+    expect(selectNames()).toEqual(["category", "stockStatus"]);
   });
 
   it("says how many products are hidden and uses shop wording", async () => {
     render(<ShopAdminPage />);
-    expect(await screen.findByText("1 product is hidden. Clients cannot see it.")).toBeVisible();
+    await userEvent.setup().click(await screen.findByRole("tab", { name: "Products" }));
+    expect(screen.getByText("1 product is hidden. Clients cannot see it.")).toBeVisible();
     expect(screen.getByRole("button", { name: "Show BPT hidden in shop" })).toBeEnabled();
     expect(screen.getByRole("columnheader", { name: "Visible in shop" })).toBeVisible();
   });
@@ -225,7 +251,7 @@ describe("club shop admin page", () => {
     render(<ShopAdminPage />);
     await user.click(await screen.findByRole("button", { name: /View transfer screenshot/ }));
     expect(shopApi.getShopOrderProofUrl).toHaveBeenCalledWith(transferOrder.orderId);
-    const reference = shopOrderReference(transferOrder.orderId);
+    const reference = shopOrderReference(transferOrder);
     const dialog = await screen.findByRole("dialog", { name: reference });
     expect(
       within(dialog).getByRole("img", { name: `Transfer screenshot for ${reference}` }),
@@ -241,7 +267,7 @@ describe("club shop admin page", () => {
     render(<ShopAdminPage />);
     const trigger = await screen.findByRole("button", { name: /View transfer screenshot/ });
     await user.click(trigger);
-    const reference = shopOrderReference(transferOrder.orderId);
+    const reference = shopOrderReference(transferOrder);
     const dialog = await screen.findByRole("dialog", { name: reference });
     await user.click(within(dialog).getByRole("button", { name: "Close" }));
     await waitFor(() =>
@@ -303,8 +329,9 @@ describe("club shop admin page", () => {
 
   it("filters orders by centre", async () => {
     render(<ShopAdminPage />);
-    await userEvent.setup().selectOptions(await screen.findByLabelText("Centre"), "town");
-    expect(screen.queryByText(shopOrderReference(transferOrder.orderId))).not.toBeInTheDocument();
+    expect(await screen.findByText(shopOrderReference(transferOrder))).toBeVisible();
+    await userEvent.setup().selectOptions(screen.getByLabelText("Centre"), "town");
+    expect(screen.queryByText(shopOrderReference(transferOrder))).not.toBeInTheDocument();
   });
 
   it("keeps a paid order when the refund warning is dismissed", async () => {
@@ -333,7 +360,7 @@ describe("club shop admin page", () => {
       }),
     );
     expect(await screen.findByRole("status")).toHaveTextContent(
-      `Order ${shopOrderReference(transferOrder.orderId)} updated.`,
+      `Order ${shopOrderReference(transferOrder)} updated.`,
     );
   });
 
@@ -352,7 +379,8 @@ describe("club shop admin page", () => {
     shopApi.saveShopProduct.mockImplementation(async (draft) => ({ ...draft, active: true }));
     const user = userEvent.setup();
     render(<ShopAdminPage />);
-    await screen.findByRole("table", { name: "Club shop products" });
+    // The editor is its own tab since e72f09e.
+    await user.click(await screen.findByRole("tab", { name: "Add product" }));
 
     expect(screen.queryByLabelText("Lead time (weeks)")).not.toBeInTheDocument();
     await user.type(screen.getByLabelText("Name"), "BPT kids gi");
@@ -374,12 +402,21 @@ describe("club shop admin page", () => {
 
     render(<ShopAdminPage />);
 
-    expect(await screen.findByText("No products yet.")).toBeVisible();
+    await user.click(await screen.findByRole("tab", { name: "Products" }));
+    expect(screen.getByText("No products yet.")).toBeVisible();
+    await user.click(screen.getByRole("tab", { name: "Add product" }));
     await user.type(screen.getByLabelText("Name"), "Gi");
     await user.type(screen.getByLabelText("Price in pounds"), "95");
-    await user.type(screen.getByLabelText("Sizes (comma separated)"), "A1, A1");
+    // Since 12a4c6f the sizes editor drops a size the product already has, so a repeat never
+    // reaches the save ("Sizes must not repeat." is unreachable). A bad product ID still is.
+    await user.type(screen.getByLabelText("New size"), "A1, A1");
+    await user.click(screen.getByRole("button", { name: "Add size" }));
+    expect(screen.getAllByRole("rowheader").map((cell) => cell.textContent)).toEqual(["A1"]);
+    await user.type(screen.getByLabelText("Product ID"), "Gi top!");
     await user.click(screen.getByRole("button", { name: "Create product" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Sizes must not repeat.");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Product ID must use lowercase letters, numbers and hyphens.",
+    );
     expect(shopApi.saveShopProduct).not.toHaveBeenCalled();
   });
 

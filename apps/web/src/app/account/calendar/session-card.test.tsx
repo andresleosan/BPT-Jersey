@@ -119,7 +119,7 @@ describe("SessionCard", () => {
     for (const [status, label] of [
       ["missed", "Missed"],
       ["attended", "Attended"],
-      ["closed", "Closed"],
+      ["closed", "Booking closed"],
       ["full", "Full"],
     ] as const) {
       const { unmount } = renderCard({ entry: entry(status) });
@@ -129,11 +129,10 @@ describe("SessionCard", () => {
     }
   });
 
-  it("toggles the locked reason on tap", async () => {
+  it("shows the locked reason in grey without a tap", () => {
     renderCard({ entry: entry("locked", { derived: { status: "locked", lockedReason: "site" } }) });
-    expect(screen.queryByText("Your plan doesn't cover Town")).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Not available" }));
     expect(screen.getByText("Your plan doesn't cover Town")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("shows the note passed in", () => {

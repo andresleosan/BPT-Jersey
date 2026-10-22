@@ -66,6 +66,7 @@ function createDb() {
         filters.every(({ field, operator, value }) => {
           const actual = store.get(key)![field];
           if (operator === "==") return actual === value;
+          if (operator === "in") return Array.isArray(value) && value.includes(actual);
           if (operator === "array-contains") return Array.isArray(actual) && actual.includes(value);
           if (operator === ">=") return String(actual) >= String(value);
           if (operator === "<") return String(actual) < String(value);
@@ -453,6 +454,7 @@ describe("saveMemberGroup callable", () => {
   it("refuses a group without a site", async () => {
     await expect(
       saveMemberGroup.run({
+        app: { appId: "test-app", alreadyConsumed: false },
         data: { groupId: "g1", name: "Competition team", studentIds: [], revision: 0 },
       } as never),
     ).rejects.toMatchObject({ code: "invalid-argument" });
