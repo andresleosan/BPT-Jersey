@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { FieldPath, getFirestore, type Transaction } from "firebase-admin/firestore";
 import { HttpsError } from "firebase-functions/v2/https";
-import { parseCreateSessionInput, isIntroductionClass, isWithinBookingCutoff, type SessionRecord } from "@bpt-jersey/domain/schedule";
+import { parseCreateSessionInput, isPaidOnlySession, isWithinBookingCutoff, type SessionRecord } from "@bpt-jersey/domain/schedule";
 import { parseWaitlistEntryRecord } from "@bpt-jersey/domain/schedule/advanced-booking";
 import { parseMembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle";
 import type { InvitationPage, WaitlistInvitationView, WaitlistClassResult } from "@bpt-jersey/domain/schedule/waitlist-invitations";
@@ -29,7 +29,8 @@ const id = (value: unknown): string => {
   return value;
 };
 const digest = (value: string) => createHash("sha256").update(value).digest("hex").slice(0, 40);
-const ordinary = (session: SessionRecord) => !session.courseId && !session.isSeminar && (session.accessMode ?? "membership") === "membership";
+// Free Trial sessions and private lessons have no waitlist: they are never paid-only (checked with the type).
+const ordinary = (session: SessionRecord) => !session.courseId && !session.isSeminar;
 const pending = (value: unknown) => value === "waiting" || value === "offered";
 
 async function hasOriginalBooking(tx: Transaction, academyId: string, studentId: string, sourceSessionId: string) {
@@ -52,7 +53,7 @@ export const getWaitlistClassSource = onCallWithFreshAppCheck(scheduleCallableOp
   const session = doc.data() as SessionRecord | undefined;
   if (!session || !ordinary(session)) throw new HttpsError("failed-precondition", "Select an ordinary class waitlist");
   const program = await db.doc(`${base}/programs/${session.programId}`).get();
-  if (isIntroductionClass(session, program.data())) throw new HttpsError("failed-precondition", "Select an ordinary class waitlist");
+  if (!isPaidOnlySession(session, program.data())) throw new HttpsError("failed-precondition", "Select an ordinary class waitlist");
   return { session, waiting: queue.data().count };
 });
 
@@ -82,9 +83,9 @@ export const createWaitlistClass = onCallWithFreshAppCheck(scheduleCallableOptio
     const source = sourceDoc!.data() as SessionRecord | undefined;
     if (!source || source.academyId !== actor.academyId || !ordinary(source)) throw new HttpsError("failed-precondition", "Select an ordinary class waitlist");
     const program = await tx.get(db.doc(`${base}/programs/${source.programId}`));
-    if (isIntroductionClass(source, program.data())) throw new HttpsError("failed-precondition", "Select an ordinary class waitlist");
+    if (!isPaidOnlySession(source, program.data())) throw new HttpsError("failed-precondition", "Select an ordinary class waitlist");
     if (!sessionInput) throw new HttpsError("invalid-argument", "The class details are required");
-    if (sessionInput.repeatWeekly || sessionInput.isSeminar || (sessionInput.accessMode ?? "membership") !== "membership" ||
+    if (sessionInput.repeatWeekly || sessionInput.isSeminar || (sessionInput.accessMode ?? "membership") !== (source.accessMode ?? "membership") ||
       sessionInput.programId !== source.programId || Date.parse(sessionInput.startAt) <= Math.max(Date.now(), Date.parse(source.startAt))) {
       throw new HttpsError("invalid-argument", "Choose a later date for the same class type, without weekly repetition");
     }

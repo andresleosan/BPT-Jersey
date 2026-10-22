@@ -1,7 +1,7 @@
 import { HttpsError } from "firebase-functions/v2/https";
 import { parseAgeCapacities, type AgeAvailability } from "@bpt-jersey/domain/schedule/age-capacity";
 import { ageOnDate, dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
-import { isIntroductionClass, type SessionRecord } from "@bpt-jersey/domain/schedule";
+import { isPaidOnlySession, type SessionRecord } from "@bpt-jersey/domain/schedule";
 import { resolveCanonicalStudentIdInTransaction } from "../members/member-identity-resolution.js";
 import type { BookingFirestore, BookingTransaction } from "./booking-transaction-service.js";
 import { getFirestore } from "firebase-admin/firestore";
@@ -70,12 +70,12 @@ export async function assertAgeCapacityEdit(input: Reader & { current: SessionRe
   if (!input.current.ageCapacities?.length && !input.updated.ageCapacities?.length) return;
   const parsed = parseAgeCapacities(input.updated.ageCapacities, input.updated.capacity);
   if (!parsed.ok) throw new HttpsError("failed-precondition", parsed.error);
-  if (input.updated.courseId || input.updated.isSeminar || input.updated.accessMode === "private-lesson" || input.updated.accessMode === "intro") {
+  if (input.updated.courseId || input.updated.isSeminar) {
     if (parsed.value.length) throw new HttpsError("failed-precondition", "Age limits are for ordinary classes");
   }
   if (parsed.value.length) {
     const program = await input.transaction.get(input.firestore.doc(`academies/${input.academyId}/programs/${input.updated.programId}`));
-    if (isIntroductionClass(input.updated, program.data())) throw new HttpsError("failed-precondition", "Age limits are for ordinary classes");
+    if (!isPaidOnlySession(input.updated, program.data())) throw new HttpsError("failed-precondition", "Age limits are for ordinary classes");
   }
   const rows = await readAgeOccupancy({ ...input, session: input.updated });
   if (rows.some((row) => row.occupied > row.capacity)) throw new HttpsError("failed-precondition", "Age limits cannot be lower than existing bookings and active offers");

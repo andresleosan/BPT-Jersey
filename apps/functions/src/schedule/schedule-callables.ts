@@ -8,7 +8,7 @@ import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { error as logError, warn as logWarn } from "firebase-functions/logger";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import {
-  isIntroductionClass,
+  isPaidOnlySession,
   parseBulkBookEligibleSessionsInput,
   parseCancelBookingInput,
   parseCheckInInput,
@@ -676,12 +676,12 @@ export function createSaveSessionHandler(options: { store: ScheduleStore }) {
         throw new HttpsError("permission-denied", "Only the office can change age-specific limits");
       }
     }
-    if (parsed.value.ageCapacities?.length && ((parsed.value.accessMode ?? "membership") !== "membership" || parsed.value.isSeminar)) {
+    if (parsed.value.ageCapacities?.length && parsed.value.isSeminar) {
       throw new HttpsError("invalid-argument", "Age limits are for ordinary classes");
     }
     if (parsed.value.ageCapacities?.length) {
       const program = (await store.listPrograms(actor.academyId)).find((row) => row.programId === parsed.value.programId);
-      if (isIntroductionClass(parsed.value, program)) throw new HttpsError("invalid-argument", "Age limits are for ordinary classes");
+      if (!isPaidOnlySession(parsed.value, program)) throw new HttpsError("invalid-argument", "Age limits are for ordinary classes");
     }
     if (
       parsed.value.curriculum !== undefined &&
@@ -1160,8 +1160,9 @@ export function createWalkInCheckInHandler(options: StudentScopeOptions) {
 
     const firestore = getFirestore();
     const academyPath = `academies/${actor.academyId}`;
-    // Mirrors the calendar: a member with no plan (trial) and every Intro class book as intro.
-    let intro = membershipId === undefined;
+    // A member with no plan books on their Free Trial; one with a plan is refused a Free-Trial-only
+    // class by the membership booking itself (spec 2026-10-22 D16).
+    const intro = membershipId === undefined;
     try {
       const session = (await firestore.doc(`${academyPath}/sessions/${sessionId}`).get()).data();
       if (!session || session.status === "cancelled" || typeof session.startAt !== "string") {
@@ -1175,7 +1176,6 @@ export function createWalkInCheckInHandler(options: StudentScopeOptions) {
           ? firestore.doc(`${academyPath}/programs/${session.programId}`).get()
           : undefined,
       ]);
-      intro ||= isIntroductionClass(session, program?.data());
       const geofence = location?.data()?.geofence as
         | { latitude?: unknown; longitude?: unknown }
         | undefined;
@@ -1346,7 +1346,7 @@ export function createStaffWalkInAttendanceHandler(options: { store: ScheduleSto
       });
       const now = new Date().toISOString();
       try {
-        if (!membership || session.accessMode === "intro") {
+        if (!membership) {
           await requestIntroBookingTransaction(firestore as unknown as BookingFirestore, {
             academyId: actor.academyId,
             actorId: actor.userId,

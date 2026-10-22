@@ -35,7 +35,15 @@ export const sessionStatuses = Object.freeze([
 ] as const);
 export type SessionStatus = (typeof sessionStatuses)[number];
 
-export const classAccessModes = Object.freeze(["membership", "intro", "private-lesson"] as const);
+// "membership" is the legacy default (its class type decides, below); the session panel writes
+// "paid", "intro" (Free Trial only) or "trial-and-paid" since 2026-10-22.
+export const classAccessModes = Object.freeze([
+  "membership",
+  "intro",
+  "private-lesson",
+  "paid",
+  "trial-and-paid",
+] as const);
 export type ClassAccessMode = (typeof classAccessModes)[number];
 
 export function sessionAccessMode(value: { readonly accessMode?: unknown }): ClassAccessMode {
@@ -48,22 +56,68 @@ export function sessionAccessMode(value: { readonly accessMode?: unknown }): Cla
 
 /** The rule for class types saved before they carried an explicit `introductionClass`. */
 export function isIntroductionClassName(name: unknown): boolean {
-  return typeof name === "string" && name.trim().toLowerCase().startsWith("introduction class");
+  if (typeof name !== "string") return false;
+  const lower = name.trim().toLowerCase();
+  // The owner renamed it «Free Trail» on 2026-10-18; both spellings are the trial type.
+  return ["introduction class", "free trial", "free trail"].some((prefix) => lower.startsWith(prefix));
 }
 
 /**
- * The academy's Introduction Class is a class type (Classes / Services → Types). A type saved since
- * 2026-10-20 says so in `introductionClass`, so renaming it never changes who may book its classes;
- * an older type still answers by its name. A session stored with the legacy `accessMode: "intro"`
- * also counts.
+ * Whether a session's class type is the academy's trial class: its explicit marker, or its name.
+ * The name wins over a stored `false` (spec 2026-10-22 D11). Only legacy `membership` sessions ask
+ * the type; sessions saved since 2026-10-22 carry their own access (`sessionAudience`).
  */
 export function isIntroductionClass(
   session: { readonly accessMode?: unknown },
   program: { readonly name?: unknown; readonly introductionClass?: unknown } | null | undefined,
 ): boolean {
   if (session.accessMode === "intro") return true;
-  if (typeof program?.introductionClass === "boolean") return program.introductionClass;
-  return isIntroductionClassName(program?.name);
+  return program?.introductionClass === true || isIntroductionClassName(program?.name);
+}
+
+/** Who may book a session: members with a paid plan, members on their Free Trial, or both. */
+export type SessionAudience = Readonly<{ paid: boolean; trial: boolean }>;
+
+export function sessionAudience(
+  session: { readonly accessMode?: unknown },
+  program: { readonly name?: unknown; readonly introductionClass?: unknown } | null | undefined,
+): SessionAudience {
+  switch (session.accessMode) {
+    case "paid":
+      return { paid: true, trial: false };
+    case "intro":
+      return { paid: false, trial: true };
+    case "trial-and-paid":
+      return { paid: true, trial: true };
+    case "private-lesson":
+      return { paid: false, trial: false };
+  }
+  const intro = isIntroductionClass(session, program);
+  return { paid: !intro, trial: intro };
+}
+
+/** Age limits and waitlists stay with classes only paid members book. */
+export function isPaidOnlySession(
+  session: { readonly accessMode?: unknown },
+  program: { readonly name?: unknown; readonly introductionClass?: unknown } | null | undefined,
+): boolean {
+  const audience = sessionAudience(session, program);
+  return audience.paid && !audience.trial;
+}
+
+/** Only members on their Free Trial may book it (a private lesson is neither side). */
+export function isTrialOnlySession(
+  session: { readonly accessMode?: unknown },
+  program: { readonly name?: unknown; readonly introductionClass?: unknown } | null | undefined,
+): boolean {
+  const audience = sessionAudience(session, program);
+  return audience.trial && !audience.paid;
+}
+
+/** The access the session panel stores for an audience (at least one side is on). */
+export function accessModeForAudience(audience: SessionAudience): "paid" | "intro" | "trial-and-paid" {
+  if (audience.paid && audience.trial) return "trial-and-paid";
+  return audience.trial ? "intro" : "paid";
 }
 
 /** The Types editor's form for one type: its saved values, the v2 defaults where it has none. */
@@ -620,7 +674,7 @@ export function parseCreateClassInput(input: unknown): Result<CreateClassInput, 
   }
 
   if (!classAccessModes.includes(accessMode as ClassAccessMode)) {
-    return err("accessMode must be membership, intro or private-lesson");
+    return err("accessMode must be membership, intro, private-lesson, paid or trial-and-paid");
   }
 
   if (typeof locationId !== "string" || !defaultLocationIds.includes(locationId)) {
@@ -769,7 +823,7 @@ export function parseUpdateClassInput(input: unknown): Result<UpdateClassInput, 
     return err("active must be a boolean");
   }
   if (accessMode !== undefined && !classAccessModes.includes(accessMode as ClassAccessMode)) {
-    return err("accessMode must be membership, intro or private-lesson");
+    return err("accessMode must be membership, intro, private-lesson, paid or trial-and-paid");
   }
   const rulesResult =
     recurrenceRules === undefined ? undefined : parseRecurrenceRules(recurrenceRules);
@@ -911,7 +965,7 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
   }
 
   if (!classAccessModes.includes(accessMode as ClassAccessMode)) {
-    return err("accessMode must be membership, intro or private-lesson");
+    return err("accessMode must be membership, intro, private-lesson, paid or trial-and-paid");
   }
 
   if (typeof locationId !== "string" || locationId.trim().length === 0) {
@@ -1119,7 +1173,7 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
     return err("repeatWeekly must be a boolean");
   }
   if (accessMode !== undefined && !classAccessModes.includes(accessMode as ClassAccessMode)) {
-    return err("accessMode must be membership, intro or private-lesson");
+    return err("accessMode must be membership, intro, private-lesson, paid or trial-and-paid");
   }
   const ages = parseAgeCapacities(ageCapacities, typeof capacity === "number" ? capacity : 300);
   if (!ages.ok) return err(ages.error);

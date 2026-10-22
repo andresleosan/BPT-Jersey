@@ -4,21 +4,13 @@ import { hasAcceptedEnrolmentWaiver } from "../consents/enrolment-waiver-accepta
 import {
   ageOnDate,
   dateKeyInJersey,
-  introductionClassAdmitsAge,
-  participantTypeOn,
+  trialSessionRefusal,
 } from "@bpt-jersey/domain/schedule/member-calendar";
-import {
-  programAdmits,
-  type ProgramAgeRange,
-  type ProgramSite,
-} from "@bpt-jersey/domain/schedule/classes-services";
 import {
   buildBookingId,
   buildBookingIdCandidates,
-  isIntroductionClass,
   isWithinBookingCutoff,
   sessionAccessMode,
-  type AgeBand,
   type BookingRecord,
   type IntroBookingRecord,
   type SessionRecord,
@@ -380,58 +372,32 @@ export async function requestIntroBooking(
       programSnapshot.exists && storedProgram && storedProgram.academyId === academyId
         ? storedProgram
         : undefined;
-    let isIntroSession: boolean;
     try {
       sessionAccessMode(session);
-      isIntroSession = isIntroductionClass(session, program);
     } catch {
       return fail("ineligible", "Session access mode is invalid");
     }
-    const trialDateKey = dateKeyInJersey(new Date(session.startAt));
     const trialAge =
-      typeof student.dateOfBirth === "string" ? ageOnDate(student.dateOfBirth, trialDateKey) : 16;
-    // Introduction Classes are for beginners: adults (16+), or children of a children's type by its
-    // own ages (operator 2026-10-21). Everyone else uses free classes on regular classes of their age.
-    if (
-      isIntroSession &&
-      (trial.experience === "experienced" || !introductionClassAdmitsAge(program, trialAge))
-    ) {
-      return fail("ineligible", "Introduction Classes are for beginners of this class's ages", "intro");
+      typeof student.dateOfBirth === "string"
+        ? ageOnDate(student.dateOfBirth, dateKeyInJersey(new Date(session.startAt)))
+        : 16;
+    // The calendar's own rule (spec 2026-10-22): adults book Free Trial sessions, children the
+    // classes of their age and children's Free Trial sessions.
+    const refusal = trialSessionRefusal(
+      session,
+      // A missing type reads as no type: only an adult on a legacy intro session gets through.
+      (program ?? {}) as Parameters<typeof trialSessionRefusal>[1],
+      trialAge,
+      expectedSite,
+    );
+    if (refusal === "trial_class_only") {
+      return fail("ineligible", "On your Free Trial, adults book Free Trial classes", "trial");
     }
-    if (!isIntroSession) {
-      const dateKey = trialDateKey;
-      const age = trialAge;
-      // Adult beginners: the first free class is an Introduction Class; once they have attended
-      // one, the second may be a regular class of their age at the trial centre. Experienced adults
-      // may use their trial on a regular class too (the allowance below still counts it).
-      if (age >= 16 && trial.experience !== "experienced" && trialAttendedCount(trial) < 1) {
-        return fail("ineligible", "Your first free class is an Introduction Class", "trial");
-      }
-      if (!program) {
-        return fail("ineligible", "Intro session is not bookable");
-      }
-      if (program.discipline === "open-mat") {
-        return fail("ineligible", "Open Mats are not part of the free trial", "trial");
-      }
-      // Kids, teens and experienced adults may book any class of their age and centre (the type's own rules).
-      if (program.ageRange) {
-        const typeRules = program as { ageRange: ProgramAgeRange; sites?: readonly ProgramSite[] };
-        if (
-          !programAdmits(
-            { ageRange: typeRules.ageRange, sites: typeRules.sites ?? [] },
-            age,
-            expectedSite,
-          )
-        )
-          return fail("ineligible", "This class is for another age group", "age-centre");
-      } else if (
-        (program.ageBand as AgeBand) !==
-        (typeof student.dateOfBirth === "string"
-          ? participantTypeOn(student.dateOfBirth, dateKey)
-          : "adult")
-      ) {
-        return fail("ineligible", "This class is for another age group", "age-centre");
-      }
+    if (refusal === "open_mat") {
+      return fail("ineligible", "Open Mats are not part of the free trial", "trial");
+    }
+    if (refusal) {
+      return fail("ineligible", "This class is for another age group", "age-centre");
     }
     if (!command.walkIn && !isWithinBookingCutoff(session.startAt, command.now, 60)) {
       return fail("ineligible", "Intro booking cutoff has passed");

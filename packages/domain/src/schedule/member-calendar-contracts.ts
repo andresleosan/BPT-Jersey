@@ -4,11 +4,12 @@
  * Spec: docs/archive/superpowers/specs/2026-09-10-member-calendar-design.md
  * Every day, label and deadline is computed in Europe/Jersey. Nothing here touches Firebase.
  */
-import { isIntroductionClass, isWithinBookingCutoff } from "./schedule-contracts";
+import { isTrialOnlySession, isWithinBookingCutoff, sessionAudience } from "./schedule-contracts";
 import {
   introductionClassForChildren,
   programAdmits,
   type ProgramAgeRange,
+  type ProgramSite,
 } from "./classes-services-contracts";
 import type {
   AttendanceRecord,
@@ -254,7 +255,7 @@ export type LockedReason =
   | "needs_subscription"
   | "plan_pending"
   | "trial_booked"
-  | "trial_intro_first"
+  | "trial_class_only"
   | "office_arranged";
 
 const hiddenReasons: ReadonlySet<LockedReason> = new Set(["age_band", "site", "paid_period"]);
@@ -310,8 +311,8 @@ function lockedReasonFor(
     return member.courseSessionIds?.includes(session.sessionId) ? undefined : "paid_period";
   if (member.trial && member.membershipId === null)
     return trialLockedReason(session, program, member, member.trial);
-  // Introduction Classes belong to the Free Trial of beginners; nobody else sees them.
-  if (isIntroductionClass(session, program)) return "age_band";
+  // Free-Trial-only classes belong to the Free Trial; nobody else sees them.
+  if (isTrialOnlySession(session, program)) return "age_band";
   if (member.membershipId === null) {
     // No plan: the classes of their age at their own centre, in grey.
     if (member.introSite !== undefined && sessionSite(session) !== member.introSite) return "site";
@@ -395,36 +396,48 @@ export function participantTypeOn(dateOfBirth: string, dateKey: string): Partici
 }
 
 /**
- * The ages an Introduction Class takes on a Free Trial: a children's type its own (operator
- * 2026-10-21), every other one 16 and over, a legacy intro session on any type included. Only
- * beginners book one; the callers check that.
+ * Free Trial (spec 2026-10-22): which sessions a trial member of this age may book at the session's
+ * centre. Adults (16+) book only sessions open to the Free Trial. Children book the paid classes of
+ * their age, and Free Trial sessions of a children's type (every age under 16), never the adult one.
+ * A type with no age range of its own (seminars) is not a trial class for children. Open Mats never
+ * are. Allowance, dates and centre of the trial are checked by the callers.
  */
-export function introductionClassAdmitsAge(
-  program:
-    | Readonly<{
-        name?: unknown;
-        introductionClass?: unknown;
-        ageRange?: ProgramAgeRange | null;
-        ageBand?: string;
-      }>
-    | null
-    | undefined,
+export function trialSessionRefusal(
+  session: Readonly<{ accessMode?: unknown }>,
+  program: Readonly<{
+    name?: unknown;
+    introductionClass?: unknown;
+    ageRange?: ProgramAgeRange | null;
+    ageBand?: string;
+    discipline?: string;
+    sites?: readonly ProgramSite[];
+  }>,
   age: number,
-): boolean {
-  if (!program || !isIntroductionClass({}, program) || !introductionClassForChildren(program))
-    return age >= 16;
+  site: Site,
+): "site" | "open_mat" | "age_band" | "trial_class_only" | undefined {
+  if (!programAdmits({ sites: program.sites ?? [] }, null, site)) return "site";
+  if (program.discipline === "open-mat") return "open_mat";
+  const audience = sessionAudience(session, program);
   const range = program.ageRange ?? null;
-  if (range !== null) return age >= range.minAge && (range.maxAge === null || age <= range.maxAge);
-  return bandForAge(age) === program.ageBand;
+  if (age >= 16) {
+    // Another age group's class stays hidden; one of theirs that is not Free Trial shows in grey.
+    const ageOk =
+      range !== null
+        ? programAdmits({ ageRange: range }, age, site)
+        : program.ageBand !== "kids" && program.ageBand !== "teens";
+    if (!ageOk) return "age_band";
+    return audience.trial ? undefined : "trial_class_only";
+  }
+  if (!audience.paid && !(audience.trial && introductionClassForChildren(program))) return "age_band";
+  if (range !== null) return programAdmits({ ageRange: range }, age, site) ? undefined : "age_band";
+  if (program.ageBand === "all") return "age_band";
+  return program.ageBand === bandForAge(age) ? undefined : "age_band";
 }
 
 /**
- * Free Trial: an adult (16+) beginner's first free class is an Introduction Class; once they have
- * attended one, the second may be another Introduction Class or a regular class of their age at the
- * trial centre. Everyone else books regular classes of their age at the trial centre; a child
- * beginner may also book a children's Introduction Class of their age. At most `allowance` free
- * classes may be held at once; once they are all attended (or the 30 days are over) the classes stay
- * in grey until a plan is bought.
+ * Free Trial in the calendar: the same rule as the trial booking (`trialSessionRefusal`). At most
+ * `allowance` free classes may be held at once; once they are all attended (or the 30 days are
+ * over) the classes stay in grey until a plan is bought.
  */
 function trialLockedReason(
   session: SessionRecord,
@@ -437,26 +450,16 @@ function trialLockedReason(
     typeof member.dateOfBirth === "string"
       ? ageOnDate(member.dateOfBirth, dateKeyInJersey(new Date(session.startAt)))
       : 16;
-  const adultBeginner = age >= 16 && trial.experience !== "experienced";
-  const intro = isIntroductionClass(session, program);
-  if (intro && (trial.experience === "experienced" || !introductionClassAdmitsAge(program, age)))
-    return "age_band";
-  if (!intro) {
-    // Same as the trial booking: a type with no age range of its own (Introduction Class,
-    // seminars) is not a trial class.
-    if (!program.ageRange && program.ageBand === "all") return "age_band";
-    const reason = ageReason(session, program, member);
-    if (reason) return reason;
-  }
+  const refusal = trialSessionRefusal(session, program, age, trial.site);
+  if (refusal === "site" || refusal === "age_band") return refusal;
   const over =
     trial.status !== "active" ||
     Date.parse(session.startAt) >= Date.parse(trial.expiresAt) ||
     trial.attendedCount >= trial.allowance;
-  if (over) return intro ? "age_band" : noPlanReason(member);
-  // Open mats are never a trial class.
-  if (!intro && program.discipline === "open-mat") return noPlanReason(member);
-  // An adult beginner's first free class is an Introduction Class.
-  if (!intro && adultBeginner && trial.attendedCount < 1) return "trial_intro_first";
+  // A Free-Trial-only class has nothing to sell once the trial is over: it leaves the calendar.
+  if (over) return isTrialOnlySession(session, program) ? "age_band" : noPlanReason(member);
+  if (refusal === "open_mat") return noPlanReason(member);
+  if (refusal) return refusal;
   if (trial.attendedCount + trial.futureBookings >= trial.allowance) return "trial_booked";
   return undefined;
 }
@@ -599,7 +602,7 @@ export function lockedReasonLabel(
   if (reason === "needs_subscription") return "Needs a subscription to book";
   if (reason === "plan_pending") return "Plan pending approval";
   if (reason === "trial_booked") return "Your free trial classes are booked";
-  if (reason === "trial_intro_first") return "Your first free class is an Introduction Class";
+  if (reason === "trial_class_only") return "On your Free Trial, adults book Free Trial classes";
   if (reason === "office_arranged") return "Arranged by the office";
   return "Open Mat not included in your plan";
 }
