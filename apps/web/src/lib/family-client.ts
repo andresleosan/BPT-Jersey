@@ -106,11 +106,47 @@ function cleanUpdateInput(input: UpdateFamilyClientInput): UpdateFamilyClientInp
   throw new Error(safeUpdateError);
 }
 
+function isAdulthoodRow(value: unknown): boolean {
+  return (
+    isPlainRecord(value) &&
+    hasExactFields(value, [
+      "studentId",
+      "eighteenthBirthday",
+      "ownAccessPrepared",
+      "guardianAccessEnded",
+    ]) &&
+    isSafeId(value.studentId) &&
+    (value.eighteenthBirthday === null || typeof value.eighteenthBirthday === "string") &&
+    typeof value.ownAccessPrepared === "boolean" &&
+    typeof value.guardianAccessEnded === "boolean"
+  );
+}
+
 function isStaffProjection(value: unknown): value is StaffFamilyProjection {
-  if (!isPlainRecord(value) || !hasExactFields(value, ["family", "students", "relationships"])) {
+  // The server has also sent relationshipVersions and adulthood since 985b517; both stay optional.
+  const optional = ["relationshipVersions", "adulthood"].filter(
+    (key) => isPlainRecord(value) && Object.hasOwn(value, key),
+  );
+  if (
+    !isPlainRecord(value) ||
+    !hasExactFields(value, ["family", "students", "relationships", ...optional])
+  ) {
     return false;
   }
   if (!parseFamilyRecord(value.family).ok || !Array.isArray(value.students) || !Array.isArray(value.relationships)) {
+    return false;
+  }
+  const versions = value.relationshipVersions;
+  if (
+    versions !== undefined &&
+    (!isPlainRecord(versions) || !Object.values(versions).every((v) => typeof v === "string"))
+  ) {
+    return false;
+  }
+  if (
+    value.adulthood !== undefined &&
+    (!Array.isArray(value.adulthood) || !value.adulthood.every(isAdulthoodRow))
+  ) {
     return false;
   }
   return (

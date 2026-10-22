@@ -824,6 +824,72 @@ describe("MemberCalendar", () => {
       expect(document.querySelector('[data-session-id="' + mayaSessionId + '"]')).toBeNull();
     });
 
+    it("ignores a deferred check-in after leaving the week and coming back to it", async () => {
+      stubViewport(false);
+      stubGeolocation();
+      const fixture = createFixtureCalendarRepository("teenStudent");
+      const pending: Array<() => void> = [];
+      const loadWeek = vi.fn(async (...args: Parameters<typeof fixture.loadWeek>) => {
+        const loaded = await fixture.loadWeek(...args);
+        if (loadWeek.mock.calls.length < 2) return loaded;
+        return new Promise<typeof loaded>((resolve) => pending.push(() => resolve(loaded)));
+      });
+      let resolveClockIn:
+        ((record: Awaited<ReturnType<typeof fixture.clockIn>>) => void) | undefined;
+      const clockIn = vi.fn(
+        () =>
+          new Promise<Awaited<ReturnType<typeof fixture.clockIn>>>((resolve) => {
+            resolveClockIn = resolve;
+          }),
+      );
+      render(
+        <MemberCalendar
+          onSignOut={vi.fn()}
+          repository={{ ...fixture, loadWeek, clockIn }}
+          session={teen}
+        />,
+      );
+      const slider = await screen.findByRole("slider", { name: /Teens BJJ/u });
+      const sessionId = document
+        .querySelector('li[data-session-id$="_ready"]')
+        ?.getAttribute("data-session-id");
+      if (!sessionId) throw new Error("ready session missing");
+      fireEvent.change(slider, { target: { value: "100" } });
+      fireEvent.keyUp(slider, { key: "End" });
+      await waitFor(() => expect(resolveClockIn).toBeDefined());
+      let forward = 0;
+      for (; forward < 7 && pending.length === 0; forward += 1) {
+        await userEvent.click(screen.getByRole("button", { name: "Later" }));
+      }
+      await waitFor(() => expect(pending).toHaveLength(1));
+      for (let back = 0; back < forward; back += 1) {
+        await userEvent.click(screen.getByRole("button", { name: "Earlier" }));
+      }
+      await waitFor(() => expect(pending).toHaveLength(2));
+      await act(async () => {
+        resolveClockIn?.({
+          attendanceId: sessionId + "__sam",
+          academyId: "bpt-jersey",
+          sessionId,
+          studentId: "sam",
+          method: "self",
+          state: "attended",
+          occurredAt: new Date().toISOString(),
+          notes: null,
+          correctionOf: null,
+          schemaVersion: "1",
+          createdAt: new Date().toISOString(),
+          createdBy: "sam",
+          updatedAt: new Date().toISOString(),
+          updatedBy: "sam",
+        });
+      });
+      // The week the member came back to answers now: it must show, not stay loading.
+      await act(async () => pending[1]?.());
+      await waitFor(() => expect(document.querySelector("[aria-busy='true']")).toBeNull());
+      expect(screen.queryByRole("heading", { name: "You're in" })).not.toBeInTheDocument();
+    });
+
     it("ignores a deferred check-in after navigating to a new week", async () => {
       stubViewport(false);
       stubGeolocation();

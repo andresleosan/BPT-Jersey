@@ -178,6 +178,7 @@ export function MemberCalendar({
   const silentReload = useRef(false);
   const weekRevision = useRef(0);
   const activeWeekScope = useRef<WeekScope | undefined>(undefined);
+  const requestedRangeKey = useRef("");
   const loadedWeekScopeRef = useRef<WeekScope | undefined>(undefined);
   const [loadedWeekScope, setLoadedWeekScope] = useState<WeekScope>();
   const [siblingReady, setSiblingReady] = useState<
@@ -258,6 +259,13 @@ export function MemberCalendar({
   useEffect(() => {
     if (!selectedStudentId || !rangeFrom || !rangeTo) return;
     let active = true;
+    // A new week (or a return to an earlier one) is a new revision, so a booking or check-in still
+    // running for the week left behind can never land on, or outdate, the week requested now.
+    const rangeKey = `${selectedStudentId}|${rangeFrom}|${rangeTo}`;
+    if (requestedRangeKey.current !== rangeKey) {
+      requestedRangeKey.current = rangeKey;
+      weekRevision.current += 1;
+    }
     const requestedScope: WeekScope = {
       studentId: selectedStudentId,
       rangeFrom,

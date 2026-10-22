@@ -217,4 +217,43 @@ describe("family callable client", () => {
     );
     expect(callableState.call).not.toHaveBeenCalled();
   });
+
+  it("accepts the staff projection the server sends, with relationship versions and adulthood", async () => {
+    // staffProjection() has returned these two keys since 985b517; rejecting them broke every load.
+    const serverProjection = {
+      ...familyProjection,
+      relationshipVersions: { "family-1--student-1": "a".repeat(64) },
+      adulthood: [
+        {
+          studentId: "student-1",
+          eighteenthBirthday: "2033-08-19",
+          ownAccessPrepared: false,
+          guardianAccessEnded: false,
+        },
+      ],
+    };
+    callableState.call.mockResolvedValueOnce({ data: serverProjection });
+    await expect(getFamily("family-1")).resolves.toEqual(serverProjection);
+    callableState.call.mockResolvedValueOnce({ data: serverProjection });
+    await expect(
+      changeChildGuardian({
+        familyId: "family-1",
+        requestId: "6f1c2a8e-1b2c-4d3e-8f90-0a1b2c3d4e5f",
+        studentId: "student-1",
+        expectedRelationshipId: "family-1--student-1",
+        proposedGuardianUserId: "user-2",
+        evidence: "Court order seen at the desk",
+        reason: "Custody moved to the other parent",
+      }),
+    ).resolves.toEqual(serverProjection);
+
+    for (const broken of [
+      { ...serverProjection, relationshipVersions: { "family-1--student-1": 7 } },
+      { ...serverProjection, adulthood: [{ studentId: "student-1" }] },
+      { ...serverProjection, internalNote: "x" },
+    ]) {
+      callableState.call.mockResolvedValueOnce({ data: broken });
+      await expect(getFamily("family-1")).rejects.toThrow("Unable to load your family");
+    }
+  });
 });
