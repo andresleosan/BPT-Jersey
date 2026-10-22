@@ -25,7 +25,6 @@ import {
   parsePrivateDocumentRecord,
   type PrivateDocumentRecord,
 } from "@bpt-jersey/domain/documents";
-import { parseFamilyRelationship } from "@bpt-jersey/domain/families";
 import {
   parseEffectiveStudentProfileAt,
   parseUserProfile,

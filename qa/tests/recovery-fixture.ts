@@ -90,10 +90,10 @@ export const transferScreenshot = {
 };
 
 export const test = base.extend<{ stackPage: Page }>({
-  stackPage: async ({ page }, use, testInfo) => {
+  stackPage: async ({ page }, provide, testInfo) => {
     testInfo.setTimeout(240_000);
     await routeFunctionsThroughNode(page);
-    await use(page);
+    await provide(page);
     // Background calls (calendar warm-up pings) may still be in flight when the test ends.
     await page.unrouteAll({ behavior: "ignoreErrors" });
   },

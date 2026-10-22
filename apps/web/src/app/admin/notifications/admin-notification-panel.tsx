@@ -137,7 +137,7 @@ export function AdminNotificationPanel({ role }: { role?: string | null | undefi
     window.addEventListener("focus", refresh);
     return () => {
       mounted.current = false;
-      requestSequence.current++;
+      requestSequence.current += 1;
       window.clearInterval(timer);
       window.removeEventListener("focus", refresh);
     };

@@ -26,7 +26,7 @@ export function CourseSessionGate({children}: {children: (session: CourseSession
         if (active && ticket === generation.current) setSession(resolved);
       })().catch(e => {if (active && ticket === generation.current) setError(courseError(e));}).finally(() => {if (active && ticket === generation.current) setLoading(false);});
     });
-    return () => {active = false; generation.current++; unsubscribe();};
+    return () => {active = false; generation.current += 1; unsubscribe();};
   }, []);
   async function signIn(action: () => Promise<unknown>) {setBusy(true); setError(""); try {await action();} catch {setError("Sign-in could not be completed. Check your details and try again.");} finally {setBusy(false);}}
   if (loading) return <div className="course-loading" role="status">Loading your course access…</div>;

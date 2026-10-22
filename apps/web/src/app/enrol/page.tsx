@@ -651,7 +651,7 @@ function EnrolContent() {
   }, []);
   const [existing, setExisting] = useState<Readonly<{ allowed: readonly Who[] }>>();
   const [existingFailed, setExistingFailed] = useState(false);
-  const seededPhone = useRef("");
+  const [seededPhone, setSeededPhone] = useState("");
   useEffect(() => {
     if (!alreadyStudent || !requestedFor) return;
     let active = true;
@@ -678,7 +678,7 @@ function EnrolContent() {
             }
           : undefined;
       if (!contact) throw new Error("No account contact");
-      seededPhone.current = contact.phoneNumber;
+      setSeededPhone(contact.phoneNumber);
       if (!active) return;
       const start = allowed.includes(requestedFor) ? requestedFor : allowed[0]!;
       setForm((current) => ({
@@ -1074,7 +1074,7 @@ function EnrolContent() {
                     autoComplete="tel"
                     id="enrol-phone"
                     // An account without a phone must still be able to add one here (review M5).
-                    readOnly={existing !== undefined && Boolean(seededPhone.current)}
+                    readOnly={existing !== undefined && Boolean(seededPhone)}
                     maxLength={64}
                     onChange={(event) => setForm({ ...form, phoneNumber: event.target.value })}
                     type="tel"

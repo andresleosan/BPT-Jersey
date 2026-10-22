@@ -1,6 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Course, CourseEnrolment, CourseJob, CoursePage } from "@bpt-jersey/domain/courses";
 import { courseApi, courseError } from "../../../lib/courses/course-client";
 import { courseDate, courseMoney } from "../../../lib/courses/course-public-client";
@@ -79,42 +79,48 @@ export default function AdminCoursesPage() {
       window.removeEventListener("bpt-course-update", refresh);
     };
   }, []);
-  async function load(cursor?: string) {
-    const ticket = ++loadGeneration.current;
-    setLoading(true);
-    setError("");
-    try {
-      if (tab === "courses") {
-        const p = await courseApi.courses(cursor ? { cursor } : {});
-        if (ticket !== loadGeneration.current) return;
-        setCourses((old) => ({
-          ...p,
-          items: cursor ? [...(old?.items ?? []), ...p.items] : p.items,
-        }));
-      } else if (tab === "requests") {
-        const p = await courseApi.enrolments({
-          ...(cursor ? { cursor } : {}),
-          ...(filter !== "all" ? { status: filter } : {}),
-        });
-        if (ticket !== loadGeneration.current) return;
-        setRequests((old) => ({
-          ...p,
-          items: cursor ? [...(old?.items ?? []), ...p.items] : p.items,
-        }));
-      } else if (tab === "jobs") {
-        const p = await courseApi.jobs({ state: jobState, ...(cursor ? { cursor } : {}) });
-        if (ticket !== loadGeneration.current) return;
-        setJobs((old) => ({ ...p, items: cursor ? [...(old?.items ?? []), ...p.items] : p.items }));
+  const load = useCallback(
+    async (cursor?: string) => {
+      const ticket = ++loadGeneration.current;
+      setLoading(true);
+      setError("");
+      try {
+        if (tab === "courses") {
+          const p = await courseApi.courses(cursor ? { cursor } : {});
+          if (ticket !== loadGeneration.current) return;
+          setCourses((old) => ({
+            ...p,
+            items: cursor ? [...(old?.items ?? []), ...p.items] : p.items,
+          }));
+        } else if (tab === "requests") {
+          const p = await courseApi.enrolments({
+            ...(cursor ? { cursor } : {}),
+            ...(filter !== "all" ? { status: filter } : {}),
+          });
+          if (ticket !== loadGeneration.current) return;
+          setRequests((old) => ({
+            ...p,
+            items: cursor ? [...(old?.items ?? []), ...p.items] : p.items,
+          }));
+        } else if (tab === "jobs") {
+          const p = await courseApi.jobs({ state: jobState, ...(cursor ? { cursor } : {}) });
+          if (ticket !== loadGeneration.current) return;
+          setJobs((old) => ({
+            ...p,
+            items: cursor ? [...(old?.items ?? []), ...p.items] : p.items,
+          }));
+        }
+      } catch (e) {
+        if (ticket === loadGeneration.current) setError(courseError(e));
+      } finally {
+        if (ticket === loadGeneration.current) setLoading(false);
       }
-    } catch (e) {
-      if (ticket === loadGeneration.current) setError(courseError(e));
-    } finally {
-      if (ticket === loadGeneration.current) setLoading(false);
-    }
-  }
+    },
+    [tab, filter, jobState],
+  );
   useEffect(() => {
     void load();
-  }, [tab, filter, jobState]);
+  }, [load]);
   async function refreshSelected() {
     if (selected) {
       try {

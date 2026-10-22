@@ -8,6 +8,7 @@ import {
   planLevelProgressMigration,
   type LevelProgressMigrationStore,
 } from "./level-progress-migration.js";
+import type { GenericTransaction } from "./level-service.js";
 
 const academyId = "academy-1";
 const studentId = "student-1";
@@ -72,7 +73,7 @@ function fakeStore(initial: Readonly<Record<string, Stored>>) {
       return query([]);
     },
     batch: () => ({ set() {}, delete() {}, commit: async () => undefined }),
-    runTransaction: async <T>(callback: (transaction: any) => Promise<T>) => {
+    runTransaction: async <T>(callback: (transaction: GenericTransaction) => Promise<T>) => {
       const staged = new Map<string, Readonly<Record<string, unknown>>>();
       const creates = new Set<string>();
       const transaction = {
@@ -97,7 +98,7 @@ function fakeStore(initial: Readonly<Record<string, Stored>>) {
         },
         delete: () => undefined,
       };
-      const result = await callback(transaction);
+      const result = await callback(transaction as unknown as GenericTransaction);
       for (const [path, data] of staged) {
         if (creates.has(path) && records.has(path)) throw new Error("already exists");
         records.set(path, { data });

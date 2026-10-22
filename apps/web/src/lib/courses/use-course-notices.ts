@@ -15,7 +15,7 @@ export function useCourseNotices(uid: string) {
       pending = courseApi.notices({}).then(page => {if (active && ticket === generation.current) {setNotices(page.items); setCursor(page.cursor); setError("");}}).catch(e => {if (active) setError(courseError(e));}).finally(() => {pending = null;});
     };
     refresh(); window.addEventListener("focus", refresh); window.addEventListener("bpt-course-update", refresh);
-    return () => {active = false; generation.current++; window.removeEventListener("focus", refresh); window.removeEventListener("bpt-course-update", refresh);};
+    return () => {active = false; generation.current += 1; window.removeEventListener("focus", refresh); window.removeEventListener("bpt-course-update", refresh);};
   }, [uid]);
   async function loadMore() {
     if (!cursor || loadingMore.current) return;

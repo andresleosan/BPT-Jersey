@@ -134,6 +134,7 @@ export function ReadyForJiuJitsu({
     if (!autoCheckIn || candidate.kind !== "ready") return;
     setValue(100);
     void commit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only: commit is new on every parent render, so listing it would re-run the check-in
   }, []);
 
   const settle = useCallback(() => {

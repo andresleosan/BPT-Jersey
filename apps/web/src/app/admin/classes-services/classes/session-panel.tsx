@@ -231,6 +231,7 @@ export function SessionPanel({
     if (!session?.ageCapacities?.length || followUp) return;
     void getSessionAgeAvailability(session.sessionId).then((result) => { if (active) setAgeAvailability(result.rows); }).catch(() => { if (active) setAgeAvailability(null); });
     return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one fetch per class: a reloaded record with another row count must not refetch
   }, [session?.sessionId, followUp]);
   const [current, setCurrent] = useState<"create" | "edit">(mode);
   const [draft, setDraft] = useState<Draft>(() =>

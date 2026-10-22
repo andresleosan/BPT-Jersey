@@ -1,7 +1,7 @@
 "use client";
 
 import { ageWaitlistEnabled } from "../../lib/age-waitlist-feature";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { WaitlistInvitationView } from "@bpt-jersey/domain/schedule/waitlist-invitations";
 import { listWaitlistClassInvitations, respondWaitlistClassInvitation } from "../../lib/waitlist-invitations-client";
 import { locationLabel } from "../../lib/location-label";
@@ -23,7 +23,7 @@ function ActiveWaitlistInvitations({ studentId, onBooked }: { studentId: string;
   const inFlight = useRef(false);
   const generation = useRef(0);
 
-  async function load(next?: string) {
+  const load = useCallback(async (next?: string) => {
     const version = generation.current;
     try {
       const page = await listWaitlistClassInvitations(studentId, next);
@@ -31,13 +31,13 @@ function ActiveWaitlistInvitations({ studentId, onBooked }: { studentId: string;
       setRows((current) => next ? [...current, ...page.invitations] : page.invitations);
       setCursor(page.cursor); setLoaded(true);
     } catch { if (version === generation.current) { setLoaded(true); setError("Class invitations could not be loaded. Try again."); } }
-  }
+  }, [studentId]);
 
   useEffect(() => {
     generation.current++; setRows([]); setLoaded(false); setError(""); setNotice("");
     void load();
-    return () => { generation.current++; };
-  }, [studentId]);
+    return () => { generation.current += 1; };
+  }, [load]);
 
   async function respond(row: WaitlistInvitationView, response: "accept" | "decline") {
     if (inFlight.current) return;

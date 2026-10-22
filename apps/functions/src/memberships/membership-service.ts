@@ -227,13 +227,6 @@ function consentPath(academyId: string, consentId: string): string {
   )}`;
 }
 
-function relationshipPath(academyId: string, familyId: string, studentId: string): string {
-  return `academies/${pathSegment(academyId, "academy")}/relationships/${pathSegment(
-    `${familyId}--${studentId}`,
-    "relationship",
-  )}`;
-}
-
 function auditEventsPath(academyId: string): string {
   return `academies/${pathSegment(academyId, "academy")}/auditEvents`;
 }

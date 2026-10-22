@@ -12,6 +12,7 @@ export function requireFreshAppCheck(request: CallableRequest<unknown>): void {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- mirrors firebase-functions onCall<T = any>; handlers read request.data fields untyped
 export function onCallWithFreshAppCheck<T = any, Return = unknown, Stream = unknown>(
   options: CallableOptions<T>,
   handler: (request: CallableRequest<T>, response?: CallableResponse<Stream>) => Return,

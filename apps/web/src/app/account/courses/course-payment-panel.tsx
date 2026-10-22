@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CourseEnrolment, CoursePage, CourseRefund } from "@bpt-jersey/domain/courses";
 import { courseApi, courseError } from "../../../lib/courses/course-client";
 import {
@@ -31,13 +31,13 @@ export function CoursePaymentPanel({
   const [reason, setReason] = useState("");
   const upload = useRef<{ file: File; proofId: string } | null>(null);
   const action = useCourseAction();
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60000);
     return () => window.clearInterval(timer);
   }, []);
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setError("");
     try {
       const [d, b, r] = await Promise.all([
@@ -52,10 +52,10 @@ export function CoursePaymentPanel({
     } catch (e) {
       setError(courseError(e));
     }
-  }
+  }, [enrolmentId]);
   useEffect(() => {
     void refresh();
-  }, [enrolmentId]);
+  }, [refresh]);
   async function submit() {
     if (!detail || !file || !reference.trim()) return;
     if (!["image/png", "image/jpeg"].includes(file.type) || file.size > 2097152) {

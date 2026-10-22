@@ -10,7 +10,7 @@ const hashPattern = /^[a-f0-9]{64}$/u;
 const isoTimestamp = z.string().datetime({ offset: false });
 const maximumHeads = 10_000;
 
-const decisionStatusSchema = z.enum(["migrate", "already_v3", "stale", "manual_review"]);
+type DecisionStatus = "migrate" | "already_v3" | "stale" | "manual_review";
 const planStatusSchema = z.enum(["migrate", "already_v3", "manual_review"]);
 const planRowSchema = z
   .strictObject({
@@ -67,7 +67,7 @@ export type LevelProgressMigrationResult = Readonly<{
   contentHash: string;
   rows: readonly Readonly<{
     studentId: string | null;
-    status: z.infer<typeof decisionStatusSchema>;
+    status: DecisionStatus;
   }>[];
 }>;
 
@@ -311,8 +311,7 @@ export async function applyLevelProgressMigration(
     throw new Error("Level progress migration confirmation mismatch");
   }
 
-  const resultRows: { studentId: string | null; status: z.infer<typeof decisionStatusSchema> }[] =
-    [];
+  const resultRows: { studentId: string | null; status: DecisionStatus }[] = [];
   for (const row of plan.rows) {
     if (
       row.status === "manual_review" ||

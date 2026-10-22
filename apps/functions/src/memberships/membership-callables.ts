@@ -16,7 +16,6 @@ import {
 import { planIds, type PlanId } from "@bpt-jersey/domain/memberships";
 import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
 import type { UserActorContext } from "@bpt-jersey/domain";
-import type { StaffFamilyProjection } from "@bpt-jersey/domain/families";
 
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { requireUserActor } from "../auth/user-authorization.js";

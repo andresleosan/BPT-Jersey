@@ -103,7 +103,6 @@ const documentPath = (academyId: string, documentId: string) =>
   documentsPath(academyId) + "/" + documentId;
 const studentPath = (academyId: string, studentId: string) =>
   "academies/" + academyId + "/students/" + studentId;
-const relationshipsPath = (academyId: string) => "academies/" + academyId + "/relationships";
 function id(value: string, label: string): string {
   if (!safe.test(value)) throw new DocumentStoreError("invalid", "Invalid " + label);
   return value;

@@ -82,11 +82,9 @@ export function TeamDirectoryContent({
       mounted.current = false;
     };
     // The component is keyed to the authenticated session; requests never cross identities.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
     if (refreshKey > 0) void loadDirectory();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
   useEffect(() => {
     if (review) confirmButton.current?.focus();

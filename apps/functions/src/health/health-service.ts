@@ -155,9 +155,6 @@ function studentPath(academyId: string, studentId: string): string {
     "academies/" + segment(academyId, "academy") + "/students/" + segment(studentId, "student")
   );
 }
-function relationshipsCollection(academyId: string): string {
-  return "academies/" + segment(academyId, "academy") + "/relationships";
-}
 function asDocument(value: HealthDocumentSnapshot | HealthQuerySnapshot): HealthDocumentSnapshot {
   if ("docs" in value) throw new HealthStoreError("invalid", "Expected document snapshot");
   return value;

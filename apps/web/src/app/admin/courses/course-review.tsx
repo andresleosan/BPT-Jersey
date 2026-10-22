@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   CourseEnrolment,
   CoursePage,
@@ -30,7 +30,7 @@ export function CourseReview({
   const [refunds, setRefunds] = useState<CoursePage<CourseRefund> | null>(null);
   const action = useCourseAction();
   const draftRefundId = useRef(crypto.randomUUID());
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setError("");
     try {
       const [d, i, r] = await Promise.all([
@@ -44,13 +44,13 @@ export function CourseReview({
     } catch (e) {
       setError(courseError(e));
     }
-  }
+  }, [enrolmentId]);
   useEffect(() => {
     setDetail(null);
     setProof(null);
     setError("");
     void refresh();
-  }, [enrolmentId]);
+  }, [refresh]);
   async function decide(kind: "approve" | "reject" | "correction" | "withdraw" | "keep") {
     if (!detail) return;
     const input = { enrolmentId, expectedRevision: detail.enrolment.revision };
@@ -210,6 +210,7 @@ export function CourseReview({
       {proof && (
         <div>
           <p className="course-meta">Private link expires after one minute. Reopen if needed.</p>
+          {/* eslint-disable-next-line @next/next/no-img-element -- 60-second signed private R2 URL on a static export (images.unoptimized) */}
           <img
             className="course-proof"
             src={proof}

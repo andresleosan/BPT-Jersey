@@ -13,7 +13,6 @@ import {
   type MemberRecoveryDetail,
   type MemberRecoveryRequestRow,
 } from "@bpt-jersey/domain/members/recovery";
-import { parseStoredRegyfitMemberRecord } from "@bpt-jersey/domain/members/regyfit-records";
 import {
   loadRecoverySources,
   archiveForLegacyMember,

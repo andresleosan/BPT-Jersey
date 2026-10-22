@@ -35,14 +35,8 @@ const confirmationSchema = z
   })
   .readonly();
 
-const resultStatusSchema = z.enum(["applied", "already_applied", "stale", "manual_review"]);
+type ResultStatus = "applied" | "already_applied" | "stale" | "manual_review";
 const storedStatusSchema = z.enum(["applied", "stale", "manual_review"]);
-const resultRowSchema = z
-  .strictObject({
-    recordRef: z.string(),
-    status: resultStatusSchema,
-  })
-  .readonly();
 const receiptSchema = z
   .strictObject({
     academyId: z.string().regex(safeIdentifier),
@@ -69,7 +63,10 @@ const receiptSchema = z
 export type MembershipNumberReconciliationConfirmation = Readonly<
   z.infer<typeof confirmationSchema>
 >;
-export type MembershipNumberReconciliationResultRow = Readonly<z.infer<typeof resultRowSchema>>;
+export type MembershipNumberReconciliationResultRow = Readonly<{
+  recordRef: string;
+  status: ResultStatus;
+}>;
 export type MembershipNumberReconciliationResult = Readonly<{
   academyId: string;
   operationId: string;

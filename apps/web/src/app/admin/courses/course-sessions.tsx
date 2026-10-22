@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Course, CoursePage } from "@bpt-jersey/domain/courses";
 import { courseApi, courseError } from "../../../lib/courses/course-client";
 import { courseDate, type PublicCourseSlot } from "../../../lib/courses/course-public-client";
@@ -23,18 +23,24 @@ export function CourseSessions({ course, onChanged }: { course: Course; onChange
   const [selected, setSelected] = useState<PublicCourseSlot | null>(null);
   const [error, setError] = useState("");
   const action = useCourseAction();
-  async function load(cursor?: string) {
-    setError("");
-    try {
-      const p = await courseApi.dates({ courseId: course.courseId, ...(cursor ? { cursor } : {}) });
-      setPage((old) => ({ ...p, items: cursor ? [...(old?.items ?? []), ...p.items] : p.items }));
-    } catch (e) {
-      setError(courseError(e));
-    }
-  }
+  const load = useCallback(
+    async (cursor?: string) => {
+      setError("");
+      try {
+        const p = await courseApi.dates({
+          courseId: course.courseId,
+          ...(cursor ? { cursor } : {}),
+        });
+        setPage((old) => ({ ...p, items: cursor ? [...(old?.items ?? []), ...p.items] : p.items }));
+      } catch (e) {
+        setError(courseError(e));
+      }
+    },
+    [course.courseId],
+  );
   useEffect(() => {
     void load();
-  }, [course.courseId, course.revision]);
+  }, [load, course.revision]);
   async function change(form: HTMLFormElement) {
     if (!selected) return;
     const data = new FormData(form);
