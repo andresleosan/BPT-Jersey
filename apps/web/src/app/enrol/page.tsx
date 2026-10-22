@@ -69,11 +69,11 @@ const beginnerDeclaration: EnrolmentLevelDeclaration = {
 type Experience = EnrolmentLevelDeclaration["experience"];
 
 const westBeginnerNotice =
-  "Beginners start with the Introduction Class in Town. West is open once you have trained before or hold a paid plan.";
-// Adults only (Luis, 2026-10-01): the adult Free Trial for beginners is the Introduction Class,
-// which runs only in Town. Adults who have trained before get one regular class at their centre.
+  "Beginners start with a Free Trial class in Town. West is open once you have trained before or hold a paid plan.";
+// Adults only (Luis, 2026-10-01; 2026-10-22): adults on a Free Trial book Free Trial classes, and
+// beginners start in Town. Adults who have trained before get one at their own centre.
 const westAdultTrialNotice =
-  "Free Trial in West: adults who have never trained can only attend the Introduction Class, and it runs only in Town. If you have trained before, choose that above to use your free class in West.";
+  "Free Trial in West: adults who have never trained start with a Free Trial class in Town. If you have trained before, choose that above to use your free class in West.";
 
 type MinorForm = {
   selectedPlan: EnrolmentPlanChoice | "";
@@ -293,8 +293,8 @@ type StudentPlacement = Pick<
 >;
 
 /**
- * Applies a student's experience answer and centre together. Beginners start at Town with the
- * Introduction Class, so a beginner who is at (or picks) West is moved to Town and told why. A
+ * Applies a student's experience answer and centre together. Beginners start at Town with a
+ * Free Trial class, so a beginner who is at (or picks) West is moved to Town and told why. A
  * change of centre resets the plan to the trial, as the plans differ per centre.
  */
 function placeStudent<T extends StudentPlacement>(
@@ -872,7 +872,7 @@ function EnrolContent() {
       if (!parsed.ok)
         throw new Error(
           parsed.error[0]?.code === "beginner_must_start_at_town"
-            ? "Beginners start at Town with the Introduction Class."
+            ? "Beginners start at Town with a Free Trial class."
             : "Check your selected plans and payment details before sending.",
         );
       const saved = await submitEnrolmentRequest(parsed.value);

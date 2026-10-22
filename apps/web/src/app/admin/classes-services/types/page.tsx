@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import {
-  isIntroductionClass,
   programEditorFields,
   programEditorUpdate,
   type ProgramEditorFields,
@@ -47,7 +46,6 @@ const dropInLabels: Record<DropInPolicy, string> = {
   "5": "5 drop-ins/trials",
 };
 type Notice = Readonly<{ kind: "success" | "error"; message: string }>;
-const introductionLabel = "Introduction Class: free trial class for beginners";
 
 export function TypesPage() {
   const session = useAdminOrStaffSession();
@@ -64,7 +62,7 @@ export function TypesPage() {
     abbreviation: "",
     ageRange: null as ProgramAgeRange | null,
     sites: [] as readonly ProgramSite[],
-    // Explicit on every new type: the name alone no longer decides it.
+    // Each session says who may book it (spec 2026-10-22); the marker only matters to older sessions.
     introductionClass: false,
   };
   const [draft, setDraft] = useState(emptyDraft);
@@ -220,18 +218,6 @@ export function TypesPage() {
                 value={draft}
                 onChange={(audience) => setDraft({ ...draft, ...audience })}
               />
-              <div className="types-checks">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={draft.introductionClass}
-                    onChange={(event) =>
-                      setDraft({ ...draft, introductionClass: event.target.checked })
-                    }
-                  />
-                  {introductionLabel}
-                </label>
-              </div>
               <button className="types-primary" type="submit">
                 {pending === "create" ? "Creating…" : "Create type"}
               </button>
@@ -353,7 +339,6 @@ export function TypesPage() {
                     <div className="types-summary">
                       <span>{kindLabels[program.kind ?? programDefaultsV2.kind]}</span>
                       <span>{audienceSummary(program)}</span>
-                      {isIntroductionClass({}, program) ? <span>Introduction Class</span> : null}
                       <span className="types-state" data-active={program.active}>
                         {program.active ? "Active" : "Inactive"}
                       </span>
@@ -500,16 +485,6 @@ export function TypesPage() {
                                 }
                               />
                               Show in the public class list
-                            </label>
-                            <label>
-                              <input
-                                type="checkbox"
-                                checked={edit.introductionClass}
-                                onChange={(event) =>
-                                  setEditing({ ...edit, introductionClass: event.target.checked })
-                                }
-                              />
-                              {introductionLabel}
                             </label>
                           </div>
                           <AudienceFields

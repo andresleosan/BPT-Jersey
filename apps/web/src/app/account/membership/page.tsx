@@ -308,7 +308,7 @@ function MembershipContent() {
                 </p>
               ) : (
                 <p className="client-current-line">
-                  Choose a plan below to book classes beyond the free Intro Class.
+                  Choose a plan below to book classes beyond your free trial classes.
                 </p>
               )}
               {pending ? (

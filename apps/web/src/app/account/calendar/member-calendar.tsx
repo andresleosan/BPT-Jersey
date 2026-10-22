@@ -17,7 +17,7 @@ import {
   type CalendarMode,
 } from "@bpt-jersey/domain/schedule/member-calendar";
 import {
-  isIntroductionClass,
+  isTrialOnlySession,
   type AttendanceRecord,
   type BookingRecord,
   type PaygBookingPayment,
@@ -564,7 +564,7 @@ export function MemberCalendar({
       if (!participant || entry.session.courseId) return;
       // A trial student has no membership, so every class they book is booked as an intro one.
       const onTrial = participant.trial !== undefined && !participant.membershipId;
-      const isIntro = onTrial || isIntroductionClass(entry.session, entry.program);
+      const isIntro = onTrial || isTrialOnlySession(entry.session, entry.program);
       if (!isIntro && !participant.membershipId) return;
       // Pay-as-you-go is paid for at booking: ask how before the place is taken.
       if (!isIntro && payment === undefined && isPerSessionPlan(participant.planId)) {
@@ -610,7 +610,7 @@ export function MemberCalendar({
               },
         );
         applyBooking(booking);
-        if (isIntro) flashNote(entry.session.sessionId, "Intro class booked.");
+        if (isIntro) flashNote(entry.session.sessionId, "Free trial class booked.");
       } catch (error) {
         if (!isIntro) restoreBooking(entry.session.sessionId, entry.booking);
         flashNote(entry.session.sessionId, bookingFailureMessage(error));

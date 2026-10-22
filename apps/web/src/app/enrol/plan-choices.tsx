@@ -35,12 +35,12 @@ export function EnrolmentPlanChoices({
   const recommended =
     plans.find((plan) => plan.classSites.length === 1 && plan.billingPeriod !== "per-session") ??
     plans[0];
-  // Beginners train at Town; adults among them are limited to the Introduction Class, while kids
-  // and teens join the classes of their age group. The count comes from the domain allowance.
+  // Adults book Free Trial classes (beginners at Town), while kids and teens join the classes of
+  // their age group. The count comes from the domain allowance.
   const trialClasses = enrolmentTrialAllowance(declaration.experience);
   const trialAccess =
-    declaration.experience === "beginner" && age >= 16
-      ? `${trialClasses} free Introduction Classes in Town`
+    age >= 16
+      ? `${trialClasses} Free Trial ${trialClasses === 1 ? "class" : "classes"} at ${trainingCenter}`
       : `${trialClasses} free ${trialClasses === 1 ? "class" : "classes"} at ${trainingCenter}`;
   return (
     <fieldset className="enrol-plan-choices" disabled={disabled}>

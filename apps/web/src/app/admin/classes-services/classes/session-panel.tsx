@@ -7,7 +7,8 @@ import { parseAgeCapacities, type AgeAvailability } from "@bpt-jersey/domain/sch
 import { lazy, Suspense, useEffect, useRef, useState, type ReactElement } from "react";
 
 import {
-  isIntroductionClass,
+  accessModeForAudience,
+  sessionAudience,
   type ClassAccessMode,
   type CreateSessionInput,
   type SessionRecord,
@@ -158,7 +159,7 @@ function draftFor(
     endTime: timeOf(minutesOf(startTime) + defaultDurationMinutes),
     locationId: catalog.locations[0]?.locationId ?? "",
     programId: catalog.programs.find((program) => !program.deletedAt)?.programId ?? "",
-    accessMode: "membership",
+    accessMode: "paid",
     capacity: "",
     minParticipants: "4",
     trainers: [],
@@ -413,10 +414,9 @@ export function SessionPanel({
   }
 
   const readOnly = !canEdit || busy;
-  // The type decides (its explicit marker, or the legacy name rule): the same answer in create
-  // and edit as the booking rules give. Nothing new is sent; accessMode keeps its meaning.
-  const introByType = isIntroductionClass(
-    {},
+  // Who may book, as the booking rules read it: a legacy "membership" session asks its class type.
+  const audience = sessionAudience(
+    draft,
     catalog.programs.find((program) => program.programId === draft.programId),
   );
   const missingDateTime = !draft.date || !draft.startTime || !draft.endTime;
@@ -680,47 +680,57 @@ export function SessionPanel({
                     ))}
                 </select>
               </label>
-              <label className="cs-field">
-                <span>Class access</span>
-                <select
-                  value={draft.accessMode}
+              {draft.accessMode === "private-lesson" ? (
+                <div className="cs-field">
+                  <span>Who can book</span>
+                  <p className="cs-access-fixed">Private lesson, arranged by the office</p>
+                </div>
+              ) : (
+                <fieldset
+                  className="cs-field cs-access"
                   disabled={followUp || readOnly || locked}
                   title={locked ? lockedHint : undefined}
-                  aria-describedby={introByType ? "cs-session-intro-help" : undefined}
-                  onChange={(event) =>
-                    patch({
-                      accessMode:
-                        event.target.value === "intro" || event.target.value === "private-lesson"
-                          ? event.target.value
-                          : "membership",
-                    })
-                  }
+                  aria-describedby="cs-session-access-help"
                 >
-                  <option value="membership">
-                    {introByType
-                      ? "Introduction Class (set by the class type)"
-                      : "Membership required"}
-                  </option>
-                  {/* Introduction Class is a class type now; only a legacy stored value shows, and
-                      it stays on offer after switching away so the change can be undone. */}
-                  {draft.accessMode === "intro" || session?.accessMode === "intro" ? (
-                    <option value="intro">Free Intro Class</option>
-                  ) : null}
-                  {draft.accessMode === "private-lesson" ? (
-                    <option value="private-lesson">Private lesson</option>
-                  ) : null}
-                </select>
-              </label>
+                  <legend>Who can book</legend>
+                  {/* One side stays on: the switch that is the only one on cannot be turned off. */}
+                  <label className="cs-switch">
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      checked={audience.paid}
+                      disabled={audience.paid && !audience.trial}
+                      onChange={(event) =>
+                        patch({ accessMode: accessModeForAudience({ ...audience, paid: event.target.checked }) })
+                      }
+                    />
+                    <span>Paid members</span>
+                  </label>
+                  <label className="cs-switch">
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      checked={audience.trial}
+                      disabled={audience.trial && !audience.paid}
+                      onChange={(event) =>
+                        patch({ accessMode: accessModeForAudience({ ...audience, trial: event.target.checked }) })
+                      }
+                    />
+                    <span>Free Trial</span>
+                  </label>
+                </fieldset>
+              )}
             </div>
             {locked && canEdit ? (
               <p className="cs-session-help">To change the class or location, use Copy session.</p>
             ) : null}
-            {introByType ? (
-              <p className="cs-session-help" id="cs-session-intro-help">
-                Free trial class for beginners of its type&apos;s ages, set by its class type. Members on
-                a plan cannot book it.
+            {draft.accessMode === "private-lesson" ? null : (
+              <p className="cs-session-help" id="cs-session-access-help">
+                Paid members have an active paid plan. Free Trial members are new members on their
+                free classes: adults book only Free Trial classes, children also book the paid classes
+                of their age. Keep at least one on.
               </p>
-            ) : null}
+            )}
             <h3>Session capacity</h3>
             <div className="cs-form-row">
               <div className="cs-field">
@@ -785,7 +795,7 @@ export function SessionPanel({
                 ) : null}
               </div>
             </div>
-            <AgeCapacityFields availability={ageAvailability} rows={draft.ageCapacities} onChange={(ageCapacities) => patch({ ageCapacities })} disabled={readOnly || draft.accessMode !== "membership"} maximum={capacityValue} canManage={canManageAgeLimits} />
+            <AgeCapacityFields availability={ageAvailability} rows={draft.ageCapacities} onChange={(ageCapacities) => patch({ ageCapacities })} disabled={readOnly || !audience.paid || audience.trial} maximum={capacityValue} canManage={canManageAgeLimits} />
             {!parsedAges.ok && <p className="cs-notice" data-kind="error" role="alert">{parsedAges.error}</p>}
             <h3>Trainers</h3>
             <ul className="cs-trainers">

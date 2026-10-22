@@ -638,7 +638,7 @@ export function walkInFailureMessage(error: unknown, name: string, sessionStartA
     case "private":
       return "Private lessons are arranged by the office.";
     case "intro":
-      return `Introduction Classes are for beginners of the class's ages on their Free Trial; ${name} isn't one.`;
+      return `This class is only for members on their Free Trial; ${name} books classes with their plan.`;
     case "plan-inactive":
       return `${name}'s plan is no longer offered.`;
     case "plan-age":

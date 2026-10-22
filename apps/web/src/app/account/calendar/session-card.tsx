@@ -11,7 +11,7 @@ import {
 } from "@bpt-jersey/domain/schedule/member-calendar";
 import {
   ageRangeLabel,
-  isIntroductionClass,
+  isTrialOnlySession,
   levelRangeLabel,
   type BookingRecord,
   type ProgramRecord,
@@ -70,8 +70,9 @@ export function SessionCard({
   const { session, program, derived } = entry;
   const status = derived.status;
   const site = sessionSite(session);
-  const isIntro = isIntroductionClass(session, program);
   const isPrivateLesson = session.accessMode === "private-lesson";
+  // A Free-Trial-only class: only members on their Free Trial see it.
+  const isIntro = isTrialOnlySession(session, program);
   // Every ordinary class opens its plan and roster, booked or not; course sessions have no roster.
   const detailStudentId = session.courseId ? undefined : studentId;
 
@@ -107,7 +108,7 @@ export function SessionCard({
         onClick={() => onBook(entry)}
         type="button"
       >
-        {isIntro ? "Book free intro" : hasTrial ? "Book free trial class" : "Book"}
+        {isIntro || hasTrial ? "Book free trial class" : "Book"}
       </button>
     );
   } else if (status === "booked" && isPrivateLesson) {
@@ -216,7 +217,7 @@ export function SessionCard({
       <p className="session-site">
         {site}
         {session.instructorName ? ` · ${session.instructorName}` : ""}
-        {isIntro ? " · Free Intro Class" : ""}
+        {isIntro ? " · Free Trial" : ""}
       </p>
       {derived.placesRemaining !== undefined && <p className="session-note">{derived.placesRemaining} places left for your age</p>}
       {session.levelRange || session.ageRange ? (

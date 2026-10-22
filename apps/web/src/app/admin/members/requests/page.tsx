@@ -82,7 +82,7 @@ function PlanPreference({
       <p className="admin-request-meta">
         <strong>Requested plan:</strong>{" "}
         {age >= 16 && experience === "beginner"
-          ? `Trial (${allowance} free Introduction Classes)`
+          ? `Trial (${allowance} free classes)`
           : age < 16
             ? `Trial (${classes} for their age group)`
             : `Trial (${classes})`}
@@ -1006,9 +1006,9 @@ function EnrolmentRequestQueueContent() {
                               {student.planId === trialPlanChoice ? (
                                 <p>
                                   Trial — no plan, dates or payment: 2 free classes for a beginner,
-                                  1 for a declared belt, within 30 days. An adult beginner&apos;s
-                                  first free class must be an Introduction Class; a declared belt
-                                  books regular classes of their age. Confirm the initial level.
+                                  1 for a declared belt, within 30 days. Adults book Free Trial
+                                  classes; children also book the classes of their age. Confirm the
+                                  initial level.
                                 </p>
                               ) : (
                                 <>
