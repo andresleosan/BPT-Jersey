@@ -19,11 +19,30 @@ const BY_STUDENT = [
   "privateLessonCreditUses", "enrolmentRequests", "membershipApplications", "memberNotifications", "introConversions",
   "enrolmentWaiverAcceptances", "disclaimerAcceptances", "studentGroupAccessEvents", "groupBookingOrigins",
   "regyfitMemberLinks", "regyfitOfficeLinks", "memberRecoverySourceLinks", "graduationReviews",
+  // 2026-10-22: per-member records the list missed; every writer stores `studentId`.
+  "adminNotifications", "groupSessionExclusions", "groupRegistrationResults", "bookingQuotaStates",
+  "waitlistEntries", "waitlistClassInvitations", "waitlistInvitationHistory", "assessments", "medicalLeaves",
+  "levelPromotions", "levelHistoryEdits", "attendanceVoids", "introConversionIssues", "memberPlanRequests",
+  "healthProfileChangeRequests", "retentionAlerts",
 ];
 const BY_ID = [
   "studentAdminProfiles", "studentLevelProgress", "memberIdentityAliases", "studentGroupAccess", "notificationPreferences",
   "trialAccess", "memberGuardianStates", "memberAttendanceBaselines", "memberReconciliationCases", "memberPublicSettings",
+  "teenAccess", "healthProfiles",
 ];
+/** Records sent to or by the member's login: they go only with the login. */
+const BY_LOGIN = [["memberNotifications", "recipientUid"], ["memberPlanRequests", "requestedBy"]] as const;
+// Kept although they name the member: auditEvents, and progressChanges, the office's log of progress
+// changes that stands in for them; memberManualAttendance, the hand-added dates that the Delete
+// account dialog says stay and leaves out of its count; the directory's integrity and control plane
+// (memberDirectoryStates, -RestoreGuards, -CursorStates, -WriteReceipts), every *Receipts
+// collection, levelProgressMigrationAudits, memberMigrationDecisions and membershipChanges, which
+// prove a write or a migration happened once; memberGuardianDecisions, the office's decision written
+// with a control-plane event; what other members share (memberGroups, which only lose the member;
+// sessionCapacityStates; leaderboards); and login-keyed rate limits and holds, with no personal data.
+// Evidence whose retention T011 decides stays until the operator rules on it: checkouts, the only
+// record of who collected a child, and the signed waiver (consents and documents; this delete cannot
+// reach its PDF in R2).
 const BACKUP_DAYS = 30;
 
 /**
@@ -106,6 +125,8 @@ export async function deleteMemberAccountHandler(
   ]);
   const memberships = snapshots[BY_STUDENT.indexOf("memberships")];
   for (const snapshot of snapshots) for (const document of snapshot.docs) refs.push(document.ref);
+  // The office's settlement record of each of those subscriptions shares its membership id.
+  for (const membership of memberships?.docs ?? []) refs.push(firestore.doc(`${root}/membershipAdministration/${membership.id}`));
 
   // The member's own office family goes with its billing, unless another record still bills through it.
   if (familyId) {
@@ -115,31 +136,45 @@ export async function deleteMemberAccountHandler(
       for (const name of ["invoices", "payments"])
         for (const document of (await firestore.collection(`${root}/${name}`).where("familyId", "==", familyId).get()).docs)
           refs.push(document.ref);
+      // A voided payment keeps its copy of the payment, family included.
+      for (const document of (await firestore.collection(`${root}/voidedPayments`).where("payment.familyId", "==", familyId).get()).docs)
+        refs.push(document.ref);
     }
   }
 
-  if (deleteLogin && loginId) refs.push(firestore.doc(`${root}/users/${loginId}`));
+  if (deleteLogin && loginId) {
+    refs.push(firestore.doc(`${root}/users/${loginId}`));
+    // What the login received or sent goes with it, unless it names another member.
+    for (const [name, field] of BY_LOGIN)
+      for (const document of (await firestore.collection(`${root}/${name}`).where(field, "==", loginId).get()).docs)
+        if ([undefined, null, studentId].includes(document.get("studentId"))) refs.push(document.ref);
+  }
 
   const unique = [...new Map(refs.map((reference) => [reference.path, reference])).values()];
   const documents = (await firestore.getAll(...unique)).filter((document) => document.exists);
   const backupId = `${studentId}-${Date.now()}`;
   const expiresAt = Timestamp.fromMillis(Date.now() + BACKUP_DAYS * 86_400_000);
   const backups = firestore.bulkWriter();
-  documents.forEach((document, index) =>
+  // close() never fails: a write that failed shows only in its own promise.
+  const copies = Promise.allSettled(documents.map((document, index) =>
     backups.create(firestore.doc(`${root}/deletedMemberBackups/${backupId}-${index}`), {
       backupId, studentId, path: document.ref.path, data: document.data(), deletedBy: actor.userId,
       deletedAt: FieldValue.serverTimestamp(), expiresAt,
     }),
-  );
+  ));
   await backups.close();
+  if ((await copies).some((copy) => copy.status === "rejected")) throw new HttpsError("unavailable", "The 30-day copy failed, so nothing was deleted.");
+  // The member's own record goes last, with its audit event, so a run that stops half-way can run again.
   const deletes = firestore.bulkWriter();
-  for (const document of documents) deletes.delete(document.ref);
+  const removals = Promise.allSettled(documents.filter((document) => document.ref.path !== studentRef.path).map((document) => deletes.delete(document.ref)));
   await deletes.close();
+  if ((await removals).some((removal) => removal.status === "rejected")) throw new HttpsError("unavailable", "Some records were not deleted. Try again.");
   if (deleteLogin && loginId) await getAuth().deleteUser(loginId).catch((error: { code?: string }) => {
     if (error.code !== "auth/user-not-found") throw error;
   });
 
   await firestore.runTransaction(async (transaction) => {
+    transaction.delete(studentRef);
     appendAuditEventInTransaction(transaction, firestore.collection(`${root}/auditEvents`).doc(), {
       academyId: actor.academyId,
       actorId: actor.userId,
