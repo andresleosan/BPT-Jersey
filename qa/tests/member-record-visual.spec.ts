@@ -83,11 +83,42 @@ test.describe("member record visual (T051V2)", () => {
         searchMemberNames: {
           members: [{ studentId: "student-visual-1", fullName: "Test Member A" }],
         },
-        listMembers: { rows: [] },
+        // Since 08abe4f (2026-09-22) Members reads the directory with getMemberOverview (no longer
+        // listMembers) and keeps the office's name search under "Migration tools".
+        getMemberOverview: {
+          rows: [
+            {
+              studentId: "student-visual-1",
+              rowKind: "member",
+              fullName: "Test Member A",
+              age: 26,
+              ageBand: "adult",
+              trainingCenter: "Town",
+              centreConfirmed: true,
+              active: true,
+              recordActive: true,
+              source: "bpt",
+              plan: {
+                planId: "bpt-jersey-adult",
+                displayName: "Test Plan",
+                status: "active",
+                endsAt: "2026-12-31T23:59:59.000Z",
+              },
+              planState: "current",
+              ownAccount: true,
+              flags: [],
+            },
+          ],
+          counters: { total: 1, active: 1, expiring: 0, review: 0, inactive: 0, guardians: 0 },
+          generatedAt: "2026-09-20T10:00:00.000Z",
+        },
+        // Since fcec114 (2026-09-20) Payments is a live tab: no billing keeps it empty.
+        listMemberSubscriptionBilling: [],
       },
     });
 
     await page.goto("/admin/members?adminTestRole=owner");
+    await page.getByText("Migration tools", { exact: true }).click();
     await page.getByLabel("Member name").fill("test");
     await page.getByRole("button", { name: "Search", exact: true }).click();
     await expect(page.getByRole("link", { name: "Open record for Test Member A" })).toBeVisible();
