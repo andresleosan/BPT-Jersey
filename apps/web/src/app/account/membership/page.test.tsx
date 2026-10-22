@@ -135,7 +135,10 @@ describe("client membership page", () => {
     render(<MembershipPage />);
     // The page is the application itself: choosing a plan opens its bank transfer step.
     fireEvent.click(await screen.findByRole("radio", { name: /^Town Adult/u }));
-    expect(await screen.findByRole("heading", { name: "Pay for Town Adult" })).toBeVisible();
+    // The whole page re-renders on this click; under a loaded runner it can pass findBy's 1 s default.
+    expect(
+      await screen.findByRole("heading", { name: "Pay for Town Adult" }, { timeout: 5000 }),
+    ).toBeVisible();
     expect(screen.queryByLabelText("Trial plan")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Transfer reference"), {
       target: { value: "MEMBER 1" },

@@ -170,6 +170,14 @@ describe("AdminNotificationPanel", () => {
     expect(container.querySelector("[style]")).toBeNull();
   });
 
+  it("names a class notice's sender in the singular", async () => {
+    render(<AdminNotificationPanel />);
+    const list = await screen.findByRole("list", { name: "Notifications" });
+    const readRow = within(list).getByText("Class changed").closest("button")!;
+    expect(within(readRow).getByText("Class")).toBeInTheDocument();
+    expect(within(list).queryByText("Classe")).not.toBeInTheDocument();
+  });
+
   it("keeps the active filters when polling", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     render(<AdminNotificationPanel />);

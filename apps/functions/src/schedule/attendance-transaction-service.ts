@@ -32,7 +32,7 @@ import {
 } from "@bpt-jersey/domain/schedule/self-check-in";
 
 import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
-import { assertBookingMemberAccess } from "./booking-transaction-service.js";
+import { assertBookingMemberAccess, BookingTransactionError } from "./booking-transaction-service.js";
 import { appendAuditEventInTransaction, matchesAuditEventReplay } from "../audit/audit-writer.js";
 import type {
   BookingDocumentData,
@@ -901,9 +901,17 @@ export function createTransactionalAttendanceService(
         }
         if (context.input.method === "authorizedAdult") {
           if (!authorizedAdultId) return fail("credential", "Authorized adult relationship is unavailable");
-          await assertBookingMemberAccess({ firestore: options.firestore, transaction, academyId,
-            actorId: authorizedAdultId, actorRole: "guardian", studentId, now: new Date().toISOString(),
-            requireVia: "guardian" });
+          try {
+            await assertBookingMemberAccess({ firestore: options.firestore, transaction, academyId,
+              actorId: authorizedAdultId, actorRole: "guardian", studentId, now: new Date().toISOString(),
+              requireVia: "guardian" });
+          } catch (error) {
+            // The callable maps only attendance errors; a booking error would surface as 'internal'.
+            if (error instanceof BookingTransactionError) {
+              return fail("credential", "Authorized adult relationship is unavailable");
+            }
+            throw error;
+          }
         }
 
 

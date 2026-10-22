@@ -17,6 +17,8 @@ import { createFirestoreScheduleStore } from "../schedule/schedule-service.js";
 export type ReminderAudienceStudent = Readonly<{
   studentId: string;
   label: string;
+  /** The account's own profile: its messages say "You". */
+  self: boolean;
 }>;
 
 export type ReminderAudience = Readonly<{
@@ -101,7 +103,7 @@ export function createListClientRemindersHandler({
               student.studentId,
             );
             // A guardian is told which child, an adult is told about their own class.
-            const label = student.label;
+            const label = student.self ? "" : student.label;
             return sessions.map((session) => ({ ...session, label }));
           }),
         ),
@@ -142,7 +144,8 @@ function createDefaultReminderServices(): ReminderCallableServices {
   async function resolveAudience(academyId: string, actorId: string): Promise<ReminderAudience> {
     const [profiles, familyIds] = await Promise.all([createFirestoreMemberAccessService({ firestore }).listProfiles(academyId, actorId), listPayerFamilyIds(academyId, actorId, firestore)]);
     return { familyIds, studentIds: profiles.map((profile) => profile.studentId),
-      students: profiles.map((profile) => ({ studentId: profile.studentId, label: profile.fullName })) };
+      students: profiles.map((profile) => ({ studentId: profile.studentId, self: profile.via === "self",
+        label: profile.via === "self" ? "Your attendance" : profile.fullName })) };
   }
   return {
     resolveGuardianAudience: resolveAudience,

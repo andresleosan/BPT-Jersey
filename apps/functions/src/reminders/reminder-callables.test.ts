@@ -34,12 +34,12 @@ function services(overrides: Partial<ReminderCallableServices> = {}): ReminderCa
     resolveGuardianAudience: vi.fn().mockResolvedValue({
       familyIds: ["family-1"],
       studentIds: ["student-1"],
-      students: [{ studentId: "student-1", label: "Jordan" }],
+      students: [{ studentId: "student-1", label: "Jordan", self: false }],
     }),
     resolveAdultStudentAudience: vi.fn().mockResolvedValue({
       familyIds: ["family-adult"],
       studentIds: ["student-adult"],
-      students: [{ studentId: "student-adult", label: "Your attendance" }],
+      students: [{ studentId: "student-adult", label: "Your attendance", self: true }],
     }),
     listFinancialAccount: vi.fn().mockResolvedValue({
       invoices: [],
@@ -123,6 +123,35 @@ describe("Reminder Callables (T048)", () => {
 
     const cancelled = result.reminders.filter((reminder) => reminder.kind === "sessionCancelled");
     expect(cancelled[0]?.message).toContain("You were booked into Adults Gi - Town");
+  });
+
+  it("names the children but addresses the adult on a mixed account (T110)", async () => {
+    const audience = {
+      familyIds: ["family-adult"],
+      studentIds: ["student-adult", "student-child"],
+      students: [
+        { studentId: "student-adult", label: "Your attendance", self: true },
+        { studentId: "student-child", label: "Jordan", self: false },
+      ],
+    };
+    const handler = createListClientRemindersHandler({
+      services: services({
+        resolveAdultStudentAudience: vi.fn().mockResolvedValue(audience),
+        listCancelledSessionsForStudent: vi
+          .fn()
+          .mockResolvedValue([
+            { title: "Adults Gi - Town", startAt: "2026-09-11T18:00:00.000Z", reason: "Off." },
+          ]),
+      }),
+    });
+
+    const result = await handler(fakeRequest(null, "adultStudent", "adult-1"));
+
+    const messages: string[] = result.reminders
+      .filter((reminder: { kind: string }) => reminder.kind === "sessionCancelled")
+      .map((reminder: { message: string }) => reminder.message);
+    expect(messages.some((message) => message.includes("You were booked into"))).toBe(true);
+    expect(messages.some((message) => message.includes("Jordan was booked into"))).toBe(true);
   });
 
   it("resolves guardian reminders to the family scope", async () => {

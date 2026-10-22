@@ -525,6 +525,14 @@ describe("trial declarations and preselected level", () => {
         /Trial — no plan, dates or payment: 2 free classes for a beginner, 1 for a declared belt, within 30 days\. .*Confirm the initial level\./,
       ),
     ).toBeVisible();
+    // The booking rule (intro-booking-service): only an adult beginner's FIRST free class must be an
+    // Introduction Class; declared belts may not book one at all.
+    expect(
+      screen.getByText(
+        /An adult beginner's first free class must be an Introduction Class; a declared belt books regular classes of their age\./,
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText(/Adults book Introduction Classes only/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Subscription start")).not.toBeInTheDocument();
     // The trial has no plan to name, so the setup fieldset's "Plan: …" line must not render a bare
     // "Plan:" for it (the catalogue has no "trial" entry).

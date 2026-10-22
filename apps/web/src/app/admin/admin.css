@@ -5563,7 +5563,7 @@ a.admin-birthday-badge:focus-visible,
   padding-top: 0.25rem;
 }
 
-@media (max-width: 48rem) {
+@media (max-width: 47.99rem) {
   .coach-card-fields {
     grid-template-columns: 1fr;
   }

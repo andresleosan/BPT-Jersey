@@ -426,6 +426,7 @@ function requestMac(
   secretMaterial: string,
   recordId?: string,
   review?: MigrationIdentityReview,
+  legacyMemberId?: string,
 ): string {
   return createMemberDirectoryIntegrityMac({
     domain: "bpt-member-directory-write-request-v1",
@@ -437,6 +438,8 @@ function requestMac(
       ),
       ...(recordId ? [recordId] : []),
       ...(review ? [canonicalizeMemberDirectoryValue(review)] : []),
+      // A legacy receipt answers only for the legacy member it decided, never a duplicate of it.
+      ...(legacyMemberId ? [`legacy:${legacyMemberId}`] : []),
     ],
     secretMaterial,
   });
@@ -1130,6 +1133,7 @@ export function createCanonicalMemberDirectoryService(
       dependencies.integritySecretMaterial,
       sourceRecordId,
       legacy?.review,
+      legacy?.legacyMemberId,
     );
     const receiptId = requestReceiptId(
       academyId,

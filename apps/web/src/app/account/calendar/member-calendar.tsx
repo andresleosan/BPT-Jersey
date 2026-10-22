@@ -533,11 +533,10 @@ export function MemberCalendar({
 
   const handleOffset = useCallback((nextOffset: number | null) => {
     if (nextOffset === null) return;
+    // No re-scoping here: a day of the same Monday–Sunday week keeps the week loaded (or loading),
+    // and a new range re-scopes in the week effect. Clearing the scope here dropped a same-week
+    // response with nothing left to request it again.
     silentReload.current = false;
-    weekRevision.current += 1;
-    activeWeekScope.current = undefined;
-    loadedWeekScopeRef.current = undefined;
-    setLoadedWeekScope(undefined);
     setOffset(nextOffset);
   }, []);
 

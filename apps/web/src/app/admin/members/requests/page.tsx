@@ -1006,8 +1006,9 @@ function EnrolmentRequestQueueContent() {
                               {student.planId === trialPlanChoice ? (
                                 <p>
                                   Trial — no plan, dates or payment: 2 free classes for a beginner,
-                                  1 for a declared belt, within 30 days. Adults book Introduction
-                                  Classes only. Confirm the initial level.
+                                  1 for a declared belt, within 30 days. An adult beginner&apos;s
+                                  first free class must be an Introduction Class; a declared belt
+                                  books regular classes of their age. Confirm the initial level.
                                 </p>
                               ) : (
                                 <>

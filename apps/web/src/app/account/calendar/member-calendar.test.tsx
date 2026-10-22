@@ -257,6 +257,32 @@ describe("MemberCalendar", () => {
     );
   });
 
+  it("phone: a day pill of the same week tapped while the week loads still shows that day", async () => {
+    stubViewport(false);
+    const fixture = createFixtureCalendarRepository("teenStudent");
+    let release: (() => void) | undefined;
+    const loadWeek = vi.fn(
+      (...args: Parameters<typeof fixture.loadWeek>) =>
+        new Promise<Awaited<ReturnType<typeof fixture.loadWeek>>>((resolve) => {
+          release = () => void fixture.loadWeek(...args).then(resolve);
+        }),
+    );
+    render(
+      <MemberCalendar
+        onSignOut={vi.fn()}
+        repository={{ ...fixture, loadWeek }}
+        session={teen}
+      />,
+    );
+    await waitFor(() => expect(release).toBeDefined());
+    await userEvent.click(screen.getByRole("button", { name: "Fri 18" }));
+    await waitFor(() =>
+      expect(document.querySelector(".day-column")).toHaveAttribute("data-date", "2026-09-18"),
+    );
+    await act(async () => release?.());
+    await waitFor(() => expect(document.querySelector("[aria-busy='true']")).toBeNull());
+  });
+
   it("desktop: a Week / Day switch, Week first, and Day shows one wide agenda column", async () => {
     stubViewport(true);
     render(

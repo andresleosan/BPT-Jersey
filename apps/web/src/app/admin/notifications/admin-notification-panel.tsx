@@ -89,7 +89,9 @@ const fullTime = (iso: string) =>
 const kindOf = (notice: AdminNotification) =>
   notice.kind === "subscription-expiring"
     ? "Subscription ending"
-    : kindLabels[notice.kind].slice(0, -1);
+    : notice.kind === "class"
+      ? "Class"
+      : kindLabels[notice.kind].slice(0, -1);
 const sender = (notice: AdminNotification) => notice.details?.from ?? kindOf(notice);
 
 export function AdminNotificationPanel({ role }: { role?: string | null | undefined } = {}) {

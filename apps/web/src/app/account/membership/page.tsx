@@ -331,38 +331,50 @@ function MembershipContent() {
               {plans.length === 0 ? (
                 <p>No plan is open to this member right now. Please contact the academy.</p>
               ) : (
-                <fieldset className="client-plan-grid" disabled={busy || pending !== undefined}>
-                  <legend className="visually-hidden">Plans</legend>
-                  {plans.map((plan) => {
-                    const isCurrent = current?.planId === plan.planId;
-                    // Billing opens Pay as you go only as a new subscription.
-                    const blocked = plan.billingPeriod === "per-session" && liveRenewal;
-                    return (
-                      <label
-                        className={`client-plan-card${isCurrent ? " client-plan-card-current" : ""}`}
-                        key={plan.planId}
-                      >
-                        <input
-                          checked={selectedPlanId === plan.planId}
-                          disabled={blocked}
-                          name="plan"
-                          onChange={() => choosePlan(plan.planId)}
-                          type="radio"
-                          value={plan.planId}
-                        />
-                        {isCurrent ? <span className="client-plan-tag">Your plan</span> : null}
-                        <span className="client-plan-name">{plan.displayName}</span>
-                        <strong className="client-plan-price">{formatPlanPrice(plan)}</strong>
-                        <span className="client-plan-access">{describePlanAccess(plan)}</span>
-                        {blocked ? (
-                          <span className="client-plan-access">
-                            Ask the academy to move you to Pay as you go.
-                          </span>
-                        ) : null}
-                      </label>
-                    );
-                  })}
-                </fieldset>
+                <>
+                  <fieldset className="client-plan-grid" disabled={busy || pending !== undefined}>
+                    <legend className="visually-hidden">Plans</legend>
+                    {plans.map((plan) => {
+                      const isCurrent = current?.planId === plan.planId;
+                      // Billing opens Pay as you go only as a new subscription.
+                      const blocked = plan.billingPeriod === "per-session" && liveRenewal;
+                      return (
+                        <label
+                          className={`client-plan-card${isCurrent ? " client-plan-card-current" : ""}`}
+                          key={plan.planId}
+                        >
+                          <input
+                            checked={selectedPlanId === plan.planId}
+                            disabled={blocked}
+                            name="plan"
+                            onChange={() => choosePlan(plan.planId)}
+                            type="radio"
+                            value={plan.planId}
+                          />
+                          {isCurrent ? <span className="client-plan-tag">Your plan</span> : null}
+                          <span className="client-plan-name">{plan.displayName}</span>
+                          <strong className="client-plan-price">{formatPlanPrice(plan)}</strong>
+                          <span className="client-plan-access">{describePlanAccess(plan)}</span>
+                          {blocked ? (
+                            <span className="client-plan-access">
+                              Ask the academy to move you to Pay as you go.
+                            </span>
+                          ) : null}
+                        </label>
+                      );
+                    })}
+                  </fieldset>
+                  {plans.some(
+                    (plan) =>
+                      plan.classSites.some((site) => site === subject?.trainingCenter) &&
+                      plan.weeklyClassLimit !== null &&
+                      plan.openMatSites.length > 0,
+                  ) ? (
+                    <p className="client-destination-intro">
+                      Open mats don&apos;t count towards your weekly classes.
+                    </p>
+                  ) : null}
+                </>
               )}
             </section>
 
