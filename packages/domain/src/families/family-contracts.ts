@@ -473,3 +473,15 @@ export const childGuardianChangeSchema = z.strictObject({
   evidence: z.string().trim().min(3).max(1000), reason: z.string().trim().min(3).max(500),
 }).refine((value) => (value.expectedRelationshipId === null) === (value.expectedRelationshipVersion === null));
 export type ChildGuardianChange = Readonly<z.infer<typeof childGuardianChangeSchema>>;
+/**
+ * The office's per-child guardian command. The server reads the expected relationship's version
+ * itself: every change gives the child a new relationship ID, so the ID alone shows a stale view.
+ */
+export const changeChildGuardianInputSchema = z.strictObject({
+  familyId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u),
+  requestId: z.uuid(), studentId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u),
+  expectedRelationshipId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u).nullable(),
+  proposedGuardianUserId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u).nullable(),
+  evidence: z.string().trim().min(3).max(1000), reason: z.string().trim().min(3).max(500),
+});
+export type ChangeChildGuardianInput = Readonly<z.infer<typeof changeChildGuardianInputSchema>>;

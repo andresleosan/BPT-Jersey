@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useRef, useState, type FormEvent } from "react";
 
+import { ageOnDate, dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 import {
+  changeChildGuardian,
   createFamily,
   getFamily,
   updateFamily,
@@ -31,14 +33,9 @@ type MinorRow = Readonly<{
   postCode: string;
 }>;
 type RequestAttempt = Readonly<{ fingerprint: string; requestId: string }>;
-type MaintenancePanel = "replaceTutor" | "addStudent" | "deactivateFamily" | null;
-type BusyOperation =
-  | "create"
-  | "load"
-  | "replaceTutor"
-  | "addStudent"
-  | "deactivateFamily"
-  | `deactivateRelationship:${string}`;
+type MaintenancePanel = "addStudent" | "deactivateFamily" | null;
+type GuardianPanel = Readonly<{ studentId: string; mode: "change" | "end" }>;
+type BusyOperation = "create" | "load" | "addStudent" | "deactivateFamily" | `guardian:${string}`;
 
 const preferenceOptions: readonly { value: Preference; label: string }[] = [
   { value: "morning", label: "Morning" },
@@ -114,6 +111,12 @@ function minorDraftFromRow(row: MinorRow): FamilyStudentDraft {
     ...(emergencyContact === undefined ? {} : { emergencyContact }),
     ...(postalAddress === undefined ? {} : { postalAddress }),
   };
+}
+
+function activeRelationship(family: StaffFamilyProjection, studentId: string) {
+  return family.relationships.find(
+    (link) => link.studentId === studentId && link.active && link.status === "active",
+  );
 }
 
 function newFamilyRequestId(): string {
@@ -228,7 +231,10 @@ export function FamilyAdminPage() {
   const [selectedFamily, setSelectedFamily] = useState<StaffFamilyProjection>();
   const [familyId, setFamilyId] = useState("");
   const [maintenancePanel, setMaintenancePanel] = useState<MaintenancePanel>(null);
-  const [replacementTutorUserId, setReplacementTutorUserId] = useState("");
+  const [guardianPanel, setGuardianPanel] = useState<GuardianPanel | null>(null);
+  const [guardianUserId, setGuardianUserId] = useState("");
+  const [guardianEvidence, setGuardianEvidence] = useState("");
+  const [guardianReason, setGuardianReason] = useState("");
   const [newStudent, setNewStudent] = useState<MinorRow>(() => newMinor(0));
   const [newStudentError, setNewStudentError] = useState("");
   const [error, setError] = useState("");
@@ -245,6 +251,7 @@ export function FamilyAdminPage() {
   const nextId = useRef(2);
   const createRequestAttempt = useRef<RequestAttempt | null>(null);
   const addStudentRequestAttempt = useRef<RequestAttempt | null>(null);
+  const guardianRequestAttempt = useRef<RequestAttempt | null>(null);
   const tutorRef = useRef<HTMLInputElement>(null);
 
   const busy = busyOperation !== null;
@@ -341,7 +348,7 @@ export function FamilyAdminPage() {
       if (result === undefined) throw new Error("Family is unavailable");
       setSelectedFamily(result);
       setMaintenancePanel(null);
-      setReplacementTutorUserId("");
+      closeGuardianPanel();
       setNewStudent(newMinor(0));
       setNewStudentError("");
       addStudentRequestAttempt.current = null;
@@ -382,7 +389,7 @@ export function FamilyAdminPage() {
   function openMaintenancePanel(panel: Exclude<MaintenancePanel, null>): void {
     clearFeedback();
     setMaintenancePanel(panel);
-    if (panel === "replaceTutor") setReplacementTutorUserId("");
+    closeGuardianPanel();
     if (panel === "addStudent") {
       setNewStudent(newMinor(0));
       setNewStudentError("");
@@ -394,25 +401,6 @@ export function FamilyAdminPage() {
     setMaintenancePanel(null);
     setNewStudentError("");
     addStudentRequestAttempt.current = null;
-  }
-
-  async function handleReplaceTutor(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    const nextTutorUserId = replacementTutorUserId.trim();
-    if (!nextTutorUserId) {
-      setError("Enter the new tutor user ID.");
-      return;
-    }
-    const updated = await runUpdate(
-      { kind: "replaceTutor", tutorUserId: nextTutorUserId },
-      "replaceTutor",
-      "Tutor replaced.",
-      "Unable to replace the tutor. Please try again.",
-    );
-    if (updated) {
-      setReplacementTutorUserId("");
-      setMaintenancePanel(null);
-    }
   }
 
   async function handleAddStudent(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -449,13 +437,67 @@ export function FamilyAdminPage() {
     }
   }
 
-  async function handleDeactivateRelationship(studentId: string): Promise<void> {
-    await runUpdate(
-      { kind: "deactivateRelationship", studentId },
-      `deactivateRelationship:${studentId}`,
-      "Relationship deactivated.",
-      "Unable to deactivate the relationship. Please try again.",
-    );
+  function openGuardianPanel(studentId: string, mode: GuardianPanel["mode"]): void {
+    clearFeedback();
+    setMaintenancePanel(null);
+    setGuardianPanel({ studentId, mode });
+    setGuardianUserId("");
+    setGuardianEvidence("");
+    setGuardianReason("");
+    guardianRequestAttempt.current = null;
+  }
+
+  function closeGuardianPanel(): void {
+    setGuardianPanel(null);
+    guardianRequestAttempt.current = null;
+  }
+
+  // One child at a time, with the evidence and reason the office checked (unified members plan,
+  // Task 5). Siblings keep their tutor; the server refuses a stale view or an under-16 removal.
+  async function handleGuardianChange(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (busy || selectedFamily === undefined || guardianPanel === null) return;
+    const { studentId, mode } = guardianPanel;
+    const current = activeRelationship(selectedFamily, studentId);
+    const proposedGuardianUserId = mode === "end" ? null : guardianUserId.trim();
+    const evidence = guardianEvidence.trim();
+    const reason = guardianReason.trim();
+    clearFeedback();
+    if (proposedGuardianUserId === "") {
+      setError("Enter the new tutor user ID.");
+      return;
+    }
+    if (evidence.length < 3 || reason.length < 3) {
+      setError("Describe the evidence you checked and the reason.");
+      return;
+    }
+    const request = {
+      familyId: selectedFamily.family.familyId,
+      studentId,
+      expectedRelationshipId: current?.relationshipId ?? null,
+      proposedGuardianUserId,
+      evidence,
+      reason,
+    };
+    let attempt: RequestAttempt;
+    try {
+      attempt = requestAttempt(guardianRequestAttempt.current, JSON.stringify(request));
+      guardianRequestAttempt.current = attempt;
+    } catch {
+      setError("Unable to change the tutor. Please try again.");
+      return;
+    }
+    setBusyOperation(`guardian:${studentId}`);
+    try {
+      setSelectedFamily(await changeChildGuardian({ ...request, requestId: attempt.requestId }));
+      setStatus(mode === "end" ? "Tutor link ended." : "Tutor changed.");
+      closeGuardianPanel();
+    } catch (failure) {
+      // The client only throws messages that are safe to show.
+      setError(failure instanceof Error ? failure.message : "Unable to change the tutor.");
+    } finally {
+      setBusyOperation(null);
+    }
   }
 
   async function handleDeactivateFamily(): Promise<void> {
@@ -698,7 +740,7 @@ export function FamilyAdminPage() {
           </div>
           <p className="family-helper">
             Only the minimum operational profile is shown. Existing minor details are read-only;
-            active tutor links can be deactivated.
+            each child&apos;s tutor is changed on its own, with the evidence you checked.
           </p>
           <ul className="family-workspace-summary" aria-label="Family minors">
             {selectedFamily.students.map((student) => (
@@ -711,13 +753,20 @@ export function FamilyAdminPage() {
 
           <div className="family-relationship-list">
             {selectedFamily.students.map((student) => {
-              const relationship = selectedFamily.relationships.find(
-                (candidate) => candidate.studentId === student.studentId,
-              );
+              const relationship =
+                activeRelationship(selectedFamily, student.studentId) ??
+                selectedFamily.relationships.find(
+                  (candidate) => candidate.studentId === student.studentId,
+                );
               const relationshipActive =
                 relationship?.active === true && relationship.status === "active";
-              const relationshipBusy =
-                busyOperation === `deactivateRelationship:${student.studentId}`;
+              const age = student.dateOfBirth
+                ? ageOnDate(student.dateOfBirth, dateKeyInJersey(new Date()))
+                : null;
+              const panel =
+                guardianPanel?.studentId === student.studentId ? guardianPanel.mode : null;
+              const guardianBusy = busyOperation === `guardian:${student.studentId}`;
+              const changeLabel = relationshipActive ? "Change tutor" : "Link a tutor";
               return (
                 <article className="family-relationship-row" key={student.studentId}>
                   <div>
@@ -732,24 +781,109 @@ export function FamilyAdminPage() {
                     {relationshipActive ? "Tutor linked" : "Link inactive"}
                   </span>
                   {relationshipActive ? (
-                    <>
-                      <Link
-                        aria-label={`Complete registration for ${student.fullName}`}
-                        className="family-text-button"
-                        href={`/admin/members/add?studentId=${encodeURIComponent(student.studentId)}`}
-                      >
-                        Complete registration
-                      </Link>
-                      <button
-                        aria-label={`Deactivate relationship for ${student.fullName}`}
-                        className="family-text-button"
-                        disabled={busy}
-                        onClick={() => void handleDeactivateRelationship(student.studentId)}
-                        type="button"
-                      >
-                        {relationshipBusy ? "Deactivating..." : "Deactivate link"}
-                      </button>
-                    </>
+                    <Link
+                      aria-label={`Complete registration for ${student.fullName}`}
+                      className="family-text-button"
+                      href={`/admin/members/add?studentId=${encodeURIComponent(student.studentId)}`}
+                    >
+                      Complete registration
+                    </Link>
+                  ) : null}
+                  {selectedFamily.family.active && (age === null || age < 18) ? (
+                    <button
+                      aria-label={`${changeLabel} for ${student.fullName}`}
+                      className="family-text-button"
+                      disabled={busy}
+                      onClick={() => openGuardianPanel(student.studentId, "change")}
+                      type="button"
+                    >
+                      {changeLabel}
+                    </button>
+                  ) : null}
+                  {selectedFamily.family.active &&
+                  relationshipActive &&
+                  age !== null &&
+                  age >= 16 ? (
+                    <button
+                      aria-label={`End the tutor link for ${student.fullName}`}
+                      className="family-text-button"
+                      disabled={busy}
+                      onClick={() => openGuardianPanel(student.studentId, "end")}
+                      type="button"
+                    >
+                      End link
+                    </button>
+                  ) : null}
+                  {relationshipActive && age !== null && age < 16 ? (
+                    <p className="family-helper">
+                      A tutor is required until 16: change the tutor instead of ending the link.
+                    </p>
+                  ) : null}
+                  {panel !== null ? (
+                    <form
+                      aria-label={`Tutor for ${student.fullName}`}
+                      className="family-maintenance-form"
+                      onSubmit={(event) => void handleGuardianChange(event)}
+                    >
+                      <div>
+                        <p className="admin-eyebrow">Tutor relationship</p>
+                        <h4>
+                          {panel === "end"
+                            ? `End the tutor link for ${student.fullName}`
+                            : `${changeLabel} for ${student.fullName}`}
+                        </h4>
+                        <p>
+                          {panel === "end"
+                            ? "The current tutor loses access to this child. Siblings keep their tutor."
+                            : "Only this child changes tutor; siblings keep theirs. The old link stays in the history."}
+                        </p>
+                      </div>
+                      {panel === "change" ? (
+                        <label className="family-field" htmlFor="family-guardian-user-id">
+                          New tutor user ID
+                          <input
+                            autoComplete="off"
+                            id="family-guardian-user-id"
+                            maxLength={128}
+                            onChange={(event) => setGuardianUserId(event.target.value)}
+                            value={guardianUserId}
+                          />
+                        </label>
+                      ) : null}
+                      <label className="family-field" htmlFor="family-guardian-evidence">
+                        Evidence checked
+                        <textarea
+                          id="family-guardian-evidence"
+                          maxLength={1000}
+                          onChange={(event) => setGuardianEvidence(event.target.value)}
+                          rows={3}
+                          value={guardianEvidence}
+                        />
+                      </label>
+                      <label className="family-field" htmlFor="family-guardian-reason">
+                        Reason
+                        <input
+                          autoComplete="off"
+                          id="family-guardian-reason"
+                          maxLength={500}
+                          onChange={(event) => setGuardianReason(event.target.value)}
+                          value={guardianReason}
+                        />
+                      </label>
+                      <div className="family-maintenance-actions">
+                        <button className="admin-auth-button" disabled={busy} type="submit">
+                          {guardianBusy ? "Saving..." : panel === "end" ? "End link" : "Save tutor"}
+                        </button>
+                        <button
+                          className="family-text-button"
+                          disabled={busy}
+                          onClick={closeGuardianPanel}
+                          type="button"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
                   ) : null}
                 </article>
               );
@@ -758,14 +892,6 @@ export function FamilyAdminPage() {
 
           {selectedFamily.family.active ? (
             <div className="family-operation-actions" aria-label="Family operations">
-              <button
-                className="family-text-button"
-                disabled={busy}
-                onClick={() => openMaintenancePanel("replaceTutor")}
-                type="button"
-              >
-                Replace tutor
-              </button>
               <button
                 className="family-text-button"
                 disabled={busy}
@@ -788,42 +914,6 @@ export function FamilyAdminPage() {
               This family is inactive. No new tutor links or minors can be added here.
             </p>
           )}
-
-          {maintenancePanel === "replaceTutor" ? (
-            <form
-              className="family-maintenance-form"
-              onSubmit={(event) => void handleReplaceTutor(event)}
-            >
-              <div>
-                <p className="admin-eyebrow">Tutor relationship</p>
-                <h4>Replace the linked tutor</h4>
-                <p>The new active tutor will replace the adult on every active relationship.</p>
-              </div>
-              <label className="family-field" htmlFor="family-replacement-tutor-id">
-                New tutor user ID
-                <input
-                  autoComplete="off"
-                  id="family-replacement-tutor-id"
-                  maxLength={128}
-                  onChange={(event) => setReplacementTutorUserId(event.target.value)}
-                  value={replacementTutorUserId}
-                />
-              </label>
-              <div className="family-maintenance-actions">
-                <button className="admin-auth-button" disabled={busy} type="submit">
-                  {busyOperation === "replaceTutor" ? "Saving tutor..." : "Save tutor"}
-                </button>
-                <button
-                  className="family-text-button"
-                  disabled={busy}
-                  onClick={closeMaintenancePanel}
-                  type="button"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          ) : null}
 
           {maintenancePanel === "addStudent" ? (
             <form

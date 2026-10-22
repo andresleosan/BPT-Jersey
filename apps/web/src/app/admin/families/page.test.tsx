@@ -6,6 +6,7 @@ const familyApi = vi.hoisted(() => ({
   createFamily: vi.fn(),
   getFamily: vi.fn(),
   updateFamily: vi.fn(),
+  changeChildGuardian: vi.fn(),
 }));
 const achievementApi = vi.hoisted(() => ({
   getFamilyAchievementSummary: vi.fn(),
@@ -156,6 +157,7 @@ describe("admin family page", () => {
     familyApi.createFamily.mockReset();
     familyApi.getFamily.mockReset();
     familyApi.updateFamily.mockReset();
+    familyApi.changeChildGuardian.mockReset();
     achievementApi.getFamilyAchievementSummary.mockReset();
   });
 
@@ -359,10 +361,8 @@ describe("admin family page", () => {
     vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue(addRequestId);
     familyApi.getFamily.mockResolvedValue(linkedStaffProjection);
     familyApi.updateFamily
-      .mockResolvedValueOnce(tutorReplacedProjection)
       .mockRejectedValueOnce(new Error("response lost"))
       .mockResolvedValueOnce(studentAddedProjection)
-      .mockResolvedValueOnce(relationshipDeactivatedProjection)
       .mockResolvedValueOnce(familyDeactivatedProjection);
     render(<FamilyAdminPage />);
 
@@ -373,16 +373,8 @@ describe("admin family page", () => {
     expect(screen.queryByText("2015-08-19")).not.toBeInTheDocument();
     expect(screen.queryByText("family-1--student-1")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Replace tutor" }));
-    await user.type(screen.getByLabelText("New tutor user ID"), "user-2");
-    await user.click(screen.getByRole("button", { name: "Save tutor" }));
-    await waitFor(() =>
-      expect(familyApi.updateFamily).toHaveBeenNthCalledWith(1, {
-        familyId: "family-1",
-        operation: { kind: "replaceTutor", tutorUserId: "user-2" },
-      }),
-    );
-    expect(await screen.findByText("Tutor replaced.")).toBeVisible();
+    // The tutor changes per child now (see below); there is no whole-family replacement.
+    expect(screen.queryByRole("button", { name: "Replace tutor" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Add minor" }));
     await user.type(screen.getByLabelText("New minor full name"), "Synthetic Minor Three");
@@ -391,37 +383,143 @@ describe("admin family page", () => {
     await user.click(screen.getByRole("button", { name: "Save minor" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to add the minor");
     await user.click(screen.getByRole("button", { name: "Save minor" }));
-    await waitFor(() => expect(familyApi.updateFamily).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(familyApi.updateFamily).toHaveBeenCalledTimes(2));
     expect(await screen.findByText("Minor added.")).toBeVisible();
+    expect(familyApi.updateFamily.mock.calls[0]?.[0]).toMatchObject({
+      familyId: "family-1",
+      operation: { kind: "addStudent", requestId: addRequestId },
+    });
     expect(familyApi.updateFamily.mock.calls[1]?.[0]).toMatchObject({
       familyId: "family-1",
       operation: { kind: "addStudent", requestId: addRequestId },
     });
-    expect(familyApi.updateFamily.mock.calls[2]?.[0]).toMatchObject({
-      familyId: "family-1",
-      operation: { kind: "addStudent", requestId: addRequestId },
-    });
-
-    await user.click(
-      screen.getByRole("button", { name: "Deactivate relationship for Synthetic Minor One" }),
-    );
-    await waitFor(() =>
-      expect(familyApi.updateFamily).toHaveBeenNthCalledWith(4, {
-        familyId: "family-1",
-        operation: { kind: "deactivateRelationship", studentId: "student-1" },
-      }),
-    );
-    expect(await screen.findByText("Relationship deactivated.")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Deactivate family" }));
     await user.click(screen.getByRole("button", { name: "Confirm deactivation" }));
     await waitFor(() =>
-      expect(familyApi.updateFamily).toHaveBeenNthCalledWith(5, {
+      expect(familyApi.updateFamily).toHaveBeenNthCalledWith(3, {
         familyId: "family-1",
         operation: { kind: "deactivateFamily" },
       }),
     );
     expect(screen.getByRole("status")).toHaveTextContent("Family deactivated.");
     expect(screen.queryByRole("button", { name: "Open support review" })).not.toBeInTheDocument();
+  });
+
+  it("changes one child's tutor with the evidence checked and keeps the sibling's link", async () => {
+    const user = userEvent.setup();
+    const requestId = "00000000-0000-4000-8000-000000000011";
+    vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue(requestId);
+    const [first, second] = linkedStaffProjection.relationships;
+    familyApi.getFamily.mockResolvedValue(linkedStaffProjection);
+    familyApi.changeChildGuardian
+      .mockResolvedValueOnce({
+        ...linkedStaffProjection,
+        // The ended link sorts first: the row must still find the child's active one.
+        relationships: [
+          { ...first, active: false, status: "inactive", validTo: "2026-10-22T10:00:00.000Z" },
+          second,
+          { ...first, relationshipId: `guardian-${requestId}`, adultUserId: "user-2" },
+        ],
+      })
+      .mockRejectedValueOnce(new Error("The guardian has changed. Refresh this review"));
+    render(<FamilyAdminPage />);
+    await user.type(screen.getByLabelText("Family ID"), "family-1");
+    await user.click(screen.getByRole("button", { name: "Load family" }));
+    await screen.findByRole("heading", { name: "Family workspace" });
+
+    // Both children are under 16: a tutor is required, so neither link can just be ended.
+    expect(screen.queryByRole("button", { name: /^End the tutor link/u })).not.toBeInTheDocument();
+    expect(screen.getAllByText(/A tutor is required until 16/u)).toHaveLength(2);
+
+    await user.click(screen.getByRole("button", { name: "Change tutor for Synthetic Minor One" }));
+    const form = screen.getByRole("form", { name: "Tutor for Synthetic Minor One" });
+    await user.click(screen.getByRole("button", { name: "Save tutor" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter the new tutor user ID.");
+    await user.type(screen.getByLabelText("New tutor user ID"), "user-2");
+    await user.click(screen.getByRole("button", { name: "Save tutor" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Describe the evidence you checked and the reason.",
+    );
+    expect(familyApi.changeChildGuardian).not.toHaveBeenCalled();
+    await user.type(screen.getByLabelText("Evidence checked"), "Court order seen at the desk");
+    await user.type(screen.getByLabelText("Reason"), "Custody moved to the other parent");
+    await user.click(screen.getByRole("button", { name: "Save tutor" }));
+
+    await waitFor(() =>
+      expect(familyApi.changeChildGuardian).toHaveBeenCalledWith({
+        familyId: "family-1",
+        requestId,
+        studentId: "student-1",
+        expectedRelationshipId: "family-1--student-1",
+        proposedGuardianUserId: "user-2",
+        evidence: "Court order seen at the desk",
+        reason: "Custody moved to the other parent",
+      }),
+    );
+    expect(await screen.findByText("Tutor changed.")).toBeVisible();
+    expect(form).not.toBeInTheDocument();
+    expect(screen.getAllByText("Tutor linked")).toHaveLength(2);
+
+    await user.click(screen.getByRole("button", { name: "Change tutor for Synthetic Minor Two" }));
+    await user.type(screen.getByLabelText("New tutor user ID"), "user-3");
+    await user.type(screen.getByLabelText("Evidence checked"), "Signed letter from both parents");
+    await user.type(screen.getByLabelText("Reason"), "New main contact");
+    await user.click(screen.getByRole("button", { name: "Save tutor" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The guardian has changed. Refresh this review",
+    );
+    expect(screen.getByRole("form", { name: "Tutor for Synthetic Minor Two" })).toBeVisible();
+  });
+
+  it("ends a 16-year-old's tutor link and then offers to link a tutor again", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue(
+      "00000000-0000-4000-8000-000000000012",
+    );
+    const sixteen = {
+      ...linkedStaffProjection,
+      students: [
+        { ...linkedStaffProjection.students[0], dateOfBirth: "2009-01-01" },
+        linkedStaffProjection.students[1],
+      ],
+    };
+    familyApi.getFamily.mockResolvedValue(sixteen);
+    familyApi.changeChildGuardian.mockResolvedValueOnce({
+      ...sixteen,
+      relationships: sixteen.relationships.map((link) =>
+        link.studentId === "student-1" ? { ...link, active: false, status: "inactive" } : link,
+      ),
+    });
+    render(<FamilyAdminPage />);
+    await user.type(screen.getByLabelText("Family ID"), "family-1");
+    await user.click(screen.getByRole("button", { name: "Load family" }));
+    await screen.findByRole("heading", { name: "Family workspace" });
+
+    expect(
+      screen.queryByRole("button", { name: "End the tutor link for Synthetic Minor Two" }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "End the tutor link for Synthetic Minor One" }),
+    );
+    expect(screen.queryByLabelText("New tutor user ID")).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("Evidence checked"), "Member asked at the desk");
+    await user.type(screen.getByLabelText("Reason"), "Trains on their own now");
+    await user.click(screen.getByRole("button", { name: "End link" }));
+
+    await waitFor(() =>
+      expect(familyApi.changeChildGuardian).toHaveBeenCalledWith(
+        expect.objectContaining({
+          studentId: "student-1",
+          expectedRelationshipId: "family-1--student-1",
+          proposedGuardianUserId: null,
+        }),
+      ),
+    );
+    expect(await screen.findByText("Tutor link ended.")).toBeVisible();
+    expect(screen.getByText("Link inactive")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Link a tutor for Synthetic Minor One" }),
+    ).toBeVisible();
   });
 });

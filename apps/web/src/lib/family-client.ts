@@ -1,6 +1,8 @@
 import { httpsCallable } from "./callable";
 
 import {
+  changeChildGuardianInputSchema,
+  type ChangeChildGuardianInput,
   parseFamilyRecord,
   parseFamilyRelationship,
   parseFamilyStudentDraft,
@@ -13,6 +15,7 @@ import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
 import { getFirebaseFunctions } from "./firebase-client";
 
 export type {
+  ChangeChildGuardianInput,
   FamilyStudentDraft,
   GuardianFamilyProjection,
   StaffFamilyProjection,
@@ -27,9 +30,7 @@ export type CreateFamilyClientInput = Readonly<{
 export type UpdateFamilyClientInput = Readonly<{
   familyId: string;
   operation:
-    | Readonly<{ kind: "replaceTutor"; tutorUserId: string }>
     | Readonly<{ kind: "addStudent"; requestId: string; student: FamilyStudentDraft }>
-    | Readonly<{ kind: "deactivateRelationship"; studentId: string }>
     | Readonly<{ kind: "deactivateFamily" }>;
 }>;
 
@@ -86,12 +87,6 @@ function cleanUpdateInput(input: UpdateFamilyClientInput): UpdateFamilyClientInp
     throw new Error(safeUpdateError);
   }
   const operation = input.operation;
-  if (operation.kind === "replaceTutor" && isSafeId(operation.tutorUserId)) {
-    return Object.freeze({
-      familyId: input.familyId,
-      operation: Object.freeze({ kind: "replaceTutor", tutorUserId: operation.tutorUserId }),
-    });
-  }
   if (operation.kind === "addStudent" && isSafeId(operation.requestId)) {
     return Object.freeze({
       familyId: input.familyId,
@@ -100,12 +95,6 @@ function cleanUpdateInput(input: UpdateFamilyClientInput): UpdateFamilyClientInp
         requestId: operation.requestId,
         student: cleanStudentDraft(operation.student),
       }),
-    });
-  }
-  if (operation.kind === "deactivateRelationship" && isSafeId(operation.studentId)) {
-    return Object.freeze({
-      familyId: input.familyId,
-      operation: Object.freeze({ kind: "deactivateRelationship", studentId: operation.studentId }),
     });
   }
   if (operation.kind === "deactivateFamily") {
@@ -256,4 +245,42 @@ export async function updateFamily(
   } catch {
     throw new Error(safeUpdateError);
   }
+}
+
+const safeGuardianChangeError = "Unable to change the tutor. Please try again.";
+// The server's guardian-review refusals that are safe and useful to show the office as written.
+const guardianChangeRefusals = new Set([
+  "A guardian is required before age 16",
+  "This member manages their own account",
+  "The guardian has changed. Refresh this review",
+  "This tutor is already linked to the child",
+  "The new tutor needs an active member account with a verified email",
+  "Confirm this member's identity and date of birth first",
+  "Conflicting guardians require individual reconciliation",
+]);
+
+export async function changeChildGuardian(
+  input: ChangeChildGuardianInput,
+): Promise<StaffFamilyProjection> {
+  const parsed = changeChildGuardianInputSchema.safeParse(input);
+  if (!parsed.success) throw new Error(safeGuardianChangeError);
+  let data: unknown;
+  try {
+    const callable = httpsCallable<ChangeChildGuardianInput, unknown>(
+      getFirebaseFunctions(),
+      "changeChildGuardian",
+    );
+    data = (await callable(parsed.data)).data;
+  } catch (error) {
+    const code = typeof error === "object" && error !== null && "code" in error ? error.code : null;
+    const message = error instanceof Error ? error.message : null;
+    if (code === "functions/failed-precondition" && message && guardianChangeRefusals.has(message)) {
+      throw new Error(message);
+    }
+    throw new Error(safeGuardianChangeError);
+  }
+  if (!isStaffProjection(data) || data.family.familyId !== parsed.data.familyId) {
+    throw new Error(safeGuardianChangeError);
+  }
+  return data;
 }

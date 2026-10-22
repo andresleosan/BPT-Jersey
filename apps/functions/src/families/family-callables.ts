@@ -5,6 +5,7 @@ import { defineSecret } from "firebase-functions/params";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
 import {
+  changeChildGuardianInputSchema,
   parseFamilyStudentDraft,
   type FamilyStudentDraft,
   type GuardianFamilyProjection,
@@ -341,6 +342,26 @@ export async function updateFamilyHandler(
   }
 }
 
+export async function changeChildGuardianHandler(
+  request: CallableRequest<unknown>,
+  services: FamilyCallableServices,
+): Promise<StaffFamilyProjection> {
+  const actor = await requireAdministrativeRole(request, services);
+  const payload = changeChildGuardianInputSchema.safeParse(request.data);
+  if (!payload.success) return invalidPayload();
+  try {
+    return await services.store.changeChildGuardian({
+      ...payload.data,
+      academyId: actor.academyId,
+      actorId: actor.userId,
+      actorRole: actor.role,
+      now: services.now?.() ?? new Date().toISOString(),
+    });
+  } catch (error) {
+    return mapFamilyError(error, "write");
+  }
+}
+
 function requiredProjectId(): string {
   const projectId = getApp().options.projectId;
   if (typeof projectId !== "string" || projectId.length === 0) {
@@ -404,4 +425,8 @@ export const getFamily = onCall(familyReadCallableOptions, async (request) =>
 
 export const updateFamily = onCall(familyWriterCallableOptions, async (request) =>
   updateFamilyHandler(request, familyCallableServices(true)),
+);
+
+export const changeChildGuardian = onCall(familyWriterCallableOptions, async (request) =>
+  changeChildGuardianHandler(request, familyCallableServices(true)),
 );

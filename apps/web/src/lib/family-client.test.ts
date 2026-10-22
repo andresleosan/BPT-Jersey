@@ -17,6 +17,7 @@ vi.mock("./firebase-client", () => ({
 }));
 
 import {
+  changeChildGuardian,
   createFamily,
   getFamily,
   updateFamily,
@@ -177,6 +178,43 @@ describe("family callable client", () => {
         operation: { kind: "addStudent", student: createInput.students[0]! },
       } as never),
     ).rejects.toThrow("Unable to update your family");
+    expect(callableState.call).not.toHaveBeenCalled();
+  });
+
+  it("sends one per-child guardian change and shows only the server's known refusals", async () => {
+    const input = {
+      familyId: "family-1",
+      requestId: "6f1c2a8e-1b2c-4d3e-8f90-0a1b2c3d4e5f",
+      studentId: "student-1",
+      expectedRelationshipId: "family-1--student-1",
+      proposedGuardianUserId: "user-2",
+      evidence: "Court order seen at the desk",
+      reason: "Custody moved to the other parent",
+    };
+    callableState.call.mockResolvedValueOnce({ data: familyProjection });
+    await expect(changeChildGuardian(input)).resolves.toEqual(familyProjection);
+    expect(callableState.name).toBe("changeChildGuardian");
+    expect(callableState.call).toHaveBeenCalledWith(input);
+
+    callableState.call.mockRejectedValueOnce(
+      Object.assign(new Error("A guardian is required before age 16"), {
+        code: "functions/failed-precondition",
+      }),
+    );
+    await expect(changeChildGuardian(input)).rejects.toThrow("A guardian is required before age 16");
+    callableState.call.mockRejectedValueOnce(
+      Object.assign(new Error("Stored relationship is invalid: student-1"), {
+        code: "functions/failed-precondition",
+      }),
+    );
+    await expect(changeChildGuardian(input)).rejects.toThrow(
+      "Unable to change the tutor. Please try again.",
+    );
+
+    callableState.call.mockClear();
+    await expect(changeChildGuardian({ ...input, evidence: " " })).rejects.toThrow(
+      "Unable to change the tutor. Please try again.",
+    );
     expect(callableState.call).not.toHaveBeenCalled();
   });
 });

@@ -1853,7 +1853,8 @@ a.admin-birthday-badge:focus-visible,
 }
 
 .family-field input,
-.family-field select {
+.family-field select,
+.family-field textarea {
   background: var(--canvas);
   border: 1px solid var(--line);
   border-radius: 0;
@@ -1868,6 +1869,7 @@ a.admin-birthday-badge:focus-visible,
 
 .family-field input:focus-visible,
 .family-field select:focus-visible,
+.family-field textarea:focus-visible,
 .family-preference input:focus-visible,
 .family-text-button:focus-visible,
 .family-add-button:focus-visible {

@@ -18,6 +18,7 @@ import {
   createFamilyActorActivityCheck,
   createFamilyHandler,
   familyReadCallableOptions,
+  changeChildGuardianHandler,
   getFamilyHandler,
   updateFamilyHandler,
   type FamilyCallableServices,
@@ -141,6 +142,7 @@ function services(): FamilyCallableServices & {
       getStaffFamilyForActor: vi.fn(async () => staffProjection),
       getGuardianFamily: vi.fn(async () => guardianProjection),
       updateFamily: vi.fn(async () => staffProjection),
+      changeChildGuardian: vi.fn(async () => staffProjection),
     },
     isActorActive: vi.fn(async () => true),
     now: () => "2026-08-19T10:00:00.000Z",
@@ -475,5 +477,54 @@ describe("family callables", () => {
     await expect(
       getFamilyHandler(request({ familyId: "family-1" }, "owner"), current),
     ).resolves.toEqual(staffProjection);
+  });
+
+  it("passes one exact per-child guardian change to the store for an active office actor", async () => {
+    const payload = {
+      familyId: "family-1",
+      requestId: "6f1c2a8e-1b2c-4d3e-8f90-0a1b2c3d4e5f",
+      studentId: "student-1",
+      expectedRelationshipId: "family-1--student-1",
+      proposedGuardianUserId: "user-2",
+      evidence: "Court order seen at the desk",
+      reason: "Custody moved to the other parent",
+    };
+    const current = services();
+    await expect(
+      changeChildGuardianHandler(request(payload, "administrator"), current),
+    ).resolves.toEqual(staffProjection);
+    expect(current.store.changeChildGuardian).toHaveBeenCalledWith({
+      ...payload,
+      academyId: "academy-1",
+      actorId: "admin-1",
+      actorRole: "administrator",
+      now: "2026-08-19T10:00:00.000Z",
+    });
+
+    for (const data of [
+      { ...payload, expectedRelationshipVersion: "a".repeat(64) },
+      { ...payload, requestId: "request-1" },
+      { ...payload, evidence: "" },
+      null,
+    ]) {
+      await expect(
+        changeChildGuardianHandler(request(data, "administrator"), services()),
+      ).rejects.toMatchObject({ code: "invalid-argument" });
+    }
+    for (const role of ["guardian", "coach"]) {
+      const denied = services();
+      await expect(
+        changeChildGuardianHandler(request(payload, role, "user-1"), denied),
+      ).rejects.toMatchObject({ code: "permission-denied" });
+      expect(denied.store.changeChildGuardian).not.toHaveBeenCalled();
+    }
+    const noAppCheck = services();
+    await expect(
+      changeChildGuardianHandler(
+        request(payload, "administrator", "admin-1", "academy-1", false),
+        noAppCheck,
+      ),
+    ).rejects.toMatchObject({ code: "unauthenticated" });
+    expect(noAppCheck.store.changeChildGuardian).not.toHaveBeenCalled();
   });
 });

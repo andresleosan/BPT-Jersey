@@ -1217,4 +1217,216 @@ describe("family Firestore store", () => {
   });
 });
 
+describe("per-child guardian change", () => {
+  const REQUEST_A = "6f1c2a8e-1b2c-4d3e-8f90-0a1b2c3d4e5f";
+  const REQUEST_B = "7a2d3b9f-2c3d-4e4f-9a01-1b2c3d4e5f60";
+  const secondTutor = tutorUser({ userId: "user-2", email: "second@example.test" });
+
+  async function twoChildFamily(firstDateOfBirth = "2015-08-19") {
+    const services = createServices(
+      {
+        "academies/academy-1/users/user-1": tutorUser(),
+        "academies/academy-1/users/user-2": secondTutor,
+      },
+      [tutorUser(), secondTutor],
+    );
+    await services.store.createFamily({
+      academyId: "academy-1",
+      actorId: "admin-1",
+      actorRole: "administrator",
+      requestId: "request-create-per-child",
+      tutorUserId: "user-1",
+      students: [
+        { ...draft("Synthetic Minor One"), dateOfBirth: firstDateOfBirth },
+        draft("Synthetic Minor Two"),
+      ],
+      now: "2026-08-19T10:00:00.000Z",
+    });
+    return services;
+  }
+
+  function change(overrides: Record<string, unknown> = {}) {
+    return {
+      academyId: "academy-1",
+      actorId: "admin-1",
+      actorRole: "administrator" as const,
+      familyId: "family-1",
+      requestId: REQUEST_A,
+      studentId: "student-1",
+      expectedRelationshipId: "family-1--student-1" as string | null,
+      proposedGuardianUserId: "user-2" as string | null,
+      evidence: "Court order seen at the desk",
+      reason: "Custody moved to the other parent",
+      now: "2026-08-20T10:00:00.000Z",
+      ...overrides,
+    };
+  }
+
+  it("moves one child to a new tutor and keeps the sibling, the family contacts and the history", async () => {
+    const { store, records } = await twoChildFamily();
+    const family = records.get("academies/academy-1/families/family-1");
+
+    const projection = await store.changeChildGuardian(change());
+
+    expect(records.get("academies/academy-1/relationships/family-1--student-1")).toMatchObject({
+      active: false,
+      status: "inactive",
+      adultUserId: "user-1",
+      validTo: "2026-08-20T10:00:00.000Z",
+      updatedBy: "admin-1",
+    });
+    expect(records.get(`academies/academy-1/relationships/guardian-${REQUEST_A}`)).toMatchObject({
+      active: true,
+      status: "active",
+      studentId: "student-1",
+      familyId: "family-1",
+      adultUserId: "user-2",
+      validFrom: "2026-08-20T10:00:00.000Z",
+    });
+    expect(records.get("academies/academy-1/relationships/family-1--student-2")).toMatchObject({
+      active: true,
+      adultUserId: "user-1",
+    });
+    expect(records.get("academies/academy-1/families/family-1")).toEqual(family);
+    expect(records.get("academies/academy-1/memberGuardianStates/student-1")).toMatchObject({
+      relationshipId: `guardian-${REQUEST_A}`,
+      guardianUserId: "user-2",
+      revision: REQUEST_A,
+    });
+    expect(records.get(`academies/academy-1/memberGuardianDecisions/${REQUEST_A}`)).toMatchObject({
+      actorId: "admin-1",
+      studentId: "student-1",
+      endReason: "reviewed-change",
+      input: {
+        requestId: REQUEST_A,
+        studentId: "student-1",
+        expectedRelationshipId: "family-1--student-1",
+        proposedGuardianUserId: "user-2",
+        evidence: "Court order seen at the desk",
+        reason: "Custody moved to the other parent",
+      },
+    });
+    expect(
+      [...records.entries()].some(
+        ([path, data]) =>
+          path.startsWith("academies/academy-1/auditEvents/") &&
+          data.targetRef === "academies/academy-1/students/student-1" &&
+          data.actorId === "admin-1",
+      ),
+    ).toBe(true);
+    expect(
+      projection.relationships.filter((link) => link.studentId === "student-1" && link.active),
+    ).toEqual([expect.objectContaining({ adultUserId: "user-2" })]);
+    await expect(store.getGuardianFamily("academy-1", "user-2")).resolves.toMatchObject({
+      students: [expect.objectContaining({ studentId: "student-1" })],
+    });
+    expect(
+      (await store.getGuardianFamily("academy-1", "user-1"))?.students.map((s) => s.studentId),
+    ).toEqual(["student-2"]);
+  });
+
+  it("answers an exact retry from its decision and refuses the same request ID for another change", async () => {
+    const { store, records } = await twoChildFamily();
+    await store.changeChildGuardian(change());
+    const before = new Map(records);
+
+    await expect(store.changeChildGuardian(change())).resolves.toMatchObject({
+      family: { familyId: "family-1" },
+    });
+    expect(records).toEqual(before);
+    await expect(
+      store.changeChildGuardian(change({ reason: "A different reason" })),
+    ).rejects.toMatchObject({ code: "conflict" });
+    expect(records).toEqual(before);
+  });
+
+  it("lets only one of two changes made from the same view win", async () => {
+    const { store, records } = await twoChildFamily();
+    await store.changeChildGuardian(change());
+    const before = new Map(records);
+
+    await expect(
+      store.changeChildGuardian(change({ requestId: REQUEST_B, proposedGuardianUserId: "user-1" })),
+    ).rejects.toThrow("The guardian has changed. Refresh this review");
+    expect(records).toEqual(before);
+  });
+
+  it("keeps a guardian before 16 and ends the link at 16", async () => {
+    const young = await twoChildFamily();
+    const before = new Map(young.records);
+    await expect(
+      young.store.changeChildGuardian(change({ proposedGuardianUserId: null })),
+    ).rejects.toThrow("A guardian is required before age 16");
+    expect(young.records).toEqual(before);
+
+    const sixteen = await twoChildFamily("2010-08-01");
+    await sixteen.store.changeChildGuardian(change({ proposedGuardianUserId: null }));
+    expect(
+      sixteen.records.get("academies/academy-1/relationships/family-1--student-1"),
+    ).toMatchObject({ active: false, validTo: "2026-08-20T10:00:00.000Z" });
+    expect(sixteen.records.get("academies/academy-1/memberGuardianStates/student-1")).toMatchObject(
+      { relationshipId: null, guardianUserId: null },
+    );
+    expect(
+      [...sixteen.records.keys()].some((path) => path.includes("/relationships/guardian-")),
+    ).toBe(false);
+  });
+
+  it("links a tutor again to a child whose link was ended", async () => {
+    const { store, records } = await twoChildFamily("2010-08-01");
+    await store.changeChildGuardian(change({ proposedGuardianUserId: null }));
+
+    await store.changeChildGuardian(
+      change({
+        requestId: REQUEST_B,
+        expectedRelationshipId: null,
+        proposedGuardianUserId: "user-2",
+        now: "2026-08-21T10:00:00.000Z",
+      }),
+    );
+    expect(records.get(`academies/academy-1/relationships/guardian-${REQUEST_B}`)).toMatchObject({
+      active: true,
+      adultUserId: "user-2",
+    });
+  });
+
+  it("refuses the tutor already linked, an ineligible tutor and a child of another family", async () => {
+    const { store, records } = await twoChildFamily();
+    records.set("academies/academy-1/users/user-3", tutorUser({ userId: "user-3", active: false }));
+    const before = new Map(records);
+
+    await expect(
+      store.changeChildGuardian(change({ proposedGuardianUserId: "user-1" })),
+    ).rejects.toThrow("This tutor is already linked to the child");
+    await expect(
+      store.changeChildGuardian(change({ proposedGuardianUserId: "user-3" })),
+    ).rejects.toThrow("The new tutor needs an active member account with a verified email");
+    await expect(
+      store.changeChildGuardian(change({ studentId: "student-9" })),
+    ).rejects.toMatchObject({ code: "precondition" });
+    expect(records).toEqual(before);
+  });
+
+  it("is blocked while the canonical directory is frozen", async () => {
+    const { store, records } = await twoChildFamily();
+    for (const [path, value] of Object.entries(
+      controlPlane({
+        readerVersion: "legacy-rollback-v1",
+        directoryWriteMode: "blocked",
+        freezeStatus: "frozen",
+        operationPhase: "rollback-readonly",
+      }),
+    )) {
+      records.set(path, value);
+    }
+    await expect(store.changeChildGuardian(change())).rejects.toMatchObject({
+      code: "precondition",
+    });
+    expect(records.get("academies/academy-1/relationships/family-1--student-1")).toMatchObject({
+      active: true,
+      adultUserId: "user-1",
+    });
+  });
+});
+
 void FamilyStoreError;

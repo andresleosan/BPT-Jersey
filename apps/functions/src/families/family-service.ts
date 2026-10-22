@@ -5,6 +5,8 @@ import { signedGuardianState, guardianRelationshipVersion, prepareChildGuardianC
 import { randomUUID, timingSafeEqual } from "node:crypto";
 
 import {
+  changeChildGuardianInputSchema,
+  type ChangeChildGuardianInput,
   type ChildGuardianChange,
   parseFamilyRecord,
   parseFamilyRelationship,
@@ -30,6 +32,7 @@ import {
   type StudentAdminProfile,
 } from "@bpt-jersey/domain/members/directory";
 import { z } from "zod";
+import { HttpsError } from "firebase-functions/v2/https";
 
 import { appendAuditEventInTransaction, matchesAuditEventReplay } from "../audit/audit-writer.js";
 import { matchesProvisionedMemberDirectoryActor } from "../members/member-directory-actor-authorization.js";
@@ -119,6 +122,14 @@ export type UpdateFamilyInput = Readonly<{
   now: string;
 }>;
 
+export type ChangeChildGuardianStoreInput = ChangeChildGuardianInput &
+  Readonly<{
+    academyId: string;
+    actorId: string;
+    actorRole: "owner" | "administrator";
+    now: string;
+  }>;
+
 export type GetStaffFamilyInput = Readonly<{
   academyId: string;
   actorId: string;
@@ -140,6 +151,7 @@ export type FamilyStore = Readonly<{
     adultUserId: string,
   ) => Promise<GuardianFamilyProjection | undefined>;
   updateFamily: (input: UpdateFamilyInput) => Promise<StaffFamilyProjection>;
+  changeChildGuardian: (input: ChangeChildGuardianStoreInput) => Promise<StaffFamilyProjection>;
 }>;
 
 export type FamilyStoreDependencies = Readonly<{
@@ -1509,6 +1521,84 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
         transaction.create(nextControl.eventRef, nextControl.event);
         const updatedRelationships = relationships.map((relationship) => preparedChanges.find((item) => item.prepared.ended?.relationshipId === relationship.relationshipId)?.prepared.ended ?? relationship);
         return staffProjection(updatedFamily, students, updatedRelationships);
+      });
+    },
+
+    async changeChildGuardian(input) {
+      const writer = requireCanonicalDependencies(canonicalDependencies);
+      const academyId = pathSegment(input.academyId, "academy");
+      const actorId = pathSegment(input.actorId, "actor");
+      const now = validNow(input.now);
+      const parsed = changeChildGuardianInputSchema.safeParse({
+        familyId: input.familyId, requestId: input.requestId, studentId: input.studentId,
+        expectedRelationshipId: input.expectedRelationshipId, proposedGuardianUserId: input.proposedGuardianUserId,
+        evidence: input.evidence, reason: input.reason,
+      });
+      if (!parsed.success) throw new FamilyStoreError("invalid", "Guardian change is invalid");
+      const request = parsed.data;
+      const familyId = pathSegment(request.familyId, "family");
+      const decisionReference = dependencies.firestore.doc(`academies/${academyId}/memberGuardianDecisions/${pathSegment(request.requestId, "request")}`);
+      return dependencies.firestore.runTransaction(async (transaction) => {
+        await assertTransactionalAdministrativeActor(transaction, dependencies.firestore, { academyId, actorId, actorRole: input.actorRole });
+        const prior = readDocumentSnapshot(await transaction.get(decisionReference));
+        const control = await readCanonicalControl(transaction, dependencies.firestore, academyId, writer);
+        const family = parseStoredFamily(readDocumentSnapshot(await transaction.get(dependencies.firestore.doc(familyPath(academyId, familyId)))));
+        if (family.academyId !== academyId) throw new FamilyStoreError("tenant", "Family tenant mismatch");
+        const students = [...(await readStudents(transaction, dependencies.firestore, academyId, familyId))];
+        const relationships = [...(await readRelationships(transaction, dependencies.firestore, academyId, familyId))];
+        if (prior.exists) {
+          // The decision is the receipt: an exact retry reads the family again, anything else is refused.
+          const stored = prior.data();
+          const storedInput = (stored?.input ?? {}) as Record<string, unknown>;
+          const same = stored?.actorId === actorId && stored.familyId === familyId &&
+            (["studentId", "expectedRelationshipId", "proposedGuardianUserId", "evidence", "reason"] as const)
+              .every((field) => storedInput[field] === request[field]);
+          if (!same) throw new FamilyStoreError("conflict", "This guardian request ID was already used");
+          return staffProjection(family, students, relationships);
+        }
+        if (!family.active || family.status !== "active") throw new FamilyStoreError("conflict", "Inactive family cannot change guardians");
+        const student = students.find((item) => item.studentId === request.studentId);
+        if (!student) throw new FamilyStoreError("precondition", "The child is not in this family");
+        const current = relationships.find((link) => link.studentId === student.studentId && link.active && link.status === "active");
+        if (request.proposedGuardianUserId !== null) {
+          if (current?.adultUserId === request.proposedGuardianUserId) throw new HttpsError("failed-precondition", "This tutor is already linked to the child");
+          try {
+            await verifyAuthUser(dependencies.auth, request.proposedGuardianUserId, academyId);
+            parseStoredTutor(readDocumentSnapshot(await transaction.get(dependencies.firestore.doc(userPath(academyId, request.proposedGuardianUserId)))), academyId);
+          } catch (error) {
+            if (error instanceof FamilyStoreError) throw new HttpsError("failed-precondition", "The new tutor needs an active member account with a verified email");
+            throw error;
+          }
+        }
+        const change: ChildGuardianChange = {
+          requestId: request.requestId, studentId: student.studentId, expectedRelationshipId: request.expectedRelationshipId,
+          // A version only for the relationship the office saw; any other expected ID fails the review below.
+          expectedRelationshipVersion: request.expectedRelationshipId !== null && current?.relationshipId === request.expectedRelationshipId ? guardianRelationshipVersion(current) : null,
+          proposedGuardianUserId: request.proposedGuardianUserId, evidence: request.evidence, reason: request.reason,
+        };
+        const prepared = await prepareChildGuardianChange(guardianTransaction(transaction, dependencies.firestore), change, {
+          academyId, actorId, now, student, familyId, integritySecretMaterial: writer.integritySecretMaterial,
+        });
+        const nextControl = advanceCanonicalControl(dependencies.firestore, control, writer, {
+          academyId, actorId, operationId: change.requestId, addedStudentCount: 0, now, transitionKind: "member-guardian-change",
+        });
+        prepared.commit();
+        transaction.create(decisionReference, {
+          academyId, actorId, familyId, studentId: student.studentId, input: change, before: prepared.before, ended: prepared.ended,
+          relationship: prepared.relationship, anchor: prepared.anchor, endReason: prepared.reason, occurredAt: now, schemaVersion: "1",
+        });
+        appendAuditEventInTransaction(transaction, dependencies.firestore.doc(auditPath(academyId, generateAuditId())), {
+          academyId, actorId, action: "member.updated", targetRef: studentPath(academyId, student.studentId),
+          purpose: "member-record-maintenance", correlationId: `write-${prepared.anchor.integrityMac}`,
+        } as AuditEventDraft);
+        transaction.set(control.stateRef, nextControl.state);
+        transaction.set(control.guardRef, nextControl.guard);
+        transaction.create(nextControl.eventRef, nextControl.event);
+        const updatedRelationships = [
+          ...relationships.map((link) => (link.relationshipId === prepared.ended?.relationshipId ? prepared.ended : link)),
+          ...(prepared.relationship ? [prepared.relationship] : []),
+        ].sort((left, right) => left.relationshipId.localeCompare(right.relationshipId));
+        return staffProjection(family, students, updatedRelationships);
       });
     },
   });
