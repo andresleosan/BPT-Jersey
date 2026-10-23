@@ -104,7 +104,7 @@ const cursorSchema = z.strictObject({ createdAt: instant, notificationId: id });
 export const adminInboxQuerySchema = z
   .strictObject({
     kind: z.enum(adminNotificationKinds).nullable(),
-    readState: z.enum(["all", "unread", "read"]),
+    readState: z.enum(["all", "unread", "read", "pending"]),
     from: instant.nullable(),
     to: instant.nullable(),
     cursor: cursorSchema.nullable(),

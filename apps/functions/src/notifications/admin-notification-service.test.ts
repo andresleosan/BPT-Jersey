@@ -108,6 +108,33 @@ describe("getAdminInbox", () => {
     expect(page.notifications.map((item) => item.createdAt)).toEqual([minute(5)]);
   });
 
+  it("returns only open notifications for the pending view, filtered by kind", async () => {
+    const open = notice({
+      createdAt: "2026-10-20T10:00:00.000Z",
+      kind: "registration",
+      resolvedAt: null,
+    });
+    const done = notice({
+      createdAt: "2026-10-21T10:00:00.000Z",
+      kind: "registration",
+      resolvedAt: "2026-10-21T11:00:00.000Z",
+    });
+    const other = notice({
+      createdAt: "2026-10-22T10:00:00.000Z",
+      kind: "payment",
+      resolvedAt: null,
+    });
+    const { db } = fakeDb([open, done, other]);
+    const page = await getAdminInbox(db, "a", {
+      kind: "registration",
+      readState: "pending",
+      from: null,
+      to: null,
+      cursor: null,
+    });
+    expect(page.notifications.map((n) => n.notificationId)).toEqual([open.notificationId]);
+  });
+
   it("treats a range without milliseconds like the stored timestamps", async () => {
     const { db } = fakeDb([notice({ createdAt: "2026-09-01T00:00:00.000Z" })]);
     const page = await getAdminInbox(

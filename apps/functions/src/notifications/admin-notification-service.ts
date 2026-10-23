@@ -134,6 +134,7 @@ export async function getAdminInbox(
   let base: Query = collection;
   if (input.kind) base = base.where("kind", "==", input.kind);
   if (input.readState === "unread") base = base.where("readAt", "==", null);
+  if (input.readState === "pending") base = base.where("resolvedAt", "==", null);
   // Stored timestamps are toISOString(); normalise so string ranges compare correctly.
   if (input.from) base = base.where("createdAt", ">=", new Date(input.from).toISOString());
   if (input.to) base = base.where("createdAt", "<=", new Date(input.to).toISOString());
