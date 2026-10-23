@@ -14,6 +14,16 @@ import {
   type PrivateLessonOptionId,
 } from "@bpt-jersey/domain/private-lessons";
 import { createNotificationDescriber, money } from "./notification-details.js";
+import {
+  DECIDING_ACTIONS,
+  enrolmentRequestIdOf,
+  initialNoticeState,
+  isActionableRegistrationAction,
+  noticeIdForAuditEvent,
+  registrationNoticeHref,
+  requestStillWaiting,
+  resolveRegistrationNotices,
+} from "./registration-notices.js";
 
 /** Profile name first, then the sign-in name: the same order finance uses for "Recorded by". */
 function describer(db: Firestore, academyId: string) {
@@ -164,13 +174,30 @@ export const adminOperationalNotificationCreated = onDocumentCreated(
       !data.targetRef.startsWith(`academies/${event.params.academyId}/`)
     )
       return;
+    const db = getFirestore();
+    const academyId = event.params.academyId;
+    const createdAt =
+      data.occurredAt instanceof Timestamp
+        ? data.occurredAt.toDate().toISOString()
+        : new Date(event.time).toISOString();
+    // Before the copy check: a denial has no notice of its own but still closes the open ones.
+    if (DECIDING_ACTIONS.has(data.action))
+      await resolveRegistrationNotices(db, { academyId, targetRef: data.targetRef, at: createdAt });
     const copy = Object.hasOwn(messages, data.action) ? messages[data.action] : undefined;
     if (!copy) return;
-    const db = getFirestore();
-    const id = `event-${createHash("sha256").update(event.params.auditEventId).digest("hex")}`;
-    const ref = db.doc(`academies/${event.params.academyId}/adminNotifications/${id}`);
+    const id = noticeIdForAuditEvent(event.params.auditEventId);
+    const ref = db.doc(`academies/${academyId}/adminNotifications/${id}`);
     if ((await ref.get()).exists) return;
-    const described = await describer(db, event.params.academyId).describe(
+    // The decision may land before this notice: a missing (denied) or decided request closes it.
+    let requestWaiting: boolean | null = null;
+    const requestId = isActionableRegistrationAction(data.action)
+      ? enrolmentRequestIdOf(academyId, data.targetRef)
+      : null;
+    if (requestId) {
+      const request = await db.doc(`academies/${academyId}/enrolmentRequests/${requestId}`).get();
+      requestWaiting = request.exists && requestStillWaiting(request.get("status"));
+    }
+    const described = await describer(db, academyId).describe(
       {
         action: data.action,
         actorId: typeof data.actorId === "string" ? data.actorId : "",
@@ -183,16 +210,13 @@ export const adminOperationalNotificationCreated = onDocumentCreated(
     const value = adminNotificationSchema.parse({
       notificationId: id,
       ...copy,
+      href: registrationNoticeHref(data.action, academyId, data.targetRef, copy.href),
       message: (described?.message ?? "Open the related section to review the details.").slice(
         0,
         500,
       ),
-      createdAt:
-        data.occurredAt instanceof Timestamp
-          ? data.occurredAt.toDate().toISOString()
-          : new Date(event.time).toISOString(),
-      readAt: null,
-      resolvedAt: null,
+      createdAt,
+      ...initialNoticeState({ action: data.action, createdAt, requestWaiting }),
       membershipId: described?.membershipId ?? null,
       studentId: described?.studentId ?? null,
       endsAt: null,
