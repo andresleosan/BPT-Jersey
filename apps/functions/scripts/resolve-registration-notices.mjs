@@ -2,8 +2,8 @@
 // Back-fill: registration notices created before notices closed themselves. Open actionable
 // notices whose request was already decided (or deleted) are resolved; open informational ones
 // ("Registration approved/returned/withdrawn") are closed. Prints counts only, never names or ids.
-// Dry-run by default; it prints a confirm code, and only `--apply --confirm=<code>` writes, after
-// recomputing the counts and checking the code still matches. Needs the built artifact
+// Dry-run by default; it prints a confirm code bound to the project, academy and counts, and only
+// `--apply --confirm=<code>` writes, after recomputing the counts and checking the code still matches. Needs the built artifact
 // (node apps/functions/scripts/build-deploy-artifact.mjs) and GCLOUD_PROJECT.
 //   GCLOUD_PROJECT=bptjersey-f5a25 node apps/functions/scripts/resolve-registration-notices.mjs [--academy-id=demo-academy] [--apply --confirm=<code>]
 
@@ -64,7 +64,10 @@ try {
     if (outcome === "resolve" || outcome === "close-informational") toClose.push(notice);
   }
   const countsLine = `counts: ${OUTCOMES.map((outcome) => `${outcome}=${counts[outcome]}`).join(" ")}`;
-  const code = createHash("sha256").update(countsLine).digest("hex").slice(0, 6);
+  const code = createHash("sha256")
+    .update(`${projectId}/${academyId} ${countsLine}`)
+    .digest("hex")
+    .slice(0, 6);
   for (const outcome of OUTCOMES) console.log(`${outcome}: ${counts[outcome]}`);
   console.log(`total: ${notices.size}`);
   console.log(countsLine);
@@ -78,6 +81,7 @@ try {
     // closed meanwhile (trigger or another run) is skipped, never overwritten.
     let written = 0;
     let skipped = 0;
+    let failed = 0;
     const writer = db.bulkWriter();
     writer.onWriteError(() => false);
     for (const notice of toClose) {
@@ -88,10 +92,18 @@ try {
           { resolvedAt: now, readAt: typeof readAt === "string" ? readAt : now },
           { lastUpdateTime: notice.updateTime },
         )
-        .then(() => { written += 1; }, () => { skipped += 1; });
+        .then(
+          () => { written += 1; },
+          (error) => {
+            if (error?.code === 9) { skipped += 1; return; } // FAILED_PRECONDITION
+            failed += 1;
+            console.log(`write failed: code ${error?.code ?? "unknown"}`);
+            process.exitCode = 1;
+          },
+        );
     }
     await writer.close();
-    console.log(`apply: closed ${written}, skipped ${skipped} (changed since read)`);
+    console.log(`apply: closed ${written}, skipped ${skipped} (changed since read), failed ${failed}`);
   }
 } finally {
   await firebaseApp.deleteApp(app);
