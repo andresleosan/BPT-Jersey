@@ -35,6 +35,24 @@ const read: AdminNotification = {
 };
 const page: AdminInboxPage = { notifications: [unread, read], nextCursor: null, unreadCount: 1 };
 const initial = { kind: null, readState: "all", from: null, to: null, cursor: null };
+const waitingQuery = { ...initial, kind: "registration", readState: "pending" };
+const emptyPage: AdminInboxPage = { notifications: [], nextCursor: null, unreadCount: 0 };
+const registration = (id: string, request: string): AdminNotification => ({
+  ...unread,
+  notificationId: id,
+  kind: "registration",
+  title: "Registration request",
+  href: `/admin/members/requests?request=${request}`,
+});
+/** The waiting-count call gets its own page; every other call gets the inbox page. */
+function inbox(main: AdminInboxPage, waiting: AdminInboxPage = emptyPage) {
+  api.getAdminNotifications.mockImplementation(
+    (input: { readState: string; kind: string | null }) =>
+      Promise.resolve(
+        input.readState === "pending" && input.kind === "registration" ? waiting : main,
+      ),
+  );
+}
 
 function setViewport(mobile: boolean) {
   Object.defineProperty(window, "matchMedia", {
@@ -53,7 +71,8 @@ const endOfDay = (date: string) => new Date(`${date}T23:59:59.999`).toISOString(
 
 beforeEach(() => {
   setViewport(false);
-  api.getAdminNotifications.mockResolvedValue(page);
+  inbox(page);
+  api.updateNotification.mockResolvedValue(undefined);
 });
 afterEach(() => {
   cleanup();
@@ -189,5 +208,99 @@ describe("AdminNotificationPanel", () => {
       await vi.advanceTimersByTimeAsync(60_000);
     });
     expect(api.getAdminNotifications).toHaveBeenCalledWith({ ...initial, readState: "unread" });
+  });
+
+  it("offers a Pending view that queries open notices", async () => {
+    render(<AdminNotificationPanel />);
+    await screen.findByText("Payment received");
+    fireEvent.change(screen.getByLabelText("Show"), { target: { value: "pending" } });
+    expect(api.getAdminNotifications).toHaveBeenLastCalledWith({
+      ...initial,
+      readState: "pending",
+    });
+    expect(screen.getByRole("option", { name: "Pending" })).toBeInTheDocument();
+  });
+
+  it("counts waiting registrations by request, not by notice", async () => {
+    inbox(page, {
+      notifications: [
+        registration("r-a", "r1"),
+        registration("r-b", "r1"),
+        registration("r-c", "r2"),
+      ],
+      nextCursor: null,
+      unreadCount: 3,
+    });
+    render(<AdminNotificationPanel />);
+    const line = await screen.findByRole("link", { name: "2 registrations waiting for approval" });
+    expect(line).toHaveAttribute("href", "/admin/members/requests");
+    expect(api.getAdminNotifications).toHaveBeenCalledWith(waitingQuery);
+  });
+
+  it("shows no waiting line when nothing waits or the count fails", async () => {
+    render(<AdminNotificationPanel />);
+    await screen.findByText("Payment received");
+    expect(screen.queryByText(/waiting for approval/u)).not.toBeInTheDocument();
+    cleanup();
+
+    api.getAdminNotifications.mockImplementation((input: { readState: string }) =>
+      input.readState === "pending" ? Promise.reject(new Error("boom")) : Promise.resolve(page),
+    );
+    render(<AdminNotificationPanel />);
+    await screen.findByText("Payment received");
+    expect(screen.queryByText(/waiting for approval/u)).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows a full page of waiting registrations as a lower bound", async () => {
+    inbox(page, {
+      notifications: Array.from({ length: 30 }, (_, index) =>
+        registration(`r-${index}`, `req-${index}`),
+      ),
+      nextCursor: { createdAt: "2026-09-20T10:00:00.000Z", notificationId: "r-29" },
+      unreadCount: 30,
+    });
+    render(<AdminNotificationPanel />);
+    expect(
+      await screen.findByRole("link", { name: "30+ registrations waiting for approval" }),
+    ).toBeInTheDocument();
+  });
+
+  it("re-counts waiting registrations on the poll", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    render(<AdminNotificationPanel />);
+    await screen.findByText("Payment received");
+    inbox(page, { notifications: [registration("r-a", "r1")], nextCursor: null, unreadCount: 1 });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(
+      await screen.findByRole("link", { name: "1 registration waiting for approval" }),
+    ).toBeInTheDocument();
+  });
+
+  it("marks resolved notices as done", async () => {
+    inbox({
+      ...page,
+      notifications: [{ ...unread, resolvedAt: "2026-09-21T10:00:00.000Z" }, read],
+    });
+    render(<AdminNotificationPanel />);
+    const list = await screen.findByRole("list", { name: "Notifications" });
+    const doneRow = within(list).getByText("Payment received").closest("button")!;
+    expect(within(doneRow).getByText("Done")).toBeInTheDocument();
+    const openRow = within(list).getByText("Class changed").closest("button")!;
+    expect(within(openRow).queryByText("Done")).not.toBeInTheDocument();
+
+    fireEvent.click(doneRow);
+    const reader = screen.getByRole("article");
+    expect(within(reader).getByText("Done")).toHaveClass("admin-inbox-resolved");
+  });
+
+  it("labels a request link by its path", async () => {
+    inbox({ ...page, notifications: [registration("r-a", "r1")] });
+    render(<AdminNotificationPanel />);
+    fireEvent.click(await screen.findByText("Registration request"));
+    const link = within(screen.getByRole("article")).getByRole("link", { name: "Open requests" });
+    expect(link).toHaveAttribute("href", "/admin/members/requests?request=r1");
   });
 });

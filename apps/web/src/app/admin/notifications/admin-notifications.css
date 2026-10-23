@@ -238,6 +238,27 @@
   color: #176b49;
 }
 
+/* Registrations still waiting: an Attention Amber notice band above the list (DESIGN.md §§2, 4). */
+.admin-inbox-waiting {
+  background: #fff8e6;
+  border-left: 0.35rem solid #c98b00;
+  margin: 0;
+}
+
+.admin-inbox-waiting a {
+  align-items: center;
+  color: #765400;
+  display: flex;
+  font-weight: 700;
+  min-height: 2.75rem;
+  padding: 0.5rem 1.15rem 0.5rem 0.8rem;
+}
+
+.admin-inbox-waiting a:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: -3px;
+}
+
 .admin-inbox-visually-hidden {
   clip-path: inset(50%);
   height: 1px;
@@ -346,6 +367,13 @@
   margin-top: 0.1rem;
   overflow: hidden;
   overflow-wrap: anywhere;
+}
+
+.admin-inbox-row-done {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  grid-column: 1 / -1;
 }
 
 .admin-inbox-row[data-unread] :is(.admin-inbox-row-from, .admin-inbox-row-subject) {

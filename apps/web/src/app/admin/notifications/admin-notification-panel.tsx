@@ -52,6 +52,13 @@ const sectionLabels: Record<string, string> = {
   "/admin/classes": "Open classes",
 };
 const noFilters: Filters = { kind: null, readState: "all", from: "", to: "" };
+const waitingQuery: AdminInboxQuery = {
+  kind: "registration",
+  readState: "pending",
+  from: null,
+  to: null,
+  cursor: null,
+};
 
 function localDate(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -104,6 +111,7 @@ export function AdminNotificationPanel({ role }: { role?: string | null | undefi
   const [loading, setLoading] = useState(false);
   const [olderPage, setOlderPage] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [waiting, setWaiting] = useState<{ count: number; more: boolean } | null>(null);
   const requestSequence = useRef(0);
   const pending = useRef(new Map<string, SubscriptionEdit>());
   const actionLock = useRef(false);
@@ -129,11 +137,25 @@ export function AdminNotificationPanel({ role }: { role?: string | null | undefi
     }
   }, []);
 
+  /** Open registration notices, one per request; a hint beside the inbox, so failures stay silent. */
+  const loadWaiting = useCallback(async () => {
+    try {
+      const result = await getAdminNotifications(waitingQuery);
+      const count = new Set(result.notifications.map((notice) => notice.href)).size;
+      if (mounted.current) setWaiting({ count, more: result.nextCursor !== null });
+    } catch {
+      if (mounted.current) setWaiting(null);
+    }
+  }, []);
+
   useEffect(() => {
     mounted.current = true;
+    void loadWaiting();
     void load(query.current);
     const refresh = () => {
-      if (!document.hidden && !actionLock.current) void load(query.current);
+      if (document.hidden || actionLock.current) return;
+      void loadWaiting();
+      void load(query.current);
     };
     const timer = window.setInterval(refresh, 60_000);
     window.addEventListener("focus", refresh);
@@ -143,7 +165,7 @@ export function AdminNotificationPanel({ role }: { role?: string | null | undefi
       window.clearInterval(timer);
       window.removeEventListener("focus", refresh);
     };
-  }, [load]);
+  }, [load, loadWaiting]);
 
   const notices = page?.notifications ?? [];
   const selected = notices.find((notice) => notice.notificationId === selectedId) ?? null;
@@ -242,6 +264,7 @@ export function AdminNotificationPanel({ role }: { role?: string | null | undefi
         setMessage(
           action === "extend" ? "Subscription extended by one month." : "End date kept unchanged.",
         );
+        void loadWaiting();
         await load(query.current);
       }
     } catch (failure) {
@@ -335,13 +358,15 @@ export function AdminNotificationPanel({ role }: { role?: string | null | undefi
                 const value = event.target.value;
                 applyFilters({
                   ...filters,
-                  readState: value === "unread" || value === "read" ? value : "all",
+                  readState:
+                    value === "unread" || value === "read" || value === "pending" ? value : "all",
                 });
               }}
             >
               <option value="all">All messages</option>
               <option value="unread">Unread only</option>
               <option value="read">Read only</option>
+              <option value="pending">Pending</option>
             </select>
           </label>
           <details className="admin-inbox-dates">
@@ -405,6 +430,15 @@ export function AdminNotificationPanel({ role }: { role?: string | null | undefi
 
       <div className="admin-inbox-body">
         <div className="admin-inbox-list-pane">
+          {waiting && waiting.count > 0 ? (
+            <p className="admin-inbox-waiting">
+              <Link href="/admin/members/requests">
+                {`${waiting.count}${waiting.more ? "+" : ""} ${
+                  waiting.count === 1 && !waiting.more ? "registration" : "registrations"
+                } waiting for approval`}
+              </Link>
+            </p>
+          ) : null}
           <p className="admin-inbox-visually-hidden" role="status">
             {loading ? "Loading notifications…" : ""}
           </p>
@@ -460,6 +494,7 @@ export function AdminNotificationPanel({ role }: { role?: string | null | undefi
                       <span className="admin-inbox-row-amount">{notice.details.amount}</span>
                     ) : null}
                     <span className="admin-inbox-row-snippet">{notice.message}</span>
+                    {notice.resolvedAt ? <span className="admin-inbox-row-done">Done</span> : null}
                   </button>
                 </li>
               ))}
@@ -548,9 +583,13 @@ export function AdminNotificationPanel({ role }: { role?: string | null | undefi
                     </button>
                   </div>
                 )
+              ) : selected.resolvedAt ? (
+                <p className="admin-inbox-resolved">Done</p>
               ) : null}
               <div className="admin-inbox-links">
-                <Link href={selected.href}>{sectionLabels[selected.href] ?? "Open section"}</Link>
+                <Link href={selected.href}>
+                  {sectionLabels[selected.href.split("?")[0] ?? ""] ?? "Open section"}
+                </Link>
                 {selected.studentId ? (
                   <Link href={recordHref(selected.studentId)}>Member record</Link>
                 ) : null}
