@@ -83,6 +83,12 @@
 .enrolment-admin-page .admin-request-list > li + li {
   border-top: 1px solid var(--request-border);
 }
+/* The request a notification linked to: selected row, Purple Wash with its #d9d6ff edge. */
+.enrolment-admin-page .admin-request-list > li[data-linked] {
+  background: #f0efff;
+  box-shadow: inset 0 0 0 1px #d9d6ff;
+  scroll-margin-top: 7rem;
+}
 .enrolment-admin-page .admin-request-head > strong {
   font-size: 1.2rem;
   overflow-wrap: anywhere;

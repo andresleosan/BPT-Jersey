@@ -60,6 +60,11 @@ const statusLabels = {
   withdrawn: "Withdrawn",
 } as const;
 
+/** The default «Waiting» view: requests still waiting on the office, stopped approvals included. */
+function isWaitingEnrolmentRequest(status: EnrolmentRequestRow["status"]): boolean {
+  return status === "submitted" || status === "approval-failed";
+}
+
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString("en-GB");
 }
@@ -444,6 +449,37 @@ function EnrolmentRequestQueueContent() {
     if (openDetailId) reviewHeading.current?.focus();
   }, [openDetailId]);
 
+  // A notification links here with ?request=<id>. Handled once, on the first loaded queue, so a
+  // later refresh never scrolls or steals focus again. The detail stays closed: opening it is an
+  // audited read, so it waits for the reviewer's own click.
+  const linkHandled = useRef(false);
+  const [linkedId, setLinkedId] = useState<string>();
+  useEffect(() => {
+    if (state.status !== "ready" || linkHandled.current) return;
+    linkHandled.current = true;
+    const requestId = new URLSearchParams(window.location.search).get("request");
+    if (!requestId) return;
+    const linked = state.requests.find((request) => request.enrolmentRequestId === requestId);
+    if (!linked) {
+      setNotice({
+        tone: "error",
+        text: "That registration has already been decided or is no longer in the queue.",
+      });
+      return;
+    }
+    setSearch("");
+    setFilter(isWaitingEnrolmentRequest(linked.status) ? "waiting" : "all");
+    setLinkedId(requestId);
+  }, [state]);
+  useEffect(() => {
+    if (!linkedId) return;
+    const card = document.getElementById(`enrolment-request-${linkedId}`);
+    card?.scrollIntoView({ block: "center" });
+    (
+      card?.querySelector<HTMLElement>(`[aria-controls="enrolment-review-${linkedId}"]`) ?? card
+    )?.focus();
+  }, [linkedId]);
+
   async function openDetail(request: EnrolmentRequestRow, refresh = false): Promise<void> {
     if (!refresh && openDetailId === request.enrolmentRequestId) {
       setOpenDetailId(undefined);
@@ -630,7 +666,7 @@ function EnrolmentRequestQueueContent() {
           (request) =>
             (filter === "all" ||
               (filter === "waiting"
-                ? request.status === "submitted" || request.status === "approval-failed"
+                ? isWaitingEnrolmentRequest(request.status)
                 : filter === "action"
                   ? isReturnableEnrolmentRequest(request.status)
                   : request.status === filter)) &&
@@ -779,6 +815,9 @@ function EnrolmentRequestQueueContent() {
                 <li
                   className="admin-request-card"
                   key={request.enrolmentRequestId}
+                  id={`enrolment-request-${request.enrolmentRequestId}`}
+                  data-linked={linkedId === request.enrolmentRequestId ? "" : undefined}
+                  tabIndex={linkedId === request.enrolmentRequestId ? -1 : undefined}
                   aria-busy={busyId === request.enrolmentRequestId}
                 >
                   <div className="admin-request-head">

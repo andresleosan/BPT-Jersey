@@ -668,3 +668,59 @@ describe("membership requests", () => {
     expect(screen.queryByRole("heading", { name: "Membership requests" })).not.toBeInTheDocument();
   });
 });
+
+describe("opened from a notification link", () => {
+  beforeEach(() => {
+    // jsdom has no scrollIntoView; the page scrolls the linked request into view.
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+
+  afterEach(() => {
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("brings the linked request into view and focuses its Review button", async () => {
+    window.history.replaceState({}, "", "/admin/members/requests?request=enrolment-2");
+    render(<EnrolmentRequestQueuePage />);
+
+    const card = (await screen.findByText("Robin Guardian")).closest("li");
+    await waitFor(() => expect(card).toHaveAttribute("data-linked"));
+    expect(card).toHaveAttribute("id", "enrolment-request-enrolment-2");
+    expect(screen.getByText("Alex Adult").closest("li")).not.toHaveAttribute("data-linked");
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        within(card as HTMLElement).getByRole("button", { name: "Review and enrol" }),
+      ),
+    );
+    expect(vi.mocked(Element.prototype.scrollIntoView).mock.contexts).toContain(card);
+    expect(enrolmentApi.getEnrolmentRequestDetail).not.toHaveBeenCalled();
+  });
+
+  it("shows a linked request that is no longer waiting", async () => {
+    enrolmentApi.listEnrolmentRequests.mockResolvedValue({
+      requests: allStatuses,
+      truncated: false,
+    });
+    window.history.replaceState({}, "", "/admin/members/requests?request=enrolment-status-4");
+    render(<EnrolmentRequestQueuePage />);
+
+    const card = (await screen.findByText("Name approved")).closest("li");
+    await waitFor(() => expect(card).toHaveAttribute("data-linked"));
+    expect(screen.getByLabelText("Status")).toHaveValue("all");
+    expect(enrolmentApi.getEnrolmentRequestDetail).not.toHaveBeenCalled();
+  });
+
+  it("explains a request that is no longer in the queue", async () => {
+    window.history.replaceState({}, "", "/admin/members/requests?request=enrolment-missing");
+    render(<EnrolmentRequestQueuePage />);
+
+    expect(
+      await screen.findByText(
+        "That registration has already been decided or is no longer in the queue.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByLabelText("Status")).toHaveValue("waiting");
+    expect(document.querySelector("[data-linked]")).toBeNull();
+    expect(enrolmentApi.getEnrolmentRequestDetail).not.toHaveBeenCalled();
+  });
+});
