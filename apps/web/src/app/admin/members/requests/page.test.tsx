@@ -525,14 +525,14 @@ describe("trial declarations and preselected level", () => {
         /Trial — no plan, dates or payment: 2 free classes for a beginner, 1 for a declared belt, within 30 days\. .*Confirm the initial level\./,
       ),
     ).toBeVisible();
-    // The booking rule (intro-booking-service): only an adult beginner's FIRST free class must be an
-    // Introduction Class; declared belts may not book one at all.
+    // The booking rule since 2026-10-22: adults on a trial book Free Trial classes; children also
+    // book the classes of their age. The old «Introduction Class» wording is gone.
     expect(
       screen.getByText(
-        /An adult beginner's first free class must be an Introduction Class; a declared belt books regular classes of their age\./,
+        /Adults book Free Trial classes; children also book the classes of their age\./,
       ),
     ).toBeVisible();
-    expect(screen.queryByText(/Adults book Introduction Classes only/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Introduction Class/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Subscription start")).not.toBeInTheDocument();
     // The trial has no plan to name, so the setup fieldset's "Plan: …" line must not render a bare
     // "Plan:" for it (the catalogue has no "trial" entry).
@@ -584,7 +584,7 @@ describe("trial declarations and preselected level", () => {
     render(<EnrolmentRequestQueuePage />);
     await user.click((await screen.findAllByRole("button", { name: /review and enrol/i }))[0]!);
 
-    expect(await screen.findByText("Trial (2 free Introduction Classes)")).toBeVisible();
+    expect(await screen.findByText("Trial (2 free classes)")).toBeVisible();
     expect(screen.getByText("Level: Beginner")).toBeVisible();
     expect(screen.getByLabelText("Initial level")).toHaveValue("white-belt");
   });
