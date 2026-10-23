@@ -962,9 +962,6 @@ body:has(.cs-session-dialog[open]) {
 .cs-session-dialog .cs-session-when {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
-.cs-session-dialog .cs-session-classification {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
 .cs-session-dialog .cs-field {
   min-width: 0;
   gap: 0.375rem;
@@ -1118,6 +1115,11 @@ body:has(.cs-session-dialog[open]) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     padding: 0.75rem 1rem max(0.75rem, env(safe-area-inset-bottom));
     gap: 0.75rem;
+  }
+  /* Two half-width actions: tighter tracking keeps «Discard changes» on one line. */
+  .cs-session-dialog .cs-session-footer .cs-button {
+    padding-inline: 0.5rem;
+    letter-spacing: 0.02em;
   }
 }
 
@@ -1546,70 +1548,136 @@ body:has(.cs-session-dialog[open]) {
   }
 }
 
-/* Who can book (spec 2026-10-22): two switches, the account settings track-and-thumb pattern. */
+/* Who can book (spec 2026-10-22): a full-width group of two rows; the whole row is the tap target
+   and the switch keeps the account settings track-and-thumb. Scoped to the dialog so the dialog's
+   generic field input rules (full width, 3rem tall, square) never reach the switch. */
 .cs-session-dialog .cs-access {
+  min-width: 0;
+  margin: 1.25rem 0 0;
+  padding: 0;
   border: 0;
-  margin: 0;
-  padding: 0;
 }
-.cs-access legend {
+.cs-session-dialog .cs-access-title {
+  margin: 0 0 0.5rem;
   padding: 0;
-  margin-bottom: 0.375rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--mat-ink);
 }
-.cs-switch {
-  align-items: center;
+.cs-session-dialog .cs-access-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+}
+.cs-session-dialog .cs-switch {
   display: flex;
-  gap: 0.625rem;
-  min-height: 2.5rem;
-}
-.cs-switch input {
-  appearance: none;
-  background: var(--paper-edge);
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 4rem;
+  padding: 0.75rem 1rem;
   border: 1px solid var(--line);
-  border-radius: 999px;
-  cursor: pointer;
-  flex: none;
-  height: 1.5rem;
-  margin: 0;
-  position: relative;
-  transition: background-color 160ms ease;
-  width: 2.75rem;
-}
-.cs-switch input::after {
   background: var(--gi-white);
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  content: "";
-  height: 1.15rem;
-  left: 0.12rem;
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  transition: left 160ms ease;
-  width: 1.15rem;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease;
 }
-.cs-switch input:checked {
-  background: var(--bpt-purple);
+.cs-session-dialog .cs-switch:has(:checked) {
   border-color: var(--bpt-purple);
+  background: var(--canvas);
 }
-.cs-switch input:checked::after {
-  left: 1.4rem;
-}
-.cs-switch input:focus-visible {
+.cs-session-dialog .cs-switch:has(:focus-visible) {
   outline: 3px solid var(--bpt-purple);
   outline-offset: 3px;
 }
-.cs-switch input:disabled {
+.cs-session-dialog .cs-switch-text {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.cs-session-dialog .cs-switch-label {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--mat-ink);
+}
+.cs-session-dialog .cs-switch-hint {
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.cs-session-dialog .cs-switch input {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 3.1rem;
+  height: 1.75rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper-edge);
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+.cs-session-dialog .cs-switch input::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0.12rem;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--gi-white);
+  transform: translateY(-50%);
+  transition: transform 160ms ease;
+}
+.cs-session-dialog .cs-switch input:checked {
+  border-color: var(--bpt-purple);
+  background: var(--bpt-purple);
+}
+.cs-session-dialog .cs-switch input:checked::after {
+  border-color: var(--bpt-purple);
+  transform: translate(1.35rem, -50%);
+}
+.cs-session-dialog .cs-switch input:focus-visible {
+  outline: none;
+}
+/* The last switch on stays solid: it is on, it just cannot be turned off. */
+.cs-session-dialog .cs-switch:has(input:disabled) {
   cursor: not-allowed;
-  opacity: 0.6;
+}
+.cs-session-dialog .cs-switch input:disabled {
+  cursor: not-allowed;
+}
+/* A locked or read-only session: the whole group reads as unavailable. */
+.cs-session-dialog fieldset.cs-access:disabled .cs-switch {
+  border-color: var(--paper-edge);
+  background: var(--canvas);
+}
+.cs-session-dialog fieldset.cs-access:disabled .cs-switch-label,
+.cs-session-dialog fieldset.cs-access:disabled .cs-switch-hint {
+  color: var(--muted);
+}
+.cs-session-dialog fieldset.cs-access:disabled .cs-switch input:checked {
+  border-color: var(--muted);
+  background: var(--muted);
+}
+.cs-session-dialog fieldset.cs-access:disabled .cs-switch input:checked::after {
+  border-color: var(--muted);
 }
 .cs-access-fixed {
   margin: 0;
   color: var(--muted);
 }
+@media (max-width: 40rem) {
+  .cs-session-dialog .cs-access-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .cs-switch input,
-  .cs-switch input::after {
+  .cs-session-dialog .cs-switch,
+  .cs-session-dialog .cs-switch input,
+  .cs-session-dialog .cs-switch input::after {
     transition: none;
   }
 }

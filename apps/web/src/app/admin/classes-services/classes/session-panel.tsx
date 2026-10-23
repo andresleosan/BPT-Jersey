@@ -647,7 +647,7 @@ export function SessionPanel({
               </p>
             ) : null}
             <h3>Class and location</h3>
-            <div className="cs-form-row cs-session-classification">
+            <div className="cs-form-row">
               <label className="cs-field">
                 <span>Class/service location</span>
                 <select
@@ -680,56 +680,67 @@ export function SessionPanel({
                     ))}
                 </select>
               </label>
-              {draft.accessMode === "private-lesson" ? (
-                <div className="cs-field">
-                  <span>Who can book</span>
-                  <p className="cs-access-fixed">Private lesson, arranged by the office</p>
-                </div>
-              ) : (
-                <fieldset
-                  className="cs-field cs-access"
-                  disabled={followUp || readOnly || locked}
-                  title={locked ? lockedHint : undefined}
-                  aria-describedby="cs-session-access-help"
-                >
-                  <legend>Who can book</legend>
-                  {/* One side stays on: the switch that is the only one on cannot be turned off. */}
+            </div>
+            {locked && canEdit ? (
+              <p className="cs-session-help">To change the class or location, use Copy session.</p>
+            ) : null}
+            {draft.accessMode === "private-lesson" ? (
+              <div className="cs-access">
+                <p className="cs-access-title">Who can book</p>
+                <p className="cs-access-fixed">Private lesson, arranged by the office</p>
+              </div>
+            ) : (
+              <fieldset
+                className="cs-access"
+                disabled={followUp || readOnly || locked}
+                title={locked ? lockedHint : undefined}
+                aria-describedby="cs-session-access-help"
+              >
+                <legend className="cs-access-title">Who can book</legend>
+                {/* One side stays on: the switch that is the only one on cannot be turned off. */}
+                <div className="cs-access-options">
                   <label className="cs-switch">
+                    <span className="cs-switch-text">
+                      <span className="cs-switch-label">Paid members</span>
+                      <span className="cs-switch-hint" id="cs-access-paid-hint">
+                        Members with an active paid plan.
+                      </span>
+                    </span>
                     <input
                       type="checkbox"
                       role="switch"
                       checked={audience.paid}
                       disabled={audience.paid && !audience.trial}
+                      aria-describedby="cs-access-paid-hint"
                       onChange={(event) =>
                         patch({ accessMode: accessModeForAudience({ ...audience, paid: event.target.checked }) })
                       }
                     />
-                    <span>Paid members</span>
                   </label>
                   <label className="cs-switch">
+                    <span className="cs-switch-text">
+                      <span className="cs-switch-label">Free Trial</span>
+                      <span className="cs-switch-hint" id="cs-access-trial-hint">
+                        New members on their free classes.
+                      </span>
+                    </span>
                     <input
                       type="checkbox"
                       role="switch"
                       checked={audience.trial}
                       disabled={audience.trial && !audience.paid}
+                      aria-describedby="cs-access-trial-hint"
                       onChange={(event) =>
                         patch({ accessMode: accessModeForAudience({ ...audience, trial: event.target.checked }) })
                       }
                     />
-                    <span>Free Trial</span>
                   </label>
-                </fieldset>
-              )}
-            </div>
-            {locked && canEdit ? (
-              <p className="cs-session-help">To change the class or location, use Copy session.</p>
-            ) : null}
-            {draft.accessMode === "private-lesson" ? null : (
-              <p className="cs-session-help" id="cs-session-access-help">
-                Paid members have an active paid plan. Free Trial members are new members on their
-                free classes: adults book only Free Trial classes, children also book the paid classes
-                of their age. Keep at least one on.
-              </p>
+                </div>
+                <p className="cs-session-help" id="cs-session-access-help">
+                  Adults on a Free Trial book only Free Trial classes; children also book the paid
+                  classes of their age. Keep at least one on.
+                </p>
+              </fieldset>
             )}
             <h3>Session capacity</h3>
             <div className="cs-form-row">
