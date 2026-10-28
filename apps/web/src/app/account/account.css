@@ -377,6 +377,8 @@
   border-radius: var(--radius);
   display: grid;
   gap: 0.35rem;
+  /* A long nowrap action must not widen the card's track: the time row and T/W pill stay inside. */
+  grid-template-columns: minmax(0, 1fr);
   padding: 0.9rem 1rem;
 }
 
