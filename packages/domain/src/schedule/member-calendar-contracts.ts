@@ -273,6 +273,11 @@ export type CalendarMemberContext = Readonly<{
   planOpenMatSites: readonly Site[];
   weeklyClassLimit: WeeklyClassLimit;
   additionalProgramIds?: readonly string[];
+  /**
+   * Types the office ticked by hand (Extra access): since 2026-10-28 they also waive the plan's
+   * centres; the age range's types do not.
+   */
+  officeProgramIds?: readonly string[];
   introSite?: Site;
   hasActiveMembership?: boolean;
   hasAttendedIntro?: boolean;
@@ -318,7 +323,8 @@ function lockedReasonFor(
     if (member.introSite !== undefined && sessionSite(session) !== member.introSite) return "site";
     return ageReason(session, program, member) ?? noPlanReason(member);
   }
-  // An office-granted extra group waives the age rules only; the plan's centres and weekly limit still apply.
+  // An extra group (office-ticked or age range) waives the age rules; only an office-ticked type
+  // also waives the plan's centres. The type's own centres and the weekly limit still apply.
   const extra = member.additionalProgramIds?.includes(program.programId) ?? false;
   const typeReason = programTypeReason(session, program, member, extra);
   if (typeReason) return typeReason;
@@ -337,6 +343,7 @@ function lockedReasonFor(
   // Same rule as the booking transaction: the plan itself must cover the member's band.
   if (!extra && member.planParticipantTypes && !member.planParticipantTypes.includes(band))
     return "age_band";
+  if (member.officeProgramIds?.includes(program.programId)) return undefined;
   const site = sessionSite(session);
   if (program.discipline === "open-mat") {
     return member.planOpenMatSites.includes(site) ? undefined : "open_mat";

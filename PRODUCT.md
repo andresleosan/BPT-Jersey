@@ -133,7 +133,9 @@ Google sign-in. Publication of this correction is separate.
 The member calendar hides sessions outside the member's age group and plan sites. Owners and
 administrators manage additional program access from Members → profile → Classes. Each grant
 adds to normal access and waives the age rules and plan participant type for that program only;
-the plan's centres and weekly limit still apply.
+the plan's weekly limit still applies. Since 2026-10-28 a grant also waives the plan's centres (a West
+member can book a Town-only type the office ticked); the type's own centres still apply. Member
+calendar cards show a T (Town) or W (West) mark.
 Active membership and plan, payment standing, session capacity and booking deadlines still apply.
 Since 2026-09-21 granting any additional group requires an office reason, and an optional end date
 (Jersey calendar day, inclusive) after which the grant authorises nothing; members never see either.
@@ -146,7 +148,7 @@ canonical student. Publication requires coordinated Functions and frontend deplo
 
 Owners and administrators open Members → Access to give any member a training age range ("From X
 to Y", no upper limit allowed). Every class type whose age range overlaps it opens in addition to
-the member's own-age classes, exactly like an extra group: age and plan participant type are
+the member's own-age classes, like an extra group, but keeping the plan's centres: age and plan participant type are
 waived; plan, payment standing, centres, weekly limit, capacity (per-age limits use the real age)
 and booking deadlines still apply. A reason is required; an optional end date (Jersey day,
 inclusive) stops new bookings after it. Members under 16 given access to 16+ classes need an
