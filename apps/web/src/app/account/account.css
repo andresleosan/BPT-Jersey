@@ -406,10 +406,29 @@
 }
 
 .session-time {
+  align-items: center;
+  display: flex;
   font-family: var(--font-display), Impact, sans-serif;
   font-size: 1.2rem;
   font-weight: 700;
+  gap: 0.5rem;
+  justify-content: space-between;
   letter-spacing: 0.02em;
+}
+
+/* T (Town) or W (West): the same pill for both centres, only the letter changes. */
+.session-centre {
+  align-items: center;
+  background: var(--bpt-purple);
+  border-radius: 999px;
+  color: var(--gi-white);
+  display: inline-flex;
+  flex: none;
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 0.9rem;
+  height: 1.5rem;
+  justify-content: center;
+  width: 1.5rem;
 }
 
 .session-title {

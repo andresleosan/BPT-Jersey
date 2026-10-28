@@ -198,7 +198,10 @@ export function SessionCard({
       data-session-id={session.sessionId}
       data-status={status}
     >
-      <span className="session-time">{formatSessionTimeRange(session)}</span>
+      <span className="session-time">
+        <span>{formatSessionTimeRange(session)}</span>
+        <span className="session-centre" aria-hidden="true">{site === "Town" ? "T" : "W"}</span>
+      </span>
       {detailStudentId ? (
         <p className="session-title">
           <button

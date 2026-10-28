@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { courseApi } from "../courses/course-client";
 import type { CalendarWeekData } from "./calendar-repository";
 import { isIntroBooking, type ProgramRecord } from "@bpt-jersey/domain/schedule";
@@ -221,6 +222,7 @@ export function createFirebaseCalendarRepository(session: {
           bookedCounts: week.bookedCounts,
           ...(week.access ? {access: week.access} : {}),
           ...(week.groupAccess ? {groupAccess: studentGroupAccessSchema.parse(week.groupAccess)} : {}),
+          ...(week.officeProgramIds ? {officeProgramIds: z.array(z.string()).max(200).parse(week.officeProgramIds)} : {}),
         };
       };
       const [ordinary] = await Promise.all([loadOrdinary(), loadCourses()]);

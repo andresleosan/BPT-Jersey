@@ -361,6 +361,7 @@ export function MemberCalendar({
       ...(selectedWeek.groupAccess
         ? {
             additionalProgramIds: selectedWeek.groupAccess.programIds,
+            officeProgramIds: selectedWeek.officeProgramIds ?? [],
             dateOfBirth: selectedWeek.groupAccess.dateOfBirth ?? participant.dateOfBirth,
           }
         : {}),

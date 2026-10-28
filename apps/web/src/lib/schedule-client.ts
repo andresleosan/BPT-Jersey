@@ -386,6 +386,8 @@ export type MemberCalendarWeek = Readonly<{
   attendance: readonly AttendanceRecord[];
   bookedCounts: Readonly<Record<string, number>>;
   groupAccess?: unknown;
+  /** Types the office ticked by hand that are still in force; they open either centre. */
+  officeProgramIds?: readonly string[];
   /** Present only while the student trains on a free trial instead of a membership. */
   trial?: TrialAccessView;
   /** Whether grey classes ask for a renewal, a first plan, or wait for a pending plan. */

@@ -56,6 +56,8 @@ export type CalendarMember = Readonly<{
 export type CalendarWeekData = Readonly<{
   courseSessionIds?: readonly string[];
   groupAccess?: StudentGroupAccess;
+  /** Types the office ticked by hand that are still in force; they open either centre. */
+  officeProgramIds?: readonly string[];
   sessions: readonly SessionRecord[];
   programs: readonly ProgramRecord[];
   bookings: readonly BookingRecord[];
