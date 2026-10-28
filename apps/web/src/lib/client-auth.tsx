@@ -220,7 +220,7 @@ export function ClientAuthGate({
         </p>
         <div className="hero-actions">
           <a className="button button-primary" href="/enrol">
-            Ask for a place
+            Register as a Member
           </a>
           <a className="button button-secondary" href="/account/courses">
             Courses &amp; Seminars
