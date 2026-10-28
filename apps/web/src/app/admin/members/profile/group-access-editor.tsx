@@ -140,8 +140,8 @@ export function GroupAccessEditor({
   return (
     <section className="member-group-access" aria-labelledby="member-group-access-title">
       <h2 id="member-group-access-title">Additional group access</h2>
-      <p>Groups included by the member&apos;s plan and age are ticked and locked. Tick an extra group to let this member book it outside their age range or plan type.</p>
-      <p>Extra groups still use the plan&apos;s centres and weekly limit. Active membership, payment standing, available places and booking deadlines also apply. Clearing a group stops new bookings in it.</p>
+      <p>Groups included by the member&apos;s plan and age are ticked and locked. Tick an extra group to let this member book it outside their age range, plan type or centre.</p>
+      <p>Extra groups can be at either centre and still count towards the plan&apos;s weekly limit. Active membership, payment standing, available places and booking deadlines also apply. Clearing a group stops new bookings in it.</p>
       {loading ? <p role="status">Loading group access…</p> : null}
       {error ? <p className="member-record-notice" role="alert">{error}</p> : null}
       {notice ? <p role="status">{notice}</p> : null}

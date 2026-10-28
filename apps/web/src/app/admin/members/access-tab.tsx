@@ -280,8 +280,8 @@ export function AccessTab({
         <p className="admin-eyebrow">Members / Access</p>
         <h3 id="access-tab-title">Special access</h3>
         <p className="access-lead">
-          Let a member book classes for another age range, or extra class types. Their plan, centres
-          and weekly limit still apply.
+          Let a member book classes for another age range, or extra class types at either centre. An
+          age range keeps the plan&apos;s centres. The plan&apos;s weekly limit always applies.
         </p>
       </header>
 
