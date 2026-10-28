@@ -215,8 +215,8 @@ export function ClientAuthGate({
         <h1 id="client-auth-state-title">This area is for academy students</h1>
         <p>
           Your account can buy from the club shop. Classes, progress and billing open once the
-          academy registers you as a student. If that is what you are here for, ask the academy for
-          a place and somebody will review your request.
+          academy registers you as a student. If that is what you are here for, register as a member
+          and somebody will review your request.
         </p>
         <div className="hero-actions">
           <a className="button button-primary" href="/enrol">
