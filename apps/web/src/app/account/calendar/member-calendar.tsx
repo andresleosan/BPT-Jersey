@@ -382,10 +382,14 @@ export function MemberCalendar({
       const program = programs.get(sessionRecord.programId);
       const day = dayOf(days, sessionRecord.startAt);
       // The server only sends a member's own private lessons; their plan does not decide those.
+      // A session the member already booked or attended stays visible (as on the server), so a
+      // booking still shows and can be cancelled after the office removes that access.
       if (
         !program ||
         !day ||
         (sessionRecord.accessMode !== "private-lesson" &&
+          !bookings.has(sessionRecord.sessionId) &&
+          !attendance.has(sessionRecord.sessionId) &&
           !canViewMemberSession(sessionRecord, program, memberContext))
       )
         continue;

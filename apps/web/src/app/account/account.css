@@ -410,10 +410,17 @@
   display: flex;
   font-family: var(--font-display), Impact, sans-serif;
   font-size: 1.2rem;
+  flex-wrap: wrap;
   font-weight: 700;
   gap: 0.5rem;
   justify-content: space-between;
   letter-spacing: 0.02em;
+}
+
+/* The time range stays whole; in narrow week columns the T/W pill drops below it. */
+.session-time > span:first-child {
+  overflow-wrap: normal;
+  white-space: nowrap;
 }
 
 /* T (Town) or W (West): the same pill for both centres, only the letter changes. */
