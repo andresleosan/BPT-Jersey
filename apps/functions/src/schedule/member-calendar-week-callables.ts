@@ -116,6 +116,8 @@ export const getMemberCalendarWeek = onCall(
     );
     // The range's types join the extra groups, so the client recomputes the same calendar.
     const groupAccess = memberView(storedAccess);
+    // Only the office's own ticks open the other centre; taken before the range joins them.
+    const officeProgramIds = [...groupAccess.programIds];
     groupAccess.programIds = [
       ...new Set([
         ...groupAccess.programIds,
@@ -205,6 +207,7 @@ export const getMemberCalendarWeek = onCall(
       planOpenMatSites: plan?.openMatSites ?? [],
       weeklyClassLimit: plan?.weeklyClassLimit ?? null,
       additionalProgramIds: groupAccess.programIds,
+      officeProgramIds,
       dateOfBirth: groupAccess.dateOfBirth,
       introSite: profile.trainingCenter,
       hasActiveMembership: membership !== undefined && plan !== undefined,
@@ -251,7 +254,7 @@ export const getMemberCalendarWeek = onCall(
       bookings,
       attendance: attendanceForActor(actor, attendance),
       bookedCounts,
-      ...(member.hasActiveMembership ? { groupAccess } : {}),
+      ...(member.hasActiveMembership ? { groupAccess, officeProgramIds } : {}),
       ...(trialViewValue ? { trial: trialViewValue } : {}),
       access: { hadMembership, planPending },
     };

@@ -903,6 +903,8 @@ async function executeBookingInTransaction(
   // An exception authorises sessions up to its end date, not bookings made before it.
   const sessionDay = localDate(storedSession.startAt);
   const additionalProgramIds = effectiveGroupProgramIds(groupAccess.data, sessionDay);
+  // Only the office's own ticks open the other centre; the age range keeps the plan's centres.
+  const officeTicked = additionalProgramIds.includes(storedSession.programId);
   const trainingRange = effectiveAgeRange(groupAccess.data, sessionDay);
   // The office's training age range opens a type exactly like an extra group (same waivers).
   const additionalAccess =
@@ -982,10 +984,15 @@ async function executeBookingInTransaction(
         "age-centre",
       );
     }
-    // Additional groups waive the age rules only: the plan's centres and weekly limit still apply.
+    // Additional groups waive the age rules; office-ticked types also waive the plan's centres
+    // (the type's own centres above still apply). The weekly limit always applies.
     // Transit Free alone waives financial standing; membership status, active programs, booking
     // cutoff and capacity are always required.
-    const access = evaluatePlanAccess(storedPlan, {
+    // ponytail: an office-ticked type borrows the session's centre, as it borrows the plan's participant type.
+    const accessPlan: typeof storedPlan = officeTicked
+      ? { ...storedPlan, classSites: [sessionSite], openMatSites: [sessionSite] }
+      : storedPlan;
+    const access = evaluatePlanAccess(accessPlan, {
       // ponytail: an extra group borrows the plan's own participant type to skip the age match.
       participantType: additionalAccess
         ? (storedPlan.eligibleParticipantTypes[0] ?? "adult")
