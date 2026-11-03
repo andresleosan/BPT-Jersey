@@ -125,8 +125,12 @@ export async function deleteMemberAccountHandler(
   ]);
   const memberships = snapshots[BY_STUDENT.indexOf("memberships")];
   for (const snapshot of snapshots) for (const document of snapshot.docs) refs.push(document.ref);
-  // The office's settlement record of each of those subscriptions shares its membership id.
-  for (const membership of memberships?.docs ?? []) refs.push(firestore.doc(`${root}/membershipAdministration/${membership.id}`));
+  // The office's settlement record and the payment reminder record of each of those subscriptions
+  // share its membership id.
+  for (const membership of memberships?.docs ?? []) {
+    refs.push(firestore.doc(`${root}/membershipAdministration/${membership.id}`));
+    refs.push(firestore.doc(`${root}/membershipReminders/${membership.id}`));
+  }
 
   // The member's own office family goes with its billing, unless another record still bills through it.
   if (familyId) {

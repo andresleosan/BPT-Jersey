@@ -6,12 +6,36 @@ import type {
   SubscriptionBilling,
   SubscriptionBillingPayment,
 } from "@bpt-jersey/domain/memberships/admin";
+import type {
+  PaymentReminderOutcome,
+  PaymentReminderStep,
+} from "@bpt-jersey/domain/memberships/payment-reminders";
 import { getMemberSubscriptionBilling } from "../../../../lib/subscription-admin-client";
 import { SubscriptionBillingHistory } from "../member-subscription-editor";
 import { EditPaymentDialog, RecordMemberPaymentDialog } from "./payment-dialogs";
 import { PrivateLessonRecord } from "./private-lesson-record";
 
 import { MemberRecordLoadError } from "../../../../lib/member-profile-client";
+
+const reminderStepLabels: Record<PaymentReminderStep, string> = {
+  "ends-in-7": "Ends in 7 days",
+  "ends-tomorrow": "Ends tomorrow",
+  "payment-due": "Payment due",
+  "final-reminder": "Final reminder",
+};
+const reminderOutcomeLabels: Record<PaymentReminderOutcome, string> = {
+  sent: "Sent",
+  "no-email": "Not sent: no email on file",
+  "dry-run": "Not sent: dry run",
+  failed: "Failed",
+};
+const jerseyDate = (value: string) =>
+  new Date(value).toLocaleDateString("en-GB", {
+    timeZone: "Europe/Jersey",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 
 type State = { status: "loading" | "error" } | { status: "ready"; billing: SubscriptionBilling[] };
 export function PaymentsTab({
@@ -117,6 +141,18 @@ export function PaymentsTab({
                 Complimentary access recorded — not a payment.{item.reason ? ` ${item.reason}` : ""}
               </p>
             ))
+        : null}
+      {state.status === "ready"
+        ? state.billing.map((item) =>
+            item.lastReminder ? (
+              <p key={`reminder-${item.membershipId}`}>
+                Last reminder: {jerseyDate(item.lastReminder.at)} ·{" "}
+                {reminderStepLabels[item.lastReminder.step]} ({item.lastReminder.stepNumber} of 4) ·{" "}
+                {reminderOutcomeLabels[item.lastReminder.outcome]} (period ending{" "}
+                {jerseyDate(item.lastReminder.endsAt)})
+              </p>
+            ) : null,
+          )
         : null}
       {canRecordPrivateLessons ? <PrivateLessonRecord studentId={studentId} /> : null}
       {state.status === "ready" && dialog?.kind === "record" ? (

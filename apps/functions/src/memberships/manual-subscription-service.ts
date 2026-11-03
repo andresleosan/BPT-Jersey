@@ -21,6 +21,10 @@ import {
   subscriptionBillingSchema,
   type ManualSubscriptionInput,
 } from "@bpt-jersey/domain/memberships/admin";
+import {
+  lastReminderOf,
+  membershipReminderStateSchema,
+} from "@bpt-jersey/domain/memberships/payment-reminders";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { expiryNotificationId } from "../notifications/notification-identifiers.js";
 
@@ -484,10 +488,13 @@ export async function listSubscriptionBilling(db: Firestore, academyId: string, 
         parsed.value.familyId !== student.value.familyId
       )
         fail("Invalid membership record.");
-      const [invoices, administration] = await Promise.all([
+      const [invoices, administration, reminders] = await Promise.all([
         base.collection("invoices").where("membershipId", "==", document.id).limit(101).get(),
         base.collection("membershipAdministration").doc(document.id).get(),
+        base.collection("membershipReminders").doc(document.id).get(),
       ]);
+      // A missing or invalid reminder record only means no reminder to show.
+      const reminderState = membershipReminderStateSchema.safeParse(reminders.data());
       const validatedInvoices = memberInvoices(
         invoices.docs,
         academyId,
@@ -529,6 +536,7 @@ export async function listSubscriptionBilling(db: Firestore, academyId: string, 
           : {}),
         currentInvoiceId: currentInvoice?.invoiceId ?? null,
         reason: administration.get("reason") ?? null,
+        lastReminder: lastReminderOf(reminderState.success ? reminderState.data : null),
         invoices: validatedInvoices
           .map((invoice) => {
             const { invoiceId, status, totalMinor, paidAt, dueAt, description } = invoice;
