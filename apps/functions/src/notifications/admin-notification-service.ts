@@ -14,6 +14,7 @@ import {
 } from "@bpt-jersey/domain/memberships/admin";
 import { parseMembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle";
 import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
+import { canonicalEndsAt } from "../membership-reminders/payment-reminder-service.js";
 import { expiryNotificationId, unpaidNotificationId } from "./notification-identifiers.js";
 import { when } from "./notification-details.js";
 
@@ -126,17 +127,20 @@ export async function createUnpaidMembershipNotice(
     planName: string;
   },
 ): Promise<void> {
+  if (Number.isNaN(Date.parse(input.endsAt))) return;
   const base = db.doc(`academies/${input.academyId}`);
   const membershipRef = base.collection("memberships").doc(input.membershipId);
   const noticeRef = base
     .collection("adminNotifications")
-    .doc(unpaidNotificationId(input.membershipId, input.endsAt));
+    .doc(unpaidNotificationId(input.membershipId, canonicalEndsAt(input.endsAt)));
   await db.runTransaction(async (transaction) => {
     const membership = await transaction.get(membershipRef);
     const status: unknown = membership.get("status");
+    const storedEnd: unknown = membership.get("endsAt");
     if (
       !membership.exists ||
-      membership.get("endsAt") !== input.endsAt ||
+      typeof storedEnd !== "string" ||
+      Date.parse(storedEnd) !== Date.parse(input.endsAt) ||
       (status !== "active" && status !== "overdue")
     ) {
       return;
@@ -183,7 +187,7 @@ export async function resolveUnpaidMembershipNotice(
   reference: DocumentReference,
   previousEnd: string | null,
 ): Promise<void> {
-  if (previousEnd === null) return;
+  if (previousEnd === null || Number.isNaN(Date.parse(previousEnd))) return;
   const match = /^academies\/([^/]+)\/memberships\/([^/]+)$/u.exec(reference.path);
   if (!match) return;
   const academyId = match[1]!;
@@ -191,17 +195,19 @@ export async function resolveUnpaidMembershipNotice(
   const noticeRef = db
     .doc(`academies/${academyId}`)
     .collection("adminNotifications")
-    .doc(unpaidNotificationId(membershipId, previousEnd));
+    .doc(unpaidNotificationId(membershipId, canonicalEndsAt(previousEnd)));
   await db.runTransaction(async (transaction) => {
     const membership = await transaction.get(reference);
     const notice = await transaction.get(noticeRef);
     if (!notice.exists || notice.get("resolvedAt") != null) return;
     const status: unknown = membership.get("status");
+    const currentEnd: unknown = membership.get("endsAt");
     if (
       !membership.exists ||
       status === "cancelled" ||
       status === "paused" ||
-      membership.get("endsAt") !== previousEnd
+      typeof currentEnd !== "string" ||
+      Date.parse(currentEnd) !== Date.parse(previousEnd)
     ) {
       const now = new Date().toISOString();
       transaction.update(noticeRef, { resolvedAt: now, readAt: now });

@@ -47,10 +47,11 @@ export type PaymentReminderPorts = {
   >;
   loadComplimentaryIds(ids: readonly string[]): Promise<ReadonlySet<string>>;
   loadStates(ids: readonly string[]): Promise<ReadonlyMap<string, MembershipReminderState>>;
+  /** `null` means no email on file; `"out-of-scope"` means the student cannot renew. */
   resolveRecipient(
     candidate: ReminderCandidate,
     todayKey: string,
-  ): Promise<ReminderRecipient | null>;
+  ): Promise<ReminderRecipient | null | "out-of-scope">;
   dispatch(request: ExternalDeliveryRequest): Promise<DeliveryHistoryRecord>;
   saveStep(
     previous: MembershipReminderState | null,
@@ -72,8 +73,10 @@ export type PaymentReminderRunSummary = {
   >;
   /** Dry-run entries whose recipient resolved to no address. */
   dryRunNoEmail: number;
-  /** Candidates whose evaluation threw before a step was chosen. */
+  /** Candidates whose evaluation threw before a step was chosen, or whose recipient lookup threw. */
   errors: number;
+  /** Live candidates left for a later run after sending was paused for this one. */
+  deferred: number;
 };
 
 const dayMs = 86_400_000;
@@ -82,14 +85,39 @@ function sha256Hex(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-/** sha256 hex of `${membershipId}|${endsAt}|${step}`, using the raw stored `endsAt`. */
+/**
+ * The cycle identity of an `endsAt`: two spellings of the same instant are one cycle. Throws on
+ * an unparsable value, so callers check `Date.parse` first.
+ */
+export function canonicalEndsAt(endsAt: string): string {
+  return new Date(endsAt).toISOString();
+}
+
+/** True when a stored `endsAt` is the same cycle as `endsAt`; an unparsable one never is. */
+export function sameReminderCycle(stored: string, endsAt: string): boolean {
+  return (
+    !Number.isNaN(Date.parse(stored)) &&
+    !Number.isNaN(Date.parse(endsAt)) &&
+    canonicalEndsAt(stored) === canonicalEndsAt(endsAt)
+  );
+}
+
+/** sha256 hex of `${membershipId}|${endsAt}|${step}`, using the canonical `endsAt`. */
 export function paymentReminderDeliveryId(
   membershipId: string,
   endsAt: string,
   step: PaymentReminderStep,
 ): string {
-  return sha256Hex(`${membershipId}|${endsAt}|${step}`);
+  return sha256Hex(`${membershipId}|${canonicalEndsAt(endsAt)}|${step}`);
 }
+
+/** Failures that would hit every later send of the run too: SES down, throttled or misconfigured. */
+const pausingFailureCodes = new Set([
+  "ses_unavailable",
+  "ses_throttled",
+  "provider_error",
+  "ses_account",
+]);
 
 function zeroSummary(): PaymentReminderRunSummary {
   return {
@@ -109,6 +137,7 @@ function zeroSummary(): PaymentReminderRunSummary {
     },
     dryRunNoEmail: 0,
     errors: 0,
+    deferred: 0,
   };
 }
 
@@ -163,7 +192,7 @@ function alreadyProcessed(
   todayKey: string,
 ): { sameStep: boolean; today: boolean } {
   if (state === null) return { sameStep: false, today: false };
-  const record = state.endsAt === endsAt ? state.steps[step] : undefined;
+  const record = sameReminderCycle(state.endsAt, endsAt) ? state.steps[step] : undefined;
   const sameStep = record !== undefined && isProcessedOutcome(record.outcome);
   const today = paymentReminderSteps.some((candidateStep) => {
     const other = state.steps[candidateStep];
@@ -174,6 +203,20 @@ function alreadyProcessed(
     );
   });
   return { sameStep, today };
+}
+
+/** The office notice for a final reminder that is not recorded this run; a failure is logged. */
+async function notifyUnrecorded(
+  ports: PaymentReminderPorts,
+  candidate: ReminderCandidate,
+  planName: string,
+  step: PaymentReminderStep,
+): Promise<void> {
+  try {
+    await ports.notifyOfficeUnpaid(candidate, planName);
+  } catch (error) {
+    logStepError("notify", candidate.membershipId, step, error);
+  }
 }
 
 export async function runPaymentReminders(
@@ -205,6 +248,8 @@ export async function runPaymentReminders(
   const at = now.toISOString();
   let used = 0;
   let capLogged = false;
+  // Live only: once a send fails in a way every later send would too, the run stops sending.
+  let paused = false;
 
   for (const candidate of candidates) {
     summary.considered += 1;
@@ -278,6 +323,10 @@ export async function runPaymentReminders(
       // 7. Dry-run: resolve only to count, save `dry-run`, never notify.
       if (mode === "dry-run") {
         const recipient = await ports.resolveRecipient(candidate, todayKey);
+        if (recipient === "out-of-scope") {
+          summary.skipped["out-of-scope"] += 1;
+          continue;
+        }
         if (recipient === null) summary.dryRunNoEmail += 1;
         else used += 1;
         await ports.saveStep(previous, membershipId, endsAt, step, "dry-run", at);
@@ -285,16 +334,39 @@ export async function runPaymentReminders(
         continue;
       }
 
-      // 8. Live: resolve and dispatch.
-      let outcome: PaymentReminderOutcome;
+      // 8. Live: resolve. A lookup that throws (an Auth outage) is not recorded, so the step can
+      // still go out on a later run; a final reminder still notifies the office.
+      let recipient: ReminderRecipient | null | "out-of-scope";
       try {
-        const recipient = await ports.resolveRecipient(candidate, todayKey);
-        if (recipient === null) {
-          outcome = "no-email";
-        } else {
-          const audience = recipient.memberFirstName !== null ? "guardian" : "self";
-          const variables = reminderVariables(recipient, planName, endsAt);
-          used += 1;
+        recipient = await ports.resolveRecipient(candidate, todayKey);
+      } catch (error) {
+        logStepError("resolve", membershipId, step, error);
+        summary.errors += 1;
+        if (step === "final-reminder") await notifyUnrecorded(ports, candidate, planName, step);
+        continue;
+      }
+      if (recipient === "out-of-scope") {
+        summary.skipped["out-of-scope"] += 1;
+        continue;
+      }
+
+      // 9. Paused: no dispatch and no record, so the step can still go out on a later run.
+      if (paused) {
+        summary.deferred += 1;
+        if (step === "final-reminder") await notifyUnrecorded(ports, candidate, planName, step);
+        continue;
+      }
+
+      // 10. Dispatch. A failure that would repeat for everyone pauses the rest of the run.
+      let outcome: PaymentReminderOutcome;
+      if (recipient === null) {
+        outcome = "no-email";
+      } else {
+        const audience = recipient.memberFirstName !== null ? "guardian" : "self";
+        const variables = reminderVariables(recipient, planName, endsAt);
+        used += 1;
+        let pauseCode: string | null = null;
+        try {
           const record = await ports.dispatch({
             deliveryId: paymentReminderDeliveryId(membershipId, endsAt, step),
             academyId,
@@ -306,13 +378,25 @@ export async function runPaymentReminders(
           });
           outcome =
             record.status === "accepted" || record.status === "delivered" ? "sent" : "failed";
+          if (
+            record.status === "failed" &&
+            record.failureCode !== null &&
+            pausingFailureCodes.has(record.failureCode)
+          ) {
+            pauseCode = record.failureCode;
+          }
+        } catch (error) {
+          logStepError("send", membershipId, step, error);
+          outcome = "failed";
+          pauseCode = "dispatch_threw";
         }
-      } catch (error) {
-        logStepError("send", membershipId, step, error);
-        outcome = "failed";
+        if (pauseCode !== null) {
+          paused = true;
+          logger.warn("Payment reminders: sending paused for this run", { failureCode: pauseCode });
+        }
       }
 
-      // 9. Final reminder: the office notice comes before the save, whatever the outcome.
+      // 11. Final reminder: the office notice comes before the save, whatever the outcome.
       if (step === "final-reminder") {
         try {
           await ports.notifyOfficeUnpaid(candidate, planName);
@@ -323,7 +407,7 @@ export async function runPaymentReminders(
         }
       }
 
-      // 10. Save the step.
+      // 12. Save the step.
       try {
         await ports.saveStep(previous, membershipId, endsAt, step, outcome, at);
       } catch (error) {

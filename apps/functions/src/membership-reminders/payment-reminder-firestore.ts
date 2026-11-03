@@ -12,10 +12,12 @@ import {
 import { parseEffectiveStudentProfileAt } from "@bpt-jersey/domain/profiles";
 import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 import { createUnpaidMembershipNotice } from "../notifications/admin-notification-service.js";
-import type {
-  PaymentReminderPorts,
-  ReminderCandidate,
-  ReminderRecipient,
+import {
+  canonicalEndsAt,
+  sameReminderCycle,
+  type PaymentReminderPorts,
+  type ReminderCandidate,
+  type ReminderRecipient,
 } from "./payment-reminder-service.js";
 
 /**
@@ -219,6 +221,8 @@ export function createPaymentReminderPorts(
         });
         return null;
       }
+      // The renewal rule of intro-application-service.ts: only an active student can renew.
+      if (!student.value.active || student.value.status !== "active") return "out-of-scope";
       const profile = student.value;
       let email: string | null | undefined;
       let greeting: string | null;
@@ -278,11 +282,12 @@ export function createPaymentReminderPorts(
     },
 
     async saveStep(previous, membershipId, endsAt, step, outcome, at) {
-      // A changed `endsAt` is a new cycle: the old cycle's steps never carry over.
-      const steps = previous?.endsAt === endsAt ? previous.steps : {};
+      // A changed `endsAt` is a new cycle: the old cycle's steps never carry over. Two spellings
+      // of the same instant are one cycle, and the state keeps the canonical form.
+      const steps = previous && sameReminderCycle(previous.endsAt, endsAt) ? previous.steps : {};
       const state = membershipReminderStateSchema.parse({
         membershipId,
-        endsAt,
+        endsAt: canonicalEndsAt(endsAt),
         steps: { ...steps, [step]: { at, outcome } },
         schemaVersion: "1",
       });

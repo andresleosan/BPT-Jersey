@@ -18,6 +18,19 @@ const throttleErrorNames = new Set([
   "LimitExceededException",
 ]);
 
+/** Credential or account problems: every send fails until the office fixes the configuration. */
+const accountErrorNames = new Set([
+  "AccountSuspendedException",
+  "SendingPausedException",
+  "MailFromDomainNotVerifiedException",
+  "AccessDeniedException",
+  "UnrecognizedClientException",
+  "InvalidClientTokenId",
+  "SignatureDoesNotMatch",
+  "ExpiredTokenException",
+  "NotFoundException",
+]);
+
 type SesErrorShape = Readonly<{ name?: unknown; $metadata?: { httpStatusCode?: unknown } }>;
 
 function errorName(err: unknown): string {
@@ -98,7 +111,10 @@ export function createSesDeliveryProvider(options: {
             retryable: true,
           });
         }
-        const failureCode = "ses_rejected";
+        const failureCode =
+          status === 401 || status === 403 || accountErrorNames.has(name)
+            ? "ses_account"
+            : "ses_rejected";
         logger.error("SES rejected a reminder", {
           failureCode,
           errorName: name,
