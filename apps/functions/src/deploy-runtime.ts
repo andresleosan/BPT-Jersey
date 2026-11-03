@@ -40,6 +40,8 @@ export const domainImportReplacements: Readonly<Record<string, string>> = Object
   "@bpt-jersey/domain/memberships/intro-conversion": "../../domain/memberships/intro-conversion-contracts.js",
   "@bpt-jersey/domain/memberships/admin":
     "../../domain/memberships/subscription-admin-contracts.js",
+  "@bpt-jersey/domain/memberships/payment-reminders":
+    "../../domain/memberships/payment-reminders.js",
   "@bpt-jersey/domain/memberships": "../../domain/memberships/plan-contracts.js",
   "@bpt-jersey/domain/profiles": "../../domain/profiles/profile-contracts.js",
   "@bpt-jersey/domain/auth/admin-contracts": "../../domain/auth/admin-contracts.js",

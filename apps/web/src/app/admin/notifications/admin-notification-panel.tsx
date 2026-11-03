@@ -43,11 +43,13 @@ const kindLabels: Record<AdminNotificationKind, string> = {
   class: "Classes",
   level: "Levels",
   "subscription-expiring": "Ending soon",
+  "membership-unpaid": "Unpaid",
 };
 const sectionLabels: Record<string, string> = {
   "/admin/finance": "Open finance",
   "/admin/members/requests": "Open requests",
   "/admin/members": "Open members",
+  "/admin/members/profile": "Open payments",
   "/admin/memberships": "Open memberships",
   "/admin/classes": "Open classes",
 };
@@ -98,7 +100,9 @@ const kindOf = (notice: AdminNotification) =>
     ? "Subscription ending"
     : notice.kind === "class"
       ? "Class"
-      : kindLabels[notice.kind].slice(0, -1);
+      : notice.kind === "membership-unpaid"
+        ? "Unpaid membership"
+        : kindLabels[notice.kind].slice(0, -1);
 const sender = (notice: AdminNotification) => notice.details?.from ?? kindOf(notice);
 
 export function AdminNotificationPanel({ role }: { role?: string | null | undefined } = {}) {

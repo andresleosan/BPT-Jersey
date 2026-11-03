@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { planIds } from "./plan-contracts";
 import { membershipStatuses } from "./membership-contracts";
+import { paymentReminderSummarySchema } from "./payment-reminders";
 
 const id = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u);
 const instant = z.iso.datetime();
@@ -68,6 +69,7 @@ export const adminNotificationKinds = [
   "payment",
   "class",
   "level",
+  "membership-unpaid",
 ] as const;
 export type AdminNotificationKind = (typeof adminNotificationKinds)[number];
 /**
@@ -253,5 +255,6 @@ export const subscriptionBillingSchema = z.strictObject({
       payments: z.array(billingPaymentSchema),
     }),
   ),
+  lastReminder: paymentReminderSummarySchema.nullable().default(null),
 });
 export type SubscriptionBilling = z.infer<typeof subscriptionBillingSchema>;

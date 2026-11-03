@@ -69,6 +69,7 @@
     "src/staff/permission-grant-contracts.ts",
     "src/consents/disclaimer-contracts.ts",
     "src/memberships/subscription-admin-contracts.ts",
+    "src/memberships/payment-reminders.ts",
     "src/memberships/intro-conversion-contracts.ts",
     "src/memberships/trial-access-contracts.ts",
     "src/schedule/member-class-record-contracts.ts",
