@@ -26,8 +26,9 @@ async function refreshCourseLifecycle(db: Firestore, academyId: string, courseId
   });
 }
 
-/** Cursors rotate through bounded queues, including expired worker leases. */
-export const courseScheduler = onSchedule({schedule: "every 1 minutes", timeoutSeconds: 60, maxInstances: 1}, async () => {
+/** Cursors rotate through bounded queues, including expired worker leases. Every 5 minutes, not every
+ * minute, to cut reads and CPU: course jobs, expiries and waitlist offers may wait up to 5 minutes. */
+export const courseScheduler = onSchedule({schedule: "every 5 minutes", timeoutSeconds: 60, maxInstances: 1}, async () => {
   const academyId = coursesAcademyId.value(); if (!academyId) return;
   const db = getFirestore(); const deadline = Date.now() + 40_000;
   const cursorRef = db.doc(`academies/${academyId}/courseWorkerState/scheduler`);
