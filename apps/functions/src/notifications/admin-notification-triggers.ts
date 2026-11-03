@@ -7,7 +7,10 @@ import {
   adminNotificationSchema,
   type AdminNotification,
 } from "@bpt-jersey/domain/memberships/admin";
-import { syncSubscriptionNotice } from "./admin-notification-service.js";
+import {
+  resolveUnpaidMembershipNotice,
+  syncSubscriptionNotice,
+} from "./admin-notification-service.js";
 import {
   PRIVATE_LESSON_MINUTES,
   PRIVATE_LESSON_OPTIONS,
@@ -55,6 +58,11 @@ export const subscriptionExpiryNoticeWritten = onDocumentWritten(
     if (!event.data) return;
     const oldEnd: unknown = event.data.before.get("endsAt");
     await syncSubscriptionNotice(
+      getFirestore(),
+      event.data.after.ref,
+      typeof oldEnd === "string" ? oldEnd : null,
+    );
+    await resolveUnpaidMembershipNotice(
       getFirestore(),
       event.data.after.ref,
       typeof oldEnd === "string" ? oldEnd : null,

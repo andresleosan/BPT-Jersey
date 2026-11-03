@@ -173,6 +173,42 @@ export async function createUnpaidMembershipNotice(
   });
 }
 
+/**
+ * Resolves the unpaid notice of the cycle that ended at `previousEnd` once that cycle is over:
+ * the membership was deleted, cancelled, paused or renewed (`endsAt` moved). Re-read in a
+ * transaction; a missing or already resolved notice is left alone.
+ */
+export async function resolveUnpaidMembershipNotice(
+  db: Firestore,
+  reference: DocumentReference,
+  previousEnd: string | null,
+): Promise<void> {
+  if (previousEnd === null) return;
+  const match = /^academies\/([^/]+)\/memberships\/([^/]+)$/u.exec(reference.path);
+  if (!match) return;
+  const academyId = match[1]!;
+  const membershipId = match[2]!;
+  const noticeRef = db
+    .doc(`academies/${academyId}`)
+    .collection("adminNotifications")
+    .doc(unpaidNotificationId(membershipId, previousEnd));
+  await db.runTransaction(async (transaction) => {
+    const membership = await transaction.get(reference);
+    const notice = await transaction.get(noticeRef);
+    if (!notice.exists || notice.get("resolvedAt") != null) return;
+    const status: unknown = membership.get("status");
+    if (
+      !membership.exists ||
+      status === "cancelled" ||
+      status === "paused" ||
+      membership.get("endsAt") !== previousEnd
+    ) {
+      const now = new Date().toISOString();
+      transaction.update(noticeRef, { resolvedAt: now, readAt: now });
+    }
+  });
+}
+
 const pageSize = 30;
 const readScanPages = 10;
 
