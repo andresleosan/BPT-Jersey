@@ -267,6 +267,7 @@ export {
   adminPlanPaymentNotificationCreated,
   adminPrivateLessonPurchaseNotificationCreated,
 } from "./notifications/admin-notification-triggers.js";
+export { membershipPaymentRemindersSchedule } from "./membership-reminders/payment-reminder-schedule.js";
 
 export {
   resolveMemberSubscriptionProfile,
