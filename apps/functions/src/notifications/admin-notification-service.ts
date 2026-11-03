@@ -14,7 +14,7 @@ import {
 } from "@bpt-jersey/domain/memberships/admin";
 import { parseMembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle";
 import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
-import { expiryNotificationId } from "./notification-identifiers.js";
+import { expiryNotificationId, unpaidNotificationId } from "./notification-identifiers.js";
 import { when } from "./notification-details.js";
 
 const dayMs = 24 * 60 * 60 * 1000;
@@ -107,6 +107,69 @@ export async function syncSubscriptionNotice(
       };
       transaction.create(noticeRef, adminNotificationSchema.parse(value));
     }
+  });
+}
+
+/**
+ * The office notice for a membership still unpaid after the final reminder. Re-read in a
+ * transaction: a scheduler snapshot may predate a renewal, which moves `endsAt` to a new cycle.
+ * Created once per `membershipId|endsAt`; staff-only, so the member name is allowed here.
+ */
+export async function createUnpaidMembershipNotice(
+  db: Firestore,
+  input: {
+    academyId: string;
+    membershipId: string;
+    studentId: string;
+    endsAt: string;
+    memberName: string;
+    planName: string;
+  },
+): Promise<void> {
+  const base = db.doc(`academies/${input.academyId}`);
+  const membershipRef = base.collection("memberships").doc(input.membershipId);
+  const noticeRef = base
+    .collection("adminNotifications")
+    .doc(unpaidNotificationId(input.membershipId, input.endsAt));
+  await db.runTransaction(async (transaction) => {
+    const membership = await transaction.get(membershipRef);
+    const status: unknown = membership.get("status");
+    if (
+      !membership.exists ||
+      membership.get("endsAt") !== input.endsAt ||
+      (status !== "active" && status !== "overdue")
+    ) {
+      return;
+    }
+    const notice = await transaction.get(noticeRef);
+    if (notice.exists) return;
+    const now = new Date().toISOString();
+    const memberName = input.memberName.trim().slice(0, 160).trim();
+    const planName = input.planName.trim().slice(0, 300);
+    const ended = when(input.endsAt, false) ?? input.endsAt;
+    const value: AdminNotification = {
+      notificationId: noticeRef.id,
+      kind: "membership-unpaid",
+      title: "Membership still unpaid after reminders",
+      message: `${memberName}'s membership ended on ${ended} and is still unpaid after the automatic reminders.`,
+      href: `/admin/members/profile?id=${input.studentId}&tab=payments`,
+      createdAt: now,
+      readAt: null,
+      resolvedAt: null,
+      membershipId: input.membershipId,
+      studentId: input.studentId,
+      endsAt: new Date(input.endsAt).toISOString(),
+      details: {
+        from: memberName,
+        amount: null,
+        facts: [
+          { label: "Member", value: memberName },
+          ...(planName ? [{ label: "Plan", value: planName }] : []),
+          { label: "Ended", value: ended.slice(0, 300) },
+        ],
+      },
+    };
+    transaction.create(noticeRef, adminNotificationSchema.parse(value));
   });
 }
 
