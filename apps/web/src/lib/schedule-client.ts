@@ -582,7 +582,7 @@ export async function recordCheckIn(input: CheckInInput): Promise<AttendanceReco
 export async function searchAttendanceMembers(
   query: string,
 ): Promise<readonly { studentId: string; fullName: string }[]> {
-  const callable = httpsCallable<
+  const callable = readCallable<
     { query: string },
     { members: { studentId: string; fullName: string }[] }
   >(getFirebaseFunctions(), "searchAttendanceMembers");
