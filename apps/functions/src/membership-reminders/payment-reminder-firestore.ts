@@ -42,8 +42,16 @@ export function createPaymentReminderPorts(
   const base = db.doc(`academies/${academyId}`);
   const membershipPrefix = `academies/${academyId}/memberships/`;
 
+  /** Only a missing Auth user means "no email on file"; any other Auth failure is rethrown. */
   const authUser = (uid: string) =>
-    uidPattern.test(uid) ? auth.getUser(uid).catch(() => null) : Promise.resolve(null);
+    uidPattern.test(uid)
+      ? auth.getUser(uid).catch((error: unknown) => {
+          const code =
+            typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+          if (code === "auth/user-not-found") return null;
+          throw error;
+        })
+      : Promise.resolve(null);
 
   /**
    * The renewal rule of intro-application-admin-service.ts: the member renews one live
