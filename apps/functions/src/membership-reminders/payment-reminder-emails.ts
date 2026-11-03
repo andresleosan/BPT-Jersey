@@ -49,6 +49,8 @@ type Words = Readonly<{
   Whose: string;
   endDateLong: string;
   endDateShort: string;
+  /** "Leo's" for the guardian audience, null for the member themself. */
+  owner: string | null;
 }>;
 
 function line(...segments: (string | Segment)[]): readonly Segment[] {
@@ -59,7 +61,7 @@ const team = line("The BPT Jersey team");
 
 const stepContent: Readonly<Record<PaymentReminderStep, (words: Words) => EmailContent>> = {
   "ends-in-7": (w) => ({
-    subject: `Your BPT Jersey membership ends on ${w.endDateShort}`,
+    subject: `${w.owner ?? "Your"} BPT Jersey membership ends on ${w.endDateShort}`,
     before: [
       [
         line(`${w.Whose} membership ends on `, { text: w.endDateLong, bold: true }, "."),
@@ -76,13 +78,13 @@ const stepContent: Readonly<Record<PaymentReminderStep, (words: Words) => EmailC
     ],
   }),
   "ends-tomorrow": (w) => ({
-    subject: "Reminder: your membership ends tomorrow",
+    subject: `Reminder: ${w.owner ?? "your"} membership ends tomorrow`,
     before: [[line(`Just a reminder that ${w.whose} membership ends tomorrow, ${w.endDateLong}.`)]],
     button: "Renew my membership",
     after: [[line("If you've already paid, thank you, there's nothing else to do."), team]],
   }),
   "payment-due": (w) => ({
-    subject: "Your BPT Jersey membership payment is due",
+    subject: `${w.owner ?? "Your"} BPT Jersey membership payment is due`,
     before: [
       [
         line(
@@ -252,6 +254,7 @@ export function renderPaymentReminderEmail(
     Whose: `${owner ?? "Your"} ${planName}`,
     endDateLong,
     endDateShort,
+    owner,
   };
   const content = stepContent[step](words);
   // `recipientFirstName` is "there" when no first name is known, which gives "Hi there,".

@@ -42,7 +42,22 @@ export function createSesDeliveryProvider(options: {
   return Object.freeze({
     name: "ses",
     async send(request: ExternalDeliveryRequest) {
-      const email = renderPaymentReminderEmail(request.templateId, request.variables);
+      let email: ReturnType<typeof renderPaymentReminderEmail>;
+      try {
+        email = renderPaymentReminderEmail(request.templateId, request.variables);
+      } catch (err) {
+        // Never log the message or the variables: they can carry names.
+        logger.error("Payment reminder template failed", {
+          templateId: request.templateId,
+          errorName: errorName(err),
+        });
+        return Object.freeze({
+          status: "failed" as const,
+          providerMessageId: null,
+          failureCode: "template_invalid",
+          retryable: false,
+        });
+      }
       try {
         const output = await options.send({
           FromEmailAddress: options.from,
