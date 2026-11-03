@@ -145,7 +145,12 @@ export function createSesSendFromEnvironment(region: string): SesSend {
     .digest("hex");
   let client = environmentSesClients.get(key);
   if (!client) {
-    client = new SESv2Client({ region, credentials: { accessKeyId, secretAccessKey } });
+    // One SDK attempt: the dispatcher is the only retry layer, and SendEmail has no idempotency token.
+    client = new SESv2Client({
+      region,
+      credentials: { accessKeyId, secretAccessKey },
+      maxAttempts: 1,
+    });
     environmentSesClients.set(key, client);
   }
   const sesClient = client;

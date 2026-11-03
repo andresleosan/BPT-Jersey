@@ -191,6 +191,7 @@ describe("Delete account confirmation", () => {
       complimentary: false,
       currentInvoiceId: null,
       reason: null,
+      lastReminder: null,
       invoices: invoices.map((payments, invoice) => ({
         invoiceId: `i-${membership}-${invoice}`,
         status: "paid" as const,

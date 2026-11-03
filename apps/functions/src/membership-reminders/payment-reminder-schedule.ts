@@ -71,6 +71,7 @@ export const membershipPaymentRemindersSchedule = onSchedule(
     timeoutSeconds: 540,
     memory: "512MiB",
     maxInstances: 1,
+    concurrency: 1,
     secrets: sesSecrets,
   },
   async () => {
