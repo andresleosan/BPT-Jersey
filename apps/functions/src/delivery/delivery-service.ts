@@ -259,12 +259,26 @@ export function createFirestoreDeliveryHistoryStore(params: {
         .set(record);
     },
     async getLatest(academyId, deliveryId) {
-      const records = await this.list(academyId);
-      return (
-        records
-          .filter((record) => record.deliveryId === deliveryId)
-          .sort((left, right) => right.attempt - left.attempt)[0] ?? null
+      assertIdentifier(academyId, "academyId");
+      assertIdentifier(deliveryId, "deliveryId");
+      const snapshots = await Promise.all(
+        [1, 2, 3].map((attempt) =>
+          params.firestore
+            .doc(
+              `academies/${academyId}/deliveryEvents/${buildDeliveryEventId(deliveryId, attempt)}`,
+            )
+            .get(),
+        ),
       );
+      let latest: DeliveryHistoryRecord | null = null;
+      for (const snapshot of snapshots) {
+        if (!snapshot.exists) continue;
+        const parsed = parseDeliveryHistoryRecord(snapshot.data());
+        if (!parsed.ok)
+          throw new DeliveryServiceError("invalid", "Invalid delivery history record");
+        if (latest === null || parsed.value.attempt > latest.attempt) latest = parsed.value;
+      }
+      return latest;
     },
     async list(academyId) {
       assertIdentifier(academyId, "academyId");
