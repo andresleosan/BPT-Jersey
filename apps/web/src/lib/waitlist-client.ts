@@ -361,7 +361,8 @@ function safeOfferMutationMessage(error: unknown): string {
 
 export async function listClientMemberships(): Promise<readonly ClientMembership[]> {
   try {
-    const callable = httpsCallable<null, unknown>(getFirebaseFunctions(), "listMemberships");
+    // A read: listMemberships does not consume App Check tokens, so the cached token saves a reCAPTCHA assessment.
+    const callable = firebaseHttpsCallable<null, unknown>(getFirebaseFunctions(), "listMemberships");
     const result = await callable(null);
     if (!Array.isArray(result.data)) throw new Error(membershipError);
     return Object.freeze(result.data.map(parseMembership));

@@ -47,10 +47,17 @@ function safeError(error: unknown, fallback: string): Error {
   );
 }
 
-async function call<T>(name: string, payload: unknown, schema: z.ZodType<T>, fallback: string): Promise<T> {
+/** Reads pass `false`: their callables do not consume App Check tokens, so the cached token saves a reCAPTCHA assessment. */
+async function call<T>(
+  name: string,
+  payload: unknown,
+  schema: z.ZodType<T>,
+  fallback: string,
+  limitedUseAppCheckTokens = true,
+): Promise<T> {
   try {
     const response = await httpsCallable<unknown, unknown>(getFirebaseFunctions(), name, {
-      limitedUseAppCheckTokens: true,
+      limitedUseAppCheckTokens,
     })(payload);
     return schema.parse(response.data);
   } catch (error) {
@@ -73,7 +80,7 @@ export function submitPrivateLessonPurchase(input: {
 }
 
 export function listMyPrivateLessons(studentId: string): Promise<MyPrivateLessons> {
-  return call("listMyPrivateLessons", { studentId }, myPrivateLessonsSchema, loadError);
+  return call("listMyPrivateLessons", { studentId }, myPrivateLessonsSchema, loadError, false);
 }
 
 export function listPrivateLessonPurchases(
@@ -84,6 +91,7 @@ export function listPrivateLessonPurchases(
     { status },
     z.strictObject({ purchases: z.array(privateLessonPurchaseRowSchema).max(200) }),
     loadError,
+    false,
   ).then((value) => value.purchases);
 }
 
@@ -99,7 +107,7 @@ export function reviewPrivateLessonPurchase(input: {
 
 /** Office only: a short-lived link to the member's transfer proof for one purchase. */
 export function getPrivateLessonProofUrl(purchaseId: string): Promise<PrivateLessonProofUrl> {
-  return call("getPrivateLessonProofUrl", { purchaseId }, privateLessonProofUrlSchema, proofError);
+  return call("getPrivateLessonProofUrl", { purchaseId }, privateLessonProofUrlSchema, proofError, false);
 }
 
 export function recordPrivateLessonPurchase(input: {
