@@ -64,7 +64,9 @@ export const subscriptionExpiryNoticeWritten = onDocumentWritten(
 
 export const subscriptionExpiryNoticesSchedule = onSchedule(
   {
-    schedule: "every 1 minutes",
+    // Edits sync at once through subscriptionExpiryNoticeWritten; this sweep only catches the
+    // 24-hour mark, so 15 minutes is enough and reads 15 times less than every minute.
+    schedule: "every 15 minutes",
     timeZone: "UTC",
     maxInstances: 1,
     concurrency: 1,
