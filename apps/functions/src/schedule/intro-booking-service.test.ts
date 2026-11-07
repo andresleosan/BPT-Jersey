@@ -5,6 +5,10 @@ import { buildBookingId } from "@bpt-jersey/domain/schedule";
 import { consentRecordId } from "../consents/consent-identifiers";
 import type { BookingFirestore } from "./booking-transaction-service";
 import { requestIntroBooking, type IntroBookingCommand } from "./intro-booking-service";
+import {
+  createTransactionalAttendanceService,
+  type AttendanceFirestore,
+} from "./attendance-transaction-service";
 
 const academyId = "academy-1";
 const now = "2026-09-21T10:00:00.000Z";
@@ -315,6 +319,182 @@ function seededIntroStore(state?: "missing-waiver" | "active-membership" | "prio
   };
   return { ...store, command };
 }
+
+describe("office manual Free Trial attendance outside the class age range", () => {
+  const base = `academies/${academyId}`;
+  function outsideAge(
+    dateOfBirth = "2018-01-01",
+    minAge = 5,
+    maxAge: number | null = 7,
+    intro = false,
+  ) {
+    const store = seededIntroStore();
+    store.seed(`${base}/students/student-1`, {
+      ...store.records.get(`${base}/students/student-1`),
+      dateOfBirth,
+      participantType: dateOfBirth < "2010-01-01" ? "adult" : "minor",
+    });
+    store.seed(`${base}/sessions/session-1`, {
+      ...store.records.get(`${base}/sessions/session-1`),
+      accessMode: undefined,
+    });
+    store.seed(`${base}/programs/adult-fundamentals`, {
+      programId: "adult-fundamentals",
+      academyId,
+      name: "Synthetic class",
+      ageBand: "all",
+      ageRange: { minAge, maxAge },
+      introductionClass: intro,
+      discipline: "gi",
+      active: true,
+      schemaVersion: "1",
+    });
+    return store;
+  }
+  const officeCommand = (
+    store: ReturnType<typeof outsideAge>,
+    actorRole: IntroBookingCommand["actorRole"] = "owner",
+  ) => ({
+    ...store.command,
+    actorId: "office-1",
+    actorRole,
+    walkIn: true as const,
+    now: startAt,
+  });
+
+  it.each(["owner", "administrator"] as const)(
+    "%s saves an out-of-range trial booking and attendance with audit evidence",
+    async (role) => {
+      const store = outsideAge();
+      const originalStudent = { ...store.records.get(`${base}/students/student-1`) };
+      const booking = await requestIntroBooking(store.db, officeCommand(store, role));
+      expect(booking).toMatchObject({
+        status: "confirmed",
+        source: { kind: "intro" },
+        ageEligibilityWaivedBy: "office-1",
+      });
+      const attendance = createTransactionalAttendanceService({
+        firestore: store.db as unknown as AttendanceFirestore,
+        now: () => startAt,
+      });
+      const command = {
+        academyId,
+        actorId: "office-1",
+        actorRole: role,
+        input: { sessionId: "session-1", studentId: "student-1", method: "manual" as const },
+      };
+      const recorded = await attendance.recordCheckIn(command);
+      expect(recorded).toMatchObject({ state: "attended", createdBy: "office-1" });
+      expect(await attendance.recordCheckIn(command)).toEqual(recorded);
+      expect(await requestIntroBooking(store.db, officeCommand(store, role))).toEqual(booking);
+      expect(store.documents(`${base}/bookings`)).toHaveLength(1);
+      expect(store.documents(`${base}/attendance`)).toEqual([recorded]);
+      expect(store.documents(`${base}/auditEvents`).map((event) => event.action)).toEqual([
+        "booking.created",
+        "attendance.checked_in",
+      ]);
+      expect(store.records.get(`${base}/students/student-1`)).toEqual(originalStudent);
+      expect(store.documents(`${base}/studentGroupAccess`)).toEqual([]);
+    },
+  );
+
+  it.each([
+    ["2018-01-01", 5, 7, false],
+    ["2020-01-01", 7, 8, false],
+    ["1984-01-01", 7, 8, false],
+    ["2020-01-01", 16, null, true],
+    ["1984-01-01", 4, 5, true],
+    ["1984-01-01", 16, null, false],
+  ] as const)(
+    "allows birth date %s in ages %s–%s, introduction class=%s",
+    async (birth, min, max, intro) => {
+      const store = outsideAge(birth, min, max, intro);
+      await expect(requestIntroBooking(store.db, officeCommand(store))).resolves.toMatchObject({
+        status: "confirmed",
+        ageEligibilityWaivedBy: "office-1",
+      });
+    },
+  );
+
+  it.each(["coach", "headCoach"] as const)(
+    "does not give %s the office age exception",
+    async (role) => {
+      const store = outsideAge();
+      await expect(requestIntroBooking(store.db, officeCommand(store, role))).rejects.toMatchObject(
+        { code: "ineligible", why: "age-centre" },
+      );
+      expect(store.documents(`${base}/bookings`)).toEqual([]);
+    },
+  );
+
+  it("does not give a member the age exception through a walk-in flag", async () => {
+    const store = outsideAge();
+    await expect(
+      requestIntroBooking(store.db, { ...store.command, walkIn: true }),
+    ).rejects.toMatchObject({ code: "ineligible" });
+    expect(store.documents(`${base}/bookings`)).toEqual([]);
+  });
+
+  it.each(["owner", "administrator"] as const)(
+    "keeps age restrictions on ordinary trial bookings by %s",
+    async (actorRole) => {
+      const store = outsideAge();
+      await expect(
+        requestIntroBooking(store.db, { ...store.command, actorRole }),
+      ).rejects.toMatchObject({ code: "ineligible", why: "age-centre" });
+      expect(store.documents(`${base}/bookings`)).toEqual([]);
+    },
+  );
+
+  it.each([
+    ["full class", "sessions", "session-1", { capacity: 0 }],
+    ["other centre", "sessions", "session-1", { locationId: "west" }],
+    ["expired trial", "trialAccess", "student-1", { expiresAt: "2026-09-20T00:00:00.000Z" }],
+    [
+      "exhausted trial",
+      "trialAccess",
+      "student-1",
+      { allowance: 1, countedAttendanceIds: ["old-attendance"] },
+    ],
+    ["inactive member", "students", "student-1", { active: false }],
+    ["cancelled class", "sessions", "session-1", { status: "cancelled" }],
+    ["course session", "sessions", "session-1", { courseId: "course-1" }],
+    ["private lesson", "sessions", "session-1", { accessMode: "private-lesson" }],
+    ["Open Mat", "programs", "adult-fundamentals", { discipline: "open-mat" }],
+  ] as const)(
+    "still refuses %s without persisting a booking",
+    async (_label, collection, id, changes) => {
+      const store = outsideAge();
+      const path = `${base}/${collection}/${id}`;
+      store.seed(path, { ...store.records.get(path), ...changes });
+      await expect(requestIntroBooking(store.db, officeCommand(store))).rejects.toMatchObject({
+        code: "ineligible",
+      });
+      expect(store.documents(`${base}/bookings`)).toEqual([]);
+      expect(store.documents(`${base}/auditEvents`)).toEqual([]);
+    },
+  );
+
+  it("still requires an accepted waiver for an office trial walk-in", async () => {
+    const store = outsideAge();
+    store.records.delete(
+      `${base}/consents/${consentRecordId(academyId, "student-1", waiverVersionId)}`,
+    );
+    await expect(requestIntroBooking(store.db, officeCommand(store))).rejects.toMatchObject({
+      code: "ineligible",
+    });
+    expect(store.documents(`${base}/bookings`)).toEqual([]);
+  });
+
+  it("does not waive age rules when the class type is missing", async () => {
+    const store = outsideAge();
+    store.records.delete(`${base}/programs/adult-fundamentals`);
+    await expect(requestIntroBooking(store.db, officeCommand(store))).rejects.toMatchObject({
+      code: "ineligible",
+    });
+    expect(store.documents(`${base}/bookings`)).toEqual([]);
+  });
+});
 
 describe("intro booking transaction", () => {
   it.each([

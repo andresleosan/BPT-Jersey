@@ -3,11 +3,16 @@ import { describe, expect, it } from "vitest";
 import { PLAN_CATALOG } from "@bpt-jersey/domain/memberships";
 import { buildBookingId } from "@bpt-jersey/domain/schedule";
 import { enrolmentWaiverTermsVersion } from "@bpt-jersey/domain/consents/enrolment-waiver";
+import {
+  createTransactionalAttendanceService,
+  type AttendanceFirestore,
+} from "./attendance-transaction-service";
 
 import {
   confirmBookingInTransaction,
   createBookingTransactionService,
   type BookingFirestore,
+  type ConfirmBookingInTransactionInput,
 } from "./booking-transaction-service";
 
 const academyId = "demo-academy";
@@ -38,7 +43,7 @@ function createFirestore() {
     const index = path.lastIndexOf("/");
     return { collection: path.slice(0, index), id: path.slice(index + 1) };
   };
-  type Operator = "==" | ">=" | "<" | "array-contains";
+  type Operator = "==" | ">=" | "<" | "array-contains" | "in";
   type Filter = Readonly<{ field: string; operator: Operator; value: unknown }>;
   const query = (path: string, filters: readonly Filter[]) =>
     Object.freeze({
@@ -54,6 +59,8 @@ function createFirestore() {
         filters.every((filter) => {
           const field = value[filter.field];
           if (filter.operator === "==") return field === filter.value;
+          if (filter.operator === "in")
+            return Array.isArray(filter.value) && filter.value.includes(field);
           if (filter.operator === "array-contains")
             return Array.isArray(field) && field.includes(filter.value);
           if (filter.operator === ">=") return String(field) >= String(filter.value);
@@ -225,6 +232,316 @@ function seedAcademy(
 
 const bookingRequest = { sessionId: "sess1", studentId: "s1", membershipId: "m1" };
 const cancelRequest = { sessionId: "sess1", studentId: "s1", reason: "Cannot make it" };
+
+describe("office manual attendance outside the class age range", () => {
+  const base = `academies/${academyId}`;
+
+  function outsideAge(dateOfBirth = "2018-01-01", minAge = 5, maxAge: number | null = 7) {
+    const store = createFirestore();
+    seedAcademy(store);
+    store.seed(`${base}/students/s1`, {
+      ...store.documents(`${base}/students`)[0],
+      dateOfBirth,
+      participantType: dateOfBirth < "2010-01-01" ? "adult" : "minor",
+    });
+    store.seed(`${base}/programs/adult-fundamentals`, {
+      ...store.documents(`${base}/programs`)[0],
+      ageBand: "all",
+      ageRange: { minAge, maxAge },
+    });
+    return store;
+  }
+
+  function book(
+    store: ReturnType<typeof createFirestore>,
+    actorRole: ConfirmBookingInTransactionInput["actorRole"] = "owner",
+  ) {
+    return store.firestore.runTransaction((transaction) =>
+      confirmBookingInTransaction({
+        firestore: store.firestore,
+        transaction,
+        academyId,
+        request: bookingRequest,
+        actorId: actorRole === "adultStudent" ? "s1" : "office-1",
+        actorRole,
+        actorIp: null,
+        now: sessionStartAt,
+        walkIn: true,
+      }),
+    );
+  }
+
+  it.each(["owner", "administrator"] as const)(
+    "%s saves an out-of-range booking, attendance and audit without duplication",
+    async (role) => {
+      const store = outsideAge();
+      const originalStudent = { ...store.documents(`${base}/students`)[0] };
+      const booking = await book(store, role);
+      expect(booking).toMatchObject({ status: "confirmed", ageEligibilityWaivedBy: "office-1" });
+      const attendance = createTransactionalAttendanceService({
+        firestore: store.firestore as unknown as AttendanceFirestore,
+        now: () => sessionStartAt,
+      });
+      const command = {
+        academyId,
+        actorId: "office-1",
+        actorRole: role as "owner" | "administrator",
+        input: { sessionId: "sess1", studentId: "s1", method: "manual" as const },
+      };
+      const recorded = await attendance.recordCheckIn(command);
+      expect(recorded).toMatchObject({
+        state: "attended",
+        method: "manual",
+        createdBy: "office-1",
+      });
+      expect(await attendance.recordCheckIn(command)).toEqual(recorded);
+      expect(await book(store, role)).toEqual(booking);
+      expect(store.documents(bookingsPath)).toHaveLength(1);
+      expect(store.documents(`${base}/attendance`)).toEqual([recorded]);
+      expect(store.documents(auditEventsPath).map((event) => event.action)).toEqual([
+        "booking.created",
+        "attendance.checked_in",
+      ]);
+      expect(store.documents(`${base}/students`)[0]).toEqual(originalStudent);
+      expect(store.documents(`${base}/studentGroupAccess`)).toEqual([]);
+    },
+  );
+
+  it.each([
+    ["2018-01-01", 5, 7],
+    ["2020-01-01", 7, 8],
+    ["1984-01-01", 7, 8],
+    ["2020-01-01", 16, null],
+  ] as const)(
+    "allows birth date %s in ages %s–%s for an office walk-in",
+    async (birth, min, max) => {
+      await expect(book(outsideAge(birth, min, max))).resolves.toMatchObject({
+        status: "confirmed",
+      });
+    },
+  );
+
+  it.each(["coach", "headCoach", "adultStudent"] as const)(
+    "does not give %s the office age exception",
+    async (role) => {
+      const store = outsideAge("1984-01-01");
+      await expect(book(store, role)).rejects.toMatchObject({
+        code: "ineligible",
+        why: "age-centre",
+      });
+      expect(store.documents(bookingsPath)).toEqual([]);
+    },
+  );
+
+  it.each(["owner", "administrator"] as const)(
+    "keeps age restrictions on ordinary bookings by %s",
+    async (role) => {
+      const store = outsideAge();
+      await expect(
+        store.firestore.runTransaction((transaction) =>
+          confirmBookingInTransaction({
+            firestore: store.firestore,
+            transaction,
+            academyId,
+            request: bookingRequest,
+            actorId: "office-1",
+            actorRole: role,
+            actorIp: null,
+            now,
+          }),
+        ),
+      ).rejects.toMatchObject({ code: "ineligible", why: "age-centre" });
+      expect(store.documents(bookingsPath)).toEqual([]);
+    },
+  );
+
+  it.each([
+    ["type at another centre", "programs", "adult-fundamentals", { sites: ["West"] }, "ineligible"],
+    ["plan at another centre", "plans", "bpt-jersey-adult", { classSites: ["West"] }, "ineligible"],
+    [
+      "expired membership",
+      "memberships",
+      "m1",
+      { endsAt: "2026-09-17T00:00:00.000Z" },
+      "ineligible",
+    ],
+    ["inactive plan", "plans", "bpt-jersey-adult", { active: false }, "ineligible"],
+    ["inactive member", "students", "s1", { active: false }, "ineligible"],
+    ["cancelled class", "sessions", "sess1", { status: "cancelled" }, "ineligible"],
+    ["course session", "sessions", "sess1", { courseId: "course-1" }, "ineligible"],
+    ["private lesson", "sessions", "sess1", { accessMode: "private-lesson" }, "ineligible"],
+  ] as const)(
+    "still refuses %s without saving a booking",
+    async (_label, collection, id, changes, code) => {
+      const store = outsideAge();
+      store.seed(`${base}/${collection}/${id}`, {
+        ...store.documents(`${base}/${collection}`)[0],
+        ...changes,
+      });
+      await expect(book(store)).rejects.toMatchObject({ code });
+      expect(store.documents(bookingsPath)).toEqual([]);
+      expect(store.documents(auditEventsPath)).toEqual([]);
+    },
+  );
+
+  it("retains a separately configured capacity for the member's age", async () => {
+    const store = outsideAge();
+    store.seed(`${base}/sessions/sess1`, {
+      ...store.documents(`${base}/sessions`)[0],
+      ageCapacities: [{ age: 8, capacity: 1 }],
+    });
+    store.seed(`${base}/students/s2`, {
+      ...store.documents(`${base}/students`)[0],
+      studentId: "s2",
+      userId: "s2",
+    });
+    const bookingId = buildBookingId("sess1", "s2");
+    store.seed(`${bookingsPath}/${bookingId}`, {
+      bookingId,
+      academyId,
+      sessionId: "sess1",
+      studentId: "s2",
+      membershipId: "m2",
+      status: "confirmed",
+      requestedAt: now,
+      cancelledAt: null,
+      cancellationReason: null,
+      schemaVersion: "1",
+      createdAt: now,
+      createdBy: "office-1",
+      updatedAt: now,
+      updatedBy: "office-1",
+    });
+    await expect(book(store)).rejects.toMatchObject({ code: "capacity" });
+    expect(store.documents(bookingsPath)).toHaveLength(1);
+  });
+
+  it("refuses an office walk-in when all class places are taken", async () => {
+    const store = outsideAge();
+    store.seed(`${base}/sessions/sess1`, {
+      ...store.documents(`${base}/sessions`)[0],
+      capacity: 1,
+    });
+    const bookingId = buildBookingId("sess1", "s2");
+    store.seed(`${bookingsPath}/${bookingId}`, {
+      bookingId,
+      academyId,
+      sessionId: "sess1",
+      studentId: "s2",
+      membershipId: "m2",
+      status: "confirmed",
+      requestedAt: now,
+      cancelledAt: null,
+      cancellationReason: null,
+      schemaVersion: "1",
+      createdAt: now,
+      createdBy: "office-1",
+      updatedAt: now,
+      updatedBy: "office-1",
+    });
+    await expect(book(store)).rejects.toMatchObject({ code: "capacity" });
+    expect(store.documents(bookingsPath)).toHaveLength(1);
+    expect(store.documents(auditEventsPath)).toEqual([]);
+  });
+
+  it("still requires separate authorisation to exceed the weekly limit", async () => {
+    const store = outsideAge();
+    store.seed(`${base}/plans/bpt-jersey-adult`, {
+      ...store.documents(`${base}/plans`)[0],
+      weeklyClassLimit: 1,
+    });
+    store.seed(`${base}/sessions/other`, {
+      ...store.documents(`${base}/sessions`)[0],
+      sessionId: "other",
+    });
+    const bookingId = buildBookingId("other", "s1");
+    store.seed(`${bookingsPath}/${bookingId}`, {
+      bookingId,
+      academyId,
+      sessionId: "other",
+      studentId: "s1",
+      membershipId: "m1",
+      status: "confirmed",
+      requestedAt: now,
+      cancelledAt: null,
+      cancellationReason: null,
+      schemaVersion: "1",
+      createdAt: now,
+      createdBy: "office-1",
+      updatedAt: now,
+      updatedBy: "office-1",
+    });
+    await expect(book(store)).rejects.toMatchObject({ code: "weekly-limit" });
+    expect(store.documents(bookingsPath)).toHaveLength(1);
+    await expect(
+      store.firestore.runTransaction((transaction) =>
+        confirmBookingInTransaction({
+          firestore: store.firestore,
+          transaction,
+          academyId,
+          request: bookingRequest,
+          actorId: "office-1",
+          actorRole: "owner",
+          actorIp: null,
+          now: sessionStartAt,
+          walkIn: true,
+          overrideWeeklyLimit: true,
+        }),
+      ),
+    ).resolves.toMatchObject({
+      ageEligibilityWaivedBy: "office-1",
+      weeklyLimitOverriddenBy: "office-1",
+    });
+  });
+
+  it("still blocks booking when an earlier PAYG class has unpaid debt", async () => {
+    const store = outsideAge();
+    store.seed(`${base}/invoices/unpaid`, {
+      invoiceId: "unpaid",
+      academyId,
+      familyId: "family-1",
+      membershipId: "m1",
+      status: "open",
+      totalMinor: 1000,
+      currency: "GBP",
+      dueAt: now,
+      paidAt: null,
+      schemaVersion: 1,
+      createdAt: now,
+      createdBy: "office-1",
+      updatedAt: now,
+      updatedBy: "office-1",
+      chargeKind: "payg_session",
+      sourceRef: `${base}/sessions/earlier`,
+      invoiceReference: "synthetic-unpaid",
+      description: "Synthetic earlier class",
+    });
+    await expect(book(store)).rejects.toMatchObject({ code: "financial" });
+    expect(store.documents(bookingsPath)).toEqual([]);
+  });
+
+  it("still requires the current PAYG class payment before saving attendance", async () => {
+    const store = outsideAge();
+    store.seed(`${base}/plans/bpt-jersey-adult`, {
+      ...store.documents(`${base}/plans`)[0],
+      billingPeriod: "per-session",
+    });
+    await book(store);
+    const attendance = createTransactionalAttendanceService({
+      firestore: store.firestore as unknown as AttendanceFirestore,
+      now: () => sessionStartAt,
+    });
+    await expect(
+      attendance.recordCheckIn({
+        academyId,
+        actorId: "office-1",
+        actorRole: "owner",
+        input: { sessionId: "sess1", studentId: "s1", method: "manual" },
+      }),
+    ).rejects.toMatchObject({ code: "payment" });
+    expect(store.documents(`${base}/attendance`)).toEqual([]);
+  });
+});
 
 function createService(store: ReturnType<typeof createFirestore>) {
   return createBookingTransactionService({ firestore: store.firestore, now: () => now });
