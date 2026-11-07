@@ -6,8 +6,9 @@ provider API calls or invoice email sending are enabled by this change.
 ## Delivered surfaces
 
 - Account → Invoices & payments → Pay invoice: three choices, Bank transfer, Debit / credit card,
-  and Apple Pay / Google Pay. Billing name, email, address, town, postcode, country, number, expiry
-  and three-digit security code are active. Only Pay resolves the provider connection. Card values
+  and Apple Pay / Google Pay. Cards show billing name, email, address, town, postcode, country, number,
+  expiry and three-digit security code. Wallets reveal Apple Pay and Google Pay buttons, then Next,
+  without personal/address inputs. Only the final Pay/Next resolves the provider connection. Card values
   remain in unnamed DOM inputs and are cleared before the billing-only hand-off, never persisted
   or sent to BPT. Real collection must use provider-owned hosted fields or its hosted checkout.
 - Registration, membership applications, PAYG booking, courses and shop expose the same choices;
@@ -41,8 +42,13 @@ These collections inherit the existing deny-all Firestore client fallback; only 
 read/write them. No rule relaxation is required. Never persist PAN, expiry, CVV, wallet payloads,
 provider credentials or raw webhook bodies in these records or logs.
 
-Checkout preferences use `card` or `wallet`; the record parser also accepts previous individual
-preferences for compatibility. The actual settled payment method stays one of debit card, credit
+Checkout preferences use `card`, `apple_pay` or `google_pay`; the record parser also accepts previous
+grouped `wallet` and individual card preferences for compatibility. Wallet preparation omits `billing`:
+the server resolves the invoice payer's academy user profile and reuses the latest invoice billing
+snapshot, with empty strings for missing legacy fields. It never uses the office actor's identity as
+the payer or reads a child's restricted profile. Card input still requires complete billing details.
+An absent recipient keeps any eventual receipt in `missing_recipient`, without sending it.
+The actual settled payment method stays one of debit card, credit
 card, Apple Pay or Google Pay, as verified by the provider. Never infer a debit/credit funding type
 or a specific wallet from the grouped button. UI preparation creates no successful financial entry.
 

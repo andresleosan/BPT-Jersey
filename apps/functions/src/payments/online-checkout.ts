@@ -12,9 +12,11 @@ import {
 import {
   checkoutRecordSchema,
   prepareCheckoutSchema,
+  savedBillingDetailsSchema,
   supportsCheckoutMethod,
   verifiedPaymentEventSchema,
   type CheckoutRecord,
+  type BillingDetails,
 } from "@bpt-jersey/domain/payments";
 import type { UserActorContext } from "@bpt-jersey/domain";
 import type { FinanceStore } from "../finance/finance-service.js";
@@ -96,6 +98,49 @@ async function invoiceBalance(db: Firestore, tx: Transaction, invoice: InvoiceRe
   return calculateInvoiceBalance(invoice, payments);
 }
 
+/** Resolve the authorised invoice payer, never a browser-supplied account or a child's profile. */
+async function savedPayerBilling(
+  db: Firestore,
+  tx: Transaction,
+  invoice: InvoiceRecord,
+): Promise<BillingDetails> {
+  const base = `academies/${invoice.academyId}`;
+  let payerUid: unknown =
+    invoice.schemaVersion === 2 && invoice.payer.kind === "user" ? invoice.payer.userId : null;
+  if (!payerUid && invoice.familyId) {
+    const family = (
+      await tx.get(db.doc(`${base}/families/${idSchema.parse(invoice.familyId)}`))
+    ).data();
+    if (family?.academyId === invoice.academyId && family?.familyId === invoice.familyId)
+      payerUid = family.billingContactUserId;
+  }
+  const snapshot =
+    typeof payerUid === "string" && idSchema.safeParse(payerUid).success
+      ? await tx.get(db.doc(`${base}/users/${payerUid}`))
+      : null;
+  const user = snapshot?.data();
+  const ownsProfile = user?.academyId === invoice.academyId && user?.userId === payerUid;
+  // Reuse an existing billing snapshot for this invoice, without reading restricted student data.
+  const history = await tx.get(
+    db.collection(`${base}/onlineCheckouts`)
+      .where("invoiceId", "==", invoice.invoiceId)
+      .orderBy("createdAt", "desc")
+      .limit(1),
+  );
+  const previous = checkoutRecordSchema.safeParse(history.docs[0]?.data());
+  const saved =
+    previous.success && previous.data.academyId === invoice.academyId && previous.data.invoiceId === invoice.invoiceId
+      ? previous.data.billing
+      : { name: "", email: "", line1: "", line2: "", city: "", postalCode: "", countryCode: "" };
+  const name = savedBillingDetailsSchema.shape.name.safeParse(ownsProfile ? user?.displayName : "");
+  const email = savedBillingDetailsSchema.shape.email.safeParse(ownsProfile ? user?.email : "");
+  return savedBillingDetailsSchema.parse({
+    ...saved,
+    name: name.success && name.data ? name.data : saved.name,
+    email: email.success && email.data ? email.data : saved.email,
+  });
+}
+
 export async function prepareOnlineCheckout(
   db: Firestore,
   actor: UserActorContext,
@@ -119,7 +164,8 @@ export async function prepareOnlineCheckout(
         record.invoiceId !== input.invoiceId ||
         record.requestedBy !== actor.userId ||
         record.method !== input.method ||
-        JSON.stringify(record.billing) !== JSON.stringify(input.billing)
+        (input.billing !== undefined &&
+          JSON.stringify(record.billing) !== JSON.stringify(input.billing))
       )
         throw new HttpsError(
           "already-exists",
@@ -147,13 +193,14 @@ export async function prepareOnlineCheckout(
         "failed-precondition",
         "A payment is already in progress. Check its status before paying again.",
       );
+    const billing = input.billing ?? (await savedPayerBilling(db, tx, invoice));
     const record = checkoutRecordSchema.parse({
       checkoutId,
       academyId: actor.academyId,
       invoiceId: input.invoiceId,
       requestedBy: actor.userId,
       method: input.method,
-      billing: input.billing,
+      billing,
       amountMinor: balance,
       currency: "GBP",
       status: configured ? "preparing" : "unconfigured",
@@ -374,9 +421,9 @@ export async function settleOnlinePayment(
         academyId: checkout.academyId,
         invoiceId: checkout.invoiceId,
         paymentId: payment.paymentId,
-        to: checkout.billing.email,
+        to: checkout.billing.email || null,
         ...email,
-        status: "awaiting_configuration",
+        status: checkout.billing.email ? "awaiting_configuration" : "missing_recipient",
         createdAt: now,
         sentAt: null,
         schemaVersion: 1,

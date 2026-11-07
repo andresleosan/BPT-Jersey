@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   paymentMethodLabels,
-  type BillingDetails,
   type CheckoutMethod,
   type CheckoutRecord,
 } from "@bpt-jersey/domain/payments";
@@ -14,7 +13,7 @@ import {
 } from "../../lib/billing-client";
 import { listPaymentActivity, preparePayment } from "../../lib/payment-client";
 import { PaymentMethodPicker } from "./payment-method-picker";
-import { OnlinePaymentFields } from "./online-payment-fields";
+import { OnlinePaymentFields, type OnlinePaymentSubmission } from "./online-payment-fields";
 
 const money = (minor: number) =>
   new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(minor / 100);
@@ -40,15 +39,13 @@ export function InvoiceCheckout({
   const [method, setMethod] = useState<CheckoutMethod>("bank_transfer");
   const [saved, setSaved] = useState<CheckoutRecord | null>(null);
   const submission = useRef<{ fingerprint: string; requestId: string } | null>(null);
-  async function pay(billing: BillingDetails): Promise<string> {
-    if (method === "bank_transfer") throw new Error("Choose a card or digital wallet payment.");
-    const fingerprint = JSON.stringify({ method, billing, invoiceId: view.invoice.invoiceId });
+  async function pay(payment: OnlinePaymentSubmission): Promise<string> {
+    const fingerprint = JSON.stringify({ ...payment, invoiceId: view.invoice.invoiceId });
     if (submission.current?.fingerprint !== fingerprint)
       submission.current = { fingerprint, requestId: crypto.randomUUID() };
     const result = await preparePayment({
       invoiceId: view.invoice.invoiceId,
-      method,
-      billing,
+      ...payment,
       requestId: submission.current.requestId,
     });
     setSaved(result);

@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import {
   billingDetailsSchema,
+  paymentMethodLabels,
   type BillingDetails,
   type OnlineCheckoutMethod,
 } from "@bpt-jersey/domain/payments";
@@ -20,20 +21,109 @@ const initialBilling: BillingDetails = {
 const providerPending =
   "The payment provider is not connected yet. No payment has been taken. Please use bank transfer to pay today.";
 
+export type OnlinePaymentSubmission =
+  | { method: "card"; billing: BillingDetails }
+  | { method: "apple_pay" | "google_pay" };
+
+function WalletPaymentFields({
+  onPay,
+  disabled,
+}: {
+  onPay: ((payment: OnlinePaymentSubmission) => Promise<string>) | undefined;
+  disabled: boolean;
+}) {
+  const [wallet, setWallet] = useState<"apple_pay" | "google_pay" | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const inFlight = useRef(false);
+  async function next() {
+    if (inFlight.current || disabled) return;
+    setError("");
+    setMessage("");
+    if (!wallet) {
+      setError("Choose Apple Pay or Google Pay to continue.");
+      return;
+    }
+    inFlight.current = true;
+    setBusy(true);
+    try {
+      setMessage(onPay ? await onPay({ method: wallet }) : providerPending);
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Payment could not be started. Please try again.",
+      );
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="bpt-checkout-form bpt-online-payment-fields">
+      <fieldset disabled={busy || disabled}>
+        <legend>Choose your digital wallet</legend>
+        <div className="bpt-payment-method-grid">
+          {(["apple_pay", "google_pay"] as const).map((method) => (
+            <button
+              key={method}
+              className="bpt-payment-choice"
+              type="button"
+              aria-pressed={wallet === method}
+              data-selected={wallet === method}
+              onClick={() => {
+                setWallet(method);
+                setError("");
+                setMessage("");
+              }}
+            >
+              <strong>{paymentMethodLabels[method]}</strong>
+            </button>
+          ))}
+        </div>
+      </fieldset>
+      {error ? (
+        <p className="bpt-checkout-error" role="alert">{error}</p>
+      ) : null}
+      {message ? (
+        <p className="bpt-payment-notice" role="status">{message}</p>
+      ) : null}
+      <div className="bpt-checkout-actions">
+        <button
+          className="button button-primary"
+          type="button"
+          disabled={busy || disabled}
+          onClick={() => void next()}
+        >
+          {busy ? "Opening payment..." : "Next"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** Shared fields also work inside registration/shop forms without introducing nested forms.
  * Raw card inputs are uncontrolled, unnamed and cleared before the async hand-off. A provider
- * SDK must own/replace them for real payment collection; onPay receives billing details only. */
-export function OnlinePaymentFields({
-  method,
+ * SDK must own/replace them for real payment collection; onPay never receives raw card data. */
+type OnlinePaymentFieldsProps = {
+  method: OnlineCheckoutMethod;
+  amountMinor: number;
+  onPay?: (payment: OnlinePaymentSubmission) => Promise<string>;
+  disabled?: boolean;
+};
+
+export function OnlinePaymentFields(props: OnlinePaymentFieldsProps) {
+  return props.method === "wallet" ? (
+    <WalletPaymentFields onPay={props.onPay} disabled={props.disabled ?? false} />
+  ) : (
+    <CardPaymentFields {...props} />
+  );
+}
+
+function CardPaymentFields({
   amountMinor,
   onPay,
   disabled = false,
-}: {
-  method: OnlineCheckoutMethod;
-  amountMinor: number;
-  onPay?: (billing: BillingDetails) => Promise<string>;
-  disabled?: boolean;
-}) {
+}: OnlinePaymentFieldsProps) {
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
   const cardNumber = useRef<HTMLInputElement>(null);
@@ -44,7 +134,6 @@ export function OnlinePaymentFields({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const card = method === "card";
   const amount = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(
     amountMinor / 100,
   );
@@ -54,7 +143,7 @@ export function OnlinePaymentFields({
     return () => {
       for (const input of inputs) if (input) input.value = "";
     };
-  }, [method]);
+  }, []);
 
   function clearCardFields() {
     for (const input of [cardNumber.current, cardExpiry.current, cardCode.current]) {
@@ -65,7 +154,6 @@ export function OnlinePaymentFields({
     }
   }
   function validateCard() {
-    if (!card) return true;
     const number = cardNumber.current;
     const expiry = cardExpiry.current;
     if (!number || !expiry) return false;
@@ -114,7 +202,7 @@ export function OnlinePaymentFields({
     // Card values never enter React state, a callable, persistence, logs or the callback payload.
     clearCardFields();
     try {
-      setMessage(onPay ? await onPay(parsed.data) : providerPending);
+      setMessage(onPay ? await onPay({ method: "card", billing: parsed.data }) : providerPending);
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Payment could not be started. Please try again.",
@@ -169,7 +257,7 @@ export function OnlinePaymentFields({
       className="bpt-checkout-form bpt-online-payment-fields"
       ref={root}
       role="group"
-      aria-label={card ? "Card payment details" : "Digital wallet payment details"}
+      aria-label="Card payment details"
       onKeyDown={(event) => {
         if (
           event.key === "Enter" &&
@@ -187,8 +275,8 @@ export function OnlinePaymentFields({
         <div className="bpt-billing-fields">
           {field(
             "name",
-            card ? "Name as it appears on your card" : "Full name",
-            card ? "cc-name" : "name",
+            "Name as it appears on your card",
+            "cc-name",
             false,
             true,
           )}
@@ -223,7 +311,6 @@ export function OnlinePaymentFields({
           </label>
         </div>
       </fieldset>
-      {card ? (
         <fieldset disabled={busy || disabled} aria-describedby={`${id}-card-help`}>
           <legend>Card details</legend>
           <div className="bpt-card-fields">
@@ -279,11 +366,6 @@ export function OnlinePaymentFields({
             handled by the payment provider.
           </p>
         </fieldset>
-      ) : (
-        <p className="bpt-checkout-help">
-          Continue with Apple Pay / Google Pay using the payment provider&apos;s secure checkout.
-        </p>
-      )}
       {error ? (
         <p className="bpt-checkout-error" role="alert">
           {error}

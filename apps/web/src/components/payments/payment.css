@@ -63,6 +63,11 @@
 .bpt-payment-choice strong {
   font-size: 1rem;
 }
+button.bpt-payment-choice {
+  font: inherit;
+  color: var(--mat-ink);
+  justify-content: center;
+}
 .bpt-payment-choice small {
   color: var(--muted);
   font-size: 0.9rem;

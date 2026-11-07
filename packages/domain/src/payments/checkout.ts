@@ -60,12 +60,28 @@ export const billingDetailsSchema = z.strictObject({
   countryCode: z.string().regex(/^[A-Z]{2}$/u),
 });
 export type BillingDetails = z.infer<typeof billingDetailsSchema>;
-export const prepareCheckoutSchema = z.strictObject({
-  invoiceId: id,
-  method: z.enum(recordedCheckoutMethods),
-  billing: billingDetailsSchema,
-  requestId: z.uuid(),
+// Wallets reuse the payer's saved contact. Missing legacy fields remain empty until
+// the provider supplies them; card submissions still require the complete input above.
+export const savedBillingDetailsSchema = z.strictObject({
+  name: text(120).or(z.literal("")),
+  email: z.email().max(254).or(z.literal("")),
+  line1: text(160).or(z.literal("")),
+  line2: billingDetailsSchema.shape.line2,
+  city: text(100).or(z.literal("")),
+  postalCode: text(20).or(z.literal("")),
+  countryCode: billingDetailsSchema.shape.countryCode.or(z.literal("")),
 });
+export const prepareCheckoutSchema = z
+  .strictObject({
+    invoiceId: id,
+    method: z.enum(recordedCheckoutMethods),
+    billing: billingDetailsSchema.optional(),
+    requestId: z.uuid(),
+  })
+  .refine(
+    (input) => input.billing !== undefined || ["wallet", "apple_pay", "google_pay"].includes(input.method),
+    { path: ["billing"], message: "Card payments require billing details." },
+  );
 export type PrepareCheckoutInput = z.infer<typeof prepareCheckoutSchema>;
 export const checkoutRecordSchema = z.strictObject({
   checkoutId: id,
@@ -73,7 +89,7 @@ export const checkoutRecordSchema = z.strictObject({
   invoiceId: id,
   requestedBy: id,
   method: z.enum(recordedCheckoutMethods),
-  billing: billingDetailsSchema,
+  billing: savedBillingDetailsSchema,
   settledMethod: z.enum(onlinePaymentMethods).nullable().default(null),
   amountMinor: z.number().int().positive().max(100_000_000),
   currency: z.literal("GBP"),

@@ -177,7 +177,10 @@ Payment surfaces reuse Barlow Condensed headings, Source Sans 3 labels, Canvas, 
 BPT Purple and the existing radius for their route. Three native radio controls select bank transfer,
 Debit / credit card, or Apple Pay / Google Pay. Card and wallet choices each occupy one button,
 with the slash separating the methods. Existing transfer evidence,
-office approval and pay-at-the-academy options retain their behaviour.
+office approval and pay-at-the-academy options retain their behaviour. Selecting Apple Pay / Google Pay
+reveals two selectable buttons, Apple Pay and Google Pay, followed by Next. This wallet path has no
+name, email or address fields; invoice checkout reuses the recorded payer's saved contact and any
+existing invoice billing snapshot. Missing legacy details remain empty, never fabricated.
 
 An open invoice expands its checkout inline. Desktop separates the labelled billing form from
 a compact amount/reference summary; below 48rem the summary precedes the single-column form.
@@ -187,8 +190,8 @@ Their values remain in uncontrolled, unnamed DOM inputs and are cleared before t
 on unmount. They never enter application state, storage, logs or billing API payloads. The provider
 must own/replace those fields for actual card collection through its hosted page or hosted SDK.
 
-The interface stays usable up to Pay. Provider availability is resolved only at that final action;
-an unconfigured invoice checkout saves billing details and the card/wallet preference and explains
+The interface stays usable up to Pay (cards) or Next (wallets). Provider availability is resolved only at that final action;
+an unconfigured invoice checkout saves available billing details and the card or specific wallet preference and explains
 that no payment was taken. No coming-soon panels or setup-disabled controls precede Pay.
 Confirmed payments show the provider-confirmed debit, credit or wallet method and reference.
 Attempts stay separate from the income ledger in the member and office views. Error, loading,

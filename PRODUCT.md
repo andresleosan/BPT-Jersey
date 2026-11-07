@@ -232,6 +232,11 @@ Registration, membership requests, PAYG classes, courses and shop expose the sam
 and Pay action while retaining their existing transfer/office workflows. Only Pay reports a pending
 provider connection. Raw card fields stay transient in the browser and never reach BPT's backend.
 
+Selecting the grouped wallet choice opens Apple Pay and Google Pay buttons, then Next, with no
+personal or address inputs. Invoice checkout records the exact wallet preference and reuses the
+canonical payer contact and existing invoice billing snapshot where available. Missing legacy
+details do not block this preparation and never create invented billing information.
+
 The backend prepares invoice checkout records, authenticates the recorded payer, calculates the
 amount from the ledger, and exposes a provider adapter and a closed-by-default webhook. Only a
 verified provider event records online money through the existing finance service. Income,
