@@ -6,6 +6,7 @@ import {
   paymentMethodLabels,
   type CheckoutMethod,
 } from "@bpt-jersey/domain/payments";
+import { PaymentBrandIcon, PaymentCardBrands } from "./payment-brands";
 import "./payment.css";
 
 export function PaymentMethodPicker({
@@ -52,11 +53,18 @@ export function PaymentMethodPicker({
                         ? "Card details and billing address"
                         : "Pay with your digital wallet"}
                 </small>
+                {method === "wallet" ? (
+                  <span className="bpt-wallet-brand-row" aria-hidden="true">
+                    <PaymentBrandIcon brand="apple_pay" decorative />
+                    <PaymentBrandIcon brand="google_pay" decorative />
+                  </span>
+                ) : null}
               </span>
             </label>
           );
         })}
       </div>
+      <PaymentCardBrands />
     </fieldset>
   );
 }

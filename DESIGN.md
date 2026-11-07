@@ -182,6 +182,12 @@ reveals two selectable buttons, Apple Pay and Google Pay, followed by Next. This
 name, email or address fields; invoice checkout reuses the recorded payer's saved contact and any
 existing invoice billing snapshot. Missing legacy details remain empty, never fabricated.
 
+Payment marks are local assets in `apps/web/public/payment-brands`: Visa, Mastercard, Maestro,
+American Express, Discover, Diners Club, JCB, Apple Pay and Google Pay. Preserve their artwork,
+colours and proportions, using dark or white backing for contrast. Card marks wrap below the
+method selector; wallet marks also identify the grouped choice and individual wallet buttons.
+Only payment brands appear in this interface; source attribution stays in the asset documentation.
+
 An open invoice expands its checkout inline. Desktop separates the labelled billing form from
 a compact amount/reference summary; below 48rem the summary precedes the single-column form.
 Address, postcode, country, payer/cardholder name and invoice email use native autofill semantics.

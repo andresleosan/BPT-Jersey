@@ -7,6 +7,7 @@ import {
   type BillingDetails,
   type OnlineCheckoutMethod,
 } from "@bpt-jersey/domain/payments";
+import { PaymentBrandIcon } from "./payment-brands";
 import "./payment.css";
 
 const initialBilling: BillingDetails = {
@@ -66,8 +67,9 @@ function WalletPaymentFields({
           {(["apple_pay", "google_pay"] as const).map((method) => (
             <button
               key={method}
-              className="bpt-payment-choice"
+              className="bpt-payment-choice bpt-wallet-choice"
               type="button"
+              aria-label={paymentMethodLabels[method]}
               aria-pressed={wallet === method}
               data-selected={wallet === method}
               onClick={() => {
@@ -76,7 +78,7 @@ function WalletPaymentFields({
                 setMessage("");
               }}
             >
-              <strong>{paymentMethodLabels[method]}</strong>
+              <PaymentBrandIcon brand={method} decorative />
             </button>
           ))}
         </div>

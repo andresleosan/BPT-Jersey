@@ -55,7 +55,7 @@
   height: 1.15rem;
   margin: 0;
 }
-.bpt-payment-choice span {
+.bpt-payment-choice > span:not(.bpt-payment-brand) {
   display: grid;
   gap: 0.15rem;
   min-width: 0;
@@ -71,6 +71,50 @@ button.bpt-payment-choice {
 .bpt-payment-choice small {
   color: var(--muted);
   font-size: 0.9rem;
+}
+.bpt-payment-card-brands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+.bpt-payment-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 4.5rem;
+  height: 2.75rem;
+  padding: 0.35rem;
+  border: 1px solid var(--paper-edge, #e8e7e3);
+  border-radius: 0.25rem;
+  background: var(--mat-ink);
+}
+.bpt-payment-brand[data-brand="google_pay"],
+.bpt-payment-brand[data-brand="amex"],
+.bpt-payment-brand[data-brand="jcb"],
+.bpt-payment-brand[data-brand="discover"] {
+  background: var(--gi-white);
+}
+.bpt-payment-brand img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.bpt-wallet-brand-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+.bpt-wallet-brand-row .bpt-payment-brand {
+  width: 3.5rem;
+  height: 2.25rem;
+}
+.bpt-wallet-choice .bpt-payment-brand {
+  width: 6rem;
+  height: 3.75rem;
 }
 .bpt-payment-notice {
   padding: 1rem 1.15rem;
