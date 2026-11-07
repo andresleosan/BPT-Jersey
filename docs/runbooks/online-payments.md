@@ -89,6 +89,10 @@ Online settlement queues a receipt after confirmation. `prepareManualPaymentInvo
 manual receipts when new payment documents are created. Neither sends email; the existing reminder
 sender is unchanged. No historical backfill runs.
 
+The manual preparation trigger has no automatic failure retry policy while sending is unconfigured.
+When enabling delivery, reconcile missing preparations against recorded payments by payment ID before
+sending; define a bounded retry/recovery policy as part of that separate configuration.
+
 Outbox status is `awaiting_configuration` or `missing_recipient`; `sentAt` remains null. A future
 sender must configure sender identity/delivery, deduplicate by payment ID, re-read the current
 invoice/payment (including edits/voids) before sending, validate recipient ownership, and only set

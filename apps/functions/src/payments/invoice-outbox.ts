@@ -12,7 +12,7 @@ import { renderPaidInvoiceEmail } from "./invoice-email.js";
 /** Preserve manual transfer/cash recording. Prepare the same branded receipt without sending it.
  * The separate collection has no delivery worker until invoice email is explicitly configured. */
 export const prepareManualPaymentInvoiceEmail = onDocumentCreated(
-  { document: "academies/{academyId}/payments/{paymentId}", retry: true },
+  { document: "academies/{academyId}/payments/{paymentId}", retry: false },
   async (event) => {
     const parsed = parseManualPaymentRecord(event.data?.data());
     if (
