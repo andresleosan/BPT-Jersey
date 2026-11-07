@@ -817,19 +817,46 @@ button:focus-visible {
 }
 
 .site-footer {
-  align-items: center;
   background: var(--mat-ink);
   border-top: 1px solid var(--line);
   color: #e8e7e3;
-  display: flex;
   font-size: 0.78rem;
+  padding: 1.5rem clamp(1.25rem, 7vw, 7.5rem);
+}
+
+.site-footer-main {
+  align-items: center;
+  display: flex;
   gap: 1rem;
   justify-content: space-between;
-  padding: 1.5rem clamp(1.25rem, 7vw, 7.5rem);
 }
 
 .site-footer p {
   margin: 0;
+}
+
+.site-footer-legal {
+  align-items: flex-end;
+  border-top: 1px solid var(--muted);
+  color: #c9c7c1;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.8125rem;
+  gap: 1rem 2rem;
+  justify-content: space-between;
+  line-height: 1.6;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+}
+
+.site-footer-company {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.site-footer-company strong {
+  color: var(--gi-white);
+  font-weight: 600;
 }
 
 /* Coaches and office reach their own sign-in from here. It stays out of the primary navigation
@@ -1108,9 +1135,13 @@ button:focus-visible {
   }
 
   .site-footer {
+    padding-inline: 1rem;
+  }
+
+  .site-footer-main,
+  .site-footer-legal {
     align-items: flex-start;
     flex-direction: column;
-    padding-inline: 1rem;
   }
 }
 

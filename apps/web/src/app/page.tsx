@@ -200,11 +200,21 @@ export default function HomePage() {
       </main>
 
       <footer className="site-footer">
-        <p>Brazilian Power Team Jersey</p>
-        <p>Timetable checked {checkedOn(academyContent.lastVerified)}.</p>
-        <a className="site-footer-staff" href="/staff/login">
-          Staff sign-in
-        </a>
+        <div className="site-footer-main">
+          <p>Brazilian Power Team Jersey</p>
+          <p>Timetable checked {checkedOn(academyContent.lastVerified)}.</p>
+          <a className="site-footer-staff" href="/staff/login">
+            Staff sign-in
+          </a>
+        </div>
+        <div className="site-footer-legal">
+          <p className="site-footer-company">
+            <span>Copyright © 2026</span>
+            <strong>Jersey Jiu-Jitsu Limited.</strong>
+            <span>163798</span>
+          </p>
+          <p>All rights reserved.</p>
+        </div>
       </footer>
     </>
   );
