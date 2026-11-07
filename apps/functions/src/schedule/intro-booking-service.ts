@@ -39,7 +39,7 @@ export type IntroBookingCommand = Readonly<{
   studentId: string;
   sessionId: string;
   now: string;
-  /** Set only by the walk-in check-in after its on-site gate: waives the 60-minute cutoff alone. */
+  /** Manual arrival: waives the cutoff; a verified owner/administrator also waives age eligibility. */
   walkIn?: true;
 }>;
 
@@ -309,6 +309,9 @@ export async function requestIntroBooking(
 ): Promise<IntroBookingRecord> {
   const academyId = identifier(command.academyId, "academyId");
   const actorId = identifier(command.actorId, "actorId");
+  const officeWalkIn =
+    command.walkIn === true &&
+    (command.actorRole === "owner" || command.actorRole === "administrator");
   const requestedStudentId = identifier(command.studentId, "studentId");
   const sessionId = identifier(command.sessionId, "sessionId");
   if (!Number.isFinite(Date.parse(command.now))) return fail("invalid", "now is invalid");
@@ -336,6 +339,9 @@ export async function requestIntroBooking(
       replayTarget(firestore, transaction, academyId, sessionId, ids),
     ]);
     const session = storedSession(sessionSnapshot.data(), academyId, sessionId);
+    if (sessionSnapshot.data()?.courseId) {
+      return fail("ineligible", "Course sessions are included through a course enrolment", "course");
+    }
     if (sessionSnapshot.data()?.accessMode === "private-lesson") {
       return fail("ineligible", "Private lessons are arranged by the office.", "private");
     }
@@ -390,13 +396,19 @@ export async function requestIntroBooking(
       trialAge,
       expectedSite,
     );
-    if (refusal === "trial_class_only") {
+    // The adult/child trial routing is age-based too. Office manual arrivals may use either
+    // audience, but still need a real class type, the trial's site, allowance, waiver and capacity.
+    const ageEligibilityWaived =
+      officeWalkIn &&
+      program !== undefined &&
+      (refusal === "age_band" || refusal === "trial_class_only");
+    if (refusal === "trial_class_only" && !ageEligibilityWaived) {
       return fail("ineligible", "On your Free Trial, adults book Free Trial classes", "trial");
     }
     if (refusal === "open_mat") {
       return fail("ineligible", "Open Mats are not part of the free trial", "trial");
     }
-    if (refusal) {
+    if (refusal && !ageEligibilityWaived) {
       return fail("ineligible", "This class is for another age group", "age-centre");
     }
     if (!command.walkIn && !isWithinBookingCutoff(session.startAt, command.now, 60)) {
@@ -498,6 +510,7 @@ export async function requestIntroBooking(
       createdBy: (target.existing?.createdBy as string | undefined) ?? actorId,
       updatedAt: command.now,
       updatedBy: actorId,
+      ...(ageEligibilityWaived ? { ageEligibilityWaivedBy: actorId } : {}),
     });
     if (target.existing) transaction.set(target.reference, booking);
     else transaction.create(target.reference, booking);

@@ -1581,6 +1581,8 @@ export type LegacyBookingRecord = Readonly<{
   paygPayment?: PaygBookingPayment;
   /** Owner/administrator who marked the member present over their plan's weekly limit. */
   weeklyLimitOverriddenBy?: string;
+  /** Verified owner/administrator who waived age eligibility for a manual arrival. */
+  ageEligibilityWaivedBy?: string;
 }>;
 
 export type CourseBookingRecord = Omit<LegacyBookingRecord, "membershipId" | "schemaVersion"> & {

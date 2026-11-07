@@ -223,6 +223,16 @@ edits an owner's website profile, so no one can lock the owner out of the academ
 restricted IP addresses and initializing the canonical member directory stay owner-only for now.
 This supersedes the owner-only notes above.
 
+## Office manual attendance outside the class age range (2026-11-07)
+
+An owner or administrator may manually mark a member present outside a class's age range.
+The server derives this exception from the verified office role and the manual arrival flow;
+it never accepts an age override from the browser. It applies to plan members and active Free
+Trial members and records the authorising actor on the created booking. It grants no permanent
+extra access and changes no birth date. Coaches and member self-service retain their age rules.
+Membership/trial validity, centre, payment, waiver, course/private access and total/per-age capacity
+checks retain their existing behaviour. Backend publication is separate from the web push.
+
 ## Online payment preparation (2026-11-07, provider connection pending)
 
 Invoices in `/account/billing` offer three grouped choices: bank transfer, Debit / credit card,

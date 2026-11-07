@@ -138,7 +138,8 @@ export type ConfirmBookingInTransactionInput = Readonly<{
   groupOverride?: true;
   /**
    * Set only by the walk-in check-in (`schedule-callables.ts`), after it has judged the member at
-   * the site inside the class's check-in window: waives the 60-minute cutoff and nothing else.
+   * the site inside the class's check-in window: waives the 60-minute cutoff. Owner/administrator
+   * manual arrivals also waive class/plan age eligibility, keeping site, payment and capacity checks.
    */
   walkIn?: true;
   /** Owner/administrator walk-in only (`schedule-callables.ts`): waives the weekly limit. */
@@ -764,6 +765,10 @@ async function executeBookingInTransaction(
 ): Promise<BookingRecord | undefined> {
   const academyId = segment(input.academyId, "academyId");
   const actorId = segment(input.actorId, "actorId");
+  // The callable supplies the verified actor role and walk-in context, never a browser override.
+  const officeWalkIn =
+    input.walkIn === true &&
+    (input.actorRole === "owner" || input.actorRole === "administrator");
   const sessionId = segment(input.request.sessionId, "sessionId");
   const requestedStudentId = segment(input.request.studentId, "studentId");
   const identityIds = await bookingIdentityIds({ ...input, studentId: requestedStudentId });
@@ -971,7 +976,7 @@ async function executeBookingInTransaction(
     const sessionSite = storedSession.locationId === "town" ? "Town" : "West";
     if (
       !programAdmits(
-        additionalAccess ? { sites: storedProgram.sites ?? [] } : storedProgram,
+        additionalAccess || officeWalkIn ? { sites: storedProgram.sites ?? [] } : storedProgram,
         !storedStudent.dateOfBirth
           ? null
           : ageOnDate(storedStudent.dateOfBirth, localDate(storedSession.startAt)),
@@ -984,8 +989,8 @@ async function executeBookingInTransaction(
         "age-centre",
       );
     }
-    // Additional groups waive the age rules; office-ticked types also waive the plan's centres
-    // (the type's own centres above still apply). The weekly limit always applies.
+    // Office manual arrivals and additional groups waive age rules. Office-ticked types also
+    // waive the plan's centres (the type's own centres above still apply). Weekly limits remain.
     // Transit Free alone waives financial standing; membership status, active programs, booking
     // cutoff and capacity are always required.
     // ponytail: an office-ticked type borrows the session's centre, as it borrows the plan's participant type.
@@ -993,8 +998,8 @@ async function executeBookingInTransaction(
       ? { ...storedPlan, classSites: [sessionSite], openMatSites: [sessionSite] }
       : storedPlan;
     const access = evaluatePlanAccess(accessPlan, {
-      // ponytail: an extra group borrows the plan's own participant type to skip the age match.
-      participantType: additionalAccess
+      // Extra access and office arrivals borrow the plan's participant type to skip the age match.
+      participantType: additionalAccess || officeWalkIn
         ? (storedPlan.eligibleParticipantTypes[0] ?? "adult")
         : audience(storedStudent, storedProgram, storedSession.startAt, storedPlan.eligibleParticipantTypes),
       site: sessionSite,
@@ -1038,6 +1043,7 @@ async function executeBookingInTransaction(
     updatedAt: input.now,
     updatedBy: actorId,
     ...(overridden ? { weeklyLimitOverriddenBy: actorId } : {}),
+    ...(officeWalkIn ? { ageEligibilityWaivedBy: actorId } : {}),
   });
   if (!input.groupRegistration) {
     input.transaction.set(input.firestore.doc(path(academyId, "groupBookingOrigins") + "/" + groupKey(sessionId, studentId)), {
