@@ -6,10 +6,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { PLAN_CATALOG, type ParticipantType, type PlanId } from "@bpt-jersey/domain/memberships";
 import type { MembershipApplication } from "@bpt-jersey/domain/memberships/intro-conversion";
 import type { CheckoutMethod } from "@bpt-jersey/domain/payments";
-import {
-  PaymentMethodPicker,
-  PendingOnlinePayment,
-} from "../../../components/payments/payment-method-picker";
+import { PaymentMethodPicker } from "../../../components/payments/payment-method-picker";
+import { OnlinePaymentFields } from "../../../components/payments/online-payment-fields";
 
 import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../../lib/client-auth";
 import { loadAccountPeople } from "../../../lib/account-people";
@@ -402,7 +400,12 @@ function MembershipContent() {
                       disabled={busy}
                     />
                     {paymentMethod !== "bank_transfer" ? (
-                      <PendingOnlinePayment method={paymentMethod} />
+                      <OnlinePaymentFields
+                        key={paymentMethod}
+                        method={paymentMethod}
+                        amountMinor={selectedPlan.priceMinor}
+                        disabled={busy}
+                      />
                     ) : (
                       <fieldset className="client-plan-transfer" disabled={busy}>
                         <legend className="visually-hidden">Bank transfer evidence</legend>
@@ -447,13 +450,11 @@ function MembershipContent() {
                   </>
                 )}
                 <div className="client-trial-actions">
-                  <button
-                    className="button button-primary"
-                    disabled={busy || (!perSession && paymentMethod !== "bank_transfer")}
-                    type="submit"
-                  >
-                    {busy ? "Sending..." : "Send to the academy"}
-                  </button>
+                  {perSession || paymentMethod === "bank_transfer" ? (
+                    <button className="button button-primary" disabled={busy} type="submit">
+                      {busy ? "Sending..." : "Send to the academy"}
+                    </button>
+                  ) : null}
                   <button
                     className="button button-secondary"
                     disabled={busy}

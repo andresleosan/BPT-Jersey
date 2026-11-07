@@ -1,10 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CheckoutMethod } from "@bpt-jersey/domain/payments";
-import {
-  PaymentMethodPicker,
-  PendingOnlinePayment,
-} from "../../../components/payments/payment-method-picker";
+import { PaymentMethodPicker } from "../../../components/payments/payment-method-picker";
+import { OnlinePaymentFields } from "../../../components/payments/online-payment-fields";
 import type { CourseEnrolment, CoursePage, CourseRefund } from "@bpt-jersey/domain/courses";
 import { courseApi, courseError } from "../../../lib/courses/course-client";
 import {
@@ -208,7 +206,12 @@ export function CoursePaymentPanel({
         />
       ) : null}
       {accepts && paymentMethod !== "bank_transfer" ? (
-        <PendingOnlinePayment method={paymentMethod} />
+        <OnlinePaymentFields
+          key={paymentMethod}
+          method={paymentMethod}
+          amountMinor={e.priceMinor}
+          disabled={action.busy}
+        />
       ) : null}
       {bank && paymentMethod === "bank_transfer" && (
         <section className="course-bank-details">

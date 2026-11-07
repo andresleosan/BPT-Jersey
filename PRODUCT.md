@@ -225,11 +225,12 @@ This supersedes the owner-only notes above.
 
 ## Online payment preparation (2026-11-07, provider connection pending)
 
-Invoices in `/account/billing` offer bank transfer, debit card, credit card, Apple Pay and
-Google Pay. Until a contracted provider is integrated, online choices save billing details
+Invoices in `/account/billing` offer three grouped choices: bank transfer, Debit / credit card,
+and Apple Pay / Google Pay. Until a contracted provider is integrated, online choices save billing details
 and preference only; they never reduce debt or grant membership, lesson, course or booking access.
-Registration, membership requests, PAYG classes, courses and shop also expose the choices with
-an honest coming-soon state while retaining their existing transfer/office workflows.
+Registration, membership requests, PAYG classes, courses and shop expose the same active fields
+and Pay action while retaining their existing transfer/office workflows. Only Pay reports a pending
+provider connection. Raw card fields stay transient in the browser and never reach BPT's backend.
 
 The backend prepares invoice checkout records, authenticates the recorded payer, calculates the
 amount from the ledger, and exposes a provider adapter and a closed-by-default webhook. Only a

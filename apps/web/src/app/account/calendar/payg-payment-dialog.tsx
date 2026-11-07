@@ -2,10 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { CheckoutMethod } from "@bpt-jersey/domain/payments";
-import {
-  PaymentMethodPicker,
-  PendingOnlinePayment,
-} from "../../../components/payments/payment-method-picker";
+import { PaymentMethodPicker } from "../../../components/payments/payment-method-picker";
+import { OnlinePaymentFields } from "../../../components/payments/online-payment-fields";
 
 import type { PaygBookingPayment, SessionRecord } from "@bpt-jersey/domain/schedule";
 
@@ -112,25 +110,28 @@ export function PaygPaymentDialog({
       ) : method === "at_venue" ? (
         <p className="payg-dialog-note">Pay at reception before the class starts.</p>
       ) : (
-        <PendingOnlinePayment method={method} />
+        <OnlinePaymentFields
+          key={method}
+          method={method}
+          amountMinor={priceMinor}
+          disabled={busy}
+        />
       )}
       {failed ? <p role="alert">The payment screenshot could not be uploaded.</p> : null}
       <div className="payg-dialog-actions">
         <button className="button button-secondary" disabled={busy} onClick={onClose} type="button">
           Not now
         </button>
-        <button
-          className="button button-primary"
-          disabled={
-            busy ||
-            (method !== "bank_transfer" && method !== "at_venue") ||
-            (method === "bank_transfer" && !transferReady)
-          }
-          onClick={() => void choose()}
-          type="button"
-        >
-          {busy ? "Sending…" : "Continue"}
-        </button>
+        {method === "bank_transfer" || method === "at_venue" ? (
+          <button
+            className="button button-primary"
+            disabled={busy || (method === "bank_transfer" && !transferReady)}
+            onClick={() => void choose()}
+            type="button"
+          >
+            {busy ? "Sending…" : "Continue"}
+          </button>
+        ) : null}
       </div>
     </dialog>
   );

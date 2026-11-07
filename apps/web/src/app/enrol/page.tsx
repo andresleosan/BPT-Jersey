@@ -2,10 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { CheckoutMethod } from "@bpt-jersey/domain/payments";
-import {
-  PaymentMethodPicker,
-  PendingOnlinePayment,
-} from "../../components/payments/payment-method-picker";
+import { PaymentMethodPicker } from "../../components/payments/payment-method-picker";
+import { OnlinePaymentFields } from "../../components/payments/online-payment-fields";
 
 import type {
   EnrolmentRequestClientView,
@@ -1346,7 +1344,12 @@ function EnrolContent() {
                     disabled={busy}
                   />
                   {paymentMethod !== "bank_transfer" ? (
-                    <PendingOnlinePayment method={paymentMethod} />
+                    <OnlinePaymentFields
+                      key={paymentMethod}
+                      method={paymentMethod}
+                      amountMinor={paymentTotal}
+                      disabled={busy}
+                    />
                   ) : (
                     <fieldset disabled={busy} className="enrol-applicant">
                       <legend>Bank transfer evidence</legend>
@@ -1416,13 +1419,11 @@ function EnrolContent() {
                 >
                   Back to plans
                 </button>
-                <button
-                  className="button button-primary"
-                  disabled={busy || (paymentTotal > 0 && paymentMethod !== "bank_transfer")}
-                  type="submit"
-                >
-                  {busy ? "Sending request..." : "Send request to the academy"}
-                </button>
+                {paymentTotal === 0 || paymentMethod === "bank_transfer" ? (
+                  <button className="button button-primary" disabled={busy} type="submit">
+                    {busy ? "Sending request..." : "Send request to the academy"}
+                  </button>
+                ) : null}
               </div>
             </>
           )}

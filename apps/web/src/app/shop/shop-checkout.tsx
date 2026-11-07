@@ -1,11 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import type { OnlinePaymentMethod } from "@bpt-jersey/domain/payments";
-import {
-  PaymentMethodPicker,
-  PendingOnlinePayment,
-} from "../../components/payments/payment-method-picker";
+import type { OnlineCheckoutMethod } from "@bpt-jersey/domain/payments";
+import { PaymentMethodPicker } from "../../components/payments/payment-method-picker";
+import { OnlinePaymentFields } from "../../components/payments/online-payment-fields";
 
 import {
   formatShopPrice,
@@ -57,7 +55,7 @@ export function ShopCheckout({
   const [note, setNote] = useState("");
   const [pickup, setPickup] = useState<ShopPickupLocationId>();
   const [method, setMethod] = useState<ShopPaymentMethod>();
-  const [onlineMethod, setOnlineMethod] = useState<OnlinePaymentMethod | null>(null);
+  const [onlineMethod, setOnlineMethod] = useState<OnlineCheckoutMethod | null>(null);
   const [file, setFile] = useState<File>();
   const [preview, setPreview] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -310,7 +308,14 @@ export function ShopCheckout({
                 }
               }}
             />
-            {onlineMethod ? <PendingOnlinePayment method={onlineMethod} /> : null}
+            {onlineMethod ? (
+              <OnlinePaymentFields
+                key={onlineMethod}
+                method={onlineMethod}
+                amountMinor={total}
+                disabled={busy}
+              />
+            ) : null}
             <label className="shop-choice">
               <input
                 checked={method === "at_collection"}
@@ -369,19 +374,21 @@ export function ShopCheckout({
               {error}
             </p>
           ) : null}
-          {missing ? (
+          {missing && !onlineMethod ? (
             <p aria-live="polite" className="shop-field-hint" id="shop-checkout-missing">
               {missing}
             </p>
           ) : null}
-          <button
-            aria-describedby={missing ? "shop-checkout-missing" : undefined}
-            className="button button-primary shop-place-order"
-            disabled={!ready || busy}
-            type="submit"
-          >
-            {busy ? "Placing order…" : `Place order · ${formatShopPrice(total)}`}
-          </button>
+          {!onlineMethod ? (
+            <button
+              aria-describedby={missing ? "shop-checkout-missing" : undefined}
+              className="button button-primary shop-place-order"
+              disabled={!ready || busy}
+              type="submit"
+            >
+              {busy ? "Placing order…" : `Place order · ${formatShopPrice(total)}`}
+            </button>
+          ) : null}
         </form>
       ) : null}
     </aside>

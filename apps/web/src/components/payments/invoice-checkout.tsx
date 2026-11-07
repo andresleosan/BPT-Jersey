@@ -1,21 +1,20 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  billingDetailsSchema,
   paymentMethodLabels,
   type BillingDetails,
   type CheckoutMethod,
   type CheckoutRecord,
-  type OnlinePaymentMethod,
 } from "@bpt-jersey/domain/payments";
 import {
   formatSortCode,
   type InvoiceView,
   type PaymentInstructions,
 } from "../../lib/billing-client";
-import { getPaymentOptions, listPaymentActivity, preparePayment } from "../../lib/payment-client";
+import { listPaymentActivity, preparePayment } from "../../lib/payment-client";
 import { PaymentMethodPicker } from "./payment-method-picker";
+import { OnlinePaymentFields } from "./online-payment-fields";
 
 const money = (minor: number) =>
   new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(minor / 100);
@@ -29,16 +28,6 @@ export const checkoutStatusLabels: Record<CheckoutRecord["status"], string> = {
   cancelled: "Payment cancelled",
   review_required: "Office review required",
 };
-const emptyBilling: BillingDetails = {
-  name: "",
-  email: "",
-  line1: "",
-  line2: "",
-  city: "",
-  postalCode: "",
-  countryCode: "JE",
-};
-
 export function InvoiceCheckout({
   view,
   instructions,
@@ -48,151 +37,43 @@ export function InvoiceCheckout({
   instructions: PaymentInstructions | null;
   onRefresh: () => void;
 }) {
-  const id = useId();
   const [method, setMethod] = useState<CheckoutMethod>("bank_transfer");
-  const [billing, setBilling] = useState(emptyBilling);
-  const [enabled, setEnabled] = useState<readonly OnlinePaymentMethod[]>([]);
-  const [optionsState, setOptionsState] = useState<"loading" | "ready" | "error">("loading");
-  const [attempt, setAttempt] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
   const [saved, setSaved] = useState<CheckoutRecord | null>(null);
   const submission = useRef<{ fingerprint: string; requestId: string } | null>(null);
-  useEffect(() => {
-    let active = true;
-    setOptionsState("loading");
-    getPaymentOptions().then(
-      (options) => {
-        if (active) {
-          setEnabled(options.methods);
-          setOptionsState("ready");
-        }
-      },
-      () => {
-        if (active) {
-          setEnabled([]);
-          setOptionsState("error");
-        }
-      },
-    );
-    return () => {
-      active = false;
-    };
-  }, [attempt]);
-  const online = method !== "bank_transfer";
-  const available = online && enabled.includes(method);
-  const isCard = method === "debit_card" || method === "credit_card";
-  function field(
-    key: keyof BillingDetails,
-    label: string,
-    autoComplete: string,
-    options: { optional?: boolean; type?: string; wide?: boolean } = {},
-  ) {
-    return (
-      <label
-        className={`bpt-checkout-field${options.wide ? " bpt-checkout-field-wide" : ""}`}
-        htmlFor={`${id}-${key}`}
-      >
-        {label}
-        {options.optional ? " (optional)" : ""}
-        <input
-          autoComplete={autoComplete}
-          id={`${id}-${key}`}
-          type={options.type ?? "text"}
-          maxLength={
-            key === "email"
-              ? 254
-              : key === "postalCode"
-                ? 20
-                : key === "name"
-                  ? 120
-                  : key === "city"
-                    ? 100
-                    : 160
-          }
-          required={!options.optional}
-          value={billing[key]}
-          onChange={(e) => {
-            setBilling({ ...billing, [key]: e.target.value });
-            setSaved(null);
-            setError("");
-          }}
-        />
-      </label>
-    );
-  }
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!online || busy) return;
-    const parsed = billingDetailsSchema.safeParse(billing);
-    if (!parsed.success) {
-      setError("Check your name, email and full billing address.");
-      return;
-    }
-    const fingerprint = JSON.stringify({
-      method,
-      billing: parsed.data,
-      invoiceId: view.invoice.invoiceId,
-    });
+  async function pay(billing: BillingDetails): Promise<string> {
+    if (method === "bank_transfer") throw new Error("Choose a card or digital wallet payment.");
+    const fingerprint = JSON.stringify({ method, billing, invoiceId: view.invoice.invoiceId });
     if (submission.current?.fingerprint !== fingerprint)
       submission.current = { fingerprint, requestId: crypto.randomUUID() };
-    setBusy(true);
-    setError("");
-    try {
-      const result = await preparePayment({
-        invoiceId: view.invoice.invoiceId,
-        method,
-        billing: parsed.data,
-        requestId: submission.current.requestId,
-      });
-      setSaved(result);
-      if (["failed", "cancelled"].includes(result.status)) submission.current = null;
-      if (result.status === "requires_action" && result.checkoutUrl) {
-        const destination = new URL(result.checkoutUrl);
-        if (destination.protocol !== "https:" || destination.username || destination.password)
-          throw new Error("Payment destination is unavailable.");
-        window.location.assign(destination.href);
-      }
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Payment details could not be saved. Try again.",
-      );
-    } finally {
-      setBusy(false);
+    const result = await preparePayment({
+      invoiceId: view.invoice.invoiceId,
+      method,
+      billing,
+      requestId: submission.current.requestId,
+    });
+    setSaved(result);
+    if (["failed", "cancelled"].includes(result.status)) submission.current = null;
+    if (result.status === "requires_action" && result.checkoutUrl) {
+      const destination = new URL(result.checkoutUrl);
+      if (destination.protocol !== "https:" || destination.username || destination.password)
+        throw new Error("Payment destination is unavailable.");
+      window.location.assign(destination.href);
+      return "Opening secure payment...";
     }
+    if (result.status === "unconfigured")
+      return "The payment provider is not connected yet. Your billing details and selected method have been saved, but no payment has been taken.";
+    if (result.status === "succeeded")
+      return "Your payment has been received. Refresh your account to see the receipt.";
+    if (result.status === "review_required")
+      return "Contact the academy before trying another payment. We need to check this attempt.";
+    return `${checkoutStatusLabels[result.status]}. Check your payment status before starting another payment.`;
   }
   return (
     <section className="bpt-checkout" aria-label={`Pay invoice ${view.invoice.invoiceReference}`}>
       <div className="bpt-checkout-layout">
         <div>
-          <PaymentMethodPicker
-            value={method}
-            enabledMethods={enabled}
-            disabled={busy}
-            onChange={(value) => {
-              setMethod(value);
-              setSaved(null);
-              setError("");
-            }}
-          />
-          {optionsState === "loading" ? (
-            <p className="bpt-checkout-help" role="status">
-              Checking payment availability...
-            </p>
-          ) : null}
-          {optionsState === "error" ? (
-            <p className="bpt-checkout-help">
-              Online payment services are unavailable. Bank transfer is still available.{" "}
-              <button
-                type="button"
-                className="client-billing-retry"
-                onClick={() => setAttempt((v) => v + 1)}
-              >
-                Retry payment options
-              </button>
-            </p>
-          ) : null}
-          {!online ? (
+          <PaymentMethodPicker value={method} onChange={setMethod} />
+          {method === "bank_transfer" ? (
             <div>
               <p className="bpt-checkout-help">
                 Transfer the balance using your banking app. The academy will confirm it before your
@@ -241,140 +122,12 @@ export function InvoiceCheckout({
               </div>
             </div>
           ) : (
-            <form className="bpt-checkout-form" onSubmit={(event) => void submit(event)}>
-              {!available ? (
-                <section className="bpt-payment-notice" role="status">
-                  <h3>{paymentMethodLabels[method]} is coming soon</h3>
-                  <p>
-                    You can save your billing details for this invoice. To pay today, choose bank
-                    transfer.
-                  </p>
-                </section>
-              ) : (
-                <p className="bpt-checkout-help">
-                  Complete your payment on our payment provider&apos;s secure page. Return here to
-                  check confirmation.
-                </p>
-              )}
-              <fieldset disabled={busy}>
-                <legend>Billing details</legend>
-                <div className="bpt-billing-fields">
-                  {field(
-                    "name",
-                    isCard ? "Name as it appears on your card" : "Full name",
-                    isCard ? "cc-name" : "name",
-                    { wide: true },
-                  )}
-                  {field("email", "Email for your invoice", "email", { type: "email", wide: true })}
-                  {field("line1", "Address", "address-line1", { wide: true })}
-                  {field("line2", "Apartment, suite or building", "address-line2", {
-                    optional: true,
-                    wide: true,
-                  })}
-                  {field("city", "Town or city", "address-level2")}
-                  {field("postalCode", "Postcode", "postal-code")}
-                  <label
-                    className="bpt-checkout-field bpt-checkout-field-wide"
-                    htmlFor={`${id}-country`}
-                  >
-                    Country or territory
-                    <select
-                      autoComplete="country"
-                      id={`${id}-country`}
-                      value={billing.countryCode}
-                      onChange={(e) => {
-                        setBilling({ ...billing, countryCode: e.target.value });
-                        setSaved(null);
-                      }}
-                    >
-                      <option value="JE">Jersey</option>
-                      <option value="GB">United Kingdom</option>
-                      <option value="GG">Guernsey</option>
-                      <option value="IE">Ireland</option>
-                      <option value="FR">France</option>
-                      <option value="PT">Portugal</option>
-                      <option value="ES">Spain</option>
-                      <option value="BR">Brazil</option>
-                      <option value="US">United States</option>
-                      <option value="CA">Canada</option>
-                      <option value="AU">Australia</option>
-                    </select>
-                  </label>
-                </div>
-              </fieldset>
-              {isCard ? (
-                <fieldset disabled aria-describedby={`${id}-card-help`}>
-                  <legend>Card details</legend>
-                  <div className="bpt-card-fields">
-                    <label className="bpt-checkout-field bpt-checkout-field-wide">
-                      Card number
-                      <input
-                        placeholder={
-                          available
-                            ? "Enter securely on the next page"
-                            : "Secure card payment coming soon"
-                        }
-                        autoComplete="off"
-                        disabled
-                      />
-                    </label>
-                    <label className="bpt-checkout-field">
-                      Expiry date
-                      <input placeholder="MM / YY" autoComplete="off" disabled />
-                    </label>
-                    <label className="bpt-checkout-field">
-                      Security code
-                      <input placeholder="3 digits" autoComplete="off" disabled />
-                    </label>
-                  </div>
-                  <p id={`${id}-card-help`} className="bpt-checkout-help">
-                    {available
-                      ? "Enter your card number, expiry and security code on the secure payment page after continuing."
-                      : "Card fields will open with our payment provider. Please do not send card details to the academy."}
-                  </p>
-                </fieldset>
-              ) : null}
-              <p className="bpt-checkout-help">
-                After payment is confirmed, your invoice will be available in your account. Invoice
-                email delivery is being set up.
-              </p>
-              {error ? (
-                <p className="bpt-checkout-error" role="alert">
-                  {error}
-                </p>
-              ) : null}
-              {saved ? (
-                <section className="bpt-payment-notice" role="status">
-                  <h3>{checkoutStatusLabels[saved.status]}</h3>
-                  <p>
-                    {saved.status === "succeeded"
-                      ? "Refresh your account to see your recorded payment."
-                      : saved.status === "unconfigured"
-                        ? "Your billing details and chosen method have been saved. No payment has been taken."
-                        : saved.status === "review_required"
-                          ? "Contact the academy before trying another payment. We need to check this attempt."
-                          : "Check your payment status before starting another payment."}
-                  </p>
-                </section>
-              ) : null}
-              <div className="bpt-checkout-actions">
-                <button
-                  className="button button-primary"
-                  type="submit"
-                  disabled={
-                    busy ||
-                    optionsState === "loading" ||
-                    (saved !== null && !["failed", "cancelled"].includes(saved.status))
-                  }
-                >
-                  {busy
-                    ? "Saving details..."
-                    : available
-                      ? `Pay ${money(view.balanceMinor)}`
-                      : "Save payment details"}
-                </button>
-              </div>
-            </form>
+            <OnlinePaymentFields
+              key={method}
+              method={method}
+              amountMinor={view.balanceMinor}
+              onPay={pay}
+            />
           )}
         </div>
         <aside className="bpt-checkout-summary" aria-label="Payment summary">

@@ -12,6 +12,7 @@ import {
 import {
   checkoutRecordSchema,
   prepareCheckoutSchema,
+  supportsCheckoutMethod,
   verifiedPaymentEventSchema,
   type CheckoutRecord,
 } from "@bpt-jersey/domain/payments";
@@ -107,7 +108,8 @@ export async function prepareOnlineCheckout(
   const checkoutId = `checkout-${digest(`${actor.academyId}:${actor.userId}:${input.requestId}`).slice(0, 40)}`;
   const ref = db.doc(`${root(actor)}/onlineCheckouts/${checkoutId}`);
   const now = new Date().toISOString();
-  const configured = provider.methods.includes(input.method) && provider.name !== "unconfigured";
+  const configured =
+    supportsCheckoutMethod(provider.methods, input.method) && provider.name !== "unconfigured";
   const claimed = await db.runTransaction(async (tx) => {
     const invoice = await authorisedInvoice(db, tx, actor, input.invoiceId);
     const previous = await tx.get(ref);

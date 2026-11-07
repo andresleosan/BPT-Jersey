@@ -174,19 +174,23 @@ forms, images and review panels load only when opened; motion never blocks the p
 ## Payment selection, checkout and invoice email
 
 Payment surfaces reuse Barlow Condensed headings, Source Sans 3 labels, Canvas, Gi White,
-BPT Purple and the existing radius for their route. Native radio controls select bank transfer,
-debit card, credit card, Apple Pay or Google Pay. Each choice names its current availability;
-an unavailable method remains inspectable and never implies a charge. Existing transfer evidence,
+BPT Purple and the existing radius for their route. Three native radio controls select bank transfer,
+Debit / credit card, or Apple Pay / Google Pay. Card and wallet choices each occupy one button,
+with the slash separating the methods. Existing transfer evidence,
 office approval and pay-at-the-academy options retain their behaviour.
 
 An open invoice expands its checkout inline. Desktop separates the labelled billing form from
 a compact amount/reference summary; below 48rem the summary precedes the single-column form.
 Address, postcode, country, payer/cardholder name and invoice email use native autofill semantics.
-Number, expiry and security-code slots are disabled until the provider handles those fields;
-real card data belongs exclusively to the provider's hosted payment page or hosted SDK fields.
+Number, expiry and three-digit security-code fields are interactive while preparing the integration.
+Their values remain in uncontrolled, unnamed DOM inputs and are cleared before the Pay hand-off and
+on unmount. They never enter application state, storage, logs or billing API payloads. The provider
+must own/replace those fields for actual card collection through its hosted page or hosted SDK.
 
-An unconfigured checkout saves only billing details and the preferred method and says explicitly
-that no payment was taken. Confirmed payments show the provider-confirmed method and reference.
+The interface stays usable up to Pay. Provider availability is resolved only at that final action;
+an unconfigured invoice checkout saves billing details and the card/wallet preference and explains
+that no payment was taken. No coming-soon panels or setup-disabled controls precede Pay.
+Confirmed payments show the provider-confirmed debit, credit or wallet method and reference.
 Attempts stay separate from the income ledger in the member and office views. Error, loading,
 empty and review-required states use the existing readable product vocabulary, with no spinners.
 

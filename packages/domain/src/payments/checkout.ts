@@ -11,10 +11,25 @@ export const onlinePaymentOptionsSchema = z.strictObject({
   provider: z.string().max(64),
   methods: z.array(z.enum(onlinePaymentMethods)).max(4),
 });
-export const checkoutMethods = ["bank_transfer", ...onlinePaymentMethods] as const;
+export const onlineCheckoutMethods = ["card", "wallet"] as const;
+export type OnlineCheckoutMethod = (typeof onlineCheckoutMethods)[number];
+export const checkoutMethods = ["bank_transfer", ...onlineCheckoutMethods] as const;
 export type CheckoutMethod = (typeof checkoutMethods)[number];
+const recordedCheckoutMethods = [...onlineCheckoutMethods, ...onlinePaymentMethods] as const;
+export function supportsCheckoutMethod(
+  supported: readonly OnlinePaymentMethod[],
+  method: OnlineCheckoutMethod | OnlinePaymentMethod,
+): boolean {
+  if (method === "card")
+    return supported.some((value) => value === "debit_card" || value === "credit_card");
+  if (method === "wallet")
+    return supported.some((value) => value === "apple_pay" || value === "google_pay");
+  return supported.includes(method);
+}
 export const paymentMethodLabels = {
   bank_transfer: "Bank transfer",
+  card: "Debit / credit card",
+  wallet: "Apple Pay / Google Pay",
   debit_card: "Debit card",
   credit_card: "Credit card",
   apple_pay: "Apple Pay",
@@ -47,7 +62,7 @@ export const billingDetailsSchema = z.strictObject({
 export type BillingDetails = z.infer<typeof billingDetailsSchema>;
 export const prepareCheckoutSchema = z.strictObject({
   invoiceId: id,
-  method: z.enum(onlinePaymentMethods),
+  method: z.enum(recordedCheckoutMethods),
   billing: billingDetailsSchema,
   requestId: z.uuid(),
 });
@@ -57,7 +72,7 @@ export const checkoutRecordSchema = z.strictObject({
   academyId: id,
   invoiceId: id,
   requestedBy: id,
-  method: z.enum(onlinePaymentMethods),
+  method: z.enum(recordedCheckoutMethods),
   billing: billingDetailsSchema,
   settledMethod: z.enum(onlinePaymentMethods).nullable().default(null),
   amountMinor: z.number().int().positive().max(100_000_000),

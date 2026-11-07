@@ -5,11 +5,14 @@ provider API calls or invoice email sending are enabled by this change.
 
 ## Delivered surfaces
 
-- Account → Invoices & payments → Pay invoice: bank details and a method selector, billing name,
-  email, address, town, postcode and country. Debit/credit slots show number, expiry and security
-  code as disabled provider-owned fields. An online choice may save billing details without paying.
+- Account → Invoices & payments → Pay invoice: three choices, Bank transfer, Debit / credit card,
+  and Apple Pay / Google Pay. Billing name, email, address, town, postcode, country, number, expiry
+  and three-digit security code are active. Only Pay resolves the provider connection. Card values
+  remain in unnamed DOM inputs and are cleared before the billing-only hand-off, never persisted
+  or sent to BPT. Real collection must use provider-owned hosted fields or its hosted checkout.
 - Registration, membership applications, PAYG booking, courses and shop expose the same choices;
-  until connected they keep their existing bank-transfer and reception/collection workflows.
+  their shared fields and Pay action are active, and the final action reports provider connection
+  pending until their SDK lifecycle is connected. Existing bank-transfer and reception workflows remain.
 - Admin/owner → Finance → Payments: confirmed methods and provider references; separately,
   Online payment activity shows the latest 50 attempts. Settings reports provider availability.
 - Existing income totals, balances, reports and member payment history accept the online methods.
@@ -37,6 +40,11 @@ Records under `academies/{academyId}`:
 These collections inherit the existing deny-all Firestore client fallback; only server functions
 read/write them. No rule relaxation is required. Never persist PAN, expiry, CVV, wallet payloads,
 provider credentials or raw webhook bodies in these records or logs.
+
+Checkout preferences use `card` or `wallet`; the record parser also accepts previous individual
+preferences for compatibility. The actual settled payment method stays one of debit card, credit
+card, Apple Pay or Google Pay, as verified by the provider. Never infer a debit/credit funding type
+or a specific wallet from the grouped button. UI preparation creates no successful financial entry.
 
 Unconfigured attempts do not lock the invoice, call a provider or affect money. Configured session
 creation uses a deterministic checkout ID as provider idempotency key. Retrying a `preparing`
@@ -74,8 +82,8 @@ contracted provider's adapter. An API key alone is insufficient. The adapter mus
    course reservation, shop), add the provider's source-specific authorisation/capture lifecycle
    to the existing approval/identity/stock/capacity transactions. Those flows currently remain
    transfer-only for completion; this implementation does not charge a made-up invoice or grant
-   places merely because a payment method was selected. Their coming-soon state remains until
-   that lifecycle is connected. Invoice-backed charges share the delivered settlement path.
+   places merely because a payment method was selected. Their active Pay action is the final
+   provider integration boundary. Invoice-backed charges share the delivered settlement path.
 
 After integration, explicitly validate provider sandbox success, decline, challenge, interruption,
 duplicate/reordered events, changed invoices and reconciliation before activating real payments.
