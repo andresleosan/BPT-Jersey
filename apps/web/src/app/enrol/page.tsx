@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import type { CheckoutMethod } from "@bpt-jersey/domain/payments";
+import {
+  PaymentMethodPicker,
+  PendingOnlinePayment,
+} from "../../components/payments/payment-method-picker";
 
 import type {
   EnrolmentRequestClientView,
@@ -584,6 +589,7 @@ function MinorFields({
 }
 
 function EnrolContent() {
+  const [paymentMethod, setPaymentMethod] = useState<CheckoutMethod>("bank_transfer");
   const { session, status } = useClientSession();
   const [form, setForm] = useState<ApplicantForm>(emptyForm);
   const [step, setStep] = useState<"details" | "plans" | "payment">("details");
@@ -835,6 +841,7 @@ function EnrolContent() {
       setStep("payment");
       return;
     }
+    if (paymentTotal > 0 && paymentMethod !== "bank_transfer") return;
     if (
       paymentTotal > 0 &&
       ((!proof && !proofId) || !paidOn || paidOn > effectiveDate || !reference.trim())
@@ -1332,53 +1339,64 @@ function EnrolContent() {
                 {paymentTotal > 0 ? "Payment and review" : "Review your registration"}
               </h2>
               {paymentTotal > 0 ? (
-                <fieldset disabled={busy} className="enrol-applicant">
-                  <legend>Bank transfer evidence</legend>
-                  <EnrolmentBankDetails {...bankDetails} />
-                  <p>
-                    Transfer total: <strong>£{(paymentTotal / 100).toFixed(2)}</strong>. Upload one
-                    screenshot covering the prepaid plans. Pay-as-you-go classes are paid separately
-                    at class.
-                  </p>
-                  <label className="enrol-field">
-                    Transfer date
-                    <input
-                      type="date"
-                      max={effectiveDate}
-                      value={paidOn}
-                      onChange={(event) => setPaidOn(event.target.value)}
-                    />
-                  </label>
-                  <label className="enrol-field">
-                    Transfer reference
-                    <input
-                      maxLength={120}
-                      value={reference}
-                      onChange={(event) => setReference(event.target.value)}
-                    />
-                  </label>
-                  <label className="enrol-field">
-                    Payment screenshot (PNG or JPEG, up to 2 MB)
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg"
-                      onChange={(event) => {
-                        setProof(event.target.files?.[0]);
-                        setProofId(undefined);
-                      }}
-                    />
-                  </label>
-                  {proof ? (
-                    <p role="status">
-                      Selected: {proof.name}
-                      {proofId ? " · uploaded" : ""}
-                    </p>
-                  ) : null}
-                  <p className="enrol-hint">
-                    Only academy administrators can review your screenshot. Registration remains
-                    pending until they check the transfer.
-                  </p>
-                </fieldset>
+                <>
+                  <PaymentMethodPicker
+                    value={paymentMethod}
+                    onChange={setPaymentMethod}
+                    disabled={busy}
+                  />
+                  {paymentMethod !== "bank_transfer" ? (
+                    <PendingOnlinePayment method={paymentMethod} />
+                  ) : (
+                    <fieldset disabled={busy} className="enrol-applicant">
+                      <legend>Bank transfer evidence</legend>
+                      <EnrolmentBankDetails {...bankDetails} />
+                      <p>
+                        Transfer total: <strong>£{(paymentTotal / 100).toFixed(2)}</strong>. Upload
+                        one screenshot covering the prepaid plans. Pay-as-you-go classes are paid
+                        separately at class.
+                      </p>
+                      <label className="enrol-field">
+                        Transfer date
+                        <input
+                          type="date"
+                          max={effectiveDate}
+                          value={paidOn}
+                          onChange={(event) => setPaidOn(event.target.value)}
+                        />
+                      </label>
+                      <label className="enrol-field">
+                        Transfer reference
+                        <input
+                          maxLength={120}
+                          value={reference}
+                          onChange={(event) => setReference(event.target.value)}
+                        />
+                      </label>
+                      <label className="enrol-field">
+                        Payment screenshot (PNG or JPEG, up to 2 MB)
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg"
+                          onChange={(event) => {
+                            setProof(event.target.files?.[0]);
+                            setProofId(undefined);
+                          }}
+                        />
+                      </label>
+                      {proof ? (
+                        <p role="status">
+                          Selected: {proof.name}
+                          {proofId ? " · uploaded" : ""}
+                        </p>
+                      ) : null}
+                      <p className="enrol-hint">
+                        Only academy administrators can review your screenshot. Registration remains
+                        pending until they check the transfer.
+                      </p>
+                    </fieldset>
+                  )}
+                </>
               ) : (
                 <p>
                   {isTrial
@@ -1398,7 +1416,11 @@ function EnrolContent() {
                 >
                   Back to plans
                 </button>
-                <button className="button button-primary" disabled={busy} type="submit">
+                <button
+                  className="button button-primary"
+                  disabled={busy || (paymentTotal > 0 && paymentMethod !== "bank_transfer")}
+                  type="submit"
+                >
                   {busy ? "Sending request..." : "Send request to the academy"}
                 </button>
               </div>

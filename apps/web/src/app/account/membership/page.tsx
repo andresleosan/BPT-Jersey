@@ -5,6 +5,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { PLAN_CATALOG, type ParticipantType, type PlanId } from "@bpt-jersey/domain/memberships";
 import type { MembershipApplication } from "@bpt-jersey/domain/memberships/intro-conversion";
+import type { CheckoutMethod } from "@bpt-jersey/domain/payments";
+import {
+  PaymentMethodPicker,
+  PendingOnlinePayment,
+} from "../../../components/payments/payment-method-picker";
 
 import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../../lib/client-auth";
 import { loadAccountPeople } from "../../../lib/account-people";
@@ -62,6 +67,7 @@ const planName = (planId: PlanId) =>
  * no transfer. The server re-checks eligibility, one open request per member, and the evidence.
  */
 function MembershipContent() {
+  const [paymentMethod, setPaymentMethod] = useState<CheckoutMethod>("bank_transfer");
   const { session } = useClientSession();
   const [workspace, setWorkspace] = useState<Workspace>();
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -83,16 +89,14 @@ function MembershipContent() {
       // the children. Each source is only asked for when a profile of its kind exists.
       const subjectsPromise = loadAccountPeople().then((people) => ({
         hasSelf: people.some((person) => person.via === "self"),
-        subjects: people.map(
-          (person): Subject => ({
-            studentId: person.studentId,
-            displayName: person.via === "self" ? "You" : person.fullName,
-            trainingCenter: person.trainingCenter,
-            participantType: person.dateOfBirth
-              ? participantBand(person.dateOfBirth)
-              : ("adult" as const),
-          }),
-        ),
+        subjects: people.map((person): Subject => ({
+          studentId: person.studentId,
+          displayName: person.via === "self" ? "You" : person.fullName,
+          trainingCenter: person.trainingCenter,
+          participantType: person.dateOfBirth
+            ? participantBand(person.dateOfBirth)
+            : ("adult" as const),
+        })),
       }));
       const [plans, memberships, { subjects, hasSelf }, context] = await Promise.all([
         listAvailableMembershipPlans(),
@@ -177,6 +181,7 @@ function MembershipContent() {
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    if (!perSession && paymentMethod !== "bank_transfer") return;
     if (!workspace || !subject || !selectedPlan || busy || pending) return;
     if (!perSession && (!proof || reference.trim().length < 2)) {
       setNotice({
@@ -237,8 +242,8 @@ function MembershipContent() {
       <p className="account-eyebrow">BPT Jersey / Membership</p>
       <h1 id="membership-title">Your plan</h1>
       <p className="client-destination-intro">
-        Choose a plan, change it or renew it. Pay by bank transfer and the academy confirms it,
-        just like registration.
+        Choose a plan, change it or renew it. Pay by bank transfer and the academy confirms it, just
+        like registration.
       </p>
 
       {state === "loading" ? (
@@ -286,9 +291,7 @@ function MembershipContent() {
             </fieldset>
 
             <section className="client-current-membership" aria-labelledby="current-plan-title">
-              <h2 id="current-plan-title">
-                {current ? planName(current.planId) : "No plan yet"}
-              </h2>
+              <h2 id="current-plan-title">{current ? planName(current.planId) : "No plan yet"}</h2>
               {current ? (
                 <p className="client-current-line">
                   <strong>{statusLabels[current.status]}</strong>
@@ -313,8 +316,8 @@ function MembershipContent() {
               )}
               {pending ? (
                 <p className="client-plan-band client-plan-band-waiting" role="status">
-                  Waiting for the academy: {pending.planName}, sent{" "}
-                  {dateLabel(pending.createdAt)}. You can send another request once they reply.
+                  Waiting for the academy: {pending.planName}, sent {dateLabel(pending.createdAt)}.
+                  You can send another request once they reply.
                 </p>
               ) : returned && returned.updatedAt > (current?.startsAt ?? "") ? (
                 <p className="client-plan-band client-plan-band-returned" role="status">
@@ -388,49 +391,67 @@ function MembershipContent() {
                 </h2>
                 {perSession ? (
                   <p>
-                    No payment now. You pay for each class when you book it, online by bank
-                    transfer or at the academy.
+                    No payment now. You pay for each class when you book it, online by bank transfer
+                    or at the academy.
                   </p>
                 ) : (
-                  <fieldset className="client-plan-transfer" disabled={busy}>
-                    <legend className="visually-hidden">Bank transfer evidence</legend>
-                    <EnrolmentBankDetails
-                      details={
-                        workspace.context.instructions && {
-                          ...workspace.context.instructions,
-                          acceptsCash: false,
-                        }
-                      }
-                      error={false}
-                      onRetry={() => void load()}
+                  <>
+                    <PaymentMethodPicker
+                      value={paymentMethod}
+                      onChange={setPaymentMethod}
+                      disabled={busy}
                     />
-                    <p className="client-plan-total">
-                      Transfer total <strong>£{(selectedPlan.priceMinor / 100).toFixed(2)}</strong>
-                    </p>
-                    <label htmlFor="plan-reference">Transfer reference</label>
-                    <input
-                      id="plan-reference"
-                      maxLength={120}
-                      onChange={(event) => setReference(event.target.value)}
-                      value={reference}
-                    />
-                    <label htmlFor="plan-proof">Payment screenshot (PNG or JPEG, up to 2 MB)</label>
-                    <input
-                      accept="image/png,image/jpeg"
-                      id="plan-proof"
-                      onChange={(event) => setProof(event.target.files?.[0])}
-                      type="file"
-                    />
-                    <p>
-                      Only academy administrators see your screenshot.
-                      {current
-                        ? " Your new period starts when they confirm the transfer."
-                        : " Your plan starts when they confirm the transfer."}
-                    </p>
-                  </fieldset>
+                    {paymentMethod !== "bank_transfer" ? (
+                      <PendingOnlinePayment method={paymentMethod} />
+                    ) : (
+                      <fieldset className="client-plan-transfer" disabled={busy}>
+                        <legend className="visually-hidden">Bank transfer evidence</legend>
+                        <EnrolmentBankDetails
+                          details={
+                            workspace.context.instructions && {
+                              ...workspace.context.instructions,
+                              acceptsCash: false,
+                            }
+                          }
+                          error={false}
+                          onRetry={() => void load()}
+                        />
+                        <p className="client-plan-total">
+                          Transfer total{" "}
+                          <strong>£{(selectedPlan.priceMinor / 100).toFixed(2)}</strong>
+                        </p>
+                        <label htmlFor="plan-reference">Transfer reference</label>
+                        <input
+                          id="plan-reference"
+                          maxLength={120}
+                          onChange={(event) => setReference(event.target.value)}
+                          value={reference}
+                        />
+                        <label htmlFor="plan-proof">
+                          Payment screenshot (PNG or JPEG, up to 2 MB)
+                        </label>
+                        <input
+                          accept="image/png,image/jpeg"
+                          id="plan-proof"
+                          onChange={(event) => setProof(event.target.files?.[0])}
+                          type="file"
+                        />
+                        <p>
+                          Only academy administrators see your screenshot.
+                          {current
+                            ? " Your new period starts when they confirm the transfer."
+                            : " Your plan starts when they confirm the transfer."}
+                        </p>
+                      </fieldset>
+                    )}
+                  </>
                 )}
                 <div className="client-trial-actions">
-                  <button className="button button-primary" disabled={busy} type="submit">
+                  <button
+                    className="button button-primary"
+                    disabled={busy || (!perSession && paymentMethod !== "bank_transfer")}
+                    type="submit"
+                  >
                     {busy ? "Sending..." : "Send to the academy"}
                   </button>
                   <button

@@ -41,6 +41,10 @@ const methodLabels: Readonly<Record<FinancialDashboardPaymentRow["method"], stri
   bank_transfer: "Bank transfer",
   other: "Other",
   at_collection: "Pay on collection",
+  debit_card: "Debit card",
+  credit_card: "Credit card",
+  apple_pay: "Apple Pay",
+  google_pay: "Google Pay",
 };
 
 export type NameOf = (studentId: string | null, fallback: string) => string;
@@ -101,6 +105,11 @@ export function PaymentsPanel({
             ) : (
               formatMoney(row.amountMinor)
             ),
+        },
+        {
+          key: "reference",
+          label: "Reference",
+          render: (row: FinancialDashboardPaymentRow) => row.reference ?? "Not applicable",
         },
         {
           key: "actions",

@@ -21,12 +21,14 @@ confident, no decoration that does not carry information.
 Absolute rule: one brand purple, one brand lime, warm-grey neutrals. No blue, no gradients.
 
 **Brand**
+
 - **BPT Purple** (`#2F2483`) — Hero background, primary CTAs in the client area, eyebrow labels, focus outlines, `theme-color`. The only accent.
 - **BPT Purple Dark** (`#211965`) — Hover state of purple fills; text on white primary buttons over the hero; inset "belt" underlines (`inset 0 -0.2rem 0`).
 - **BPT Lime** (`#D9F36A`) — Sparse highlight: badges, the single lime accent on dark purple. Never as a fill for large surfaces, never as text on white.
 - **Purple Wash** (`#F0EFFF`) — Tinted surface behind selected rows / info panels in admin. Pair with `#D9D6FF` for its border.
 
 **Neutrals (warm, never cool)**
+
 - **Canvas** (`#F2F1ED`) — Page background everywhere. Off-white with a paper warmth.
 - **Gi White** (`#FFFFFF`) — Panels, cards, inputs, primary button over purple.
 - **Mat Ink** (`#1A1A18`) — Primary text and 2 px structural borders. Never pure black.
@@ -35,6 +37,7 @@ Absolute rule: one brand purple, one brand lime, warm-grey neutrals. No blue, no
 - **Paper Edge** (`#E8E7E3`, `#D9D8D2`) — Hairline separators on canvas.
 
 **Status (semantic, each with its own tint + left-rule)**
+
 - **Confirmed Green** (`#176B49`) text / `#E7F6EE` tint / `border-left: 0.35rem solid #176B49`.
 - **Attention Amber** (`#C98B00`) rule, `#765400` text on `#FFF8E6`-style tint.
 - **Refused Red** (`#8D1C2F`) rule, `#721626` / `#5F1020` text on `#FFF0F2` tint.
@@ -167,3 +170,31 @@ The requested landing promotion is one exception to the restrained-motion rule: 
 course band, with a visible pause button, pause on focus/hover, an inert duplicate and a static wrapped
 list for reduced-motion users. It loads public JSON without importing Firebase authentication. Course
 forms, images and review panels load only when opened; motion never blocks the page content.
+
+## Payment selection, checkout and invoice email
+
+Payment surfaces reuse Barlow Condensed headings, Source Sans 3 labels, Canvas, Gi White,
+BPT Purple and the existing radius for their route. Native radio controls select bank transfer,
+debit card, credit card, Apple Pay or Google Pay. Each choice names its current availability;
+an unavailable method remains inspectable and never implies a charge. Existing transfer evidence,
+office approval and pay-at-the-academy options retain their behaviour.
+
+An open invoice expands its checkout inline. Desktop separates the labelled billing form from
+a compact amount/reference summary; below 48rem the summary precedes the single-column form.
+Address, postcode, country, payer/cardholder name and invoice email use native autofill semantics.
+Number, expiry and security-code slots are disabled until the provider handles those fields;
+real card data belongs exclusively to the provider's hosted payment page or hosted SDK fields.
+
+An unconfigured checkout saves only billing details and the preferred method and says explicitly
+that no payment was taken. Confirmed payments show the provider-confirmed method and reference.
+Attempts stay separate from the income ledger in the member and office views. Error, loading,
+empty and review-required states use the existing readable product vocabulary, with no spinners.
+
+Invoice emails use a purple BPT heading, Gi White invoice body, Canvas footer, tabular GBP amounts,
+plain UK-English and an account link. Table-based email markup has a 600px maximum width and
+escapes all customer/invoice text. Email preparation follows confirmed money; delivery remains
+pending configuration and never follows a saved preference or browser redirect.
+
+Structural references, adapted to BPT rather than copied:
+[Apple payment selection](https://mobbin.com/screens/2aa48dd7-2fc0-4659-a693-58f976dbe515)
+and [Kiwi.com billing/summary separation](https://mobbin.com/screens/4a1e9bfb-8478-4a22-8cc0-8635708bf008).

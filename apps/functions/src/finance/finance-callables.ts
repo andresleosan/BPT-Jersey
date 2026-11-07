@@ -508,7 +508,7 @@ async function findStudentByUserId(
   };
 }
 
-function financeCallableServices(): FinanceCallableServices {
+export function financeCallableServices(): FinanceCallableServices {
   const firestore = getFirestore();
   return {
     store: createFinanceStore({

@@ -1,0 +1,280 @@
+.bpt-payment-methods {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.bpt-payment-methods legend {
+  padding: 0;
+  margin-bottom: 1rem;
+  font-weight: 700;
+  font-size: 1.2rem;
+}
+.bpt-payment-method-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+.bpt-payment-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-height: 5rem;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) * 0.5);
+  padding: 0.85rem 1rem;
+  background: var(--gi-white);
+  cursor: pointer;
+}
+.bpt-payment-choice:hover {
+  border-color: var(--bpt-purple);
+}
+.bpt-payment-choice[data-selected="true"] {
+  border-color: var(--bpt-purple);
+  box-shadow: inset 0 0 0 1px var(--bpt-purple);
+  background: #f0efff;
+}
+.bpt-payment-choice:focus-within {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+.bpt-payment-choice input {
+  accent-color: var(--bpt-purple);
+  flex: 0 0 auto;
+  width: 1.15rem;
+  min-height: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+}
+.bpt-payment-choice span {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.bpt-payment-choice strong {
+  font-size: 1rem;
+}
+.bpt-payment-choice small {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.bpt-payment-notice {
+  padding: 1rem 1.15rem;
+  border: 1px solid #d9d6ff;
+  border-radius: calc(var(--radius) * 0.5);
+  background: #f0efff;
+  margin: 1rem 0;
+  color: var(--mat-ink);
+}
+.bpt-payment-notice h3 {
+  font-family: var(--font-body), Arial, sans-serif;
+  font-size: 1.05rem;
+  text-transform: none;
+  line-height: 1.4;
+  margin: 0 0 0.35rem;
+}
+.bpt-payment-notice p {
+  margin: 0;
+  max-width: 65ch;
+}
+.bpt-checkout {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--card-edge);
+}
+.bpt-checkout-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(13rem, 1fr);
+  gap: 2rem;
+  align-items: start;
+}
+.bpt-checkout-form {
+  display: grid;
+  gap: 1.5rem;
+  min-width: 0;
+}
+.bpt-checkout-form > fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.bpt-checkout-form legend {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 0.85rem;
+  padding: 0;
+}
+.bpt-billing-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.bpt-checkout-field {
+  display: grid;
+  gap: 0.4rem;
+  align-content: start;
+  min-width: 0;
+  font-weight: 600;
+}
+.bpt-checkout-field-wide {
+  grid-column: 1 / -1;
+}
+.bpt-checkout-field input,
+.bpt-checkout-field select {
+  width: 100%;
+  min-height: 3rem;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) * 0.5);
+  background: var(--gi-white);
+  color: var(--mat-ink);
+  font: inherit;
+  font-size: 1rem;
+  padding: 0.7rem 0.8rem;
+}
+.bpt-checkout-field input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.bpt-checkout-field input:focus-visible,
+.bpt-checkout-field select:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+.bpt-checkout-field input:disabled {
+  background: var(--canvas, #f2f1ed);
+  color: var(--muted);
+  opacity: 1;
+  cursor: not-allowed;
+}
+.bpt-card-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+.bpt-checkout-help {
+  color: var(--muted);
+  font-size: 1rem;
+  margin: 0.75rem 0 0;
+  line-height: 1.5;
+}
+.bpt-checkout-summary {
+  border: 1px solid var(--card-edge);
+  border-radius: calc(var(--radius) * 0.5);
+  background: var(--canvas, #f2f1ed);
+  padding: 1.25rem;
+}
+.bpt-checkout-summary h4 {
+  font-size: 1.1rem;
+  margin: 0 0 1rem;
+}
+.bpt-checkout-summary p {
+  margin: 0.35rem 0;
+  overflow-wrap: anywhere;
+}
+.bpt-checkout-summary .bpt-checkout-amount {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 2.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  margin: 1rem 0 0.5rem;
+  color: var(--bpt-purple);
+}
+.bpt-checkout-summary small {
+  display: block;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.bpt-checkout-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+.bpt-checkout-actions .button {
+  white-space: nowrap;
+}
+.bpt-checkout-error {
+  color: #721626;
+  border: 1px solid #8d1c2f;
+  background: #fff0f2;
+  padding: 1rem;
+  border-radius: calc(var(--radius) * 0.5);
+}
+.bpt-checkout .bpt-bank-details {
+  margin: 1rem 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.bpt-checkout .bpt-bank-details div {
+  border: 0;
+  padding: 0;
+}
+.bpt-checkout .bpt-bank-details dt {
+  font-size: 1rem;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+.bpt-checkout .bpt-bank-details dd {
+  font-weight: 700;
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.bpt-payment-activity {
+  margin-top: 1rem;
+}
+.bpt-payment-activity summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: list-item;
+  padding: 0.75rem 0;
+  font-weight: 700;
+}
+.bpt-payment-activity li {
+  padding: 0.65rem 0;
+  overflow-wrap: anywhere;
+}
+.bpt-payment-activity button {
+  margin-top: 0.5rem;
+}
+.bpt-checkout-loading {
+  min-height: 4rem;
+  background: var(--paper-edge, #e8e7e3);
+  border-radius: calc(var(--radius) * 0.5);
+}
+@media (max-width: 47.99rem) {
+  .bpt-checkout-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.25rem;
+  }
+  .bpt-checkout-summary {
+    grid-row: 1;
+  }
+  .bpt-checkout-summary .bpt-checkout-amount {
+    font-size: 2.2rem;
+  }
+  .bpt-checkout-actions .button {
+    width: 100%;
+  }
+}
+@media (max-width: 32rem) {
+  .bpt-payment-method-grid,
+  .bpt-billing-fields,
+  .bpt-checkout .bpt-bank-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bpt-payment-choice {
+    min-height: 4.25rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bpt-checkout .button {
+    transition: none;
+    transform: none;
+  }
+}

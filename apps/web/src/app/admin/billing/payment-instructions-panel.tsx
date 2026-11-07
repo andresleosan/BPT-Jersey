@@ -83,8 +83,8 @@ export function PaymentInstructionsPanel({
         <AdminStatusBadge status={current === null ? "Not configured" : "Published"} />
       </div>
       <p>
-        There is no card gateway in the pilot. Members pay by bank transfer or cash and you record
-        the payment here. These details are shown to every member with a balance.
+        Members can pay by bank transfer or cash while online payments await connection. Record
+        confirmed transfers and cash payments here. Bank details are shown beside open invoices.
       </p>
       <form className="billing-form" onSubmit={(event) => void handleSubmit(event)}>
         <label className="family-field" htmlFor="payment-account-name">
@@ -144,8 +144,16 @@ export function PaymentInstructionsPanel({
           />
           Cash is accepted at reception
         </label>
-        {error ? <p className="billing-form-wide" role="alert">{error}</p> : null}
-        {message ? <p className="billing-form-wide" role="status">{message}</p> : null}
+        {error ? (
+          <p className="billing-form-wide" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {message ? (
+          <p className="billing-form-wide" role="status">
+            {message}
+          </p>
+        ) : null}
         <div className="billing-form-wide">
           <button className="admin-home-link" disabled={busy} type="submit">
             {busy ? "Saving..." : "Save payment instructions"}

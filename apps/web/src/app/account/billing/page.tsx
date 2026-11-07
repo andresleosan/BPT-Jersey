@@ -6,11 +6,12 @@ import { useCallback, useEffect, useState } from "react";
 
 import { ClientAuthGate, ClientAuthProvider } from "../../../lib/client-auth";
 import {
-  formatSortCode,
   listFinancialAccount,
   type FinancialAccount,
   type InvoiceView,
 } from "../../../lib/billing-client";
+import { paymentMethodLabels } from "@bpt-jersey/domain/payments";
+import { InvoiceCheckout } from "../../../components/payments/invoice-checkout";
 
 import "./billing.css";
 
@@ -49,6 +50,7 @@ function statusLabel(status: InvoiceView["invoice"]["status"]): string {
 function BillingContent() {
   const [account, setAccount] = useState<FinancialAccount>();
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [payingInvoice, setPayingInvoice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setState("loading");
@@ -73,7 +75,7 @@ function BillingContent() {
       <p className="account-eyebrow">BPT Jersey / Billing</p>
       <h1 id="billing-title">Invoices & payments</h1>
       <p className="client-destination-intro">
-        Review charges and manual payments recorded by the academy. No card details are stored here.
+        Choose how to pay, review your invoices and keep track of confirmed payments.
       </p>
 
       {state === "loading" ? (
@@ -104,49 +106,6 @@ function BillingContent() {
               <strong>{formatMoney(account.paygDebtMinor)}</strong>
             </div>
           </section>
-
-          {/* T010/T035: the pilot has no card gateway; this is how a member settles a balance. */}
-          {account.balanceMinor > 0 ? (
-            <section className="client-billing-summary" aria-labelledby="how-to-pay-title">
-              <h2 id="how-to-pay-title">How to pay</h2>
-              {account.paymentInstructions === null ? (
-                <p>The academy has not published bank details yet. Ask at reception.</p>
-              ) : (
-                <dl>
-                  <div>
-                    <dt>Account name</dt>
-                    <dd>{account.paymentInstructions.accountName}</dd>
-                  </div>
-                  <div>
-                    <dt>Sort code</dt>
-                    <dd>{formatSortCode(account.paymentInstructions.sortCode)}</dd>
-                  </div>
-                  <div>
-                    <dt>Account number</dt>
-                    <dd>{account.paymentInstructions.accountNumber}</dd>
-                  </div>
-                  {account.paymentInstructions.bankName ? (
-                    <div>
-                      <dt>Bank</dt>
-                      <dd>{account.paymentInstructions.bankName}</dd>
-                    </div>
-                  ) : null}
-                  <div>
-                    <dt>Reference</dt>
-                    <dd>{account.paymentInstructions.referenceHint}</dd>
-                  </div>
-                  <div>
-                    <dt>Cash</dt>
-                    <dd>
-                      {account.paymentInstructions.acceptsCash
-                        ? "Accepted at reception"
-                        : "Not accepted"}
-                    </dd>
-                  </div>
-                </dl>
-              )}
-            </section>
-          ) : null}
 
           {account.invoices.length === 0 ? (
             <section className="client-billing-state">
@@ -193,7 +152,8 @@ function BillingContent() {
                             <span>{formatDate(payment.occurredAt)}</span>
                             <strong>{formatMoney(payment.amountMinor)}</strong>
                             <span>
-                              {payment.method.replace("_", " ")} / {payment.manualReference}
+                              {paymentMethodLabels[payment.method]} /{" "}
+                              {payment.providerReference ?? payment.manualReference}
                             </span>
                           </li>
                         ))}
@@ -202,6 +162,34 @@ function BillingContent() {
                   ) : (
                     <p className="client-payment-empty">No payment has been recorded.</p>
                   )}
+                  {view.balanceMinor > 0 && view.invoice.status !== "void" ? (
+                    <>
+                      <button
+                        className="button button-primary client-invoice-pay"
+                        type="button"
+                        aria-expanded={payingInvoice === view.invoice.invoiceId}
+                        aria-controls={`checkout-${view.invoice.invoiceId}`}
+                        onClick={() =>
+                          setPayingInvoice((current) =>
+                            current === view.invoice.invoiceId ? null : view.invoice.invoiceId,
+                          )
+                        }
+                      >
+                        {payingInvoice === view.invoice.invoiceId
+                          ? "Close payment options"
+                          : "Pay invoice"}
+                      </button>
+                      {payingInvoice === view.invoice.invoiceId ? (
+                        <div id={`checkout-${view.invoice.invoiceId}`}>
+                          <InvoiceCheckout
+                            view={view}
+                            instructions={account.paymentInstructions}
+                            onRefresh={() => void load()}
+                          />
+                        </div>
+                      ) : null}
+                    </>
+                  ) : null}
                 </article>
               ))}
             </section>

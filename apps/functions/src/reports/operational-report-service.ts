@@ -8,6 +8,7 @@ import {
   type OperationalReportQuery,
   type OperationalReportStudentInput,
 } from "@bpt-jersey/domain/reports";
+import { paymentMethods, type PaymentMethod } from "@bpt-jersey/domain/finance";
 
 type FirestoreDocument = Readonly<{
   id: string;
@@ -199,7 +200,7 @@ function paymentInput(
     throw new OperationalReportStoreError("invalid", "Invalid payment record");
   }
   const method = data["method"];
-  if (method !== "cash" && method !== "bank_transfer" && method !== "other") {
+  if (!paymentMethods.includes(method as PaymentMethod)) {
     throw new OperationalReportStoreError("invalid", "Invalid payment method");
   }
   const amountMinor = data["amountMinor"];
@@ -210,7 +211,7 @@ function paymentInput(
     paymentId: document.id,
     invoiceId: requiredIdentifier(data["invoiceId"], "payment invoice"),
     amountMinor: amountMinor as number,
-    method,
+    method: method as PaymentMethod,
     occurredAt: requiredDateTime(data["occurredAt"], "payment"),
   });
 }

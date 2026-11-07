@@ -3,6 +3,7 @@ import type { ValidationIssue } from "../errors";
 import type { AcademyId, CorrelationId, SystemActorId, UserId } from "../identifiers";
 import { memberReportKeys, type MemberReportKey } from "../members/member-contracts";
 import { err, ok, type Result } from "../result";
+import { paymentMethods, type PaymentMethod } from "../finance/finance-contracts";
 
 export const auditActions = Object.freeze([
   "admin.role.granted",
@@ -367,7 +368,7 @@ export type AuditEventDraft = CommonAuditEventDraft &
         action: "payment.recorded" | "payment.edited" | "payment.voided";
         amountMinor: number;
         currency: "GBP";
-        method: "cash" | "bank_transfer" | "other";
+        method: PaymentMethod;
       }>
     | Readonly<{
         action: "member.import.confirmed";
@@ -1178,7 +1179,7 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
         (parsedAction === "payment.recorded" ||
           parsedAction === "payment.edited" ||
           parsedAction === "payment.voided") &&
-        !["cash", "bank_transfer", "other"].includes(snapshot.method as string)
+        !paymentMethods.includes(snapshot.method as PaymentMethod)
       ) {
         issues.push(issue(["method"], "AUDIT_PAYMENT_METHOD_INVALID"));
       }
@@ -1196,8 +1197,13 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
       correlationId: snapshot.correlationId as CorrelationId,
     };
     if (parsedAction === "member.inventory.read") {
-      return ok(Object.freeze({ ...base, action: parsedAction,
-        result: snapshot.result as MemberDetailReadAuditResult }));
+      return ok(
+        Object.freeze({
+          ...base,
+          action: parsedAction,
+          result: snapshot.result as MemberDetailReadAuditResult,
+        }),
+      );
     }
     if (parsedAction === "member.detail.read") {
       return ok(
@@ -1269,7 +1275,7 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
           action: parsedAction,
           amountMinor: snapshot.amountMinor as number,
           currency: "GBP" as const,
-          method: snapshot.method as "cash" | "bank_transfer" | "other",
+          method: snapshot.method as PaymentMethod,
         }),
       );
     }

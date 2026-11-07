@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { PaymentActivity } from "../../../components/payments/invoice-checkout";
 import {
   currentFinancialMonth,
   shiftFinancialMonth,
@@ -28,6 +29,7 @@ import { IssueInvoiceDialog } from "../billing/issue-invoice-dialog";
 import { InvoiceRowActions, MemberAccountPanel } from "../billing/member-account-panel";
 import { MemberPicker } from "../billing/member-picker";
 import { PaymentInstructionsPanel } from "../billing/payment-instructions-panel";
+import { OnlinePaymentStatus } from "../billing/online-payment-status";
 import { PrivateLessonsPanel } from "../billing/private-lessons-panel";
 import { RecordPaymentDialog } from "../billing/record-payment-dialog";
 import { VoidPaymentDialog } from "../billing/void-payment-dialog";
@@ -309,14 +311,17 @@ export function FinancePage() {
     }
     if (tab === "payments") {
       return (
-        <PaymentsPanel
-          busy={busy}
-          monthLabel={monthLabel}
-          nameOf={nameOf}
-          onEdit={(row) => setDialog({ kind: "edit", row })}
-          onVoid={(row) => setDialog({ kind: "void", row })}
-          rows={loaded.payments}
-        />
+        <>
+          <PaymentsPanel
+            busy={busy}
+            monthLabel={monthLabel}
+            nameOf={nameOf}
+            onEdit={(row) => setDialog({ kind: "edit", row })}
+            onVoid={(row) => setDialog({ kind: "void", row })}
+            rows={loaded.payments}
+          />
+          <PaymentActivity key={version} />
+        </>
       );
     }
     if (tab === "owed") {
@@ -351,7 +356,7 @@ export function FinancePage() {
             </button>
           </>
         }
-        description="Manual GBP invoices, receipts and shop payments. No card details are stored here."
+        description="GBP invoices, confirmed payments and payment activity across the academy."
         eyebrow="Money / Finance"
         title="Financial dashboard"
       />
@@ -540,6 +545,7 @@ export function FinancePage() {
                 onSaved={refreshAll}
               />
             ) : null}
+            <OnlinePaymentStatus />
             <section className="admin-panel-card">
               <PrivateLessonsPanel />
             </section>

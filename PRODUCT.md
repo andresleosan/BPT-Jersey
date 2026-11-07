@@ -168,7 +168,6 @@ calendar and coach roster. Course attendance is separate from ordinary quotas, f
 counts. Cancellation closes future access; withdrawals and refunds have explicit office decisions.
 See `docs/runbooks/finite-courses.md` for configuration and recovery. Production activation is separate.
 
-
 ## Administrator groups and class registrations (2026-09-22)
 
 Owners and administrators manage reusable Groups under Classes / Services using existing
@@ -223,3 +222,22 @@ only an owner creates an owner, changes or removes an owner's role, deletes an o
 edits an owner's website profile, so no one can lock the owner out of the academy. Reading
 restricted IP addresses and initializing the canonical member directory stay owner-only for now.
 This supersedes the owner-only notes above.
+
+## Online payment preparation (2026-11-07, provider connection pending)
+
+Invoices in `/account/billing` offer bank transfer, debit card, credit card, Apple Pay and
+Google Pay. Until a contracted provider is integrated, online choices save billing details
+and preference only; they never reduce debt or grant membership, lesson, course or booking access.
+Registration, membership requests, PAYG classes, courses and shop also expose the choices with
+an honest coming-soon state while retaining their existing transfer/office workflows.
+
+The backend prepares invoice checkout records, authenticates the recorded payer, calculates the
+amount from the ledger, and exposes a provider adapter and a closed-by-default webhook. Only a
+verified provider event records online money through the existing finance service. Income,
+balances, payment history, audit events and reports recognise the confirmed method, while
+attempts and saved preferences remain separate. Coach permissions are unchanged.
+
+Confirmed payments prepare branded invoices in a separate email outbox. No invoice emails are
+sent until delivery is configured. Backend/index publication and provider activation are separate
+from the automatic web publication. See `docs/runbooks/online-payments.md` for the remaining
+provider-specific work, publication scope and reconciliation behaviour.

@@ -3,6 +3,14 @@ import { initializeApp } from "firebase-admin/app";
 
 initializeApp();
 
+export {
+  getOnlinePaymentOptions,
+  preparePaymentCheckout,
+  listPaymentCheckouts,
+  onlinePaymentWebhook,
+} from "./payments/online-callables.js";
+export { prepareManualPaymentInvoiceEmail } from "./payments/invoice-outbox.js";
+
 export { sweepSessionQuorumsSchedule } from "./schedule/quorum-sweep-schedule.js";
 export { keepHotFunctionsWarm } from "./ops/keep-hot-functions-warm.js";
 

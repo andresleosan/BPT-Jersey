@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { CheckoutMethod } from "@bpt-jersey/domain/payments";
+import {
+  PaymentMethodPicker,
+  PendingOnlinePayment,
+} from "../../../components/payments/payment-method-picker";
 
 import type { PaygBookingPayment, SessionRecord } from "@bpt-jersey/domain/schedule";
 
@@ -35,7 +40,7 @@ export function PaygPaymentDialog({
   onChoose,
 }: PaygPaymentDialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
-  const [method, setMethod] = useState<"bank_transfer" | "at_venue">("bank_transfer");
+  const [method, setMethod] = useState<CheckoutMethod | "at_venue">("bank_transfer");
   const [reference, setReference] = useState(`BPT-${session.startAt.slice(0, 10)}`);
   const [file, setFile] = useState<File>();
   const [busy, setBusy] = useState(false);
@@ -57,6 +62,7 @@ export function PaygPaymentDialog({
       onChoose({ method: "at_venue" });
       return;
     }
+    if (method !== "bank_transfer") return;
     if (!file || !transferReady) return;
     setBusy(true);
     setFailed(false);
@@ -71,37 +77,17 @@ export function PaygPaymentDialog({
   }
 
   return (
-    <dialog
-      aria-labelledby="payg-dialog-title"
-      className="payg-dialog"
-      onClose={onClose}
-      ref={ref}
-    >
+    <dialog aria-labelledby="payg-dialog-title" className="payg-dialog" onClose={onClose} ref={ref}>
       <h2 id="payg-dialog-title">Pay for this class</h2>
       <p className="payg-dialog-price">
         {formatPrice(priceMinor)} · {session.title}
       </p>
-      <fieldset className="payg-dialog-methods" disabled={busy}>
-        <legend>How would you like to pay?</legend>
-        <label>
-          <input
-            checked={method === "bank_transfer"}
-            name="payg-method"
-            onChange={() => setMethod("bank_transfer")}
-            type="radio"
-          />
-          Pay online now (bank transfer)
-        </label>
-        <label>
-          <input
-            checked={method === "at_venue"}
-            name="payg-method"
-            onChange={() => setMethod("at_venue")}
-            type="radio"
-          />
-          Pay at the academy
-        </label>
-      </fieldset>
+      <PaymentMethodPicker
+        value={method}
+        onChange={setMethod}
+        onChooseAtVenue={() => setMethod("at_venue")}
+        disabled={busy}
+      />
       {method === "bank_transfer" ? (
         <div className="payg-dialog-transfer">
           <EnrolmentBankDetails {...bankDetails} />
@@ -123,8 +109,10 @@ export function PaygPaymentDialog({
             type="file"
           />
         </div>
-      ) : (
+      ) : method === "at_venue" ? (
         <p className="payg-dialog-note">Pay at reception before the class starts.</p>
+      ) : (
+        <PendingOnlinePayment method={method} />
       )}
       {failed ? <p role="alert">The payment screenshot could not be uploaded.</p> : null}
       <div className="payg-dialog-actions">
@@ -133,7 +121,11 @@ export function PaygPaymentDialog({
         </button>
         <button
           className="button button-primary"
-          disabled={busy || (method === "bank_transfer" && !transferReady)}
+          disabled={
+            busy ||
+            (method !== "bank_transfer" && method !== "at_venue") ||
+            (method === "bank_transfer" && !transferReady)
+          }
           onClick={() => void choose()}
           type="button"
         >

@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import type { OnlinePaymentMethod } from "@bpt-jersey/domain/payments";
+import {
+  PaymentMethodPicker,
+  PendingOnlinePayment,
+} from "../../components/payments/payment-method-picker";
 
 import {
   formatShopPrice,
@@ -52,6 +57,7 @@ export function ShopCheckout({
   const [note, setNote] = useState("");
   const [pickup, setPickup] = useState<ShopPickupLocationId>();
   const [method, setMethod] = useState<ShopPaymentMethod>();
+  const [onlineMethod, setOnlineMethod] = useState<OnlinePaymentMethod | null>(null);
   const [file, setFile] = useState<File>();
   const [preview, setPreview] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -291,22 +297,27 @@ export function ShopCheckout({
                 collect.
               </p>
             ) : null}
-            <label className="shop-choice">
-              <input
-                checked={method === "bank_transfer"}
-                name="shop-payment"
-                onChange={() => setMethod("bank_transfer")}
-                type="radio"
-                value="bank_transfer"
-              />
-              <span>Bank transfer now</span>
-            </label>
+            <PaymentMethodPicker
+              value={onlineMethod ?? (method === "bank_transfer" ? method : undefined)}
+              disabled={busy}
+              onChange={(value) => {
+                if (value === "bank_transfer") {
+                  setMethod(value);
+                  setOnlineMethod(null);
+                } else {
+                  setOnlineMethod(value);
+                  setMethod(undefined);
+                }
+              }}
+            />
+            {onlineMethod ? <PendingOnlinePayment method={onlineMethod} /> : null}
             <label className="shop-choice">
               <input
                 checked={method === "at_collection"}
                 name="shop-payment"
                 onChange={() => {
                   setMethod("at_collection");
+                  setOnlineMethod(null);
                   setFile(undefined);
                 }}
                 type="radio"

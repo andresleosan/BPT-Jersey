@@ -1,5 +1,10 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { CheckoutMethod } from "@bpt-jersey/domain/payments";
+import {
+  PaymentMethodPicker,
+  PendingOnlinePayment,
+} from "../../../components/payments/payment-method-picker";
 import type { CourseEnrolment, CoursePage, CourseRefund } from "@bpt-jersey/domain/courses";
 import { courseApi, courseError } from "../../../lib/courses/course-client";
 import {
@@ -20,6 +25,7 @@ export function CoursePaymentPanel({
   onChanged: () => void;
   onClose: () => void;
 }) {
+  const [paymentMethod, setPaymentMethod] = useState<CheckoutMethod>("bank_transfer");
   const [detail, setDetail] = useState<Detail | null>(null);
   const [bank, setBank] =
     useState<Awaited<ReturnType<typeof courseApi.bank>>["instructions"]>(null);
@@ -57,6 +63,7 @@ export function CoursePaymentPanel({
     void refresh();
   }, [refresh]);
   async function submit() {
+    if (paymentMethod !== "bank_transfer") return;
     if (!detail || !file || !reference.trim()) return;
     if (!["image/png", "image/jpeg"].includes(file.type) || file.size > 2097152) {
       setError("Choose a PNG or JPEG image no larger than 2 MiB.");
@@ -193,7 +200,17 @@ export function CoursePaymentPanel({
             : `${Math.ceil((Date.parse(e.expiresAt) - now) / 60000)} minutes remaining`}
         </p>
       )}
-      {bank && (
+      {accepts ? (
+        <PaymentMethodPicker
+          value={paymentMethod}
+          onChange={setPaymentMethod}
+          disabled={action.busy}
+        />
+      ) : null}
+      {accepts && paymentMethod !== "bank_transfer" ? (
+        <PendingOnlinePayment method={paymentMethod} />
+      ) : null}
+      {bank && paymentMethod === "bank_transfer" && (
         <section className="course-bank-details">
           <h3>Bank transfer details</h3>
           <p>
@@ -238,7 +255,7 @@ export function CoursePaymentPanel({
           <p>{bank.referenceHint}</p>
         </section>
       )}
-      {accepts && (
+      {accepts && paymentMethod === "bank_transfer" && (
         <form
           className="course-evidence-form"
           onSubmit={(event) => {

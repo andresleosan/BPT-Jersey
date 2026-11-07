@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
+import type { OnlinePaymentMethod } from "@bpt-jersey/domain/payments";
 import {
   parseMembershipRecord,
   type MembershipRecord,
@@ -19,6 +20,7 @@ import {
   type InvoiceRecord,
   type InvoiceStatus,
   type ManualPaymentMethod,
+  type PaymentMethod,
   type ManualPaymentRecord,
   type PaymentInstructionsInput,
   type PaymentAuditEntry,
@@ -87,7 +89,7 @@ export type FinanceAuditDraft = Readonly<{
   correlationId: string;
   amountMinor?: number;
   currency?: "GBP";
-  method?: ManualPaymentMethod;
+  method?: PaymentMethod;
 }>;
 
 export type FinanceAuditWriter = (
@@ -130,6 +132,13 @@ export type RecordManualPaymentInput = Readonly<{
   manualReference: string;
   occurredAt: string;
 }>;
+
+/** Server-only input. Browser callables still accept manual methods exclusively. */
+export type RecordProviderPaymentInput = Omit<RecordManualPaymentInput, "method"> &
+  Readonly<{
+    method: OnlinePaymentMethod;
+    providerReference: string;
+  }>;
 
 /** Office correction of a recorded payment. Omitted fields keep their stored value. */
 export type EditManualPaymentStoreInput = Readonly<{
@@ -198,6 +207,7 @@ export type FinanceStore = Readonly<{
   issueManualInvoice: (input: IssueManualInvoiceInput) => Promise<InvoiceRecord>;
   issuePaygInvoice: (input: IssuePaygInvoiceInput) => Promise<InvoiceRecord>;
   recordManualPayment: (input: RecordManualPaymentInput) => Promise<ManualPaymentRecord>;
+  recordProviderPayment?: (input: RecordProviderPaymentInput) => Promise<ManualPaymentRecord>;
   editManualPayment: (input: EditManualPaymentStoreInput) => Promise<EditManualPaymentResult>;
   voidManualPayment: (input: VoidManualPaymentStoreInput) => Promise<VoidManualPaymentResult>;
   voidManualInvoice: (input: VoidManualInvoiceInput) => Promise<InvoiceRecord>;
@@ -497,12 +507,12 @@ function paymentId(academyId: string, manualReference: string): string {
 }
 
 function paymentPayload(
-  input: RecordManualPaymentInput,
+  input: RecordManualPaymentInput | RecordProviderPaymentInput,
   invoice: InvoiceRecord,
   id: string,
   now: string,
 ): ManualPaymentRecord {
-  if (invoice.schemaVersion === 2)
+  if (invoice.schemaVersion === 2 && !("providerReference" in input))
     throw new FinanceStoreError("precondition", "Manage course payments in Courses & Seminars");
   const record: ManualPaymentRecord = {
     paymentId: id,
@@ -514,9 +524,11 @@ function paymentPayload(
     currency: "GBP",
     method: input.method,
     manualReference: validReference(input.manualReference, "manual reference"),
-    providerReference: null,
+    providerReference: "providerReference" in input ? input.providerReference : null,
     occurredAt: validDateTime(input.occurredAt, "payment occurrence"),
-    schemaVersion: 1,
+    ...(invoice.schemaVersion === 2
+      ? { schemaVersion: 2 as const, payer: invoice.payer }
+      : { schemaVersion: 1 as const, familyId: invoice.familyId }),
     createdAt: now,
     createdBy: pathSegment(input.actorId, "actor"),
     updatedAt: now,
@@ -529,13 +541,14 @@ function paymentPayload(
 
 function samePaymentRequest(
   payment: ManualPaymentRecord,
-  input: RecordManualPaymentInput,
+  input: RecordManualPaymentInput | RecordProviderPaymentInput,
 ): boolean {
   return (
     payment.invoiceId === input.invoiceId &&
     payment.amountMinor === input.amountMinor &&
     payment.method === input.method &&
-    payment.occurredAt === input.occurredAt
+    payment.occurredAt === input.occurredAt &&
+    payment.providerReference === ("providerReference" in input ? input.providerReference : null)
   );
 }
 
@@ -892,8 +905,8 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
     );
   }
 
-  async function recordManualPayment(
-    input: RecordManualPaymentInput,
+  async function recordPayment(
+    input: RecordManualPaymentInput | RecordProviderPaymentInput,
   ): Promise<ManualPaymentRecord> {
     const current = now();
     const id = paymentId(input.academyId, input.manualReference);
@@ -907,7 +920,7 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
         ),
         input.academyId,
       );
-      if (invoice.schemaVersion === 2)
+      if (invoice.schemaVersion === 2 && !("providerReference" in input))
         throw new FinanceStoreError("precondition", "Manage course payments in Courses & Seminars");
       const existingByReference = await paymentByReference(
         transaction,
@@ -968,7 +981,10 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
           actorId: input.actorId,
           action: "payment.recorded",
           targetRef: paymentPath(input.academyId, payment.paymentId),
-          purpose: "manual payment recorded",
+          purpose:
+            "providerReference" in input
+              ? "verified online payment recorded"
+              : "manual payment recorded",
           correlationId: input.manualReference,
           amountMinor: payment.amountMinor,
           currency: "GBP",
@@ -984,7 +1000,10 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
             actorId: input.actorId,
             action: "invoice.status.changed",
             targetRef: invoicePath(input.academyId, invoice.invoiceId),
-            purpose: "invoice paid by manual payment",
+            purpose:
+              "providerReference" in input
+                ? "invoice paid by verified online payment"
+                : "invoice paid by manual payment",
             correlationId: input.manualReference,
             amountMinor: invoice.totalMinor,
             currency: "GBP",
@@ -1062,6 +1081,9 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
         ),
         academy,
       );
+      if (payment.providerReference !== null) {
+        throw new FinanceStoreError("precondition", "Provider payments cannot be edited manually");
+      }
       if (payment.schemaVersion === 2) {
         throw new FinanceStoreError("precondition", "Manage course payments in Courses & Seminars");
       }
@@ -1260,6 +1282,9 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
         documentSnapshot(await transaction.get(paymentRef)),
         academy,
       );
+      if (payment.providerReference !== null) {
+        throw new FinanceStoreError("precondition", "Provider payments require a provider refund");
+      }
       const invoiceRef = dependencies.firestore.doc(invoicePath(academy, payment.invoiceId));
       const invoice = parseScopedStoredInvoice(
         documentSnapshot(await transaction.get(invoiceRef)),
@@ -1542,7 +1567,8 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
   return Object.freeze({
     issueManualInvoice,
     issuePaygInvoice,
-    recordManualPayment,
+    recordManualPayment: (input: RecordManualPaymentInput) => recordPayment(input),
+    recordProviderPayment: (input: RecordProviderPaymentInput) => recordPayment(input),
     editManualPayment,
     voidManualPayment,
     voidManualInvoice,

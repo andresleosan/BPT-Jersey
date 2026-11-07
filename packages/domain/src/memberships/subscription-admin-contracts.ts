@@ -226,7 +226,15 @@ const billingPaymentSchema = z.strictObject({
   paymentId: id,
   invoiceId: id.optional(),
   amountMinor: z.number().int().positive(),
-  method: z.enum(["cash", "bank_transfer", "other"]),
+  method: z.enum([
+    "cash",
+    "bank_transfer",
+    "other",
+    "debit_card",
+    "credit_card",
+    "apple_pay",
+    "google_pay",
+  ]),
   reference: z.string(),
   occurredAt: instant,
   lastEdit: z

@@ -2,6 +2,20 @@
   max-width: 66rem;
 }
 
+.client-invoice-pay {
+  margin-top: 1.25rem;
+}
+.client-billing-retry {
+  font: inherit;
+  color: var(--bpt-purple);
+  background: transparent;
+  border: 0;
+  padding: 0.5rem 0;
+  text-decoration: underline;
+  min-height: 44px;
+  cursor: pointer;
+}
+
 .client-billing-back {
   color: var(--mat-ink);
   display: inline-flex;

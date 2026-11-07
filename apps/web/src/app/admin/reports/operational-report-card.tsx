@@ -226,7 +226,7 @@ export function OperationalReportCard() {
             </section>
 
             <section aria-labelledby="revenue-report-title">
-              <h4 id="revenue-report-title">Manual finance period</h4>
+              <h4 id="revenue-report-title">Finance period</h4>
               <dl>
                 <BreakdownRow label="Issued" value={formatGbp(report.revenue.issuedMinor)} />
                 <BreakdownRow label="Received" value={formatGbp(report.revenue.receivedMinor)} />
@@ -245,6 +245,10 @@ export function OperationalReportCard() {
                     " / " +
                     report.revenue.paymentsByMethod.other
                   }
+                />
+                <BreakdownRow
+                  label="Online payments"
+                  value={report.revenue.paymentsByMethod.online ?? 0}
                 />
               </dl>
             </section>

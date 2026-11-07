@@ -1,4 +1,5 @@
 import { err, ok, type Result } from "../result";
+export * from "./checkout";
 import type { ValidationIssue } from "../errors";
 
 export const paymentCheckoutStatuses = Object.freeze([

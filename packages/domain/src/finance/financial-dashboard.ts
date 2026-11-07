@@ -39,7 +39,16 @@ const paymentRowSchema = z.strictObject({
   source: z.enum(["membership", "payg", "private_lesson", "course", "shop", "adjustment"]),
   occurredAt: instant,
   amountMinor: z.number().int().positive(),
-  method: z.enum(["cash", "bank_transfer", "other", "at_collection"]),
+  method: z.enum([
+    "cash",
+    "bank_transfer",
+    "other",
+    "at_collection",
+    "debit_card",
+    "credit_card",
+    "apple_pay",
+    "google_pay",
+  ]),
   reference: z.string().nullable(),
   studentId: id.nullable(),
   label: z.string(),
@@ -155,6 +164,7 @@ function sourceOf(invoice: InvoiceRecord): FinancialDashboardPaymentRow["source"
 /** Same guards editManualPayment enforces; void also leaves lesson credits and courses alone. */
 function editable(invoice: InvoiceRecord, payment: ManualPaymentRecord): boolean {
   return (
+    payment.providerReference === null &&
     invoice.schemaVersion === 1 &&
     payment.schemaVersion === 1 &&
     invoice.chargeKind !== "payg_session" &&
@@ -224,7 +234,7 @@ export function buildFinancialDashboard(source: FinancialDashboardSource): Finan
       occurredAt: payment.occurredAt,
       amountMinor: payment.amountMinor,
       method: payment.method,
-      reference: payment.manualReference,
+      reference: payment.providerReference ?? payment.manualReference,
       studentId: studentFor(invoice),
       label: invoice.description,
       paymentId: payment.paymentId,

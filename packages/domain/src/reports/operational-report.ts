@@ -1,4 +1,5 @@
 import { err, ok, type Result } from "../result";
+import type { PaymentMethod } from "../finance/finance-contracts";
 
 const dateTimePattern =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:?\d{2})$/u;
@@ -41,7 +42,7 @@ export type OperationalReportPaymentInput = Readonly<{
   paymentId: string;
   invoiceId: string;
   amountMinor: number;
-  method: "cash" | "bank_transfer" | "other";
+  method: PaymentMethod;
   occurredAt: string;
 }>;
 
@@ -90,6 +91,7 @@ export type OperationalReport = Readonly<{
       cash: number;
       bankTransfer: number;
       other: number;
+      online?: number;
     }>;
   }>;
   calculatedAt: string;
@@ -208,6 +210,9 @@ export function buildOperationalReport(input: {
     invoices.filter((invoice) => invoice.status === status).length;
   const paymentMethodCount = (method: OperationalReportPaymentInput["method"]) =>
     periodPayments.filter((payment) => payment.method === method).length;
+  const onlinePaymentCount = periodPayments.filter((payment) =>
+    ["debit_card", "credit_card", "apple_pay", "google_pay"].includes(payment.method),
+  ).length;
 
   return Object.freeze({
     query: input.query,
@@ -261,6 +266,7 @@ export function buildOperationalReport(input: {
         cash: paymentMethodCount("cash"),
         bankTransfer: paymentMethodCount("bank_transfer"),
         other: paymentMethodCount("other"),
+        ...(onlinePaymentCount > 0 ? { online: onlinePaymentCount } : {}),
       }),
     }),
     calculatedAt: input.now ?? new Date().toISOString(),
@@ -402,7 +408,12 @@ export function isOperationalReport(value: unknown): value is OperationalReport 
 
   if (
     !isPlainRecord(revenue.paymentsByMethod) ||
-    !exactFields(revenue.paymentsByMethod, ["cash", "bankTransfer", "other"]) ||
+    !exactFields(
+      revenue.paymentsByMethod,
+      Object.hasOwn(revenue.paymentsByMethod, "online")
+        ? ["cash", "bankTransfer", "other", "online"]
+        : ["cash", "bankTransfer", "other"],
+    ) ||
     !Object.values(revenue.paymentsByMethod).every(isNonNegativeInteger)
   ) {
     return false;
@@ -417,6 +428,7 @@ export function isOperationalReport(value: unknown): value is OperationalReport 
     revenue.paymentCount ===
       (revenue.paymentsByMethod.cash as number) +
         (revenue.paymentsByMethod.bankTransfer as number) +
-        (revenue.paymentsByMethod.other as number)
+        (revenue.paymentsByMethod.other as number) +
+        ((revenue.paymentsByMethod.online as number | undefined) ?? 0)
   );
 }

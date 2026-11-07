@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
+import { paymentMethodLabels } from "@bpt-jersey/domain/payments";
 import {
   addSubscriptionMonth,
   type EditableSubscription,
@@ -26,7 +27,7 @@ function localDateTime(value: string | null): string {
 }
 const money = (minor: number) =>
   new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(minor / 100);
-const methodNames = { cash: "Cash", bank_transfer: "Bank transfer", other: "Other" };
+const methodNames = paymentMethodLabels;
 const invoiceStates = {
   open: "Unpaid",
   partially_paid: "Partly paid",
@@ -126,7 +127,9 @@ export function SubscriptionBillingHistory({
                           Reference: {payment.reference}
                         </span>
                       </p>
-                      {onEditPayment && invoice.status !== "void" ? (
+                      {onEditPayment &&
+                      invoice.status !== "void" &&
+                      ["cash", "bank_transfer", "other"].includes(payment.method) ? (
                         <button
                           aria-label={`Edit payment ${payment.reference}`}
                           className="member-record-link"
@@ -512,9 +515,9 @@ function SubscriptionForm({
                   value={method}
                   onChange={(event) => setMethod(event.target.value as typeof method)}
                 >
-                  {Object.entries(methodNames).map(([value, label]) => (
+                  {(["cash", "bank_transfer", "other"] as const).map((value) => (
                     <option key={value} value={value}>
-                      {label}
+                      {methodNames[value]}
                     </option>
                   ))}
                 </select>

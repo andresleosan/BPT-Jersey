@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { onlinePaymentMethods, type OnlinePaymentMethod } from "../payments/checkout";
 
 import type { ValidationIssue } from "../errors";
 import { err, ok, type Result } from "../result";
@@ -16,6 +17,8 @@ export type ChargeKind = (typeof chargeKinds)[number];
 
 export const manualPaymentMethods = Object.freeze(["cash", "bank_transfer", "other"] as const);
 export type ManualPaymentMethod = (typeof manualPaymentMethods)[number];
+export const paymentMethods = [...manualPaymentMethods, ...onlinePaymentMethods] as const;
+export type PaymentMethod = ManualPaymentMethod | OnlinePaymentMethod;
 
 export type LegacyInvoiceRecord = Readonly<{
   invoiceId: string;
@@ -46,9 +49,9 @@ export type LegacyManualPaymentRecord = Readonly<{
   status: "recorded";
   amountMinor: number;
   currency: "GBP";
-  method: ManualPaymentMethod;
+  method: PaymentMethod;
   manualReference: string;
-  providerReference: null;
+  providerReference: string | null;
   occurredAt: string;
   schemaVersion: 1;
   createdAt: string;
@@ -75,7 +78,10 @@ export const editManualPaymentInputSchema = z
     paymentId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u),
     amountMinor: z.number().int().positive().max(100_000_000).optional(),
     method: z.enum(["cash", "bank_transfer", "other"]).optional(),
-    manualReference: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u).optional(),
+    manualReference: z
+      .string()
+      .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u)
+      .optional(),
     occurredAt: z.iso.datetime({ offset: true }).optional(),
     reason: editPaymentReasonSchema,
     requestId: z.uuid(),
@@ -98,12 +104,25 @@ export const voidManualPaymentInputSchema = z.strictObject({
 });
 export type VoidManualPaymentInput = z.infer<typeof voidManualPaymentInputSchema>;
 
-export type CoursePayer = {kind: "user"; userId: string} | {kind: "family"; familyId: string};
-export type CourseInvoiceRecord = Omit<LegacyInvoiceRecord, "schemaVersion" | "familyId" | "membershipId" | "chargeKind" | "sourceRef"> & {
-  schemaVersion: 2; familyId: string | null; membershipId: null; chargeKind: "course"; sourceRef: string; payer: CoursePayer;
+export type CoursePayer = { kind: "user"; userId: string } | { kind: "family"; familyId: string };
+export type CourseInvoiceRecord = Omit<
+  LegacyInvoiceRecord,
+  "schemaVersion" | "familyId" | "membershipId" | "chargeKind" | "sourceRef"
+> & {
+  schemaVersion: 2;
+  familyId: string | null;
+  membershipId: null;
+  chargeKind: "course";
+  sourceRef: string;
+  payer: CoursePayer;
 };
-export type CourseManualPaymentRecord = Omit<LegacyManualPaymentRecord, "schemaVersion" | "familyId"> & {
-  schemaVersion: 2; familyId: string | null; payer: CoursePayer;
+export type CourseManualPaymentRecord = Omit<
+  LegacyManualPaymentRecord,
+  "schemaVersion" | "familyId"
+> & {
+  schemaVersion: 2;
+  familyId: string | null;
+  payer: CoursePayer;
 };
 export type InvoiceRecord = LegacyInvoiceRecord | CourseInvoiceRecord;
 export type ManualPaymentRecord = LegacyManualPaymentRecord | CourseManualPaymentRecord;
@@ -288,11 +307,16 @@ function parsePaymentValues(
   if (data.status !== "recorded") issues.push(issue(["status"], "invalid_status"));
   if (!validAmount(data.amountMinor)) issues.push(issue(["amountMinor"], "invalid_amount"));
   if (data.currency !== "GBP") issues.push(issue(["currency"], "invalid_currency"));
-  if (!validEnum(data.method, manualPaymentMethods)) issues.push(issue(["method"], "invalid_enum"));
+  if (!validEnum(data.method, paymentMethods)) issues.push(issue(["method"], "invalid_enum"));
   if (!validString(data.manualReference, 128, manualReferencePattern)) {
     issues.push(issue(["manualReference"], "invalid_reference"));
   }
-  if (data.providerReference !== null) issues.push(issue(["providerReference"], "must_be_null"));
+  if (
+    onlinePaymentMethods.includes(data.method as OnlinePaymentMethod)
+      ? !validString(data.providerReference, 512, referencePattern)
+      : data.providerReference !== null
+  )
+    issues.push(issue(["providerReference"], "invalid_provider_reference"));
   if (!validDateTime(data.occurredAt)) issues.push(issue(["occurredAt"], "invalid_datetime"));
   if (data.schemaVersion !== 1) issues.push(issue(["schemaVersion"], "invalid_schema_version"));
   if (!validDateTime(data.createdAt)) issues.push(issue(["createdAt"], "invalid_datetime"));
@@ -323,31 +347,81 @@ function validAuditHistory(value: unknown): value is readonly PaymentAuditEntry[
 
 function coursePayerValid(value: unknown, familyId: unknown): value is CoursePayer {
   if (!isPlainRecord(value)) return false;
-  if (value.kind === "user") return Object.keys(value).length === 2 && validString(value.userId, 128, identifierPattern) && familyId === null;
-  return value.kind === "family" && Object.keys(value).length === 2 && validString(value.familyId, 128, identifierPattern) && value.familyId === familyId;
+  if (value.kind === "user")
+    return (
+      Object.keys(value).length === 2 &&
+      validString(value.userId, 128, identifierPattern) &&
+      familyId === null
+    );
+  return (
+    value.kind === "family" &&
+    Object.keys(value).length === 2 &&
+    validString(value.familyId, 128, identifierPattern) &&
+    value.familyId === familyId
+  );
 }
-function parseCourseInvoice(value: Record<string, unknown>): Result<CourseInvoiceRecord, readonly ValidationIssue[]> {
+function parseCourseInvoice(
+  value: Record<string, unknown>,
+): Result<CourseInvoiceRecord, readonly ValidationIssue[]> {
   const fields = readExactFields(value, [...invoiceFields, "payer"]);
   if (!fields.ok) return fields;
-  if (!coursePayerValid(value.payer, value.familyId) || value.membershipId !== null || value.chargeKind !== "course" || !validString(value.sourceRef, 512, referencePattern) || !Number.isSafeInteger(value.totalMinor) || Number(value.totalMinor) <= 0) return err([issue([], "invalid_course_invoice")]);
-  const {payer, ...common} = value;
+  if (
+    !coursePayerValid(value.payer, value.familyId) ||
+    value.membershipId !== null ||
+    value.chargeKind !== "course" ||
+    !validString(value.sourceRef, 512, referencePattern) ||
+    !Number.isSafeInteger(value.totalMinor) ||
+    Number(value.totalMinor) <= 0
+  )
+    return err([issue([], "invalid_course_invoice")]);
+  const { payer, ...common } = value;
   // Reuse v1 scalar validation, while checking the v2 payer separately above.
-  const legacy = parseInvoiceValues({...common, schemaVersion: 1, familyId: value.familyId ?? (payer as {userId: string}).userId, chargeKind: "manual_adjustment"});
-  return legacy.ok ? ok(Object.freeze({...value}) as CourseInvoiceRecord) : legacy;
+  const legacy = parseInvoiceValues({
+    ...common,
+    schemaVersion: 1,
+    familyId: value.familyId ?? (payer as { userId: string }).userId,
+    chargeKind: "manual_adjustment",
+  });
+  return legacy.ok ? ok(Object.freeze({ ...value }) as CourseInvoiceRecord) : legacy;
 }
-function parseCoursePayment(value: Record<string, unknown>): Result<CourseManualPaymentRecord, readonly ValidationIssue[]> {
+function parseCoursePayment(
+  value: Record<string, unknown>,
+): Result<CourseManualPaymentRecord, readonly ValidationIssue[]> {
   const fields = readExactFields(value, [...paymentFields, "payer"]);
   if (!fields.ok) return fields;
-  if (!coursePayerValid(value.payer, value.familyId) || !validString(value.manualReference, 160) || !Number.isSafeInteger(value.amountMinor) || Number(value.amountMinor) <= 0 || value.method !== "bank_transfer") return err([issue([], "invalid_course_payment")]);
-  const {payer, ...common} = value;
-  const legacy = parsePaymentValues({...common, schemaVersion: 1, familyId: value.familyId ?? (payer as {userId: string}).userId, manualReference: "validated-course-reference"});
-  return legacy.ok ? ok(Object.freeze({...value}) as CourseManualPaymentRecord) : legacy;
+  if (
+    !coursePayerValid(value.payer, value.familyId) ||
+    !validString(value.manualReference, 160) ||
+    !Number.isSafeInteger(value.amountMinor) ||
+    Number(value.amountMinor) <= 0 ||
+    (value.method !== "bank_transfer" &&
+      !onlinePaymentMethods.includes(value.method as OnlinePaymentMethod))
+  )
+    return err([issue([], "invalid_course_payment")]);
+  const { payer, ...common } = value;
+  const legacy = parsePaymentValues({
+    ...common,
+    schemaVersion: 1,
+    familyId: value.familyId ?? (payer as { userId: string }).userId,
+    manualReference: "validated-course-reference",
+  });
+  return legacy.ok ? ok(Object.freeze({ ...value }) as CourseManualPaymentRecord) : legacy;
 }
 export function sameInvoicePayer(invoice: InvoiceRecord, payment: ManualPaymentRecord): boolean {
   if (invoice.schemaVersion !== payment.schemaVersion) return false;
-  if (invoice.schemaVersion === 1 && payment.schemaVersion === 1) return invoice.familyId === payment.familyId;
-  if (invoice.schemaVersion !== 2 || payment.schemaVersion !== 2 || invoice.payer.kind !== payment.payer.kind) return false;
-  return invoice.payer.kind === "user" && payment.payer.kind === "user" ? invoice.payer.userId === payment.payer.userId : invoice.payer.kind === "family" && payment.payer.kind === "family" && invoice.payer.familyId === payment.payer.familyId;
+  if (invoice.schemaVersion === 1 && payment.schemaVersion === 1)
+    return invoice.familyId === payment.familyId;
+  if (
+    invoice.schemaVersion !== 2 ||
+    payment.schemaVersion !== 2 ||
+    invoice.payer.kind !== payment.payer.kind
+  )
+    return false;
+  return invoice.payer.kind === "user" && payment.payer.kind === "user"
+    ? invoice.payer.userId === payment.payer.userId
+    : invoice.payer.kind === "family" &&
+        payment.payer.kind === "family" &&
+        invoice.payer.familyId === payment.payer.familyId;
 }
 
 export function parseInvoiceRecord(
@@ -406,7 +480,7 @@ export type RecentPaymentRow = Readonly<{
   paymentId: string;
   occurredAt: string;
   amountMinor: number;
-  method: ManualPaymentMethod;
+  method: PaymentMethod;
   manualReference: string;
   invoiceReference: string;
   description: string;
@@ -435,7 +509,7 @@ export function isRecentPaymentRow(value: unknown): value is RecentPaymentRow {
     validString(row.paymentId, 128, identifierPattern) &&
     validDateTime(row.occurredAt) &&
     validAmount(row.amountMinor) &&
-    validEnum(row.method, manualPaymentMethods) &&
+    validEnum(row.method, paymentMethods) &&
     validString(row.manualReference, 160) &&
     validString(row.invoiceReference, 128, identifierPattern) &&
     validString(row.description, 200) &&

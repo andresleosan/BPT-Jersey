@@ -259,7 +259,7 @@ export function EditPaymentDialog({
   const [requestId] = useState(() => crypto.randomUUID());
   const initial = {
     amount: (payment.amountMinor / 100).toFixed(2),
-    method: payment.method,
+    method: payment.method as ManualPaymentMethod,
     reference: payment.reference,
     occurredAt: localDateTime(payment.occurredAt),
   };
